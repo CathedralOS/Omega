@@ -1601,10 +1601,11 @@ mod machine_bounds {
         );
     }
 
-    /// Only an unconditional literal ceiling binds: a disjunctive or
-    /// implied ceiling is conditional, a literal on the left of `<=` is a
-    /// lower bound, a wrong-typed or signed literal cannot cap the
-    /// unsigned carrier, a clause naming another value binds nothing,
+    /// Only an unconditional literal ceiling binds: a disjunction with an
+    /// unbounded arm gives none, an implication whose premise the ambient
+    /// rows cannot discharge stays conditional, a literal on the left of
+    /// `<=` is a lower bound, a wrong-typed or signed literal cannot cap
+    /// the unsigned carrier, a clause naming another value binds nothing,
     /// and a clause that merely restates the carrier maximum adds no
     /// premise.
     #[test]
@@ -1619,8 +1620,13 @@ mod machine_bounds {
                 ),
                 Proposition::Truth,
             ]),
+            // `p <= 5` holds only when `q <= 4` does, and no ambient row
+            // shows that — a conditional ceiling binds nothing alone.
             Proposition::Implication {
-                premise: Box::new(Proposition::Truth),
+                premise: Box::new(Proposition::LessOrEqual(
+                    parameter_term(101, rank_type),
+                    integer_literal(rank_type, 4),
+                )),
                 conclusion: Box::new(Proposition::LessOrEqual(
                     parameter_term(100, rank_type),
                     integer_literal(rank_type, 5),
@@ -1690,6 +1696,377 @@ mod machine_bounds {
             used_contract_premises(module.machines.first().expect("one machine")),
             vec![conjunction],
             "the premise is the contract row, not its flattened conjunct"
+        );
+    }
+
+    /// A `Disjunction` row caps a parameter at the loosest arm ceiling:
+    /// whichever arm holds, its bound does, so the maximum across arms is
+    /// unconditional — but only when every arm bounds the value. The row
+    /// binds verbatim as the premise.
+    #[test]
+    fn contract_requires_disjunction_binds_the_loosest_arm_ceiling() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let disjunction = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 3),
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 7),
+            ),
+        ]);
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![disjunction.clone()];
+        let module = module(1, vec![walk]);
+        // max(3, 7) admits eight rank observations: 4 * 8.
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 4 * 8 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(module.machines.first().expect("one machine")),
+            vec![disjunction],
+            "the premise is the contract row, not a resolved arm"
+        );
+    }
+
+    /// An arm derives its ceiling against the ambient rows too: under
+    /// `p <= q` the row `q <= 4` still holds, so that arm caps `p` at 4
+    /// and the disjunction caps it at `max(4, 7)`. The certificate binds
+    /// the disjunction row and the ambient row the first arm consulted.
+    #[test]
+    fn contract_requires_disjunction_arm_uses_ambient_rows() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let relation = Proposition::LessOrEqual(
+            parameter_term(101, rank_type),
+            integer_literal(rank_type, 4),
+        );
+        let disjunction = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                parameter_term(101, rank_type),
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 7),
+            ),
+        ]);
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![relation.clone(), disjunction.clone()];
+        let module = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 4 * 8 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(module.machines.first().expect("one machine")),
+            vec![relation, disjunction],
+            "the bound rests on the disjunction row plus the ambient row \
+             the first arm's chain consulted"
+        );
+    }
+
+    /// A relational leaf every arm states is unconditional: `p <= q` in
+    /// one arm and `p < q` in the other still entail `p <= q`, which the
+    /// ambient `q <= 5` then caps. An arm that leaves the relation out
+    /// shares nothing, so the same contract without it binds no chain.
+    #[test]
+    fn contract_requires_disjunction_shares_common_edges() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let ceiling = Proposition::LessOrEqual(
+            parameter_term(101, rank_type),
+            integer_literal(rank_type, 5),
+        );
+        let disjunction = Proposition::Disjunction(vec![
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(
+                    parameter_term(100, rank_type),
+                    parameter_term(101, rank_type),
+                ),
+                Proposition::LessOrEqual(
+                    parameter_term(100, rank_type),
+                    integer_literal(rank_type, 9),
+                ),
+            ]),
+            Proposition::Conjunction(vec![
+                Proposition::LessThan(
+                    parameter_term(100, rank_type),
+                    parameter_term(101, rank_type),
+                ),
+                Proposition::LessOrEqual(
+                    parameter_term(100, rank_type),
+                    integer_literal(rank_type, 9),
+                ),
+            ]),
+        ]);
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![ceiling.clone(), disjunction.clone()];
+        let built = module(1, vec![walk]);
+        // Each arm caps p at min(9, 5) — the arm-local `p <= q` edge
+        // transfers q's ambient 5 inside the arm — and the disjunction
+        // keeps the maximum across arms: 5.
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
+        assert_eq!(
+            used_contract_premises(built.machines.first().expect("one machine")),
+            vec![ceiling, disjunction]
+        );
+
+        // The shared edge itself is load-bearing when the target's bound
+        // arrives only through a later conditional row: `(p <= q) or
+        // (p < q)` alone caps nothing since q is then unbounded, but the
+        // unconditional `p <= q` it entails transfers the second
+        // disjunction's `q <= 4` at the outer level.
+        let first = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                parameter_term(101, rank_type),
+            ),
+            Proposition::LessThan(
+                parameter_term(100, rank_type),
+                parameter_term(101, rank_type),
+            ),
+        ]);
+        let second = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(
+                parameter_term(101, rank_type),
+                integer_literal(rank_type, 3),
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(101, rank_type),
+                integer_literal(rank_type, 4),
+            ),
+        ]);
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![first.clone(), second.clone()];
+        let rebuilt = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&rebuilt, id(1)),
+            Ok(1 + 4 * 5 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(rebuilt.machines.first().expect("one machine")),
+            vec![first, second],
+            "the bound rests on the row stating the shared edge and the \
+             row bounding its target"
+        );
+    }
+
+    /// An arm that cannot hold under any valuation drops out of the
+    /// maximum instead of sinking the row: `p <= 5` or an impossible
+    /// `p < 0` is simply `p <= 5`. A disjunction with no live arm at all
+    /// contributes nothing.
+    #[test]
+    fn contract_requires_disjunction_skips_unsatisfiable_arms() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let disjunction = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 5),
+            ),
+            Proposition::LessThan(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 0),
+            ),
+        ]);
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![disjunction];
+        let built = module(1, vec![walk]);
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
+
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![Proposition::Disjunction(vec![
+            Proposition::Falsehood,
+            Proposition::LessThan(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 0),
+            ),
+        ])];
+        let rebuilt = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&rebuilt, id(1)),
+            Ok(1 + 4 * 256 + 1),
+            "a vacuous disjunction contributes no ceiling"
+        );
+    }
+
+    /// An implication row whose premise the ambient rows discharge makes
+    /// its conclusion unconditional: `True -> p <= 5`, `q <= 4 -> p <= 5`
+    /// under `q <= 3`, `p <= q -> p <= 5` under a chain that derives
+    /// `p <= q`, and a conjunctive premise needing every child. Each binds
+    /// the implication row plus the rows that discharged its premise.
+    #[test]
+    fn contract_requires_implication_discharged_premise_tightens() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let conclusion = || {
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 5),
+            )
+        };
+        // `True -> p <= 5` is simply `p <= 5`.
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![Proposition::Implication {
+            premise: Box::new(Proposition::Truth),
+            conclusion: Box::new(conclusion()),
+        }];
+        let built = module(1, vec![walk]);
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
+
+        // `q <= 4 -> p <= 5` under `q <= 3`: the settled ceiling on q
+        // already fits the premise's bound.
+        let ambient = Proposition::LessOrEqual(
+            parameter_term(101, rank_type),
+            integer_literal(rank_type, 3),
+        );
+        let implication = Proposition::Implication {
+            premise: Box::new(Proposition::LessOrEqual(
+                parameter_term(101, rank_type),
+                integer_literal(rank_type, 4),
+            )),
+            conclusion: Box::new(conclusion()),
+        };
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![ambient.clone(), implication.clone()];
+        let rebuilt = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&rebuilt, id(1)),
+            Ok(1 + 4 * 6 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(rebuilt.machines.first().expect("one machine")),
+            vec![ambient, implication],
+            "the certificate binds the implication row and the row that \
+             discharged its premise"
+        );
+
+        // `p <= q -> p <= 5` under `p <= r` and `r <= q`: the chain
+        // derives the premise without a verbatim row.
+        let hops = [
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                parameter_term(102, rank_type),
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(102, rank_type),
+                parameter_term(101, rank_type),
+            ),
+        ];
+        let implication = Proposition::Implication {
+            premise: Box::new(Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                parameter_term(101, rank_type),
+            )),
+            conclusion: Box::new(conclusion()),
+        };
+        let mut walk = ranked_countdown_machine(8);
+        for raw in [101, 102] {
+            walk.parameters.push(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(raw),
+                scalar_type: ScalarType::Integer(rank_type),
+            });
+        }
+        walk.contract.requires = vec![hops[0].clone(), hops[1].clone(), implication.clone()];
+        let rebuilt = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&rebuilt, id(1)),
+            Ok(1 + 4 * 6 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(rebuilt.machines.first().expect("one machine")),
+            vec![hops[0].clone(), hops[1].clone(), implication],
+            "the discharging chain's rows join the premise set"
+        );
+
+        // A conjunctive premise needs every child discharged.
+        let implication = Proposition::Implication {
+            premise: Box::new(Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(
+                    parameter_term(101, rank_type),
+                    integer_literal(rank_type, 3),
+                ),
+                Proposition::Truth,
+            ])),
+            conclusion: Box::new(conclusion()),
+        };
+        let ambient = Proposition::LessOrEqual(
+            parameter_term(101, rank_type),
+            integer_literal(rank_type, 3),
+        );
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![ambient, implication];
+        let rebuilt = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&rebuilt, id(1)),
+            Ok(1 + 4 * 6 + 1)
+        );
+    }
+
+    /// A conditional row nested inside a `Conjunction` resolves the same
+    /// way — the whole contract row binds verbatim.
+    #[test]
+    fn contract_requires_conjunction_nests_conditional_rows() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let conjunction = Proposition::Conjunction(vec![
+            Proposition::Disjunction(vec![
+                Proposition::LessOrEqual(
+                    parameter_term(100, rank_type),
+                    integer_literal(rank_type, 3),
+                ),
+                Proposition::LessOrEqual(
+                    parameter_term(100, rank_type),
+                    integer_literal(rank_type, 7),
+                ),
+            ]),
+            Proposition::Implication {
+                premise: Box::new(Proposition::Truth),
+                conclusion: Box::new(Proposition::LessOrEqual(
+                    parameter_term(101, rank_type),
+                    integer_literal(rank_type, 4),
+                )),
+            },
+        ]);
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![conjunction.clone()];
+        let module = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 4 * 8 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(module.machines.first().expect("one machine")),
+            vec![conjunction]
         );
     }
 

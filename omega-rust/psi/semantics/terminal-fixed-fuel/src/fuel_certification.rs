@@ -39,9 +39,12 @@ pub fn derive_fixed_entry_fuel(
         // Control and operation costs are value-independent, so a machine
         // without a contract-tightened component entry rank binds no
         // premise. When `requires` clauses cap the rank arriving at a
-        // `Natural` component's first entry — directly, or through a
-        // relational chain the clauses themselves state — the visit bound
-        // rests on them and the certificate binds the consulted premises.
+        // `Natural` component's first entry — directly, through a
+        // relational chain the clauses themselves state, or through a
+        // conditional row whose disjunctive arms all bound the rank or
+        // whose implication premise the ambient rows discharge — the visit
+        // bound rests on them and the certificate binds the consulted
+        // premises.
         relevant_preconditions: used_contract_premises(machine),
         ceiling_units,
     })
