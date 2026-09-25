@@ -1604,12 +1604,27 @@ syntax and other terminal services are not prerequisites.
   `PreservingDecode`; `wire/wire_preserving_decode_relay_exit` validates a
   known byte and retains the exact ordered unknown tail in a borrowed
   `OpaqueWireRemainder`. Its landing established checked compilation, not
-  native success. At `b725fb771e` (macOS arm64)
-  `versions_wire_and_const_lengths::wire_preserving_decode_relay_exit_canary_runs`
-  fails to compile: `Main::main`'s Unit plan is omitted at `state graph:
-  state signature: parameter custody shape: owned non-linear record contents`
-  (state 1), because `inspect(relayed: Relayed<LocalMessage>)` receives an
-  owned record whose `remainder.bytes_and_ordering` is a borrowed `&[u8]`.
+  native success.
+
+  Remeasured on macOS arm64 at 58bd86a4e5: the parameter-custody wall this row
+  recorded at `b725fb771e` is gone, and the omission has moved EARLIER, to
+  `statement sequence: local data: structural result shape` (state 0,
+  statement 3) -- the `let decoded: DecodeResult<Relayed<LocalMessage>> =
+  preserving_decode(..)` binding, before `inspect` is reached at all. Do not
+  chase the recorded parameter-custody phase.
+
+  `terminal_unit/control/call_results.rs::checked_structural_result_type`
+  refuses that type. Measured for it: `has_plain_owned_contents_with_numeric_
+  constraints`, `is_closed_primitive_array_type`, `is_reference_record` and
+  `has_owned_or_shared_view_fields` are all false, multiplicity is `Affine`,
+  and there are no qualifications, so the gate returns `None`. The classifier
+  that should answer is `has_owned_or_shared_view_fields`
+  (`validation/src/value_custody/storage_contents.rs`): it accepts a `Generic`
+  node only when its type arguments are EMPTY, which admits a
+  lifetime-parameterized record and drops an instantiated
+  `DecodeResult<Relayed<LocalMessage>>` to its `_ => return false`. Widen it
+  there rather than adding a second classifier beside the gate. That file is
+  held by another lane's live claim; coordinate before editing it.
 
   Complete faithful relay through the same selected codec: preserve unknown
   bytes/order while independently handling the validated known value, reject
