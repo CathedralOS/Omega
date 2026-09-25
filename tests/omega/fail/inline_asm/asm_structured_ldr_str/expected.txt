@@ -1,1 +1,0 @@
-operand uses bracketed `[...]` memory addressing

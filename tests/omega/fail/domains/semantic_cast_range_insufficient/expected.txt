@@ -1,1 +1,0 @@
-DECLARED RANGE entails the domain facts

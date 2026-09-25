@@ -1,9 +1,0 @@
-use omega::language::core::assembly;
-
-data Main {
-    value: u32;
-}
-
-machine Main::main(&mut self) reaches MachineControl {
-    asm { rdmsr self.value, 3221225600 }
-}

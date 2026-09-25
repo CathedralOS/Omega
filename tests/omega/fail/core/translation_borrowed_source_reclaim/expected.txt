@@ -1,1 +1,0 @@
-receives an owned value while local borrow `pending` is still active

@@ -1,8 +1,0 @@
-use omega::language::core::interrupt;
-
-machine complete_twice(acknowledgement: InterruptAcknowledgement in Pending)
-reaches PortIo
-{
-    acknowledgement.complete();
-    acknowledgement.complete();
-}

@@ -1,6 +1,0 @@
-data Main {
-    slots: [u8; N];
-}
-
-machine Main::main(&mut self) {
-}

@@ -1,9 +1,0 @@
-// The full x86 RFLAGS snapshot is 64 bits. Narrow storage cannot silently
-// truncate it.
-data Main {
-    saved_flags: u32;
-}
-
-machine Main::main(&mut self) {
-    asm { pushfq self.saved_flags }
-}

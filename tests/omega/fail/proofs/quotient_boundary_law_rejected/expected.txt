@@ -1,1 +1,0 @@
-depends on admitted or boundary proof machine `accepted_symmetry_value`

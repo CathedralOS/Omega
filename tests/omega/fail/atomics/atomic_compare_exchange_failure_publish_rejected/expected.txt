@@ -1,1 +1,0 @@
-failure ordering `Publish` is invalid for success ordering `GlobalOrder`

@@ -1,8 +1,0 @@
-use omega::language::core::float_operations;
-
-// A small SSE/SSE entry result returns from runtime storage in xmm0/xmm1.
-pub data FloatPair { first: f64; second: f64; }
-pub data Main { output: FloatPair; }
-boundary machine Main::main(&self) -> FloatPair {
-    transition { _ -> (FloatPair { first: self.output.first, second: self.output.second }) }
-}

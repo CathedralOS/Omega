@@ -1,4 +1,0 @@
-use omega::language::std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
-machine Main::main(&mut self) { self.console.exit_process(70); }

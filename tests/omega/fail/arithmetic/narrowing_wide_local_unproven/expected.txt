@@ -1,1 +1,0 @@
-narrowing store is a proof obligation

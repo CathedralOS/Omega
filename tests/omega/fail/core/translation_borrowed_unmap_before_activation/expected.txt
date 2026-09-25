@@ -1,1 +1,0 @@
-cannot prove requires contract for call unmap_borrowed from unmap_borrowed_early: pending in BorrowedMapping::Installed

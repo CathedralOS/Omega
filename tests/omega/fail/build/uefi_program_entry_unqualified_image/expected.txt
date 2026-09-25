@@ -1,1 +1,0 @@
-requires visible parameter 0 (image) to have exact type

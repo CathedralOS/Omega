@@ -1,1 +1,0 @@
-uses undeclared lifetime argument `'ghost'

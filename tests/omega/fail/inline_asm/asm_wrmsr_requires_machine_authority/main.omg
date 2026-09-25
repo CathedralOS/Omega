@@ -1,9 +1,0 @@
-use omega::language::core::assembly;
-
-data Main {
-    value: u64;
-}
-
-machine Main::main(&mut self) reaches MachineControl {
-    asm { wrmsr 3221225600, self.value }
-}

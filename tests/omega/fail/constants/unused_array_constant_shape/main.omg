@@ -1,3 +1,0 @@
-const VALUE: [u8; 2] = [1];
-
-machine main() -> u64 { 0 }

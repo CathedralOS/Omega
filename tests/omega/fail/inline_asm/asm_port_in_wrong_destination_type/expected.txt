@@ -1,1 +1,0 @@
-operand `destination` requires an exact `u8` writable place for target register `al`

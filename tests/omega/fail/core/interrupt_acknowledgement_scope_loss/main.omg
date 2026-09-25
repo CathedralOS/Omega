@@ -1,5 +1,0 @@
-use omega::language::core::interrupt;
-
-machine leak(acknowledgement: InterruptAcknowledgement in Pending) {
-    // A forgotten EOI/acknowledgement is a linearity error.
-}

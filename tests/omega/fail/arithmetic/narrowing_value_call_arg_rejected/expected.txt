@@ -1,1 +1,0 @@
-narrowing store in machine `Main::main` state `take_i8` argument `x` may not fit `i8`: the value is not provably in range

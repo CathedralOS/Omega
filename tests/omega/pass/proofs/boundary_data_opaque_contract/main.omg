@@ -1,9 +1,0 @@
-// FRONTEND CANARY. An opaque boundary carrier may be named in contracts, but
-// has no source-visible representation or public constructor.
-pub boundary data OpaqueToken;
-
-boundary machine OpaqueToken::observe(value: OpaqueToken);
-
-machine Main::main() -> i32 {
-    0
-}

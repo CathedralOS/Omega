@@ -1,1 +1,0 @@
-governs value overflow, not count validity

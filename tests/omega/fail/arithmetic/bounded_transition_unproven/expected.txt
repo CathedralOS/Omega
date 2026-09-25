@@ -1,1 +1,0 @@
-machine `Main::main` state `wounded` argument `value` stores a value not provably within its declared range

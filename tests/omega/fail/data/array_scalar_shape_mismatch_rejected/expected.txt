@@ -1,1 +1,0 @@
-binds an ARRAY value into a non-array

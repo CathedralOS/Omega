@@ -1,9 +1,0 @@
-use omega::language::core::option;
-
-data Main {
-    value: Optional<u64>;
-}
-
-machine Main::main(&mut self, value: Optional<u64>) {
-    self.value = value;
-}

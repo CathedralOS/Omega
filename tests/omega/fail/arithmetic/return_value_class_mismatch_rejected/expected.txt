@@ -1,1 +1,0 @@
-machine `Main::produce` state `produce` stores a boolean into a `i32` return value, which holds a numeric value

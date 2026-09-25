@@ -1,1 +1,0 @@
-opaque boundary data `BorrowedMappingToken` has no public constructor

@@ -1,1 +1,0 @@
-machine `Main::main` state `main` local `x` stores a boolean into a `i32` local, which holds a numeric value

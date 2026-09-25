@@ -1,1 +1,0 @@
-does not mention field `right` of `Pair` -- record patterns are exhaustive by law

@@ -1,1 +1,0 @@
-implicit domain weakening in construction of `BumpVec` field `buffer` drops `Resident<SlotPlacement, Slot>`

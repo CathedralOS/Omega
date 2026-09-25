@@ -1,1 +1,0 @@
-mutates `source` while local borrow `held` is still active

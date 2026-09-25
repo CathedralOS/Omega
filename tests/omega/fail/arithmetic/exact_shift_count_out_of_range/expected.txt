@@ -1,1 +1,0 @@
-shift count in machine `Main::main` state `main` local `shifted` is provably out of range

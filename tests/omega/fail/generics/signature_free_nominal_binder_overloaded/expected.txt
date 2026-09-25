@@ -1,2 +1,0 @@
-declaring trait `Handler` overloads requirement `call`; this is a source-compatibility break for signature-free requirement references
-nominal machine parameter `Selected` requirement `Handler::call` does not resolve to one exact trait requirement

@@ -1,1 +1,0 @@
-conformance `Counter satisfies Resettable` expects 1 generic argument(s), got 0

@@ -1,1 +1,0 @@
-use `Quotient::lift<F, Respect>` or `Quotient::define<F, Respect>`

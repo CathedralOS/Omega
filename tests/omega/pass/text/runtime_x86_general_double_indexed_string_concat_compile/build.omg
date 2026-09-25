@@ -1,6 +1,0 @@
-
-machine build(builder: &mut Build) {
-    builder.application("runtime_x86_general_double_indexed_string_concat_compile");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
-    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
-}

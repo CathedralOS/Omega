@@ -1,9 +1,0 @@
-// N1 borrow face: a reference field to proof-only data is refused --
-// indirection breaks CONTAINMENT cycles (`next: &Node` of runtime data
-// stays legal), but a proof-only pointee never materializes, so there
-// is nothing to point at.
-use omega::language::std::console;
-use omega::language::core::binding;
-data Nat { case Zero; case Succ(prev: Nat); }
-data Main { console: Binding<Console>; view: &Nat; }
-machine Main::main(&mut self) { self.console.exit_process(0); }

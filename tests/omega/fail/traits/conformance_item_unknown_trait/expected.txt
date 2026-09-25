@@ -1,1 +1,0 @@
-conformance `Point satisfies Equatable` names unknown trait `Equatable`

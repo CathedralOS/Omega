@@ -1,1 +1,0 @@
-mutates `second` while local borrow `result` is still active

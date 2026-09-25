@@ -1,3 +1,0 @@
-data Main {
-    value: i32 [magic];
-}

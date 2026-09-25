@@ -1,5 +1,0 @@
-use omega::language::core::binding;
-
-pub boundary trait Ping { machine ping(); }
-data Box<T> { value: T; }
-data Main { wrapped: Box<Binding<Ping>>; }

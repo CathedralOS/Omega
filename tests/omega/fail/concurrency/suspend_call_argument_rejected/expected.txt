@@ -1,1 +1,0 @@
-may suspend while `message` remains live

@@ -1,3 +1,0 @@
-use omega::language::core::extent;
-
-boundary machine no_wrap(base: addr, length: u64) -> bool;

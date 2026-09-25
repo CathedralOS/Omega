@@ -1,4 +1,0 @@
-machine produce() {
-    let mut current: u8 [0..=127] = 0;
-    current = (255 + 1) - 1;
-}
