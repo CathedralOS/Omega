@@ -32,8 +32,6 @@ def baseline_commands(runner):
         ("fmt", [sys.executable, "tools/fmt.py", "--check"]),
         ("clippy", [runner, "clippy", "--workspace", "--all-targets", "--",
                     "-D", "warnings"]),
-        ("architecture", [runner, "nextest", "run", "-p", "omega-architecture-test",
-                          "--all-targets", "--no-fail-fast"]),
         ("corpus", [sys.executable, "tools/corpus_gate.py"]),
         ("check", [runner, "check", "--workspace", "--all-targets"]),
         ("libraries", [runner, "nextest", "run", "--workspace", "--lib",

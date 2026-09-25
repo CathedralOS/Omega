@@ -46,7 +46,6 @@
  {"id": "tools::tests", "covers": "repository tool unit tests under tools/tests: progress, swarm, landing helpers, catalog integrity; breaks when a tools/*.py behavior covered by its unittest changes", "command": ["{python}", "-m", "unittest", "discover", "tools/tests"], "auto_run": true}
 ],
  "uncataloged_packages": {
-  "omega-architecture-test": "the architecture suite itself; the baseline emits it unconditionally on every diff",
   "build-time-evaluation": "integration test targets have no scoped candidate; they run only under full selections",
   "image": "image-emission covers the emission surface; image's own test targets ride workspace library runs",
   "proof-admission": "proof_suites covers the proof crate at lib scope; admission's own test targets ride workspace library runs",

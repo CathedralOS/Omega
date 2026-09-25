@@ -234,10 +234,6 @@ Pipeline crates own transformations and private working state, not public
 program structs containing previous stage objects. Optimization history is
 explicit evidence; it must not select a different downstream representation.
 
-`tests/architecture` (`omega-architecture-test`) enforces cross-crate
-dependency direction and semantic shape. A wrong-direction dependency fails
-there, not at `cargo check`.
-
 
 ## Discoverability architecture
 

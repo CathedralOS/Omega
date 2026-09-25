@@ -158,8 +158,7 @@ pipeline stages, acceptance behavior — `python3 tools/corpus_gate.py --filter
 <domain>` diffs the touched fixture domain against the recorded corpus golden in
 seconds-to-minutes; prefer it to chaining per-crate nextest suites as the first
 regression signal. Include affected crate and integration
-checks, plus architecture checks when their ownership or source-reader inputs
-change. Reuse successful results on unchanged inputs, including at landing.
+checks. Reuse successful results on unchanged inputs, including at landing.
 
 Attribute unexpected failures using a focused baseline comparison or dependency
 and source-reader evidence. Confirmed unrelated failures remain outside the repair

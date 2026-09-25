@@ -76,9 +76,7 @@ flow: Psi checks every target-scoped machine body in every compilation, and
 `--target` narrows what Omega realizes, never what Psi checks. The full
 architecture contract — deferred Psi audit policy, crate placement,
 discoverability, compositional lowering — lives in
-[omega-rust/pipeline.md](omega-rust/pipeline.md). `tests/architecture`
-(`omega-architecture-test`) enforces dependency direction and semantic shape;
-a wrong-direction dependency fails there, not at `cargo check`.
+[omega-rust/pipeline.md](omega-rust/pipeline.md).
 
 ## Conventions and workflow
 
