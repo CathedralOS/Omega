@@ -10,7 +10,7 @@ use calling;
 // Extents are internal bridge inputs, not hosted application arguments.
 // This calling contract supplies no bridge, loader admission, receiver, or
 // numeric stack guarantee. ProviderSelected requires independent backing.
-boundary trait MacosPhysicalEntry {
+boundary trait MacosX64PhysicalEntry {
     machine enter(argc: i32, argv: addr, envp: addr, apple: addr) -> i32;
 }
 
@@ -282,4 +282,4 @@ machine MacosX64::extent_value(first: MachineRegister, second: MachineRegister) 
     value
 }
 
-boundary trait MacosX64Application: ProgramStorageEntry + MacosPhysicalEntry + Calling<MacosX64> {}
+boundary trait MacosX64Application: ProgramStorageEntry + MacosX64PhysicalEntry + Calling<MacosX64> {}

@@ -494,6 +494,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "modules/qualified_declarations",
     "arithmetic/anonymous_rational_integer_landing",
     "arithmetic/anonymous_rational_arguments",
+    "arithmetic/anonymous_nested_arithmetic_beside_authored_spelling",
     "slices/signed_index_and_range_lower_bounds",
     "operators/slice_index_bounds_from_operator_contract",
     "slices/bounded_slice_index_max",

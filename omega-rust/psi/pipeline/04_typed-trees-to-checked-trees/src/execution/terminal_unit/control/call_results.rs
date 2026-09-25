@@ -186,7 +186,8 @@ pub(crate) fn checked_structural_result_type(
                 || validation::reference_result_custody::is_reference_record(
                     program,
                     result_type,
-                ))
+                )
+                || validation::has_owned_or_shared_view_fields(program, result_type))
                 || !qualifications.is_empty()))
     {
         return None;

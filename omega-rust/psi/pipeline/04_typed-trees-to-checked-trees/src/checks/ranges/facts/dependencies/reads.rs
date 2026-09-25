@@ -258,15 +258,14 @@ pub(super) fn collect_reads(
                 // expression's root decides which footprint applies — the
                 // same split `collect_member_reads` makes for temporary
                 // receivers.
-                if canonical_place_from_expression_in_state(
+                if let Some(place) = canonical_place_from_expression_in_state(
                     program,
                     state.symbol,
                     statement_index,
                     expression,
-                )
-                .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Symbol(_)))
+                ) && matches!(place.root, facts::PlaceRoot::Symbol(_))
                 {
-                    collect_place_read(
+                    collect_selector_reads(
                         program,
                         machine,
                         state,
@@ -275,7 +274,15 @@ pub(super) fn collect_reads(
                         calls,
                         operators,
                         reads,
-                        depth,
+                        depth + 1,
+                    ) && capture_place_read(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        place,
+                        expression,
+                        reads,
                     )
                 } else {
                     collect_reads(
@@ -1133,7 +1140,7 @@ fn collect_place_read(
     ) {
         return false;
     }
-    let Some(mut place) = canonical_place_from_expression_in_state(
+    let Some(place) = canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,
@@ -1141,6 +1148,31 @@ fn collect_place_read(
     ) else {
         return false;
     };
+    capture_place_read(
+        program,
+        machine,
+        state,
+        statement_index,
+        place,
+        expression,
+        reads,
+    )
+}
+
+/// The tail of a place read once the canonical place is computed:
+/// validation, the frozen-integer copy rewrite, and deduped capture.
+/// `collect_member_reads` and the selector-chain split call this with the
+/// place they already resolved for their root-kind gate, so the read is
+/// canonicalized once instead of twice.
+fn capture_place_read(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    mut place: CanonicalPlace,
+    expression: ExpressionHandle,
+    reads: &mut Vec<CanonicalPlace>,
+) -> bool {
     let Some(root) = validate_place_read(program, machine, state, statement_index, &mut place)
     else {
         return false;
@@ -1206,15 +1238,7 @@ fn collect_member_reads(
         program.expression_table.expression(member.receiver),
         ExpressionNode::Borrow(_)
     );
-    let place_shaped = receiver_is_borrow
-        || canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            expression,
-        )
-        .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Symbol(_)));
-    if place_shaped {
+    if receiver_is_borrow {
         return collect_place_read(
             program,
             machine,
@@ -1225,6 +1249,30 @@ fn collect_member_reads(
             operators,
             reads,
             depth,
+        );
+    }
+    if let Some(place) =
+        canonical_place_from_expression_in_state(program, state.symbol, statement_index, expression)
+        && matches!(place.root, facts::PlaceRoot::Symbol(_))
+    {
+        return collect_selector_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            expression,
+            calls,
+            operators,
+            reads,
+            depth + 1,
+        ) && capture_place_read(
+            program,
+            machine,
+            state,
+            statement_index,
+            place,
+            expression,
+            reads,
         );
     }
     temporary_member_symbol(program, machine, state, member).is_valid()

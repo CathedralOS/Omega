@@ -490,3 +490,51 @@ fn field_after_runtime_and_literal_elements_is_one_field_store() {
         "`ents[0].pos` carries `x`: {literal:#?}"
     );
 }
+
+/// `cli__algorithms__bubble_sort`'s swap: a runtime-selected element store
+/// writes somewhere inside its array, not across its root, so the stored
+/// `self.jp = self.j + 1` survives `self.nums[self.j] = self.b` and bounds the
+/// next store's selector. Forgetting the whole root dropped that fact and the
+/// second store's `jp < 5` obligation had no proof.
+#[test]
+fn a_runtime_element_store_keeps_sibling_field_facts() {
+    let source = r#"
+        data Main { nums: [u64; 5]; j: u64; jp: u64; a: u64; b: u64; }
+        machine Main::main(&mut self) {
+            self.j = 0;
+            transition { _ -> inner() }
+            state inner(&mut self) {
+                transition self.j < 4 { true -> compare() _ -> done() }
+            }
+            state compare(&mut self) {
+                self.jp = self.j + 1;
+                self.a = self.nums[self.j];
+                self.b = self.nums[self.jp];
+                transition self.a > self.b { true -> swap() _ -> advance() }
+            }
+            state swap(&mut self) {
+                self.jp = self.j + 1;
+                self.nums[self.j] = self.b;
+                self.nums[self.jp] = self.a;
+                transition { _ -> advance() }
+            }
+            state advance(&mut self) {
+                transition self.j < 3 { true -> bump() _ -> done() }
+            }
+            state bump(&mut self) {
+                self.j = self.j + 1;
+                transition { _ -> inner() }
+            }
+            state done(&mut self) {}
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("the sibling field's stored bound survives the element store");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the swap verifies");
+}

@@ -69,14 +69,18 @@ only. These items land in order, and each deletes the side doors it replaces.
   81 s on the Windows host); BUILD-EVALUATES-ONCE removes the duplicate passes.
 - **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
   is target-neutral: one union of physical sources, every target's program-entry
-  contract source (`source_assembly::entry_contract_seed` seeds one target's
-  today), package imports (`resolve_for_exact_target`) and dependency generated
-  sources (`append_dependency_generated_sources_to_storage` selects per
-  target). Delete `ImmutableSourceParseCheckpoint::for_exact_target`,
+  contract source, package imports (`resolve_for_exact_target`) and dependency
+  generated sources (`append_dependency_generated_sources_to_storage` selects
+  per target). `source_assembly::entry_contract_seed` now seeds every
+  catalogued profile's contract on both routes; what remains is the rest of
+  the union. Delete `ImmutableSourceParseCheckpoint::for_exact_target`,
   `assemble_targetless` and `ExactTargetSourceAssembly`; one `assemble`. A
   dependency build that generates target-specific content emits target-tagged
-  declarations, never a different file per target. Depends on
-  PSI-TARGET-FAMILIES for the entry contracts' target-scoped bodies.
+  declarations, never a different file per target; dependency builds still
+  run per target, so their generated sources move with BUILD-EVALUATES-ONCE.
+  Cost frontier: `omega --check --timings samples/cli/basics/cli_mvp/main.omg`
+  loads 22 sources and takes 102 s on the Windows host, of which the itemized
+  Psi stages are 15 s; the rest is the per-target dependency package compile.
   Acceptance: `PreparedCheckedSource` assembles once for any target set and
   the `Step: assemble` timing row appears once per compilation.
 
@@ -466,6 +470,20 @@ the complete product bar; focused successes below do not establish that baseline
   `filesystem`. Their shared owner is
   `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`; keep each
   repair attached to its unchanged source-to-native customer.
+
+  Method that works, and one cause closed by it (cab36531c8f). The phase the
+  message carries is the only pointer: grep it verbatim under
+  `execution/terminal_unit/` -- it is a unique `trace.phase(..)` or `arm(..)`
+  -- then replace the `?` exits marked after it with `let .. else` probes that
+  name the machine, since most hits are unrelated machines legitimately
+  declining. `attached data shape` led to `add_data_shape` rejecting a field,
+  and outward to `UInt`/`Int`: the builtin UNBOUNDED integers have no width and
+  so no layout, and a relevant field naming one killed its whole declaration
+  silently. Nine authored files did that. The declaration now refuses instead.
+  Re-measure after each such fix rather than assuming one cause covers the
+  cohort: the dungeon sample advanced to a different phase, `call operation:
+  structural arguments: parameter path`, and `samples/cli/basics/cli_mvp`
+  now checks clean.
 
   Distinct remaining probes, with the cause each now reports (measured
   2026-09-24 through `tools/corpus_gate.py`, so targetless -- a probe whose
@@ -1586,12 +1604,27 @@ syntax and other terminal services are not prerequisites.
   `PreservingDecode`; `wire/wire_preserving_decode_relay_exit` validates a
   known byte and retains the exact ordered unknown tail in a borrowed
   `OpaqueWireRemainder`. Its landing established checked compilation, not
-  native success. At `b725fb771e` (macOS arm64)
-  `versions_wire_and_const_lengths::wire_preserving_decode_relay_exit_canary_runs`
-  fails to compile: `Main::main`'s Unit plan is omitted at `state graph:
-  state signature: parameter custody shape: owned non-linear record contents`
-  (state 1), because `inspect(relayed: Relayed<LocalMessage>)` receives an
-  owned record whose `remainder.bytes_and_ordering` is a borrowed `&[u8]`.
+  native success.
+
+  Remeasured on macOS arm64 at 58bd86a4e5: the parameter-custody wall this row
+  recorded at `b725fb771e` is gone, and the omission has moved EARLIER, to
+  `statement sequence: local data: structural result shape` (state 0,
+  statement 3) -- the `let decoded: DecodeResult<Relayed<LocalMessage>> =
+  preserving_decode(..)` binding, before `inspect` is reached at all. Do not
+  chase the recorded parameter-custody phase.
+
+  `terminal_unit/control/call_results.rs::checked_structural_result_type`
+  refuses that type. Measured for it: `has_plain_owned_contents_with_numeric_
+  constraints`, `is_closed_primitive_array_type`, `is_reference_record` and
+  `has_owned_or_shared_view_fields` are all false, multiplicity is `Affine`,
+  and there are no qualifications, so the gate returns `None`. The classifier
+  that should answer is `has_owned_or_shared_view_fields`
+  (`validation/src/value_custody/storage_contents.rs`): it accepts a `Generic`
+  node only when its type arguments are EMPTY, which admits a
+  lifetime-parameterized record and drops an instantiated
+  `DecodeResult<Relayed<LocalMessage>>` to its `_ => return false`. Widen it
+  there rather than adding a second classifier beside the gate. That file is
+  held by another lane's live claim; coordinate before editing it.
 
   Complete faithful relay through the same selected codec: preserve unknown
   bytes/order while independently handling the validated known value, reject
@@ -3522,12 +3555,24 @@ syntax and other terminal services are not prerequisites.
   routes, generic/dispatched callees and dynamic/unresolved projections.
   In `progress/origins/tests.rs`, close the finite-alternative gaps in
   `control_flow_route_helper_result_stays_unproven` and
-  `dynamic_index_carrier_argument_stays_unproven`. Resolve demanded values
-  through guarded prefix routes in `call_result_place`, not just terminal arms.
-  Carry the complete subject set through `origins.rs::at_call`,
-  `machine_summaries.rs`, and `lineage/transfers.rs` into the existing
-  `ParameterLineage::Exact` representation. Every route must be exact; one
-  unknown route leaves the whole result unproven.
+  `dynamic_index_carrier_argument_stays_unproven`.
+
+  The guarded prefix routes are read (237329e986): `call_result_place` reads a
+  callee body as a shared prefix plus one route per arm, and one unnameable
+  route still leaves the whole result unproven. Arms that AGREE now prove --
+  `control_flow_route_helper_result_proves_when_every_arm_agrees`. Arms that
+  DISAGREE are what remains.
+
+  Carrying that set is NOT reachable from the three files this row lists.
+  `ParameterLineage::Exact` already holds a `Vec<ProgressSubject>` and
+  `lineage::resolve` already conjoins one premise per subject, so the
+  representation and its meaning are in place. The obstacle is the path
+  between: `at_call` obtains its place from
+  `flow::value_origin_at_call_resolving` and the shared backward trace, which
+  take a `resolve` closure returning ONE origin and name one by construction.
+  A set has to travel through that trace before `origins.rs::at_call`,
+  `machine_summaries.rs` and `lineage/transfers.rs` can carry it, and
+  `flow/value_origins.rs` is where that begins.
 
   Preserve `embedded_call_written_on_the_demanded_path_has_no_exact_origin`
   as a negative: `poke_then_read` writes the demanded carrier before reading

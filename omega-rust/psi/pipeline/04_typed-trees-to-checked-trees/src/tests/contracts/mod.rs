@@ -45,6 +45,7 @@ mod state_field_values;
 mod subslice_call_bounds;
 mod total_specification_arithmetic;
 mod transition_exits;
+mod where_field_bounds;
 
 fn parse_typed_trees(source: &str) -> typed_trees::TypedTrees {
     // The source loader supplies these canonical core declarations in real
