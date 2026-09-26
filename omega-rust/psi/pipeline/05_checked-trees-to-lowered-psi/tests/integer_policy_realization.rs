@@ -434,7 +434,7 @@ fn a_saturating_conversion_composes_on_signed_narrowing() {
         r#"
         data Main {}
         machine narrow(value: i16) {
-            let narrowed: i8 in Saturating = (value as i8 in Saturating) as i8;
+            let narrowed: i8 in Saturating = value as i8 in Saturating;
         }
         machine Main::main(value: i16) { narrow(value); }
     "#,

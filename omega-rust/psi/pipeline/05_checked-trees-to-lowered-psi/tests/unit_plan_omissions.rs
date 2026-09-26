@@ -872,18 +872,18 @@ fn an_inline_case_argument_on_an_attached_call_plans() {
         data Main { lexer: Lexer; }
         machine Main::scalars_only(&mut self) {
             let l: u64 [0..=65536] = 3;
-            self.lexer.note(l, l);
+            self.lexer.note(l as u64 in Trapping, l as u64 in Trapping);
         }
         machine Main::rejects_inline(&mut self) {
             let l: u64 [0..=65536] = 3;
-            self.lexer.reject(Code::Exceeded, l, l);
+            self.lexer.reject(Code::Exceeded, l as u64 in Trapping, l as u64 in Trapping);
         }
         machine Main::pings_inline(&mut self) {
             self.lexer.ping(Code::Exceeded);
         }
         machine Main::plain_scalar_siblings(&mut self) {
             let l: u64 = 3;
-            self.lexer.reject(Code::Exceeded, l, l);
+            self.lexer.reject(Code::Exceeded, l as u64 in Trapping, l as u64 in Trapping);
         }
         machine Main::bound_affine(&mut self) {
             let c: AffineCode = AffineCode::Exceeded;
