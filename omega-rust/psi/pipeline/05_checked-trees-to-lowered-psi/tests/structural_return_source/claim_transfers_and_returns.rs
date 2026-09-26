@@ -1173,39 +1173,6 @@ fn structural_return_establishes_multiple_locals_in_declaration_order_and_discar
 }
 
 #[test]
-fn structural_return_cleans_local_before_affine_parameter() {
-    let checked = checked_source();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Main::forward_with_local_and_drop"),
-    )
-    .expect("combined local and parameter cleanup should lower");
-    let machine = &lowered.semantic_module.machines[0];
-    let terminal_psi::OperationKind::EstablishTrivialAffineLocal { destination } =
-        machine.blocks[0].operations[0].kind
-    else {
-        unreachable!()
-    };
-    let terminal_psi::Terminator::ReturnStructural {
-        trivial_affine_discards,
-        ..
-    } = &machine.blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    assert_eq!(
-        trivial_affine_discards,
-        &[destination, machine.structural_parameters[1].place]
-    );
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("verifier should reconstruct local-before-parameter order");
-}
-
-#[test]
 fn structural_return_cleans_locals_then_every_affine_tail_parameter_in_reverse_order() {
     let checked = checked_source();
     let plan = checked

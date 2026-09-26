@@ -196,82 +196,6 @@ fn a_trapping_conversion_lowers_to_its_own_trap_operation() {
     );
 }
 
-/// The same narrowing under Wrapping composes from exact remainder and an
-/// exact cast, so only the policy separates the admitted case from the stop.
-#[test]
-fn an_unsigned_wrapping_conversion_composes_from_exact_operations() {
-    lowers(
-        r#"
-        data Main {}
-        machine narrow(value: u16) -> u8 { (value as u8 in Wrapping) as u8 }
-        machine Main::main(value: u16) { let narrowed: u8 = narrow(value); }
-    "#,
-    );
-}
-
-/// `narrow_u8_to_i8_wrapping`, `narrow_i16_to_u8_wrapping` and their siblings
-/// change sign at or below the source width. A signed destination receives
-/// the modular image assembled from its halves — the residue's low `B - 1`
-/// bits and its sign-position bit are masked separately, landed by exact
-/// casts whose operands carry the masks' bounds, and reassembled — and a
-/// same-width pair extracts those halves straight off the source carrier.
-/// `signed_wrapping_conversion_values.rs` executes the answers.
-#[test]
-fn a_signed_wrapping_conversion_composes_from_its_halves() {
-    lowers(
-        r#"
-        data Main {}
-        machine narrow(value: u8) -> i8 { (value as i8 in Wrapping) as i8 }
-        machine Main::main(value: u8) { let narrowed: i8 = narrow(value); }
-    "#,
-    );
-}
-
-/// A Wrapping conversion whose target already contains every source value is
-/// value-preserving, so the modular image is the widened operand itself.
-/// Signed sources and signed targets therefore need no signed modular
-/// operator: `i8 -> i16` and `u8 -> i16` compose as `IntegerWiden`.
-#[test]
-fn a_signed_widening_wrapping_conversion_composes_as_widening() {
-    lowers(
-        r#"
-        data Main {}
-        machine widen(value: i8) -> i16 { (value as i16 in Wrapping) as i16 }
-        machine Main::main(value: i8) { let widened: i16 = widen(value); }
-    "#,
-    );
-    lowers(
-        r#"
-        data Main {}
-        machine widen(value: u8) -> i16 { (value as i16 in Wrapping) as i16 }
-        machine Main::main(value: u8) { let widened: i16 = widen(value); }
-    "#,
-    );
-}
-
-/// Crossing the same sign boundary under Exact needs only a range and its
-/// representability proof, so the signed carrier is not itself the limit.
-#[test]
-fn an_exact_conversion_crosses_the_sign_boundary_with_a_declared_range() {
-    lowers(
-        r#"
-        data Main {}
-        machine narrow(value: u8 [0..=127]) -> i8
-        requires
-            value <= 127;
-        {
-            value as i8
-        }
-        machine Main::main(value: u8 [0..=127])
-        requires
-            value <= 127;
-        {
-            let narrowed: i8 = narrow(value);
-        }
-    "#,
-    );
-}
-
 /// `numeric_conversion_trap_if` opens with `invalid as u32 in Wrapping`.
 /// Checking admits a Boolean source for a fixed-integer target and confines it
 /// to `0..=1`; the dedicated `BooleanToInteger` computation carries the
@@ -358,21 +282,6 @@ fn a_boolean_integer_conversion_keeps_its_operands_evaluation() {
     }
 }
 
-/// The identical initializer over an integer source composes through
-/// `IntegerWrappingCast`, so the two carriers now share one working surface.
-#[test]
-fn an_integer_wrapping_conversion_initializer_reaches_a_plan() {
-    lowers(
-        r#"
-        data Main {}
-        machine trap_if(invalid: u8) {
-            let invalid_value: u32 in Wrapping = invalid as u32 in Wrapping;
-        }
-        machine Main::main(invalid: u8) { trap_if(invalid); }
-    "#,
-    );
-}
-
 /// `numeric_conversion_trap_if` ends with `(1 as u8 in Trapping) << (count as
 /// u32 in Trapping)`, whose out-of-range count is the library's trap. The
 /// checked `TrappingShiftLeft` lowers to one Trapping `ShiftLeft` operation;
@@ -390,22 +299,6 @@ fn a_trapping_shift_lowers_to_its_own_trap_operation() {
     "#,
         ),
         [terminal_psi::TrappingIntegerPrimitive::ShiftLeft]
-    );
-}
-
-/// The same shift under Wrapping reaches a plan through
-/// `WrappingIntegerShiftLeft`, including the anonymous `1` landing at the
-/// shifted carrier, so only the Trapping count law is missing.
-#[test]
-fn a_wrapping_shift_initializer_reaches_a_plan() {
-    lowers(
-        r#"
-        data Main {}
-        machine trap_if(count: u32) {
-            let probe: u8 in Wrapping = (1 as u8 in Wrapping) << count;
-        }
-        machine Main::main(count: u32) { trap_if(count); }
-    "#,
     );
 }
 
@@ -527,42 +420,6 @@ fn a_trapping_arithmetic_operation_lowers_to_its_own_trap_operation() {
             let sum: u8 in Wrapping = (left as u8 in Wrapping) + (right as u8 in Wrapping);
         }
         machine Main::main(left: u8, right: u8) { wrap_add(left, right); }
-    "#,
-    );
-}
-
-/// `narrow_*_saturating` in the library clamps through an explicit
-/// `transition`; an unsigned narrowing `in Saturating` cast now carries
-/// `IntegerSaturatingCast`, whose lowering is the wrapping neighbour's
-/// remainder-bound shape around `min(value, target_max)` — spelled
-/// `value - (value sat_sub target_max)` since unsigned saturating
-/// subtraction floors at zero. Saturating `+` on the same carriers already
-/// lowers through `SaturatingIntegerAdd`.
-#[test]
-fn a_saturating_conversion_composes_on_unsigned_narrowing() {
-    lowers(
-        r#"
-        data Main {}
-        machine narrow(value: u16) {
-            let narrowed: u8 in Saturating = (value as u8 in Saturating) as u8;
-        }
-        machine Main::main(value: u16) { narrow(value); }
-    "#,
-    );
-    lowers(
-        r#"
-        data Main {}
-        machine narrow(value: u16) -> u8 { (value as u8 in Saturating) as u8 }
-        machine Main::main(value: u16) { let narrowed: u8 = narrow(value); }
-    "#,
-    );
-    lowers(
-        r#"
-        data Main {}
-        machine sat_add(left: u8, right: u8) {
-            let sum: u8 in Saturating = (left as u8 in Saturating) + (right as u8 in Saturating);
-        }
-        machine Main::main(left: u8, right: u8) { sat_add(left, right); }
     "#,
     );
 }

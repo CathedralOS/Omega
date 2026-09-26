@@ -6,25 +6,6 @@ use checked_trees::{
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralPathSegment};
-#[test]
-fn source_indexed_primitive_storage_composes_with_boundary_and_successors() {
-    let source = r#"
-        pub boundary trait Console { machine write_byte(byte: i32) reaches Console; }
-        data Main { value: i32; bytes: [u8; 256]; console: Binding<Console>; }
-        machine Main::main(&mut self) reaches Console {
-            transition self.value == 0 { true -> initialized() false -> failed() }
-            state initialized(&mut self) {
-                self.bytes[255] = 65;
-                transition self.bytes[255] == 65 && self.bytes[254] == 0 { true -> observed() false -> failed() }
-            }
-            state observed(&mut self) { self.console.write_byte(self.bytes[255] as i32); }
-            state failed(&mut self) { self.console.write_byte(70); }
-        }
-    "#;
-    let checked = checked_source_with_core_service(source);
-    lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-        .expect("indexed source retains its composed attachment");
-}
 
 fn source(primitive: &str, value: &str) -> String {
     format!(

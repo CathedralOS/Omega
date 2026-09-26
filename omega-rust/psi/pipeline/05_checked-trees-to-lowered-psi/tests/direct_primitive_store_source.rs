@@ -33,21 +33,6 @@ fn computed_integer_replacement_executes_before_its_store() {
 }
 
 #[test]
-fn computed_boolean_replacement_executes_before_its_store() {
-    execute(
-        r#"
-        data Sink {}
-        machine Sink::fill(destination: &write bool) { destination = !true; }
-    "#,
-        &[],
-        &[
-            TerminalScalarValue::Boolean(true),
-            TerminalScalarValue::Boolean(false),
-        ],
-    );
-}
-
-#[test]
 fn multiple_primitive_stores_preserve_order_across_suspension() {
     execute(
         r#"

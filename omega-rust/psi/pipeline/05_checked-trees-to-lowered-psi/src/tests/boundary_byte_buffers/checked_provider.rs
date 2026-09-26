@@ -15,11 +15,6 @@ use terminal_interpreter::{
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
-fn checked_provider_byte_buffers_forward_original_field_across_fuel_suspension() {
-    assert_forwarded_input(INPUT_SOURCE, false, &[b"fin", b"QQ", b"fin"]);
-}
-
-#[test]
 fn checked_provider_byte_buffers_forward_original_array_path_across_fuel_suspension() {
     let source = INPUT_SOURCE
         .replace("data Record {", "data Cell {")

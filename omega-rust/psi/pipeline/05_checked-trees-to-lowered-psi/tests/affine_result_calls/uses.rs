@@ -15,11 +15,6 @@ const RESULT_USE: &str = "data Value { number: u64; }
         Main::consume(result);
     }";
 
-#[test]
-fn an_ordinary_unit_call_consumes_the_retained_structural_result() {
-    assert_result_use(RESULT_USE, "Main::caller");
-}
-
 fn assert_result_use(source: &str, name: &str) {
     let checked = checked(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name(name))

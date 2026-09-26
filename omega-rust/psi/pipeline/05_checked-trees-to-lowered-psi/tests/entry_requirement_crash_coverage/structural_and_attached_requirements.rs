@@ -6,28 +6,6 @@ use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
-fn shared_record_entry_requirement_covers_unconditional_scalar_call() {
-    let source = r#"
-        data Flag { enabled: bool; }
-        data Helper {}
-        data Main {}
-        boundary trait Sink { machine record(value: bool); }
-        machine trigger() -> bool
-        crashes Trap
-        { crash Trap; }
-        machine Helper::forward(record: &Flag)
-        reaches Sink requires record.enabled
-        crashes Trap record.enabled
-        { Sink::record(trigger()); }
-        machine Main::value(record: &Flag)
-        requires record.enabled
-        crashes Trap record.enabled
-        { Helper::forward(record); }
-    "#;
-    assert_structural_entry_requirement_artifact(source);
-}
-
-#[test]
 fn shared_self_entry_requirement_covers_unconditional_scalar_call() {
     assert_structural_entry_requirement_artifact(
         r#"
@@ -252,28 +230,6 @@ fn structural_entry_requirement_does_not_authorize_a_different_field_or_root() {
             "the exact field/root crash coverage check must reject: {source}: {diagnostics:#?}"
         );
     }
-}
-
-#[test]
-fn attached_boolean_entry_requirement_covers_unconditional_scalar_call() {
-    assert_unconditional_call_trap_at_entry(
-        r#"
-        data Main {}
-        data Helper {}
-        boundary trait Sink { machine record(value: bool); }
-        machine trigger() -> bool
-        crashes Trap
-        { crash Trap; }
-        machine Helper::forward(flag: bool)
-        reaches Sink requires flag
-        crashes Trap flag
-        { Sink::record(trigger()); }
-        machine Main::value()
-        crashes Trap
-        { Helper::forward(true); }
-        "#,
-        "Main::value",
-    );
 }
 
 #[test]

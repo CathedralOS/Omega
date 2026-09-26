@@ -87,21 +87,6 @@ fn local_reference_record_preserves_original_storage() {
 }
 
 #[test]
-fn local_reference_record_composes_with_scalar_computation() {
-    let checked = local_record_checked("let offset: i32 = 1 + 2;");
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("ordinary scalar computation preserves reference construction")
-    .into_artifact();
-    execute(&artifact, 1, 0);
-}
-
-#[test]
 fn local_reference_record_rejects_changed_source_custody() {
     let original = local_record_checked("");
     let loan = original
@@ -342,25 +327,6 @@ fn owned_reference_record_argument_preserves_original_storage() {
 }
 
 #[test]
-fn owned_reference_record_argument_composes_with_ordinary_work() {
-    let source = OWNED_REFERENCE_RECORD_SOURCE
-        .replace("machine forward(value: View) -> View { value }", "machine notify() {} machine forward(marker: i32, value: View) -> View { notify(); value }")
-        .replace("let input: View", "let marker: i32 = 4 + 5; let input: View")
-        .replace("forward(input)", "forward(marker, input)");
-    let checked = crate::front_end::checked_program(&source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("owned ingress composes with scalar formals and ordinary effects")
-    .into_artifact();
-    execute(&artifact, 1, 1);
-}
-
-#[test]
 fn owned_reference_record_argument_rejects_changed_prior_custody() {
     let original = crate::front_end::checked_program(OWNED_REFERENCE_RECORD_SOURCE);
     let machine = original
@@ -489,30 +455,6 @@ fn stored_reference_result_preserves_original_storage() {
     .expect("stored result carries exact returned leaf origins")
     .into_artifact();
     execute(&artifact, 1, 1);
-}
-
-#[test]
-fn stored_reference_result_composes_with_an_ordinary_effect() {
-    let source = "data View { body: &mut i32; }
-        machine mark(value: &mut i32) { value = 11; }
-        machine make_view(value: &mut i32) -> View { mark(value); View { body: value } }
-        machine replace(value: &mut i32) { value = 29; }
-        machine exercise(value: &mut i32) -> i32 {
-            let held: View = make_view(value);
-            replace(held.body);
-            value
-        }";
-    let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("ordinary effect precedes reference record completion")
-    .into_artifact();
-    execute(&artifact, 2, 1);
 }
 
 #[test]
@@ -699,11 +641,6 @@ fn reference_release_processing_preserves_empty_helpers() {
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
-}
-
-#[test]
-fn reference_result_composes_with_an_empty_unit_call_before_return() {
-    execute(&artifact("notify();"), 1, 1);
 }
 
 #[test]

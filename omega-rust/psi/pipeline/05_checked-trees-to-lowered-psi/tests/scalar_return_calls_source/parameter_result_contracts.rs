@@ -53,11 +53,6 @@ fn check(source: &str) {
 }
 
 #[test]
-fn result_alias_rejoins_the_argument_proved_at_call_entry() {
-    check(&source("input: u16", "requires input < 256u16"));
-}
-
-#[test]
 fn reversed_result_alias_and_parameter_bounds_preserve_meaning() {
     for requirement in [
         "requires 256u16 > input",

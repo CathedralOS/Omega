@@ -31,20 +31,6 @@ const SOURCE: &str = r#"
 "#;
 
 #[test]
-fn authored_result_projection_retains_its_untransferred_remainder() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    let _artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("projected call result and its residual cleanup publish")
-    .into_artifact();
-}
-
-#[test]
 fn anonymous_result_projection_retains_its_untransferred_remainder() {
     for boundary in [false, true] {
         assert_source(

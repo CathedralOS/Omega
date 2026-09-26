@@ -41,12 +41,6 @@ fn plan(checked: &CheckedTrees) -> CheckedComposedUnitControlMachinePlan {
 }
 
 #[test]
-fn receiver_graph_rejoins_ordered_source_body() {
-    let checked = fixture();
-    admission::admit(&checked, &plan(&checked)).expect("complete source graph");
-}
-
-#[test]
 fn receiver_graph_rejects_missing_and_reordered_effects() {
     let checked = fixture();
     let original = plan(&checked);

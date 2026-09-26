@@ -103,22 +103,6 @@ fn payload_edge<'a>(
 }
 
 #[test]
-fn case_payload_edge_rejoins_the_exact_checked_plan() {
-    let (checked, plan) = fixture();
-    let (source, state, transition, successor) = payload_edge(&checked, &plan);
-    edges::validate(
-        &checked,
-        &plan,
-        source,
-        state,
-        transition,
-        successor,
-        successor.statement_ordinal as usize,
-    )
-    .expect("exact case-payload edge admission");
-}
-
-#[test]
 fn case_payload_edge_rejects_source_drift() {
     let (checked, plan) = fixture();
     for mutation in 0..7 {

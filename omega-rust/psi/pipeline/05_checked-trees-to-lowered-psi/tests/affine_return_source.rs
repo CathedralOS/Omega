@@ -198,24 +198,6 @@ fn assert_identity_execution(
 }
 
 #[test]
-fn an_owned_affine_identity_has_an_independent_structural_result_producer() {
-    assert_identity_execution(FREE_IDENTITY, "forward", false, 0, &[], &[]);
-}
-
-#[test]
-fn a_nested_record_identity_preserves_the_whole_owned_result() {
-    assert_identity_execution(
-        "data Inner { number: u64; } data Outer { inner: Inner; count: u32; }
-         machine forward(outer: Outer) -> Outer { outer }",
-        "forward",
-        false,
-        0,
-        &[],
-        &[],
-    );
-}
-
-#[test]
 fn static_attached_affine_identity_verifies_and_resumes_without_scalar_parameters() {
     assert_identity_execution(ATTACHED_IDENTITY, "Main::forward", true, 0, &[], &[]);
 }

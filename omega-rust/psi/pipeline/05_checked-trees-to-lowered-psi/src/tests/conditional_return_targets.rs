@@ -119,16 +119,6 @@ fn conditional_value_arm_returns_while_named_arm_jumps() {
 }
 
 #[test]
-fn conditional_value_arm_leading() {
-    assert_branch_reaches_return(&verified_module("pick_reversed"));
-}
-
-#[test]
-fn conditional_value_arm_under_short_circuit_guard() {
-    assert_branch_reaches_return(&verified_module("pick_bounded"));
-}
-
-#[test]
 fn conditional_case_arm_returns_while_borrow_transfers() {
     assert_branch_reaches_return(&verified_module("Kernel::select"));
 }

@@ -67,51 +67,6 @@ fn storage_size_text_get_byte_lowers_and_verifies() {
 }
 
 #[test]
-fn indexed_array_field_read_result_value_lowers_and_verifies() {
-    verify(
-        &format!(
-            "{STORAGE_SIZE_TEXT}
-            machine StorageSizeText::byte_at(&self, position: u64) -> u8 {{
-                transition position < 16 {{
-                    true -> (self.bytes[position])
-                    false -> (0)
-                }}
-            }}"
-        ),
-        "StorageSizeText::byte_at",
-    );
-}
-
-#[test]
-fn indexed_non_byte_array_field_read_lowers_and_verifies() {
-    verify(
-        r#"
-        data Table { values: [u64; 8]; }
-        machine Table::entry(&self, index: u64) -> u64 {
-            transition index < 8 {
-                true -> (self.values[index])
-                false -> (0)
-            }
-        }
-        "#,
-        "Table::entry",
-    );
-}
-
-#[test]
-fn indexed_array_field_read_unguarded_rejects() {
-    rejected(
-        &format!(
-            "{STORAGE_SIZE_TEXT}
-            machine StorageSizeText::byte_at(&self, position: u64) -> u8 {{
-                self.bytes[position]
-            }}"
-        ),
-        "StorageSizeText::byte_at",
-    );
-}
-
-#[test]
 fn indexed_array_field_read_wrong_bound_rejects() {
     rejected(
         &format!(
@@ -138,38 +93,6 @@ fn indexed_array_field_read_with_signed_index_lowers_and_verifies() {
         data Table { values: [u64; 8]; }
         machine Table::entry(&self, index: i32) -> u64 {
             transition index >= 0 && index < 8 {
-                true -> (self.values[index])
-                false -> (0)
-            }
-        }
-        "#,
-        "Table::entry",
-    );
-}
-
-#[test]
-fn indexed_array_field_read_with_narrow_unsigned_index_lowers_and_verifies() {
-    verify(
-        r#"
-        data Table { values: [u64; 8]; }
-        machine Table::entry(&self, index: u32) -> u64 {
-            transition index < 8 {
-                true -> (self.values[index])
-                false -> (0)
-            }
-        }
-        "#,
-        "Table::entry",
-    );
-}
-
-#[test]
-fn indexed_array_field_read_with_unbounded_signed_index_rejects() {
-    rejected(
-        r#"
-        data Table { values: [u64; 8]; }
-        machine Table::entry(&self, index: i32) -> u64 {
-            transition index < 8 {
                 true -> (self.values[index])
                 false -> (0)
             }

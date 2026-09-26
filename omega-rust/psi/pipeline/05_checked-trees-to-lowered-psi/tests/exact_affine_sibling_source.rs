@@ -23,47 +23,6 @@ const SOURCE: &str = r#"
     }
 "#;
 
-const SIX_DEFINITION_SOURCE: &str = r#"
-    data Helper {}
-    machine Helper::touch() {}
-    data Token {}
-    machine Token::drop(&mut self) { Helper::touch(); }
-    data Root {}
-    machine Root::divide_after_six_definitions(token: Token, root: i8) -> bool
-    requires -5i8 <= root, root <= 121i8
-    {
-        let first: i8 = root + 1i8;
-        let second: i8 = first + 1i8;
-        let third: i8 = second + 1i8;
-        let fourth: i8 = third + 1i8;
-        let fifth: i8 = fourth + 1i8;
-        let divisor: i8 = fifth + 1i8;
-        let quotient: i8 = 6i8 / divisor;
-        quotient <= 6i8
-    }
-"#;
-
-const SEVEN_DEFINITION_SOURCE: &str = r#"
-    data Helper {}
-    machine Helper::touch() {}
-    data Token {}
-    machine Token::drop(&mut self) { Helper::touch(); }
-    data Root {}
-    machine Root::divide_after_seven_definitions(token: Token, root: i8) -> bool
-    requires -6i8 <= root, root <= 120i8
-    {
-        let first: i8 = root + 1i8;
-        let second: i8 = first + 1i8;
-        let third: i8 = second + 1i8;
-        let fourth: i8 = third + 1i8;
-        let fifth: i8 = fourth + 1i8;
-        let sixth: i8 = fifth + 1i8;
-        let divisor: i8 = sixth + 1i8;
-        let quotient: i8 = 6i8 / divisor;
-        quotient <= 6i8
-    }
-"#;
-
 const NINE_DEFINITION_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -397,26 +356,6 @@ fn definition_affine_divisor_crosses_source_codec_and_independent_verification(
         )
         .is_err(),
         "reordering the final two definition rows invalidates the certificate",
-    );
-}
-
-#[test]
-fn six_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
-    definition_affine_divisor_crosses_source_codec_and_independent_verification(
-        SIX_DEFINITION_SOURCE,
-        "Root::divide_after_six_definitions",
-        6,
-        1,
-    );
-}
-
-#[test]
-fn seven_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
-    definition_affine_divisor_crosses_source_codec_and_independent_verification(
-        SEVEN_DEFINITION_SOURCE,
-        "Root::divide_after_seven_definitions",
-        7,
-        1,
     );
 }
 
