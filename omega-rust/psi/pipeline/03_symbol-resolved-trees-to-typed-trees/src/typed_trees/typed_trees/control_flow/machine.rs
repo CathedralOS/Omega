@@ -306,11 +306,12 @@ pub fn resolve_satisfied_declaration<'program>(
     // policy. External supply does not turn an ordinary operator into a
     // boundary operator; validation and package admission reject that
     // unsupported association independently while retaining its exact subject.
-    let operator = crate::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-        program,
-        machine,
-        conformance,
-    )?;
+    let operator =
+        crate::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+            program,
+            machine,
+            conformance,
+        )?;
     // Token-bearing top-level requirements share the operator signature
     // matcher, but retain their machine declaration as the satisfaction target.
     if let Some(requirement) = program.machines().iter().find(|requirement| {
