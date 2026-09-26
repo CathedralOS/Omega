@@ -1,7 +1,7 @@
 use super::super::{
     GitSourceRequest, LocalSourceLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
     PackageSourceClosureResolutionError, ResolveDependencySourceError,
-    ResolveGitPackageClosureError, SourceResolverStorage, git_root_request_matches,
+    ResolveGitPackageClosureError, SourceResolver, git_root_request_matches,
     resolve_git_package_closure,
 };
 use super::{GitTransportProfile, run_test_git, temp_root, write_application, write_package};
@@ -25,7 +25,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
         Some("https://github.com/CathedralOS/network-root.git"),
     )
     .expect("validated local Git root request");
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
     let resolved = crate::resolution::source::resolve_git_package_source(
         &request,
@@ -99,7 +99,7 @@ fn repository_root_project_retains_application_role_and_package_entry_rejects() 
         Some("https://github.com/CathedralOS/network-console.git"),
     )
     .expect("validated local Git application request");
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
     crate::resolution::graph::resolve_git_package_closure(
@@ -161,7 +161,7 @@ machine build(builder: &mut Build) {
             crate::declarations::PackageName::parse("matrix").expect("package name"),
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
     let closure = crate::resolution::graph::resolve_selected_git_package_closure(
@@ -244,7 +244,7 @@ machine build(builder: &mut Build) {
             crate::declarations::PackageName::parse("driver_console").expect("project name"),
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
     let closure = crate::resolution::graph::resolve_selected_git_project_closure(
@@ -315,7 +315,7 @@ machine build(builder: &mut Build) {
             crate::declarations::PackageName::parse("left").expect("package name"),
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
     let closure = crate::resolution::graph::resolve_selected_git_package_closure(
@@ -416,7 +416,7 @@ machine build(builder: &mut Build) {
             crate::declarations::PackageName::parse("left").expect("package name"),
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
     let error = crate::resolution::graph::resolve_selected_git_package_closure(

@@ -1,7 +1,6 @@
 use super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
-    SourceLineage, SourceResolverStorage,
-    resolve_external_local_package_closure_from_hardened_base,
+    SourceLineage, SourceResolver, resolve_external_local_package_closure_from_hardened_base,
     resolve_external_local_project_closure,
 };
 use super::{temp_root, write_package};
@@ -87,7 +86,7 @@ fn project_resolution_retains_an_application_root_role() {
     .expect("write application declaration");
     std::fs::write(source.join("main.omg"), "machine root() {}\n")
         .expect("write application source");
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("resolver storage");
 
     let closure = resolve_external_local_project_closure(

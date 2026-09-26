@@ -105,6 +105,7 @@ impl Resolver<'_> {
         };
         let resolved = if project {
             resolve_selected_git_project_source_at_revision_in_lanes(
+                self.storage,
                 request,
                 commit,
                 tree,
@@ -115,6 +116,7 @@ impl Resolver<'_> {
             )
         } else {
             resolve_selected_git_package_source_at_revision_in_lanes(
+                self.storage,
                 request,
                 commit,
                 tree,

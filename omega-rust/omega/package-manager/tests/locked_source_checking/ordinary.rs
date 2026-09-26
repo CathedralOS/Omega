@@ -3,8 +3,8 @@ use super::{
     ExternalSourceContext, HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits,
     LocalSourceLimits, LockedSourceRecoveryOptions, PackageLock, PackageLockRecoveryLimits,
     PackageLockTarget, PackageRootSourceRequest, PackageSourceClosureLimits,
-    RecoverLockedSourcesError, ResolvedPackageSourceClosure, SourceResolverStorage, TARGET,
-    TargetProfile, Tree, assert_fresh_matches, capture_lock, check_locked_sources,
+    RecoverLockedSourcesError, ResolvedPackageSourceClosure, SourceResolver, TARGET, TargetProfile,
+    Tree, assert_fresh_matches, capture_lock, check_locked_sources,
     compile_resolved_package_reviews, fs, package,
 };
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
@@ -19,7 +19,7 @@ use package_manager::review::{
     compare_locked_package_policies,
 };
 
-fn resolve(tree: &Tree, storage: &SourceResolverStorage) -> ResolvedPackageSourceClosure {
+fn resolve(tree: &Tree, storage: &SourceResolver) -> ResolvedPackageSourceClosure {
     resolve_external_local_project_closure(
         tree.path("sources/root"),
         ExternalSourceContext::derive(b"locked-source-checking"),

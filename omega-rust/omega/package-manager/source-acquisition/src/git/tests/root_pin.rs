@@ -1,7 +1,7 @@
 //! Whole-root operation-local pins never refresh a mutable selector.
 use super::{
     GIT_CACHE_METADATA, GitSourceRequest, LocalSourceLimits, PathBuf, SourceResolveError,
-    SourceResolverStorage, create_git_source, git_cache_identity, local_git_request,
+    SourceResolver, create_git_source, git_cache_identity, local_git_request,
     make_tree_owner_writable, resolve_git_source_from_pin_in_lane, run_test_git,
     run_test_git_with_input, temp_root, test_system_git_executor,
 };
@@ -11,7 +11,7 @@ use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 struct Fixture {
     repository: PathBuf,
     storage_base: PathBuf,
-    storage: SourceResolverStorage,
+    storage: SourceResolver,
     request: GitSourceRequest,
 }
 
@@ -25,7 +25,7 @@ impl Fixture {
             .execution_backend
             .executable()
             .to_path_buf();
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             &storage_base,
             PrimaryGitChoices {
                 explicit_git: Some(primary_git.as_ref()),
@@ -46,7 +46,7 @@ impl Fixture {
         pin: Option<&GitAcquisitionPin>,
     ) -> Result<ResolvedGitSource, SourceResolveError> {
         resolve_git_source_from_pin_in_lane(
-            self.storage.git_sources().primary_git().unwrap(),
+            self.storage.primary_git().unwrap(),
             &self.request,
             pin,
             self.storage.git_sources(),
@@ -140,7 +140,7 @@ fn whole_root_pin_rejects_another_request_before_transport() {
     let different_locator = local_git_request(&fixture.repository, "HEAD");
     for request in [&different_revision, &different_locator] {
         let error = resolve_git_source_from_pin_in_lane(
-            fixture.storage.git_sources().primary_git().unwrap(),
+            fixture.storage.primary_git().unwrap(),
             request,
             Some(&pin),
             fixture.storage.git_sources(),
@@ -237,7 +237,7 @@ fn whole_root_pin_still_enforces_current_source_limits() {
         .acquisition_pin();
     fixture.disconnect();
     let error = resolve_git_source_from_pin_in_lane(
-        fixture.storage.git_sources().primary_git().unwrap(),
+        fixture.storage.primary_git().unwrap(),
         &fixture.request,
         Some(&pin),
         fixture.storage.git_sources(),

@@ -6,7 +6,7 @@ use package_manager::review::SemanticBindingReview;
 use package_manager::review::compile_resolved_package_reviews;
 use package_source::PrimaryGitChoices;
 use package_source::{
-    GitSourceRequest, LocalSourceLimits, SourceLineage, SourceResolverStorage, resolve_git_source,
+    GitSourceRequest, LocalSourceLimits, SourceLineage, SourceResolver, resolve_git_source,
     resolve_local_source,
 };
 #[cfg(unix)]
@@ -196,7 +196,7 @@ fn verify_remote_pins(pins: Vec<RemotePin>, target: target::TargetProfile) {
     let fixture = fixture::Fixture::new();
     let cache = fixture.path("cache");
     std::fs::create_dir_all(&cache).expect("cache root should be creatable");
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create remote fixture resolver storage");
     for pin in pins {
         let request = GitSourceRequest::new(ssh_url(&pin), Some(pin.commit.clone()))
@@ -219,7 +219,7 @@ fn verify_remote_pin(
     request: &GitSourceRequest,
     expected_commit: &str,
     expected_root: &Path,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     cache: &Path,
     target: target::TargetProfile,
 ) {
@@ -458,7 +458,7 @@ fn verify_mirrored_pins(pins: &[RemotePin], target: target::TargetProfile, root:
     let fixture = fixture::Fixture::new();
     let cache = fixture.path("cache");
     std::fs::create_dir_all(&cache).expect("cache root should be creatable");
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create remote fixture resolver storage");
     let heads = pins
         .iter()

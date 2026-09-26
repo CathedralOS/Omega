@@ -9,7 +9,7 @@ use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 use crate::storage::RetainedStorageLane;
 
 /// Reuse an operation-local acquisition for its whole repository root with the
-/// selected primary Git (`lane.primary_git()?` trusts the lane's own).
+/// selected primary Git from `resolver.primary_git()?`.
 /// A supplied pin must match the exact request and retained commit/root tree;
 /// missing or invalid cache state fails without fetching. `None` has ordinary
 /// source-resolution behavior. This does not recover a persisted lock pin.

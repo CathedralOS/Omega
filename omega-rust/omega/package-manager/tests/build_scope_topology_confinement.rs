@@ -24,7 +24,7 @@ use package_manager::review::{
     SemanticBindingReview, compile_resolved_package_candidate_for_production,
 };
 use package_source::{
-    LocalSourceLimits, PrimaryGitChoices, SourceLineage, SourceRelativePath, SourceResolverStorage,
+    LocalSourceLimits, PrimaryGitChoices, SourceLineage, SourceRelativePath, SourceResolver,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -100,11 +100,9 @@ fn copy_fixture(workspace: &Path, compose_replacement: Option<&str>) {
 /// Compiles the fixture workspace's root project for production; `Err`
 /// carries the build-time evaluation diagnostic.
 fn compose(workspace: &Path) -> Result<PathBuf, String> {
-    let storage = SourceResolverStorage::for_hardened_base(
-        workspace.join("cache"),
-        PrimaryGitChoices::default(),
-    )
-    .unwrap();
+    let storage =
+        SourceResolver::for_hardened_base(workspace.join("cache"), PrimaryGitChoices::default())
+            .unwrap();
     let closure = resolve_workspace_project_closure(
         &SourceLineage::git("https://example.com/topology-build-fixture.git").unwrap(),
         SourceRelativePath::parse("root").unwrap(),

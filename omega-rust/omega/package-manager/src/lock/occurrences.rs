@@ -213,7 +213,7 @@ mod tests {
         compile_resolved_package_reviews, resolve_package_policy_decisions,
     };
     use package_source::{
-        ExternalSourceContext, LocalSourceLimits, PrimaryGitChoices, SourceResolverStorage,
+        ExternalSourceContext, LocalSourceLimits, PrimaryGitChoices, SourceResolver,
     };
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -247,7 +247,7 @@ mod tests {
         }
 
         fn subject(&self) -> CanonicalSourceClosureSubject {
-            let storage = SourceResolverStorage::for_hardened_base(
+            let storage = SourceResolver::for_hardened_base(
                 self.0.join("cache"),
                 PrimaryGitChoices::default(),
             )
@@ -434,7 +434,7 @@ mod tests {
             eprintln!("SKIP: package build review requires a catalogued execution host");
             return;
         };
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             fixture.0.join("ledger-cache"),
             PrimaryGitChoices::default(),
         )

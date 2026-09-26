@@ -12,8 +12,7 @@ use crate::resolution::source::{
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{
-    GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolveError,
-    SourceResolverStorage,
+    GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolveError, SourceResolver,
 };
 use std::path::{Path, PathBuf};
 
@@ -39,7 +38,7 @@ fn empty_selection_preserves_moving_branch_offline_for_packages_and_projects() {
 
         let policy =
             GitDependencyPins::new(&accepted, &[], GitExactRevisionAcquisition::Offline).unwrap();
-        let mut cache = GitAcquisitionCache::preserving(policy);
+        let mut cache = GitAcquisitionCache::preserving(&storage, policy);
         let retained = resolve(&mut cache, &request, &storage, application).unwrap();
         assert_eq!(retained.key(), original.key());
         assert_eq!(retained.resolution(), original.resolution());
@@ -62,7 +61,7 @@ fn missing_preserved_pin_fails_offline_even_when_branch_is_available() {
     let cold = fixture.storage("cold");
     let policy =
         GitDependencyPins::new(&accepted, &[], GitExactRevisionAcquisition::Offline).unwrap();
-    let mut cache = GitAcquisitionCache::preserving(policy);
+    let mut cache = GitAcquisitionCache::preserving(&cold, policy);
 
     let error = resolve(&mut cache, &request, &cold, false).unwrap_err();
     assert!(
@@ -74,7 +73,7 @@ fn missing_preserved_pin_fails_offline_even_when_branch_is_available() {
 
     // The same source is reachable by normal acquisition: the failure above
     // represents the missing accepted revision in offline storage.
-    let current = resolve(&mut GitAcquisitionCache::default(), &request, &cold, false).unwrap();
+    let current = resolve(&mut GitAcquisitionCache::new(&cold), &request, &cold, false).unwrap();
     assert_eq!(
         current.source().commit(),
         test_git_head(&fixture.repository)
@@ -95,7 +94,7 @@ fn cold_exact_fetch_preserves_accepted_commit_after_branch_moves() {
     let cold = fixture.storage("cold");
     let policy =
         GitDependencyPins::new(&accepted, &[], GitExactRevisionAcquisition::AllowFetch).unwrap();
-    let mut cache = GitAcquisitionCache::preserving(policy);
+    let mut cache = GitAcquisitionCache::preserving(&cold, policy);
 
     let retained = resolve(&mut cache, &request, &cold, false).unwrap();
     assert_eq!(
@@ -110,7 +109,7 @@ fn cold_exact_fetch_preserves_accepted_commit_after_branch_moves() {
     let offline =
         GitDependencyPins::new(&accepted, &[], GitExactRevisionAcquisition::Offline).unwrap();
     let retained_again = resolve(
-        &mut GitAcquisitionCache::preserving(offline),
+        &mut GitAcquisitionCache::preserving(&cold, offline),
         &request,
         &cold,
         false,
@@ -129,7 +128,7 @@ fn selected_package_refreshes_branch_and_retains_one_operation_revision() {
     let selected = [accepted.root().selected().key().clone()];
     let policy =
         GitDependencyPins::new(&accepted, &selected, GitExactRevisionAcquisition::Offline).unwrap();
-    let mut cache = GitAcquisitionCache::preserving(policy);
+    let mut cache = GitAcquisitionCache::preserving(&storage, policy);
 
     let refreshed = resolve(&mut cache, &request, &storage, false).unwrap();
     assert_eq!(refreshed.key(), accepted.root().selected().key());
@@ -186,7 +185,7 @@ fn preserved_pin_rechecks_retained_source_content() {
     let request = fixture.request();
     let accepted = fixture.subject(&request, &storage, false);
     let original = resolve(
-        &mut GitAcquisitionCache::default(),
+        &mut GitAcquisitionCache::new(&storage),
         &request,
         &storage,
         false,
@@ -200,7 +199,7 @@ fn preserved_pin_rechecks_retained_source_content() {
         GitDependencyPins::new(&accepted, &[], GitExactRevisionAcquisition::AllowFetch).unwrap();
 
     let error = resolve(
-        &mut GitAcquisitionCache::preserving(policy),
+        &mut GitAcquisitionCache::preserving(&storage, policy),
         &request,
         &storage,
         false,

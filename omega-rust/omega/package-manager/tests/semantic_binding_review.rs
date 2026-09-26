@@ -36,9 +36,7 @@ use package_manager::review::{
     compile_resolved_package_reviews,
 };
 use package_source::PrimaryGitChoices;
-use package_source::{
-    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceResolverStorage,
-};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceResolver};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -264,7 +262,7 @@ invokes console;
 "#,
     );
 
-    let storage = SourceResolverStorage::for_hardened_base(
+    let storage = SourceResolver::for_hardened_base(
         temporary.0.join("resolved"),
         PrimaryGitChoices::default(),
     )
@@ -318,11 +316,9 @@ pub machine access()
 }
 "#,
     );
-    let storage = SourceResolverStorage::for_hardened_base(
-        temporary.0.join("cache"),
-        PrimaryGitChoices::default(),
-    )
-    .unwrap();
+    let storage =
+        SourceResolver::for_hardened_base(temporary.0.join("cache"), PrimaryGitChoices::default())
+            .unwrap();
     let closure = resolve_external_local_project_closure(
         &root,
         ExternalSourceContext::derive(b"same-target-role-permissions"),
@@ -680,7 +676,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         fs::read_to_string(application.join("main.omg")).expect("read application source");
     source_only_main.push_str("\n// source-only change preserves supplied permissions\n");
     write_file(application.join("main.omg"), &source_only_main);
-    let source_only_storage = SourceResolverStorage::for_hardened_base(
+    let source_only_storage = SourceResolver::for_hardened_base(
         temporary.0.join("source-only-resolved"),
         PrimaryGitChoices::default(),
     )
@@ -1062,7 +1058,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
             .contains("differ from the independently accepted package policy")
     }));
 
-    let windows_storage = SourceResolverStorage::for_hardened_base(
+    let windows_storage = SourceResolver::for_hardened_base(
         temporary.0.join("windows-resolved"),
         PrimaryGitChoices::default(),
     )

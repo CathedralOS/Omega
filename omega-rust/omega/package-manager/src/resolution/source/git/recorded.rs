@@ -15,10 +15,11 @@ use package_source::git::resolution::{
 use package_source::storage::RetainedStorageLane;
 use package_source::{
     GitCommitId, GitTreeId, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
-    LocalSourceLimits, ResolvedGitSource,
+    LocalSourceLimits, ResolvedGitSource, SourceResolver,
 };
 
 pub(crate) fn resolve_selected_git_package_source_at_revision_in_lanes(
+    resolver: &SourceResolver,
     request: &GitPackageSourceRequest,
     commit: &GitCommitId,
     tree: &GitTreeId,
@@ -28,6 +29,7 @@ pub(crate) fn resolve_selected_git_package_source_at_revision_in_lanes(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     resolve_selected_git_declared_source_at_revision_in_lanes(
+        resolver,
         request,
         commit,
         tree,
@@ -40,6 +42,7 @@ pub(crate) fn resolve_selected_git_package_source_at_revision_in_lanes(
 }
 
 pub(crate) fn resolve_selected_git_project_source_at_revision_in_lanes(
+    resolver: &SourceResolver,
     request: &GitPackageSourceRequest,
     commit: &GitCommitId,
     tree: &GitTreeId,
@@ -49,6 +52,7 @@ pub(crate) fn resolve_selected_git_project_source_at_revision_in_lanes(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     resolve_selected_git_declared_source_at_revision_in_lanes(
+        resolver,
         request,
         commit,
         tree,
@@ -61,6 +65,7 @@ pub(crate) fn resolve_selected_git_project_source_at_revision_in_lanes(
 }
 
 fn resolve_selected_git_declared_source_at_revision_in_lanes(
+    resolver: &SourceResolver,
     request: &GitPackageSourceRequest,
     commit: &GitCommitId,
     tree: &GitTreeId,
@@ -74,7 +79,7 @@ fn resolve_selected_git_declared_source_at_revision_in_lanes(
     match request.selection() {
         PackageSelection::Root => {
             let source = resolve_git_source_at_revision_in_lane(
-                git_lane.primary_git()?,
+                resolver.primary_git()?,
                 request.acquisition(),
                 commit,
                 tree,
@@ -87,7 +92,7 @@ fn resolve_selected_git_declared_source_at_revision_in_lanes(
         PackageSelection::Named(package) => {
             let mut planner = ManagerGitWorkspacePlanner::new(package);
             let projected = resolve_git_workspace_member_at_revision_in_lanes(
-                git_lane.primary_git()?,
+                resolver.primary_git()?,
                 request.acquisition(),
                 commit,
                 tree,

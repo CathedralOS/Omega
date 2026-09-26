@@ -99,7 +99,7 @@ impl Fixture {
             PackageSourceClosureLimits, resolve_external_local_project_closure,
         };
         let root = self.path("root");
-        let storage = package_source::SourceResolverStorage::for_current_user(PrimaryGitChoices {
+        let storage = package_source::SourceResolver::for_current_user(PrimaryGitChoices {
             excluded_controlled_roots: std::slice::from_ref(&root),
             ..PrimaryGitChoices::default()
         })

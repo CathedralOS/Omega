@@ -13,7 +13,7 @@ use package_compilation::{PackageCompilationInputError, PackageCompilationInputs
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{
-    ExternalSourceContext, LocalSourceLimits, SourceResolveError, SourceResolverStorage,
+    ExternalSourceContext, LocalSourceLimits, SourceResolveError, SourceResolver,
 };
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -152,7 +152,7 @@ pub fn prepare_local_project(
     options: LocalProjectPreparationOptions,
 ) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
     prepare_local_project_in_storage(entry_path, options, |root| {
-        SourceResolverStorage::for_current_user(PrimaryGitChoices {
+        SourceResolver::for_current_user(PrimaryGitChoices {
             excluded_controlled_roots: std::slice::from_ref(&root.to_path_buf()),
             ..PrimaryGitChoices::default()
         })
@@ -162,7 +162,7 @@ pub fn prepare_local_project(
 fn prepare_local_project_in_storage(
     entry_path: &Path,
     options: LocalProjectPreparationOptions,
-    open_storage: impl FnOnce(&Path) -> Result<SourceResolverStorage, SourceResolveError>,
+    open_storage: impl FnOnce(&Path) -> Result<SourceResolver, SourceResolveError>,
 ) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
     let LocalProjectPreparationOptions { target, offline } = options;
     let project_root = entry_path

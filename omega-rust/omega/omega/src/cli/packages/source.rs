@@ -10,8 +10,7 @@ pub(crate) fn run(arguments: SourceArguments) {
         }
     };
     let storage =
-        match package_source::SourceResolverStorage::for_current_user(PrimaryGitChoices::default())
-        {
+        match package_source::SourceResolver::for_current_user(PrimaryGitChoices::default()) {
             Ok(storage) => storage,
             Err(error) => {
                 eprintln!("cannot open private source resolver storage: {error}");

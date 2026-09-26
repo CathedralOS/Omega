@@ -2,7 +2,7 @@ use super::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitAcquisitionCache,
     GitPackageSourceRequest, GitSourceRequest, LocalSourceLimits, PackageKey, PackageName,
     PackageSelection, PackageSourceClosureLimits, Path, PathBuf, ResolvePackageSourceError,
-    ResolvedGitSource, ResolvedPackageSource, SourceCacheLane, SourceResolverStorage, run_test_git,
+    ResolvedGitSource, ResolvedPackageSource, SourceCacheLane, SourceResolver, run_test_git,
     temp_root, write_application, write_package,
 };
 use package_source::PrimaryGitChoices;
@@ -85,12 +85,9 @@ impl Fixture {
         std::fs::rename(&self.repository, self.root.join("offline-repository")).unwrap();
     }
 
-    pub(super) fn storage(&self, label: &str) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(
-            self.root.join(label),
-            PrimaryGitChoices::default(),
-        )
-        .unwrap()
+    pub(super) fn storage(&self, label: &str) -> SourceResolver {
+        SourceResolver::for_hardened_base(self.root.join(label), PrimaryGitChoices::default())
+            .unwrap()
     }
 
     pub(super) fn request(&self) -> GitPackageSourceRequest {
@@ -125,7 +122,7 @@ impl Fixture {
     pub(super) fn subject(
         &self,
         request: &GitPackageSourceRequest,
-        storage: &SourceResolverStorage,
+        storage: &SourceResolver,
         application: bool,
     ) -> CanonicalSourceClosureSubject {
         let resolver = if application {
@@ -190,7 +187,7 @@ pub(super) fn make_owner_writable(path: &Path) {
 pub(super) fn resolve(
     cache: &mut GitAcquisitionCache<'_>,
     request: &GitPackageSourceRequest,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     application: bool,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let git = SourceCacheLane::Retained(storage.git_sources());

@@ -1,6 +1,6 @@
 use super::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionPlanner,
-    GitWorkspaceSelection, LocalSourceLimits, SourceRelativePath, SourceResolverStorage,
+    GitWorkspaceSelection, LocalSourceLimits, SourceRelativePath, SourceResolver,
     create_git_source, local_git_request, make_tree_owner_writable, resolve_git_workspace_member,
     run_test_git, temp_root, test_system_git_executor,
 };
@@ -76,7 +76,7 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
         .execution_backend
         .executable()
         .to_path_buf();
-    let storage = SourceResolverStorage::for_hardened_base(
+    let storage = SourceResolver::for_hardened_base(
         &storage_base,
         PrimaryGitChoices {
             explicit_git: Some(primary_git.as_ref()),

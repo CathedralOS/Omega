@@ -14,7 +14,7 @@ fn preserved_repository_pin_applies_to_another_named_member() {
     fixture.disconnect();
     let policy =
         GitDependencyPins::new(&accepted, &[], GitExactRevisionAcquisition::Offline).unwrap();
-    let mut cache = GitAcquisitionCache::preserving(policy);
+    let mut cache = GitAcquisitionCache::preserving(&storage, policy);
 
     let left = resolve(&mut cache, &left_request, &storage, false).unwrap();
     let right = resolve(&mut cache, &fixture.named("right"), &storage, false).unwrap();
@@ -53,7 +53,7 @@ fn selecting_path_only_sibling_refreshes_the_entire_git_source_lineage() {
     let policy =
         GitDependencyPins::new(&accepted, &selection, GitExactRevisionAcquisition::Offline)
             .unwrap();
-    let mut cache = GitAcquisitionCache::preserving(policy);
+    let mut cache = GitAcquisitionCache::preserving(&storage, policy);
 
     // The only selected key was reached by Path, but resolving the left Git
     // request must refresh its shared repository before any sibling is read.

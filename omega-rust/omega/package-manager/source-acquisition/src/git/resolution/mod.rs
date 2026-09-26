@@ -5,11 +5,12 @@
 //! tree, a materializer publishes either the whole source or one
 //! [`workspace_member`], and [`issuance`] revalidates custody before returning.
 
+use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::git::executable::selection::{PrimaryGitSelection, resolver_package_controlled_roots};
 use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
-use crate::storage::{RetainedStorageLane, SourceResolverStorage};
+use crate::storage::RetainedStorageLane;
 use std::path::PathBuf;
 
 use super::request::GitSourceRequest;
@@ -43,7 +44,7 @@ pub use workspace_member::{
 mod tests;
 
 /// Resolve one Git source inside a retained lane with the selected primary Git.
-/// Callers that trust the lane's own selection pass `lane.primary_git()?`.
+/// Callers pass the session selection from `resolver.primary_git()?`.
 pub fn resolve_git_source_in_lane(
     primary_git: &PrimaryGitSelection,
     request: &GitSourceRequest,
@@ -90,16 +91,16 @@ fn resolve_git_source_in_lane_with_selected_roots(
 
 pub fn resolve_git_source(
     request: &GitSourceRequest,
-    storage: &SourceResolverStorage,
+    resolver: &SourceResolver,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    storage.verify_path_identity()?;
+    resolver.verify_path_identity()?;
     let result = resolve_git_source_in_lane(
-        storage.git_sources().primary_git()?,
+        resolver.primary_git()?,
         request,
-        storage.git_sources(),
+        resolver.git_sources(),
         limits,
     );
-    storage.verify_path_identity()?;
+    resolver.verify_path_identity()?;
     result
 }

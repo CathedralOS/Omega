@@ -94,11 +94,9 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
         Some("https://github.com/CathedralOS/named-errors.git"),
     )
     .expect("local Git request");
-    let storage = package_source::SourceResolverStorage::for_hardened_base(
-        &cache,
-        PrimaryGitChoices::default(),
-    )
-    .expect("retained storage");
+    let storage =
+        package_source::SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
+            .expect("retained storage");
 
     let missing = resolve_selected_git_package_source(
         &GitPackageSourceRequest::new(
@@ -172,11 +170,9 @@ fn named_git_binding_rejects_symlink_member_navigation() {
         Some("https://github.com/CathedralOS/named-symlink.git"),
     )
     .expect("local Git request");
-    let storage = package_source::SourceResolverStorage::for_hardened_base(
-        &cache,
-        PrimaryGitChoices::default(),
-    )
-    .expect("retained storage");
+    let storage =
+        package_source::SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
+            .expect("retained storage");
 
     let error = resolve_selected_git_package_source(
         &GitPackageSourceRequest::new(

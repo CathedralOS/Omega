@@ -12,14 +12,14 @@ use crate::resolution::source::{
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{
-    GitSourceRequest, ImmutableSourceResolution, LocalSourceLimits, SourceResolverStorage,
+    GitSourceRequest, ImmutableSourceResolution, LocalSourceLimits, SourceResolver,
 };
 
 pub(super) fn recover(
     subject: &CanonicalSourceClosureSubject,
     expected: &ResolvedSourceIdentity,
     candidate: &ResolvedPackageSourceClosure,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     acquisition: GitExactRevisionAcquisition,
 ) -> Result<PackageSourceCustody, &'static str> {
     let current = candidate
@@ -79,6 +79,7 @@ pub(super) fn recover(
                     .verify_path_identity()
                     .map_err(|_| "resolver storage is unavailable")?;
                 let resolved = resolve_selected_git_package_source_at_revision_in_lanes(
+                    storage,
                     &GitPackageSourceRequest::new(request, selection),
                     commit,
                     tree,

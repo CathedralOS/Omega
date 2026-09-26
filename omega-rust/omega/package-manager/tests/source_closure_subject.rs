@@ -8,8 +8,7 @@ use package_manager::resolution::graph::{
 use package_manager::resolution::source::ResolvePackageSourceError;
 use package_source::PrimaryGitChoices;
 use package_source::{
-    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
-    SourceResolverStorage,
+    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolver,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -89,7 +88,7 @@ fn resolve_external_local_package_closure_from_hardened_base(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
         .map_err(|error| {
             ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
@@ -110,7 +109,7 @@ fn resolve_workspace_package_closure_from_hardened_base(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;

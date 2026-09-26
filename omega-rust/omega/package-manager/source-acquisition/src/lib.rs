@@ -16,6 +16,7 @@ mod limits;
 pub mod local;
 mod observations;
 mod snapshot;
+pub mod source_resolver;
 pub mod storage;
 pub mod tree;
 
@@ -41,7 +42,7 @@ pub use local::resolution_observations::{
 };
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 pub use observations::storage::GitRetainedStorageCustody;
-pub use storage::{PrimaryGitChoices, SourceResolverStorage};
+pub use source_resolver::{PrimaryGitChoices, SourceResolver};
 pub use tree::ResolvedSourceTree;
 
 #[cfg(test)]

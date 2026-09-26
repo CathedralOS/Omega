@@ -14,7 +14,7 @@ use package_manager::resolution::graph::{
 use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::compile_resolved_package_reviews;
 use package_source::git::resolution::GitExactRevisionAcquisition;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::fs;
 use std::path::{Path, PathBuf};
 use target::TargetProfile;

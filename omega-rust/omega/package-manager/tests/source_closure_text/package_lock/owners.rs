@@ -1,8 +1,8 @@
 //! Graph membership of owners embedded in genuine compiled policy identities.
 use super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits,
-    ResolvedPackageSourceClosure, SourceResolverStorage, fs,
-    resolve_external_local_project_closure, write_member,
+    ResolvedPackageSourceClosure, SourceResolver, fs, resolve_external_local_project_closure,
+    write_member,
 };
 use super::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock, PackageLockError,
@@ -39,7 +39,7 @@ fn resolve_chain(tree: &TempTree) -> ResolvedPackageSourceClosure {
         fs::write(member.join("main.omg"), source).unwrap();
     }
     let storage =
-        SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
+        SourceResolver::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
             .unwrap();
     resolve_external_local_project_closure(
         sources.join("root"),

@@ -26,7 +26,7 @@ use package_manager::review::{
 };
 use package_manager::{declarations::DependencyPurpose, review::SemanticBindingReview};
 use package_source::{
-    LocalSourceLimits, PrimaryGitChoices, SourceLineage, SourceRelativePath, SourceResolverStorage,
+    LocalSourceLimits, PrimaryGitChoices, SourceLineage, SourceRelativePath, SourceResolver,
 };
 use std::path::Path;
 use support::*;
@@ -136,11 +136,9 @@ fn the_package_composes_and_a_source_free_consumer_verifies() {
     std::fs::create_dir_all(&workspace).unwrap();
     copy_fixture(&workspace);
 
-    let storage = SourceResolverStorage::for_hardened_base(
-        workspace.join("cache"),
-        PrimaryGitChoices::default(),
-    )
-    .unwrap();
+    let storage =
+        SourceResolver::for_hardened_base(workspace.join("cache"), PrimaryGitChoices::default())
+            .unwrap();
     let closure = resolve_workspace_project_closure(
         &SourceLineage::git("https://example.com/topology-build-fixture.git").unwrap(),
         SourceRelativePath::parse("root").unwrap(),

@@ -15,7 +15,7 @@ use super::super::selection::{GitRevisionSelection, RecordedGitRevision};
 use super::resolve_git_workspace_member_with_selected_roots;
 
 /// Select one declared member from the exact recorded repository revision with
-/// the selected primary Git (`git_lane.primary_git()?` trusts the lane's own).
+/// the selected primary Git from `resolver.primary_git()?`.
 /// After authenticated tree-graph inspection, only declaration and selected
 /// member payloads are opened, and only the member is materialized.
 /// The planner, not source acquisition, owns package syntax.

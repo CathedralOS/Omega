@@ -1,5 +1,5 @@
 use super::{
-    CacheCustodyKind, LocalSourceLimits, SourceResolveError, SourceResolverStorage,
+    CacheCustodyKind, LocalSourceLimits, SourceResolveError, SourceResolver,
     external_local_storage_lane, open_absolute_directory_nofollow, open_cache_custody_directory,
     resolve_local_source_snapshot, temp_root, verify_cache_custody_from_open_root,
 };
@@ -122,7 +122,7 @@ fn local_snapshot_cache_rejects_group_or_other_writable_custody() {
     let cache = temp_root("local-custody-cache");
     std::fs::create_dir_all(&source).expect("create source");
     std::fs::write(source.join("main.omg"), b"machine main() { }").expect("write source");
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained local snapshot storage");
     resolve_local_source_snapshot(&source, &storage, LocalSourceLimits::default())
         .expect("prime local snapshot cache");

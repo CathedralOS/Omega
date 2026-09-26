@@ -4,7 +4,7 @@ use super::super::super::{
 
 use super::{
     BTreeMap, GitAcquisitionCache, GitSourceRequest, LocalSourceLimits, SourceCacheLane,
-    SourceResolverStorage, register_git_repository, run_test_git, temp_root, write_package,
+    SourceResolver, register_git_repository, run_test_git, temp_root, write_package,
 };
 use crate::resolution::graph::resolve::dependencies::resolve_registered_package_closure;
 use crate::resolution::source::{GitPackageSourceRequest, ResolvedPackageSource};
@@ -16,7 +16,7 @@ const LOCATOR: &str = "https://github.com/CathedralOS/registration.git";
 struct Fixture {
     repository: PathBuf,
     cache: PathBuf,
-    storage: SourceResolverStorage,
+    storage: SourceResolver,
 }
 
 impl Fixture {
@@ -46,7 +46,7 @@ impl Fixture {
         run_test_git(&repository, ["branch", "accepted"]);
         run_test_git(&repository, ["branch", "alternate"]);
         let storage =
-            SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default()).unwrap();
+            SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default()).unwrap();
         Self {
             repository,
             cache,
@@ -140,7 +140,7 @@ fn distinct_locators_at_one_commit_preserve_first_context_and_path_pin() {
 
 fn same_commit_registration(locator: &str, revision: &str) {
     let fixture = Fixture::new(revision);
-    let mut acquisitions = GitAcquisitionCache::default();
+    let mut acquisitions = GitAcquisitionCache::new(&fixture.storage);
     let first_request = fixture.request(LOCATOR, "accepted", "first");
     let second_request = fixture.request(locator, revision, "second");
     assert_ne!(first_request.acquisition(), second_request.acquisition());
@@ -217,7 +217,7 @@ fn same_commit_registration(locator: &str, revision: &str) {
 #[test]
 fn distinct_commits_reject_in_both_registration_orders() {
     let fixture = Fixture::new("conflicting-commits");
-    let mut acquisitions = GitAcquisitionCache::default();
+    let mut acquisitions = GitAcquisitionCache::new(&fixture.storage);
     let first_request = fixture.request(LOCATOR, "accepted", "first");
     let first = fixture.resolve(&mut acquisitions, &first_request);
     fixture.advance();
@@ -260,7 +260,7 @@ fn distinct_commits_reject_in_both_registration_orders() {
 #[test]
 fn workspace_evidence_and_source_limits_still_require_equality() {
     let fixture = Fixture::new("conflicting-evidence");
-    let mut acquisitions = GitAcquisitionCache::default();
+    let mut acquisitions = GitAcquisitionCache::new(&fixture.storage);
     let request = fixture.request(LOCATOR, "accepted", "first");
     let source = fixture.resolve(&mut acquisitions, &request);
     let mut workspaces = BTreeMap::new();

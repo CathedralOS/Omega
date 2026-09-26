@@ -1,6 +1,6 @@
 use super::super::cache::{GitAcquisitionCache, SourceCacheLane};
 use super::super::dependencies::register_git_repository;
-use super::super::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
+use super::super::{GitSourceRequest, LocalSourceLimits, SourceResolver};
 use super::{run_test_git, temp_root, write_package};
 use package_source::PrimaryGitChoices;
 use std::collections::BTreeMap;
@@ -38,9 +38,9 @@ machine build(builder: &mut Build) {
         Some("https://github.com/CathedralOS/shared-acquisition.git"),
     )
     .expect("validated local Git request");
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
-    let mut acquisitions = GitAcquisitionCache::default();
+    let mut acquisitions = GitAcquisitionCache::new(&storage);
     let selected = |name| {
         crate::resolution::source::GitPackageSourceRequest::new(
             acquisition.clone(),
@@ -121,6 +121,7 @@ machine build(builder: &mut Build) {
     .expect("same workspace evidence reconciles across selected members");
     assert_eq!(workspaces.len(), 1);
 
+    drop(acquisitions);
     drop(storage);
     let _ = std::fs::remove_dir_all(repository);
     let _ = std::fs::remove_dir_all(cache);

@@ -9,10 +9,7 @@ use package_source::PrimaryGitChoices;
 use package_source::git::resolution::resolve_git_source_in_lane;
 #[cfg(test)]
 use package_source::resolve_git_source;
-use package_source::storage::RetainedStorageLane;
-use package_source::{
-    LocalSourceLimits, SourceResolveError, SourceResolverStorage, resolve_local_source,
-};
+use package_source::{LocalSourceLimits, SourceResolveError, SourceResolver, resolve_local_source};
 #[cfg(test)]
 use std::path::Path;
 #[cfg(test)]
@@ -41,7 +38,7 @@ pub(crate) fn inspect_package_source_in_cache(
         }
         PackageSourceRequest::Git(request) => {
             let storage =
-                SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
+                SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
             let resolved = resolve_git_source(&request, &storage, limits)?;
             Ok(PackageSourceInspection {
                 source_kind: "git".to_owned(),
@@ -58,9 +55,9 @@ pub(crate) fn inspect_package_source_in_cache(
     }
 }
 
-fn inspect_package_source_in_lane(
+fn inspect_package_source_with_resolver(
     request: PackageSourceRequest,
-    lane: &RetainedStorageLane,
+    resolver: &SourceResolver,
     limits: LocalSourceLimits,
 ) -> Result<PackageSourceInspection, SourceResolveError> {
     match request {
@@ -79,7 +76,12 @@ fn inspect_package_source_in_lane(
             })
         }
         PackageSourceRequest::Git(request) => {
-            let resolved = resolve_git_source_in_lane(lane.primary_git()?, &request, lane, limits)?;
+            let resolved = resolve_git_source_in_lane(
+                resolver.primary_git()?,
+                &request,
+                resolver.git_sources(),
+                limits,
+            )?;
             Ok(PackageSourceInspection {
                 source_kind: "git".to_owned(),
                 locator: request.locator_identity().to_owned(),
@@ -98,11 +100,11 @@ fn inspect_package_source_in_lane(
 /// Inspect one source using manager-owned private resolver storage.
 pub fn inspect_package_source(
     request: PackageSourceRequest,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     limits: LocalSourceLimits,
 ) -> Result<PackageSourceInspection, SourceResolveError> {
     storage.verify_path_identity()?;
-    let result = inspect_package_source_in_lane(request, storage.git_sources(), limits);
+    let result = inspect_package_source_with_resolver(request, storage, limits);
     storage.verify_path_identity()?;
     result
 }
@@ -126,7 +128,7 @@ pub fn inspect_package_source_locator(
     adapter: SourceAdapter,
     locator: impl Into<String>,
     rev: Option<String>,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     limits: LocalSourceLimits,
 ) -> Result<PackageSourceInspection, PackageSourceInspectionError> {
     let request = PackageSourceRequest::parse(adapter, locator, rev)
@@ -138,7 +140,7 @@ pub fn inspect_package_source_locator(
 mod tests {
     use super::{
         LocalSourceLimits, PackageSourceInspectionError, PackageSourceRequest,
-        PackageSourceRequestParseError, Path, PathBuf, SourceAdapter, SourceResolverStorage,
+        PackageSourceRequestParseError, Path, PathBuf, SourceAdapter, SourceResolver,
         inspect_package_source, inspect_package_source_in_cache, inspect_package_source_locator,
         inspect_package_source_locator_in_cache,
     };
@@ -264,9 +266,8 @@ mod tests {
         let cache_base = temp_root("local-audit-cache");
         std::fs::create_dir_all(&root).expect("create local package");
         std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
-        let storage =
-            SourceResolverStorage::for_hardened_base(&cache_base, PrimaryGitChoices::default())
-                .expect("create private resolver storage");
+        let storage = SourceResolver::for_hardened_base(&cache_base, PrimaryGitChoices::default())
+            .expect("create private resolver storage");
         storage
             .verify_path_identity()
             .expect("storage identity before source audit");
@@ -326,9 +327,8 @@ mod tests {
             .expect("write source");
         run_test_git(&repository, ["add", "main.omg"]);
         run_test_git(&repository, ["commit", "--quiet", "-m", "initial"]);
-        let storage =
-            SourceResolverStorage::for_hardened_base(&cache_base, PrimaryGitChoices::default())
-                .expect("create private resolver storage");
+        let storage = SourceResolver::for_hardened_base(&cache_base, PrimaryGitChoices::default())
+            .expect("create private resolver storage");
         storage
             .verify_path_identity()
             .expect("storage identity before Git source inspection");

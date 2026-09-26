@@ -19,7 +19,7 @@ use package_manager::review::{
     CompileResolvedPackageReviewsError, SemanticBindingReview, compile_resolved_package_reviews,
 };
 use package_source::PrimaryGitChoices;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -52,8 +52,8 @@ impl Tree {
         self.root.join(relative)
     }
 
-    fn storage(&self, name: &str) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.path(name), PrimaryGitChoices::default())
+    fn storage(&self, name: &str) -> SourceResolver {
+        SourceResolver::for_hardened_base(self.path(name), PrimaryGitChoices::default())
             .expect("create source resolver storage")
     }
 }

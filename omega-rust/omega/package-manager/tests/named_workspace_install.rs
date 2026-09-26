@@ -19,7 +19,7 @@ pub(crate) mod local {
         PackageCommand, PackageCommandError, PackageCommandOptions, PackageCommandOutcome,
         PackageCommandStatus, execute_package_command,
     };
-    use package_source::{PrimaryGitChoices, SourceResolverStorage};
+    use package_source::{PrimaryGitChoices, SourceResolver};
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -94,7 +94,7 @@ pub(crate) mod local {
                     build_inputs: None,
                 },
                 Some(
-                    &SourceResolverStorage::for_hardened_base(
+                    &SourceResolver::for_hardened_base(
                         self.path("cache"),
                         PrimaryGitChoices::default(),
                     )

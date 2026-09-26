@@ -1,5 +1,5 @@
 use super::super::{
-    GitCommitId, GitSourceRequest, GitTreeId, PathBuf, SourceResolverStorage,
+    GitCommitId, GitSourceRequest, GitTreeId, PathBuf, SourceResolver,
     create_git_source_with_format, git_cache_identity, make_tree_owner_writable, run_test_git,
     run_test_git_with_input, temp_root, test_system_git_executor,
 };
@@ -11,7 +11,7 @@ use crate::PrimaryGitChoices;
 pub(super) struct Fixture {
     pub(super) repository: PathBuf,
     storage_base: PathBuf,
-    pub(super) storage: SourceResolverStorage,
+    pub(super) storage: SourceResolver,
     pub(super) request: GitSourceRequest,
     pub(super) commit: GitCommitId,
     pub(super) tree: GitTreeId,
@@ -32,7 +32,7 @@ impl Fixture {
             .execution_backend
             .executable()
             .to_path_buf();
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             &storage_base,
             PrimaryGitChoices {
                 explicit_git: Some(executable.as_ref()),
@@ -65,7 +65,7 @@ impl Fixture {
         mode: GitExactRevisionAcquisition,
     ) -> Result<ResolvedGitSource, SourceResolveError> {
         resolve_git_source_at_revision_in_lane(
-            self.storage.git_sources().primary_git().unwrap(),
+            self.storage.primary_git().unwrap(),
             &self.request,
             commit,
             tree,

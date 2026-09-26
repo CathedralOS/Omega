@@ -15,7 +15,7 @@ use crate::review::{
 use package_evidence::record::PackagePolicyBaseline;
 use package_source::PrimaryGitChoices;
 use package_source::{
-    ExternalSourceContext, GitCommitId, GitTreeId, LocalSourceLimits, SourceResolverStorage,
+    ExternalSourceContext, GitCommitId, GitTreeId, LocalSourceLimits, SourceResolver,
 };
 use std::fmt::Write;
 use std::fs;
@@ -129,7 +129,7 @@ impl Project {
         CompilerIssuedPackageReviewSet,
         PackagePolicyChangeSet,
     ) {
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             self.0.join(format!("{label}-cache")),
             PrimaryGitChoices::default(),
         )

@@ -3,7 +3,7 @@ use super::{
     recover_cached_local_source_in_lane,
 };
 use crate::PrimaryGitChoices;
-use crate::SourceResolverStorage;
+use crate::SourceResolver;
 use crate::local::operations::resolve_local_source_snapshot;
 use crate::snapshot::permissions::make_tree_owner_writable;
 use crate::test_support::temp_root;
@@ -26,12 +26,12 @@ impl Fixture {
         Self(fs::canonicalize(root).unwrap())
     }
 
-    fn storage(&self) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.0.join("cache"), PrimaryGitChoices::default())
+    fn storage(&self) -> SourceResolver {
+        SourceResolver::for_hardened_base(self.0.join("cache"), PrimaryGitChoices::default())
             .unwrap()
     }
 
-    fn capture(&self, storage: &SourceResolverStorage) -> crate::ResolvedLocalSnapshot {
+    fn capture(&self, storage: &SourceResolver) -> crate::ResolvedLocalSnapshot {
         resolve_local_source_snapshot(self.0.join("source"), storage, LocalSourceLimits::default())
             .unwrap()
     }

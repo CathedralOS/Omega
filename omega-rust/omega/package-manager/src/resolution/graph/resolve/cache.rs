@@ -16,7 +16,7 @@ use package_source::storage::RetainedStorageLane;
 use package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 use package_source::{
     GitAcquisitionPin, GitSourceRequest, LocalSourceLimits, ResolvedGitSource,
-    ResolvedLocalSnapshot,
+    ResolvedLocalSnapshot, SourceResolver,
 };
 use std::path::Path;
 
@@ -39,8 +39,8 @@ impl SourceCacheLane<'_> {
     }
 }
 
-#[derive(Default)]
 pub(super) struct GitAcquisitionCache<'a> {
+    resolver: &'a SourceResolver,
     options: GitResolutionOptions<'a>,
     pins: Vec<(GitSourceRequest, GitAcquisitionPin)>,
     selected: Vec<(
@@ -50,19 +50,31 @@ pub(super) struct GitAcquisitionCache<'a> {
 }
 
 impl<'a> GitAcquisitionCache<'a> {
-    pub(super) fn with_options(options: GitResolutionOptions<'a>) -> Self {
+    pub(super) fn new(resolver: &'a SourceResolver) -> Self {
+        Self::with_options(resolver, GitResolutionOptions::default())
+    }
+
+    pub(super) fn with_options(
+        resolver: &'a SourceResolver,
+        options: GitResolutionOptions<'a>,
+    ) -> Self {
         Self {
+            resolver,
             options,
-            ..Self::default()
+            pins: Vec::new(),
+            selected: Vec::new(),
         }
     }
 
     #[cfg(test)]
-    pub(super) fn preserving(pins: GitDependencyPins<'a>) -> Self {
-        Self::with_options(GitResolutionOptions {
-            pins: Some(pins),
-            ..GitResolutionOptions::default()
-        })
+    pub(super) fn preserving(resolver: &'a SourceResolver, pins: GitDependencyPins<'a>) -> Self {
+        Self::with_options(
+            resolver,
+            GitResolutionOptions {
+                pins: Some(pins),
+                ..GitResolutionOptions::default()
+            },
+        )
     }
 
     pub(super) fn resolve_selected(
@@ -136,6 +148,7 @@ impl<'a> GitAcquisitionCache<'a> {
             };
             let resolved = if application_root_allowed {
                 resolve_selected_git_project_source_at_revision_in_lanes(
+                    self.resolver,
                     request,
                     commit,
                     tree,
@@ -146,6 +159,7 @@ impl<'a> GitAcquisitionCache<'a> {
                 )
             } else {
                 resolve_selected_git_package_source_at_revision_in_lanes(
+                    self.resolver,
                     request,
                     commit,
                     tree,
@@ -169,6 +183,7 @@ impl<'a> GitAcquisitionCache<'a> {
             ));
         } else if application_root_allowed {
             resolve_selected_git_project_source_from_pin_in_lanes(
+                self.resolver,
                 request,
                 pin,
                 git_lane,
@@ -177,6 +192,7 @@ impl<'a> GitAcquisitionCache<'a> {
             )
         } else {
             resolve_selected_git_package_source_from_pin_in_lanes(
+                self.resolver,
                 request,
                 pin,
                 git_lane,

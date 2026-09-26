@@ -3,7 +3,7 @@
 use super::super::cache::{GitAcquisitionCache, SourceCacheLane};
 use super::super::{
     ExternalSourceContext, GitSourceRequest, LocalSourceLimits, PackageRootSourceRequest, PathBuf,
-    SourceRelativePath, SourceResolverStorage,
+    SourceRelativePath, SourceResolver,
 };
 use super::{run_test_git, temp_root, write_application, write_package};
 use crate::declarations::{DependencySourceRequest, PackageKey};
@@ -23,14 +23,14 @@ use sha2::{Digest, Sha256};
 
 struct Project {
     directory: PathBuf,
-    storage: SourceResolverStorage,
+    storage: SourceResolver,
     context: ExternalSourceContext,
 }
 
 impl Project {
     fn new(name: &str) -> Self {
         let directory = temp_root(name);
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             directory.join("cache"),
             PrimaryGitChoices::default(),
         )
@@ -116,8 +116,8 @@ impl Project {
             .into_custody()
         };
         let mut acquisitions = pins
-            .map(GitAcquisitionCache::preserving)
-            .unwrap_or_default();
+            .map(|policy| GitAcquisitionCache::preserving(&self.storage, policy))
+            .unwrap_or_else(|| GitAcquisitionCache::new(&self.storage));
         resolve_package_source_closure(
             PackageRootSourceRequest::ExternalLocal {
                 requested_root: root_path,

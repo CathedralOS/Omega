@@ -22,7 +22,7 @@ use package_manager::review::{
     SemanticBindingReview, compile_resolved_package_candidate_for_production,
 };
 use package_source::{
-    LocalSourceLimits, PrimaryGitChoices, SourceLineage, SourceRelativePath, SourceResolverStorage,
+    LocalSourceLimits, PrimaryGitChoices, SourceLineage, SourceRelativePath, SourceResolver,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -78,11 +78,9 @@ fn copy_tree(source: &Path, destination: &Path) {
 /// rather than publishing: publication asks further questions of its own and
 /// would let an unrelated failure masquerade as a verdict.
 fn realize(workspace: &Path, app: &str) -> Result<(), String> {
-    let storage = SourceResolverStorage::for_hardened_base(
-        workspace.join("cache"),
-        PrimaryGitChoices::default(),
-    )
-    .unwrap();
+    let storage =
+        SourceResolver::for_hardened_base(workspace.join("cache"), PrimaryGitChoices::default())
+            .unwrap();
     let closure = resolve_workspace_project_closure(
         &SourceLineage::git("https://example.com/behavior-exclusions-fixture.git").unwrap(),
         SourceRelativePath::parse(app).unwrap(),

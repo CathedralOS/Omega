@@ -1,5 +1,6 @@
 //! Select and publish one declared member from an authenticated Git workspace.
 
+use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
@@ -15,7 +16,7 @@ use crate::git::workspace::{
 };
 use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::GitAcquisitionPin;
-use crate::storage::{RetainedStorageLane, SourceResolverStorage};
+use crate::storage::RetainedStorageLane;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
@@ -28,7 +29,7 @@ pub use recorded::resolve_git_workspace_member_at_revision_in_lanes;
 
 pub fn resolve_git_workspace_member<Planner>(
     request: &GitSourceRequest,
-    storage: &SourceResolverStorage,
+    resolver: &SourceResolver,
     limits: LocalSourceLimits,
     declaration_limits: GitWorkspaceDeclarationLimits,
     planner: &mut Planner,
@@ -39,17 +40,17 @@ pub fn resolve_git_workspace_member<Planner>(
 where
     Planner: GitWorkspaceProjectionPlanner,
 {
-    storage.verify_path_identity()?;
+    resolver.verify_path_identity()?;
     let result = resolve_git_workspace_member_in_lanes(
-        storage.git_sources().primary_git()?,
+        resolver.primary_git()?,
         request,
-        storage.git_sources(),
-        storage.workspace_members(),
+        resolver.git_sources(),
+        resolver.workspace_members(),
         limits.compiler_bounded(),
         declaration_limits,
         planner,
     );
-    storage.verify_path_identity()?;
+    resolver.verify_path_identity()?;
     result
 }
 

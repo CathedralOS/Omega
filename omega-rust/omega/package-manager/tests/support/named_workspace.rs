@@ -4,7 +4,7 @@ use package_manager::{
     PackageCommandOutcome, execute_package_command,
 };
 use package_source::PrimaryGitChoices;
-use package_source::SourceResolverStorage;
+use package_source::SourceResolver;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -195,7 +195,7 @@ impl Fixture {
                 build_inputs: None,
             },
             Some(
-                &SourceResolverStorage::for_hardened_base(
+                &SourceResolver::for_hardened_base(
                     self.path("cache"),
                     PrimaryGitChoices::default(),
                 )

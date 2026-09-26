@@ -1,7 +1,7 @@
 use super::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, Fixture,
     GitAcquisitionCache, GitDependencyPins, GitExactRevisionAcquisition, PackageSelection,
-    ResolvedPackageSource, SourceResolverStorage, commit, resolve, test_git_head,
+    ResolvedPackageSource, SourceResolver, commit, resolve, test_git_head,
 };
 use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::resolution::graph::reconcile::resolve_package_source_closure;
@@ -15,7 +15,7 @@ fn changed_revision_or_authored_locator_resolves_normally() {
     fixture.advance("main.omg");
     let policy =
         GitDependencyPins::new(&accepted, &[], GitExactRevisionAcquisition::Offline).unwrap();
-    let mut cache = GitAcquisitionCache::preserving(policy);
+    let mut cache = GitAcquisitionCache::preserving(&storage, policy);
     let alternate_locator = fixture.locator.trim_end_matches(".git");
     for request in [
         fixture.request_at(&fixture.locator, "HEAD", PackageSelection::Root),
@@ -54,7 +54,7 @@ fn new_repository_request_resolves_normally_under_preservation() {
         GitDependencyPins::new(&accepted, &[], GitExactRevisionAcquisition::Offline).unwrap();
 
     let current = resolve(
-        &mut GitAcquisitionCache::preserving(policy),
+        &mut GitAcquisitionCache::preserving(&storage, policy),
         &new_source.request(),
         &storage,
         false,
@@ -76,12 +76,12 @@ fn new_repository_request_resolves_normally_under_preservation() {
 fn resolve_dependencies(
     root: &Fixture,
     dependencies: &[&Fixture],
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     cache: &mut GitAcquisitionCache<'_>,
 ) -> ResolvedPackageSourceClosure {
     let request = root.request();
     let source = resolve(
-        &mut GitAcquisitionCache::default(),
+        &mut GitAcquisitionCache::new(storage),
         &request,
         storage,
         false,
@@ -145,7 +145,7 @@ fn selected_repository_refresh_leaves_same_named_other_repository_pinned() {
         &root,
         &[&first, &second],
         &storage,
-        &mut GitAcquisitionCache::default(),
+        &mut GitAcquisitionCache::new(&storage),
     );
     let accepted = subject(&closure);
     let first_edge = accepted
@@ -174,7 +174,7 @@ fn selected_repository_refresh_leaves_same_named_other_repository_pinned() {
         &root,
         &[&first, &second],
         &storage,
-        &mut GitAcquisitionCache::preserving(policy),
+        &mut GitAcquisitionCache::preserving(&storage, policy),
     );
     let candidate = subject(&candidate);
     let refreshed = candidate
@@ -205,7 +205,7 @@ fn alias_change_preserves_the_exact_authored_dependency_request() {
         &root,
         &[&dependency],
         &storage,
-        &mut GitAcquisitionCache::default(),
+        &mut GitAcquisitionCache::new(&storage),
     ));
     dependency.advance("main.omg");
     write_dependencies(&root, &[("after", &dependency)]);
@@ -217,7 +217,7 @@ fn alias_change_preserves_the_exact_authored_dependency_request() {
         &root,
         &[&dependency],
         &storage,
-        &mut GitAcquisitionCache::preserving(policy),
+        &mut GitAcquisitionCache::preserving(&storage, policy),
     ));
     let before = &accepted.dependency_requests()[0];
     let after = &candidate.dependency_requests()[0];

@@ -9,11 +9,11 @@ use super::snapshot::*;
 #[cfg(unix)]
 use super::snapshot_metadata::*;
 use super::workspace::*;
+use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::identity::*;
 use crate::limits::*;
 use crate::snapshot::permissions::*;
-use crate::storage::SourceResolverStorage;
 use crate::test_support::*;
 #[cfg(unix)]
 use crate::tree::capture::resolve_materialized_source;

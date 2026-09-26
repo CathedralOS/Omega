@@ -19,7 +19,7 @@ use package_manager::resolution::graph::{
 use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::compile_resolved_package_reviews;
 use package_source::git::resolution::GitExactRevisionAcquisition;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::fs;
 use target::TargetProfile;
 
@@ -28,7 +28,7 @@ use crate::locked_source_recovery::support::*;
 const TARGET: TargetProfile = TargetProfile::WindowsX64;
 const CONTEXT: &[u8] = b"dependency-purposes";
 
-fn resolve(tree: &Tree, storage: &SourceResolverStorage) -> ResolvedPackageSourceClosure {
+fn resolve(tree: &Tree, storage: &SourceResolver) -> ResolvedPackageSourceClosure {
     resolve_external_local_project_closure(
         tree.path("sources/root"),
         ExternalSourceContext::derive(CONTEXT),
@@ -469,7 +469,7 @@ fn dropping_or_repurposing_a_build_row_rejects_locked_recovery() {
     let subject = lock.target(TARGET).unwrap().source().clone();
     let original_build = fs::read_to_string(tree.path("sources/root/build.omg")).unwrap();
 
-    let locked_local = |storage: &SourceResolverStorage| {
+    let locked_local = |storage: &SourceResolver| {
         resolve_locked_local_project_closure(
             &subject,
             &request,

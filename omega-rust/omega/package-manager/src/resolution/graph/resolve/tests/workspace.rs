@@ -1,7 +1,7 @@
 use super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
     PackageSourceClosureResolutionError, ResolveDependencySourceError,
-    ResolveWorkspacePackageClosureError, SourceLineage, SourceRelativePath, SourceResolverStorage,
+    ResolveWorkspacePackageClosureError, SourceLineage, SourceRelativePath, SourceResolver,
     resolve_workspace_package_closure, resolve_workspace_package_closure_from_hardened_base,
     resolve_workspace_package_closure_in_context_from_hardened_base,
 };
@@ -11,9 +11,8 @@ use package_source::PrimaryGitChoices;
 fn resolves_explicit_workspace_path_closure() {
     let cache_base = temp_root("fixture-cache");
     std::fs::create_dir_all(&cache_base).expect("create private storage base");
-    let storage =
-        SourceResolverStorage::for_hardened_base(&cache_base, PrimaryGitChoices::default())
-            .expect("create production-shaped private resolver storage");
+    let storage = SourceResolver::for_hardened_base(&cache_base, PrimaryGitChoices::default())
+        .expect("create production-shaped private resolver storage");
     let closure = resolve_workspace_package_closure(
         &fixture_lineage(),
         SourceRelativePath::parse("graph-workbench").expect("root member"),
@@ -62,7 +61,7 @@ fn workspace_project_entry_retains_application_root_role() {
     let workspace = temp_root("application-workspace");
     let cache = temp_root("application-workspace-cache");
     write_application(&workspace.join("projects/console"), "driver_console", None);
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained workspace resolver storage");
 
     crate::resolution::graph::resolve_workspace_package_closure(

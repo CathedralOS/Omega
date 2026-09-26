@@ -3,7 +3,7 @@ use super::{
     CanonicalPackageReconstructionQuestionLimits, ConsumerScopedSemanticBindingReviewInput,
     ExternalSourceContext, FreshPackageRootPolicyError, LocalSourceLimits,
     PackageSourceClosureLimits, Path, ReviewOnlyCapabilityConflictLimits, SemanticBindingReview,
-    SourceResolverStorage, TemporaryTree, bind_fresh_package_root_policy,
+    SourceResolver, TemporaryTree, bind_fresh_package_root_policy,
     compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
     resolve_external_local_project_closure, write_file,
 };
@@ -29,7 +29,7 @@ fn target_entry_dependency_discovery_requires_explicit_consumer_acceptance() {
             standard_library.to_str().expect("fixture source path")
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(
+    let storage = SourceResolver::for_hardened_base(
         temporary.0.join("resolved"),
         PrimaryGitChoices::default(),
     )

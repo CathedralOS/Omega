@@ -7,7 +7,7 @@ fn offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparis
             use package_manager::PackageCommandKind;
             use package_source::PrimaryGitChoices;
             use package_source::git::resolution::resolve_git_source;
-            use package_source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
+            use package_source::{GitSourceRequest, LocalSourceLimits, SourceResolver};
 
             fixture.package("repository", "git_library", "");
             let old = fixture.commit();
@@ -35,7 +35,7 @@ fn offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparis
             // Warm only the candidate in fresh storage. A shallow fetch of HEAD
             // cannot supply the old accepted tree to source-diff recovery.
             std::fs::rename(fixture.path("cache"), fixture.path("previous-cache")).unwrap();
-            let storage = SourceResolverStorage::for_hardened_base(
+            let storage = SourceResolver::for_hardened_base(
                 fixture.path("cache"),
                 PrimaryGitChoices::default(),
             )

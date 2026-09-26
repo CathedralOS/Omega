@@ -8,18 +8,18 @@ use package_source::PrimaryGitChoices;
 use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
 use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceContentDigest, SourceRelativePath,
-    SourceResolveError, SourceResolverStorage,
+    SourceResolveError, SourceResolver,
 };
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
 const PROPOSED: &[u8] = b"machine build(builder: &mut Build) {\n    builder.application(\"staged_root\");\n    builder.depend(Source::Path { location: \"../dependency\" });\n}\n";
 
-fn with_stage(name: &str, test: impl FnOnce(&Path, &SourceResolverStorage, &StagedLocalSnapshot)) {
+fn with_stage(name: &str, test: impl FnOnce(&Path, &SourceResolver, &StagedLocalSnapshot)) {
     let root = temp_root(name);
     let cache = temp_root(&format!("{name}-cache"));
     write_package(&root, "staged_root");
-    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("retain storage");
     let original = std::fs::read(root.join("build.omg")).expect("read original build");
     let stage = stage_local_source_replacement_in_lane(

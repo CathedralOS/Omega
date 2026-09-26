@@ -52,7 +52,7 @@ use super::reconcile::{
 #[cfg(test)]
 use package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 #[cfg(test)]
-use package_source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
+use package_source::{GitSourceRequest, LocalSourceLimits, SourceResolver};
 #[cfg(test)]
 use std::path::{Path, PathBuf};
 

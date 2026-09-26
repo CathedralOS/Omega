@@ -9,7 +9,7 @@ use package_source::{
     ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
-use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
+use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolver};
 use std::path::{Path, PathBuf};
 
 /// Snapshot one workspace member and bind it to the workspace root's source
@@ -27,8 +27,7 @@ pub fn resolve_workspace_member_package_source_from_hardened_base(
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    let storage =
-        SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
+    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
     resolve_workspace_member_package_source(
         workspace_root_source,
         member_path,
@@ -99,7 +98,7 @@ pub fn resolve_workspace_member_package_source(
     workspace_root_source: &SourceLineage,
     member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     storage.verify_path_identity()?;
@@ -118,7 +117,7 @@ pub fn resolve_workspace_member_project_source(
     workspace_root_source: &SourceLineage,
     member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     storage.verify_path_identity()?;

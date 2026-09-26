@@ -5,7 +5,7 @@ mod report;
 
 use super::{PackageFileTransaction, PackagePublicationLimits};
 use package_source::PrimaryGitChoices;
-use package_source::SourceResolverStorage;
+use package_source::SourceResolver;
 use std::fmt;
 use std::path::PathBuf;
 use target::TargetProfile;
@@ -55,7 +55,7 @@ fn failure(error: impl fmt::Display) -> PackageInspectionError {
 /// project root excluded from primary Git selection.
 pub fn inspect_packages(
     options: PackageInspectionOptions,
-    storage: Option<&SourceResolverStorage>,
+    storage: Option<&SourceResolver>,
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
     let transaction =
         PackageFileTransaction::open(&options.project_root, PackagePublicationLimits::default())
@@ -73,7 +73,7 @@ pub fn inspect_packages(
         build_snapshot.as_ref(),
         |root| match storage {
             Some(storage) => Ok(InspectionStorage::Supplied(storage)),
-            None => SourceResolverStorage::for_current_user(PrimaryGitChoices {
+            None => SourceResolver::for_current_user(PrimaryGitChoices {
                 excluded_controlled_roots: &[root.to_path_buf()],
                 ..PrimaryGitChoices::default()
             })
@@ -86,12 +86,12 @@ pub fn inspect_packages(
 /// The resolver storage of one inspection: supplied by the caller, or opened
 /// for the current user after the project files were read.
 enum InspectionStorage<'a> {
-    Supplied(&'a SourceResolverStorage),
-    Opened(SourceResolverStorage),
+    Supplied(&'a SourceResolver),
+    Opened(SourceResolver),
 }
 
-impl std::borrow::Borrow<SourceResolverStorage> for InspectionStorage<'_> {
-    fn borrow(&self) -> &SourceResolverStorage {
+impl std::borrow::Borrow<SourceResolver> for InspectionStorage<'_> {
+    fn borrow(&self) -> &SourceResolver {
         match self {
             Self::Supplied(storage) => storage,
             Self::Opened(storage) => storage,

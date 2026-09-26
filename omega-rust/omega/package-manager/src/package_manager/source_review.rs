@@ -10,7 +10,7 @@ use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::review::{
     PackageSourcePatchError, PackageSourcePatchLimits, render_package_source_patch,
 };
-use package_source::SourceResolverStorage;
+use package_source::SourceResolver;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use platform_custody::record_file::RecordFileRoot;
 
@@ -22,7 +22,7 @@ pub(super) fn prepare(
     transaction: &PackageFileTransaction,
     accepted: Option<&PackageLock>,
     candidate: &ResolvedPackageSourceClosure,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     acquisition: GitExactRevisionAcquisition,
 ) -> Result<String, PackageCommandError> {
     // All lock targets share the same exact source graph. Source text is

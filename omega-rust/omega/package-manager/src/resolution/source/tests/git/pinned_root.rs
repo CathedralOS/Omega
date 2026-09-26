@@ -10,7 +10,7 @@ use crate::resolution::source::{
 use package_source::PrimaryGitChoices;
 use package_source::{
     GitAcquisitionPin, GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolveError,
-    SourceResolverStorage,
+    SourceResolver,
 };
 use std::path::PathBuf;
 
@@ -73,7 +73,7 @@ impl Drop for Fixture {
 fn resolve(
     request: &GitPackageSourceRequest,
     pin: Option<&GitAcquisitionPin>,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     application: bool,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let resolver = if application {
@@ -82,6 +82,7 @@ fn resolve(
         resolve_selected_git_package_source_from_pin_in_lanes
     };
     resolver(
+        storage,
         request,
         pin,
         storage.git_sources(),
@@ -97,7 +98,7 @@ fn root_selection_pin_retains_original_commit_and_declaration_after_branch_moves
         ("application", BuildDeclarationKind::Application),
     ] {
         let fixture = Fixture::new(role);
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             fixture.root.join("cache"),
             PrimaryGitChoices::default(),
         )
@@ -144,11 +145,9 @@ fn root_selection_pin_retains_original_commit_and_declaration_after_branch_moves
 #[test]
 fn root_selection_rejects_wrong_request_pin_and_reuses_matching_pin_offline() {
     let fixture = Fixture::new("package");
-    let storage = SourceResolverStorage::for_hardened_base(
-        fixture.root.join("cache"),
-        PrimaryGitChoices::default(),
-    )
-    .unwrap();
+    let storage =
+        SourceResolver::for_hardened_base(fixture.root.join("cache"), PrimaryGitChoices::default())
+            .unwrap();
     let request = fixture.request("main");
     let original = resolve(&request, None, &storage, false).unwrap();
     let pin = original.source().acquisition_pin();
@@ -166,7 +165,7 @@ fn root_selection_rejects_wrong_request_pin_and_reuses_matching_pin_offline() {
     let retained = resolve(&request, Some(&pin), &storage, false).unwrap();
     assert_eq!(retained.key(), original.key());
     assert_eq!(retained.resolution(), original.resolution());
-    let empty = SourceResolverStorage::for_hardened_base(
+    let empty = SourceResolver::for_hardened_base(
         fixture.root.join("empty-cache"),
         PrimaryGitChoices::default(),
     )

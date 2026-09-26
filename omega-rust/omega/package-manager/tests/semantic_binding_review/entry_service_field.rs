@@ -1,7 +1,7 @@
 use super::{
     AcceptedSemanticBindingRole, ConsumerScopedSemanticBindingReviewInput, ExternalSourceContext,
     GitResolutionOptions, LocalSourceLimits, PackageSourceClosureLimits, Path, PrimaryGitChoices,
-    SemanticBindingReview, SourceResolverStorage, TemporaryTree,
+    SemanticBindingReview, SourceResolver, TemporaryTree,
     compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
     resolve_external_local_project_closure, write_file,
 };
@@ -42,7 +42,7 @@ invokes FilesystemHost;
             standard_library.to_str().expect("fixture source path")
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(
+    let storage = SourceResolver::for_hardened_base(
         temporary.0.join("resolved"),
         PrimaryGitChoices::default(),
     )

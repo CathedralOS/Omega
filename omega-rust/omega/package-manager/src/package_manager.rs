@@ -24,7 +24,7 @@ use crate::resolution::graph::{
 use crate::review::CandidateSourcePreparation;
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use proposal::PendingPackageChange;
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -37,7 +37,7 @@ use target::TargetProfile;
 pub fn execute_package_command(
     command: PackageCommand,
     options: PackageCommandOptions,
-    storage: Option<&SourceResolverStorage>,
+    storage: Option<&SourceResolver>,
 ) -> Result<PackageCommandOutcome, PackageCommandError> {
     if options.build_inputs.is_some()
         && matches!(
@@ -60,7 +60,7 @@ pub fn execute_package_command(
     let storage = match storage {
         Some(storage) => storage,
         None => {
-            ordinary_storage = SourceResolverStorage::for_current_user(PrimaryGitChoices {
+            ordinary_storage = SourceResolver::for_current_user(PrimaryGitChoices {
                 excluded_controlled_roots: &[transaction.project_root().to_path_buf()],
                 ..PrimaryGitChoices::default()
             })

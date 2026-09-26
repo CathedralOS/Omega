@@ -1,5 +1,5 @@
 use super::super::super::{
-    PackageLock, Path, PreparedLocalProject, ResolvedPackageSourceClosure, SourceResolverStorage,
+    PackageLock, Path, PreparedLocalProject, ResolvedPackageSourceClosure, SourceResolver,
 };
 use super::super::{PathBuf, preparation_target, temporary_root};
 use super::{
@@ -40,8 +40,8 @@ impl Project {
         self.0.join("project")
     }
 
-    pub(super) fn storage(&self) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.0.join("cache"), PrimaryGitChoices::default())
+    pub(super) fn storage(&self) -> SourceResolver {
+        SourceResolver::for_hardened_base(self.0.join("cache"), PrimaryGitChoices::default())
             .unwrap()
     }
 
