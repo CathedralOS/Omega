@@ -5284,6 +5284,22 @@ but report the missing runtime leg explicitly; it does not close that host row.
   free three times in one session. RE-MEASURE BEFORE WORKING A TARGET:
   twenty-one of the targets once listed here were already green when re-run.
 
+  This table predates `c60792d7bd` ("repo: the compiler is tested through the
+  corpus gate alone"), which deleted the compiler test suites most of it was
+  measured from. Eight of its thirteen targets no longer appear anywhere in
+  `omega-rust` or as a `tests/omega` fixture directory:
+  `native_filesystem_canaries` (its largest entry, 89),
+  `plan_laid_repeated_runtime`, `build_target_activation`,
+  `subslice_runtime_end_bounds`, `service_operational_contracts`,
+  `callback_terminal_custody`, `module_machine_indices` and
+  `rank_remainder_endpoints`. `source_evaluated_native_realization` survives
+  only inside a doc comment. Four still appear in sources: `recast_views`,
+  `private_joint_progress`, `optimizer_opt_in` and
+  `package_compilation_inputs` -- and `recast_views` names no fixture
+  directory, so the `tests/omega/{pass,fail}/recast` corpus it was read as is
+  green (14 pass, 12 fail, 0 unsatisfied). Re-measure a target before working
+  it; most of these counts describe tests that are gone.
+
   Remaining, re-measured on macOS arm64 after the repairs below:
 
   | n | target | what it is |
