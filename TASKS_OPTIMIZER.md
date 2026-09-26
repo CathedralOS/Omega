@@ -659,5 +659,3 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   subject/target pairing must not erase the still-unmeasured host leg or
   disguise an unrelated compile/review failure. Keep records descriptive of
   the measurement; no per-cell task proliferation or session history.
-
-
