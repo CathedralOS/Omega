@@ -299,6 +299,13 @@ pub(crate) fn readable_nominal_definition(
         } if arguments.is_empty() => *base_symbol,
         _ => return None,
     };
+    // The memoized lookup answers the first definition with this symbol. When
+    // that one is generic, a later duplicate may still be the first non-generic
+    // match, so only then scan the table.
+    let first = crate::lookup::data_definition_by_symbol(program, symbol)?;
+    if first.type_parameters.is_empty() {
+        return Some(first);
+    }
     program
         .data_definitions()
         .iter()
