@@ -1172,8 +1172,10 @@ crates, run to find failures no row or entry names. Six are clean:
   `structural_unit::partial_affine_moves::direct_field_partial_affine_return_rejects_forged_conservation_shapes`,
   is bracketed on CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT.
 - `terminal-interpreter` 316 run, 314 passed, 2 failed: both
-  `affine_cleanups::*` members witness
-  [`owned-self-receiver-implicit-retirement`](../../../OWNER_QUESTIONS.md).
+  `affine_cleanups::*` members witness OWNED-SELF-RECEIVER-AFFINE-DISCARD
+  in [TASKS.md](../../../TASKS.md), an implementation violation of
+  [ordinary parameter ownership](../../spec/language/ownership.md#consumers-and-cleanup),
+  not an open receiver-specific rule.
 - `optimization-unit-semantics` 231 run, 228 passed, 3 failed: all three are
   CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT, attributed to
   `c049c026b6`.

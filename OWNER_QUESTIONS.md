@@ -6,26 +6,16 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-All nine named decisions below are open: none carries a recorded answer, so
-every board item whose prerequisite is one of them is design-blocked on it
-rather than on implementation. Checked against `TASKS.md`:
+Five owner-level decisions remain. Only the affected behavior below awaits a
+ruling; other work on the same task may proceed under existing contracts.
 
-| named decision | board items waiting |
+| Named decision | Affected work |
 | --- | --- |
-| `compile-time-proof-work-ceiling` | C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT |
-| `aarch64-semantic-wrapper-arrival-shape` | 1 |
-| `interpreted-inline-assembly` | 2 |
-| `unmanaged-root-package-identity` | MODULE-NAMESPACE-RESOLUTION |
-| `owned-self-receiver-implicit-retirement` | OWNED-SELF-RECEIVER-AFFINE-DISCARD |
-| `borrowed-service-suspension-carrier` | RC-BUILD-AND-PACKAGES |
-| `copy-data-shared-reference-fields` | CANARY-CORPUS, BORROWED-STORAGE-RESTORATION |
-| `linear-carrier-vacuous-qualification` | none |
-| `mixed-integer-comparison` | none |
-
-The last two have no owning item. A decision with nothing waiting on it is
-either one whose item closed without pruning the question, or one whose
-dependency was never recorded on its item; settle which before answering it,
-since an answer nobody is blocked on buys nothing.
+| `interpreted-inline-assembly` | Assembly-dependent INTERPRETED-CATHEDRAL acceptance |
+| `unmanaged-root-package-identity` | Portable publication in MODULE-NAMESPACE-RESOLUTION |
+| `borrowed-service-suspension-carrier` | Suspension/transfer semantics in RC-BUILD-AND-PACKAGES; refresh the witness first |
+| `linear-carrier-vacuous-qualification` | Qualification/custody boundary for BUMP-ALLOCATOR-CANARY and placed access |
+| `mixed-integer-comparison` | Mixed typed-integer guards in the five text samples named below |
 
 Question numbers are mutable queue positions, not permanent decision identities.
 Code, canaries, and settled documentation must cite a stable named decision or
@@ -82,60 +72,11 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-Proposed solutions below are recommendations, not owner rulings. Where a
-contract already answers a question, the entry says so explicitly.
+Proposed solutions below are recommendations, not owner rulings. Remove an
+entry when the contract answers it; retain any unfinished implementation on
+its owning task.
 
-### Q1 - How should the compiler bound aggregate proof work?
-
-Named decision: `compile-time-proof-work-ceiling`.
-
-**Context:** [Proof outcomes](wiki/spec/proofs/publication.md#outcomes) already
-allow named resource/search exhaustion as `Incomplete`, not `Reject`.
-[Kernel budgets](wiki/spec/proofs/kernel_metatheory.md) are implementation
-policy, not calculus or source-language limits.
-
-**Problem:** Individually bounded proof calls can collectively take impractical
-time. **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT** identifies repeated whole-module
-reconstruction and oversized certificates; **RC-PCC-REPLAY** depends on the repair.
-The previous question incorrectly treated any aggregate limit as a language change.
-
-**Proposed solution:** Fix the redundant work, then bound aggregate work with
-explicit accounting and report exhaustion as `Incomplete`. Follow the
-[compiler request](wiki/spec/build/compiler_request.md) for its representation.
-No owner permission is needed for the already-settled outcome distinction.
-
-**Alternatives:**
-- Use configurable budgets or cancellation while retaining the same incomplete
-  outcome. This accommodates larger workloads but still needs defined accounting.
-- Tempting but wrong: reject valid source, accept without required evidence, or
-  add only a warning and claim execution is bounded. A cap also does not excuse
-  the known algorithmic defect.
-
-### Q2 - Does AArch64 need a separate semantic entry wrapper?
-
-Named decision: `aarch64-semantic-wrapper-arrival-shape`.
-
-**Context:** [Program entry](wiki/spec/build/entry_roots.md) follows target-authored
-arrival plans. UEFI x64 passes copies of two Extents indirectly; the AArch64
-plans pass four value words in `x0` through `x3`.
-
-**Problem:** The existing wrapper recipe assumes x64 copies and addresses.
-However, macOS/Linux AArch64 use `HostedApplication` with a hosted bridge, not
-UEFI's two-visible-Extent schema. **NATIVE-WRAPPER-ENCODING-AARCH64** must establish
-a real wrapper customer before adding an encoder.
-
-**Proposed solution:** Keep the UEFI-specific wrapper on UEFI and implement
-AArch64 semantic arrival through its hosted bridge. Verify both shipped profiles
-against their authored plans; do not invent a profile to justify wrapper tests.
-
-**Alternatives:**
-- If an actual AArch64 profile needs this wrapper, forward the unchanged value
-  registers, potentially by a tail branch. Add instruction-aware `imm26`
-  relocation support where that route needs it.
-- Tempting but wrong: pass pointers under the same value-register plan fingerprint,
-  copy x64 shadow-space rules, or patch an AArch64 branch as a raw x86 displacement.
-
-### Q3 - How should interpreted components execute checked inline assembly?
+### Q1 - How should interpreted components execute checked inline assembly?
 
 Named decision: `interpreted-inline-assembly`.
 
@@ -161,7 +102,7 @@ Validate one real device sequence and one idle/external-entry sequence.
 - Tempting but wrong: replace hardware idle with interpreter pause, redefine
   instructions through provider names, or move OS policy into the compiler.
 
-### Q4 - What portable identity should a root without a package declaration have?
+### Q2 - What portable identity should a root without a package declaration have?
 
 Named decision: `unmanaged-root-package-identity`.
 
@@ -173,7 +114,9 @@ assume distinct declaration owners already have identities.
 **Problem:** An unpackaged root and injected standard-library declarations can
 both carry `package_identity: None`, collapsing separate owners onto keys such
 as `[u8; N]::Utf8`. **MODULE-NAMESPACE-RESOLUTION** must not erase independent
-collision checking to work around this.
+collision checking to work around this. Separating local and toolchain declaration
+owners is already required and is not blocked here; this decision concerns the
+portable identity of exports from an unpackaged root.
 
 **Proposed solution:** Require an explicit portable owner key when an unpackaged
 root needs exported nominal identity; a package declaration supplies the existing
@@ -186,32 +129,7 @@ route. Keep ordinary local compilation separate from portable publication.
 - Tempting but wrong: use host paths or import order, exempt toolchain declarations,
   or assume distinct owner identities make competing visible names unambiguous.
 
-### Q5 - Does normal completion consume an owned receiver, including an affine one?
-
-Named decision: `owned-self-receiver-implicit-retirement`.
-
-**Context:** [Terminal ownership](wiki/spec/terminal-psi/ownership.md) requires
-one accounted disposition: transfer, explicit consumption, eligible cleanup, or
-validated affine discard. It does not name implicit receiver completion separately.
-
-**Problem:** `consume_terminal_self_receiver` removes every owned receiver before
-cleanup validation, regardless of multiplicity. An authored affine `DiscardRoot`
-then fails with `ScalarReturnAffineDiscardsMismatch`. Two interpreter tests pin
-discard ordering after edge charge; **OWNED-SELF-RECEIVER-AFFINE-DISCARD** owns the repair.
-
-**Proposed solution:** Restrict completion-based receiver consumption to linear
-receivers and explicitly account for it in the contract. Affine receivers keep
-their charged cleanup/discard route; preserve the ordering tests.
-
-**Alternatives:**
-- Require an existing explicit disposition for every owned receiver. This avoids
-  a special completion rule but may require producer changes for linear methods.
-- Define completion-based consumption for both multiplicities, including its
-  charge and cleanup semantics, then update the tests to that ratified rule.
-- Tempting but wrong: silently remove an owned place or repin the failing tests.
-  Passing tests alone would not explain where the ownership obligation went.
-
-### Q6 - How does a state machine holding service borrows perform a suspending operation?
+### Q3 - How does a state machine holding service borrows perform a suspending operation?
 
 Named decision: `borrowed-service-suspension-carrier`.
 
@@ -223,22 +141,29 @@ not among the permitted positions, and the transition grammar in
 `01_tokens-to-syntax-trees/src/bodies/transitions/` has no place to spell a
 `suspend`/`block` acknowledgement on a named transfer.
 
-**Problem:** A machine whose parameters are `clock: &mut Clock` and
-`storage: &mut Storage` and whose published contract is `suspends; blocks;`
-cannot reach a suspending operation by either route. As a transition arm target
+**Problem:** A previously reported fixture had parameters `clock: &mut Clock`
+and `storage: &mut Storage` with a published `suspends; blocks;` contract and
+could not reach a suspending operation by either route. As a transition arm target
 the call is rejected with "acknowledges neither suspension nor blocking" and the
 grammar cannot express the marker. As a terminal expression it is rejected with
 "call to `entry` may suspend while `clock` remains live, but its effective policy
 is `carry(suspension: forbidden, ...)`; consume the value before the call or use
-a suspension-safe carrier". No corpus fixture demonstrates such a carrier, and no
-pass canary transfers into a machine with an operational envelope.
-`compiler::service_operational_contracts` keeps two tests red on this, both
-compiling one shared CONTRACT_PROGRAM.
+a suspension-safe carrier". The cited `compiler::service_operational_contracts`
+module and shared CONTRACT_PROGRAM are absent from the current tracked tree.
+RC-BUILD-AND-PACKAGES must recover a source-level witness before relying on
+those diagnostics as a current blocker.
 
-**Proposed solution:** Name the suspension-safe carrier for a borrowed service
-binding, so a `&mut Service` parameter can stay live across a suspension its own
-published contract already declares, and say whether an ordinary `&mut` borrow of
-a boundary trait acquires it by default.
+[Carry](wiki/spec/resources/carry.md) already separates permission to suspend
+from preservation of a live value, including loan provenance and runtime
+preservation. A machine's suspension ceiling grants no suspension-safe loan.
+Audit the witness against that existing mechanism first; missing carry evidence
+is implementation or caller-contract work, not automatically a new carrier.
+
+**Proposed solution:** Use existing carry and loan evidence for borrowed service
+bindings; do not grant suspension safety merely from a boundary-trait type or
+callee envelope. Decide the acknowledgement rule for a named transition transfer
+if the recovered witness confirms the grammar/contract gap. Escalate a new carrier
+only if ordinary carry and preservation contracts cannot express the requirement.
 
 **Alternatives:**
 - Admit a named transition transfer as a fifth acknowledgement position and give
@@ -252,40 +177,7 @@ a boundary trait acquires it by default.
   saying what keeps a live borrow sound across a park. The rejection is the only
   thing currently preventing a borrow from crossing a suspension.
 
-### Q7 - May `[copy]` data hold shared references?
-
-Named decision: `copy-data-shared-reference-fields`.
-
-**Context:** Default owned data is Affine, and `Unrestricted` requires `[copy]`.
-`validation/src/proof_contracts/properties.rs::validate_structural_property`
-admits only primitives, `[copy]` data and `[copy]`-bounded type parameters as
-fields of `[copy]` data. It rejects "references, slices, owned text, dyn traits"
-"until a ruling extends the set". The value planner already treats a stored
-`&'a [T]` view leaf as `Unrestricted`
-(`04_typed-trees-to-checked-trees/src/values/scalar/computations/structural_values.rs::copied_place_type`).
-
-**Problem:** Nine pass canaries copy a record with a shared view field, e.g.
-`data Room { label: &[u8] in Utf8; }`, out of `&mut self` storage by value
-(`_ -> render(self.source)`). Examples are
-`text/runtime_local_struct_string_field_concat_exit`,
-`text/runtime_string_stored_suffix_exit` and
-`runtime_slice_indexed_string_guard_exit`. Without `[copy]`, the transfer is an
-illegal move out of borrowed storage: "cannot transfer a non-copy value out of
-borrowed storage", followed by the lost default-domain facts. With `[copy]`,
-the declaration is rejected: "field `label` is not `copy`".
-
-**Proposed solution:** Admit shared (`&`) reference and view fields in `[copy]`
-data. Copying one duplicates a shared loan without extending its lifetime, just as
-copying the view itself already does. Keep `&mut`, write-only references, owned
-text and dyn traits excluded. Then the canaries declare `Room [copy]`.
-
-**Alternatives:**
-- Keep the exclusion. The canaries must then pass `&self.source` to a `&Room`
-  state parameter, or move and restore the field. That changes what they exercise.
-- Tempting but wrong: make records implicitly copyable when every field could be.
-  The spec makes Affine the default deliberately.
-
-### Q8 - Does a vacuous qualification on a linear carrier need establishment?
+### Q4 - Does a vacuous qualification on a linear carrier need establishment?
 
 Named decision: `linear-carrier-vacuous-qualification`.
 
@@ -320,6 +212,13 @@ carrier retroactively makes every vacuous `as` qualification of that carrier
 illegal, in source that did not change and does not mention the new domain.
 `Region` and `Extent` differ only by whether some *other* domain was declared.
 
+[Placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)
+already gives `Resident` exact custody and introduction routes; core's current
+`Vacant`/`Resident` declarations leave placement/custody enforcement unfinished.
+Reconcile those rules and declarations with ordinary qualification before adding
+a new carrier property. Linearity alone is not authority, and the sibling-domain
+scan is not a ratified rule.
+
 **Proposed solution:** Make the carrier's own declaration carry the answer,
 rather than inferring custody from its domain set. A linear carrier that manages
 custody says so once -- at the data declaration or on the domain family -- and
@@ -337,7 +236,7 @@ declare. `Extent` would be marked; `Region` would not.
   legality of one module's `as` depend on an unrelated declaration in another,
   which no other qualification rule does.
 
-### Q9 - How does a comparison order two integer operands of different types?
+### Q5 - How does a comparison order two integer operands of different types?
 
 Named decision: `mixed-integer-comparison`.
 
@@ -371,47 +270,6 @@ its unsigned promotion.
   the five samples declare `u64` cursors or cast after proving non-negativity.
 - Adopt the interpreter's promotion to unsigned. This is C's rule and silently
   answers wrongly for negative operands.
-
-### Q10 - Does a finite differential probe fully exercise a codec requirement?
-
-Named decision: `generated-codec-derived-evidence`.
-
-**Context:** [codec agreement and trust](wiki/spec/layouts/codecs.md#agreement-and-trust)
-says a concrete conformance "proves its public agreement requirements,
-including the current-shape law `decode(encode(value)) == value`", classifies
-an "authored or generated body independently checked against the public
-requirement" as `Derived`, and adds that "only a fully exercised requirement
-reports `Derived`". It names `checked_interpreter::verify_wire_schema_codec`
-as the admission check but does not say what exercising a requirement fully
-requires.
-
-**Problem:** That check is a finite differential probe, not a proof of the
-law. `wire_verification.rs` encodes canonical probe members and byte-compares
-them against a reference framing written independently from the
-compact_binary contract, drives strict decode over the same frames, and runs
-strict-rejection probes for truncation, wrong eras, wrong tags, noncanonical
-varints and domain-violating bytes. `wire_protocol.rs` then reports `Derived`
-whenever that probe closes with no named gaps. Reading "fully exercised" as
-"every clause of the requirement was probed" makes the current report
-correct; reading it as the law holding for all values makes every generated
-codec's `Derived` an overstatement. The trust class is published in artifact
-reports, so an external consumer reads it as the difference between an
-independently checked body and one taken on the compiler's authority.
-
-**Proposed solution:** Read "fully exercised" as every clause of the
-requirement being exercised by an independent check, which the differential
-probe satisfies, and require the evidence text to state the probe's finite
-scope so a report never implies a general proof. The alternative reading
-leaves `Derived` unreachable for any generated codec, because no general
-agreement argument exists for a synthesized body.
-
-**Alternatives:**
-- Require a general argument and report `Admitted` until one exists,
-  naming the compiler as the trusted party. Honest, and it reclassifies every
-  generated codec shipped today.
-- Add a third class between the two for a body checked differentially over
-  canonical members. This is a new trust vocabulary in a ratified table, and
-  consumers would have to learn what it licenses.
 
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and

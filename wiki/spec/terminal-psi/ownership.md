@@ -128,6 +128,12 @@ disposition. The target frontier checks shape, facts, multiplicity, access, and
 operational metadata; predecessor origins need not be identical. The complete
 partition and conservation evidence remain in proof and diagnostic artifacts.
 
+A receiver is an ordinary parameter for this accounting. Receiver metadata
+cannot remove a place or its claims from the frontier. An owned `self` requires
+the same evidenced disposition as any other parameter of its type; a return
+alone supplies none. Affine cleanup/discard retains its ordinary charge and
+ordering, and linear cleanup still requires the owner's authorized plan.
+
 Calls retain authored order, independently of reverse cleanup order. Whole and
 residual cleanup must share a valid establishment-order schedule before a
 consumer may support their combination. Transformations unable to preserve an

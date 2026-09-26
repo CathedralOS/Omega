@@ -68,7 +68,7 @@ adds no membership obligation: a valid bare `i32` may be explicitly qualified as
 `Km` without an owner grant. Predicate-free does not mean uninhabited.
 Whether a linear carrier is an exception -- its qualification being custody
 state that `as` may not mint, rather than a value tag -- is undetermined; see
-[`linear-carrier-vacuous-qualification`](../../../OWNER_QUESTIONS.md) (Q8).
+[`linear-carrier-vacuous-qualification`](../../../OWNER_QUESTIONS.md).
 
 [Authority establishment](../resources/authority.md#establishment-routes) owns
 exact route resolution, result and installed-parameter subjects, checked

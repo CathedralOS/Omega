@@ -22,8 +22,9 @@ Tracing producer calls over 200ms at the cliff: 192 calls, 99.6s total, all
 non-converging individual obligation. Repair the redundant work; an aggregate
 resource limit may report `Incomplete` under the
 [proof outcome contract](../../spec/proofs/publication.md#outcomes), never falsehood
-or successful completion without the required evidence. Accounting is discussed
-under `compile-time-proof-work-ceiling` in [OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md).
+or successful completion without the required evidence. Aggregate accounting is
+implementation work under C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT in
+[TASKS.md](../../../TASKS.md), not an open owner decision.
 
 `OMEGA_PROOF_MEASUREMENTS` does not instrument this stage at all: on the
 terminating reduction it reports `obligations=1 ... decided_elsewhere=1`, all
