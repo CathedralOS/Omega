@@ -736,6 +736,22 @@ fn binary_result(
             count.then_some(left)
         }
         Add | Subtract | Multiply | Divide => {
+            // The difference of two addresses is a distance, and the address
+            // model calls a distance a count: there is no referent for it to
+            // name, and no width equality relates counts to addresses, so it
+            // lands `u64` rather than its operands' carrier. `addr - count`
+            // and `addr + count` still offset an address and keep it.
+            // `reject_address_arithmetic` admits exactly these three shapes;
+            // this types the one whose result is not the left operand's.
+            if binary.operator == Subtract
+                && operands.iter().all(|reference| {
+                    reference.is_some_and(|reference| {
+                        primitive(program, reference) == Some(PrimitiveType::Addr)
+                    })
+                })
+            {
+                return builtin_reference(program, BuiltinTypeAtom::U64);
+            }
             let carrier =
                 arithmetic_result_type_reference(program, operands.into_iter().flatten().next()?)?;
             let numeric = integer(program, carrier)
