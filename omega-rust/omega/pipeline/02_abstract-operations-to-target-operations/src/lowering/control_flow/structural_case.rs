@@ -123,7 +123,7 @@ fn case_source(
     if borrowed {
         // The parameter's shape is the pointer carrier, not the referent's;
         // the sum layout describes the referent the dispatch reads through it.
-        if parameter.shape.class != calling_conventions::ValueClass::BorrowedReference {
+        if parameter.shape.class != crate::calling_conventions::ValueClass::BorrowedReference {
             return Err(invalid());
         }
         return Ok(TargetStructuralCaseSource::BorrowedParameter {

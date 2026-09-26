@@ -102,7 +102,7 @@ pub enum TargetStructuralCaseSource {
     },
     BorrowedParameter {
         parameter: TargetStructuralParameter,
-        layout: crate::TargetStructuralHomeLayout,
+        layout: crate::target_operations::TargetStructuralHomeLayout,
     },
 }
 
