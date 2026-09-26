@@ -1040,22 +1040,16 @@ _run_natively_with_zero_extent_nonconsumption` was the coverage claimed here,
   hottest leaves are linear arena scans (`Handle<Symbol>` equality,
   `valid_span_range` on machine/state/data arenas, `find_data_definition`).
 
-  WHY PASS-LEVEL REUSE DOES NOT APPLY TO STD. The bound pass gives
-  `omega_language_std` three bindings of its own -- `FilesystemHostService`,
-  `TimeHostService` and `ConsoleExitProcessI32`, proposed by its provider
-  defaults -- beside the root's two, so std's pass-two compile request
-  differs from pass one's. Reusing a pass-one check is sound only for an
-  unchanged request whose compilation selected no program entry (pass one's
-  `permit_unsettled_fused_service_fields` is read only while establishing a
-  selected entry). An implementation gated on exactly that (equal entry,
-  target, build profile, complete package inputs and build snapshot) passed
-  the candidate-review suite but never fired for std: `print_squares` measured
-  58.4 s before and 59.0 s after, std 25.8 s in both passes, so it was not
-  landed. Routes that would reach std: propose a package's self-consumed
-  bindings before its first check so pass one already checks it with them;
-  re-settle only the binding-dependent execution settlement against pass
-  one's checked program; let the pre-build authority gate reuse a verdict for
-  an unchanged frozen source graph; or cut the checker's per-lookup scans.
+  CHECK-LEVEL REUSE LANDED (02acfcd35b): `lower_typed_trees` memoizes by
+  exact input (equal `TypedTrees` under an equal request) and a candidate
+  review retains its checks on first sight, so the bound pass and the
+  production compile reuse the discovery pass's checks whenever the bound
+  bindings leave a package's typed program unchanged. `omega --check
+  samples/cli/basics/print_squares/main.omg` (dev profile, macOS arm64)
+  went 102.5 s -> 66.3 s. What remains is the library checked twice inside
+  one pass: the pre-build gate's preliminary check and the settled check
+  (BUILD-EVALUATES-ONCE deletes the former), plus any package whose typed
+  program the bound bindings do change.
 
   Skipping any compile must still account for what it did: the compile in
   `package_pass.rs` writes back `prepared_source_output` for the preparation

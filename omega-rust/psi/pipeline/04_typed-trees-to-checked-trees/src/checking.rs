@@ -6,6 +6,8 @@
 //! selections. Only the test-only crash-inspection mode omits crash admission.
 
 pub(crate) mod call_acknowledgements;
+mod exact_input_memo;
+pub use exact_input_memo::{RepeatedCheckRetention, retain_repeated_checks};
 pub(crate) mod program_validation;
 
 use crate::checking::program_validation::validate_typed_program;
@@ -98,6 +100,21 @@ impl<'a> CheckingRequest<'a> {
 /// selections may remain late-bound until build-time evaluation; ordinary
 /// authored selections remain strict in both modes.
 pub fn lower_typed_trees(
+    program: typed_trees::TypedTrees,
+    request: &CheckingRequest<'_>,
+) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    let key = exact_input_memo::RequestKey {
+        mode: request.mode,
+        selected_generic_operator_providers: request.selected_generic_operator_providers.to_vec(),
+        selected_boundary_families: request.selected_boundary_families.to_vec(),
+        opaque_property_receipts: request.opaque_property_receipts.to_vec(),
+    };
+    exact_input_memo::checked(program, key, |program| {
+        lower_typed_trees_uncached(program, request)
+    })
+}
+
+fn lower_typed_trees_uncached(
     program: typed_trees::TypedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
