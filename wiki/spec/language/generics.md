@@ -436,7 +436,7 @@ requirement families reject. No default, law, or consumer may invoke that binder
 without a callable contract. This category expresses relationships such as a
 private callback slot's selected requirement; it is not missing-contract inference.
 
-Each executable use of a static-machine argument becomes a direct selected call
+Each invocation of a static-machine argument becomes a direct selected call
 after specialization. The binder is not a runtime function value or hidden
 callable argument. Stateful behavior uses ordinary instance data and its receiver
 access contract. Authors construct ordinary context data and explicitly select
@@ -444,10 +444,14 @@ the named callback declaration. No anonymous body/environment association or
 free-variable capture inference is provided. Dynamic selection still uses
 ordinary sums/wrappers or eligible dynamic conformances.
 
-A static parameter cannot be stored as a field type, converted to an address,
-or returned as a runtime callback reference. [Private callback realization](../build/private_callbacks.md)
-is contextual: an exact selected requirement and destination authorize a private
-entry relocation, not a general reified machine value.
+A static parameter cannot be stored as a field type or returned as a runtime
+callback reference. A fully selected executable machine application may instead
+be explicitly converted to inert `addr` under
+[address exposure](counts_and_addresses.md#address-exposure). That conversion
+creates an entry demand, not a callable value or an implicit callback selection.
+[Private callback realization](../build/private_callbacks.md) remains contextual:
+an exact selected requirement and destination authorize the private ABI entry
+relocation; an exposed numeric address cannot replace that relationship.
 
 ## Invocation-lifetime families
 

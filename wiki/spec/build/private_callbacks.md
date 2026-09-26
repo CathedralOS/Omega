@@ -1,9 +1,11 @@
 # Private callback realization
 
 A callback binder selects a nominal machine satisfying one exact requirement.
-Structural signature coincidence does not select it. The callback's native
-address is a private realization result, never a source runtime value or
-semantic input.
+Structural signature coincidence does not select it. The callback ABI address
+and its private destination are realization results, not source projections of
+the callback slot. Explicit [machine address exposure](../language/counts_and_addresses.md#address-exposure)
+is a separate inert observation: it does not expose the slot, supply a callback
+requirement, or replace its selected ABI adapter and registration contract.
 
 ## Authored selection
 

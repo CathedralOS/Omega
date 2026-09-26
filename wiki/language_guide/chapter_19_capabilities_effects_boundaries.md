@@ -789,6 +789,11 @@ The call omits `procedure`: no runtime function-pointer value is passed. The
 compiler privately realizes the callback and relocation. Calling policy places
 that declared entry; it cannot invent a trailing argument or retarget the binder.
 
+`ApplicationHook as addr` separately observes an executable entry address under
+[address exposure](chapter_20_memory_layout_abi.md#exposing-addresses). It does not
+expose this private ABI slot or replace the callback requirement, calling plan,
+or registration custody with a number.
+
 A nested destination instead comes from a layout explicitly citing a named
 `PrivateCallbackSlot<Requirement>` conformance. Layout owns the offset; the
 calling plan maps the binder to the declared private place. Merely declaring

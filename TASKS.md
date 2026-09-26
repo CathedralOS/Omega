@@ -2144,6 +2144,37 @@ syntax and other terminal services are not prerequisites.
   owns provider-backed view establishment and access-plan realization; this
   indexed-store delivery does not complete that larger contract.
 
+- **ADDRESS-EXPOSURE.** (new-scope) Implement the settled
+  [machine/reference conversions to `addr`](wiki/spec/language/counts_and_addresses.md#address-exposure)
+  for low-level entry/storage observation. Carry selected declaration/application
+  or referent identity through source checking, Terminal Psi, independent
+  verification, interpreter execution, and native relocation/materialization.
+  A retained machine cast is an executable-entry dependency even without a
+  direct call; do not introduce a separate registration or lowering route.
+  Owners: Psi expression admission and executable-demand lowering; Terminal
+  encoding/verification/interpreter; Omega entry retention and backend emission.
+
+  Native addresses name realized entries/storage. Interpreted values reuse
+  existing entry/referent identities where possible, with disjoint code/storage
+  encodings and enough scope to avoid collisions across live invocations and
+  loaded instances. Include subplace identity and compatible-view equality;
+  never truncate existing IDs to fit tag bits. Do not build a virtual byte-memory
+  system or a duplicate registry merely to expose identity.
+
+  Acceptance: authored casts of a generic executable machine, a selected
+  machine binder, a local and a borrowed field execute in both modes. Repeated
+  exposure agrees; distinct live storage occurrences and code/storage IDs do
+  not collide. Native entry demand survives absence/inlining of direct calls;
+  interpreted demand retains its body without zero or a native trampoline.
+  Reject unresolved selections, proof-only entities without executable meaning,
+  invalid loans and nonaddressable projections, encoding overflow/collision,
+  and attempts to launder addresses into borrows or call authority. Check that
+  evaluator IDs cannot escape into constants and native relocation bits are not
+  treated as known semantic-evaluation integers. Preserve private callback ABI
+  selection and custody. This does not depend on or settle
+  `interpreted-inline-assembly`, and does not implement indirect-call syntax,
+  arbitrary code patching, or native-address interchange for interpreter IDs.
+
 - **RECAST-SOURCE-POSITIONS.** Finish native execution of inline recasts in
   guards, call arguments and nested expressions. Reuse their checked admission
   and whole-place source reads, preserving borrow-polarity rejection. The
@@ -5558,7 +5589,8 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Reject substituted bytes/authority/contracts, transplanted validation,
   double-spent placement, missing completion facts and unsupported W^X;
   failed transitions return their inputs. Keep arbitrary bytes-to-code,
-  JIT and raw executable-address routes unsupported.
+  JIT and numeric-address-to-execution routes unsupported; inert address
+  observation belongs to **ADDRESS-EXPOSURE**, not installation authority.
   **COMPONENT-SUBSTRATE** owns component closure; this row owns generic
   executable custody.
 
