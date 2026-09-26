@@ -11,9 +11,10 @@
 //! sides to agree on every open window and replay evidence needs no
 //! producer-side assertion.
 //!
-//! Debt roots are always machine parameters: `validate_move_static` refuses
-//! any other root, so a repair store can only close the window it names on
-//! the same root. A block parameter can still alias a windowed root through
+//! Debt roots are machine parameters or owned home places this machine
+//! completed: `validate_move_static` refuses any other root, so a repair
+//! store can only close the window it names on the same root. A block
+//! parameter can still alias a windowed root through
 //! an earlier edge binding (`window_aliases`), so every comparison resolves a
 //! spelled place through that map before the canonical prefix test.
 //! Byte-sequence views are deliberately outside this scope: they are
@@ -513,34 +514,39 @@ fn declared_window_field_type(
     }
 }
 
-/// The borrowed machine parameter a window operation may name: mutable
-/// borrow authority, a transferable multiplicity, no qualifications or entry
-/// claims. Block parameters are not roots — their aliased storage is reached
-/// through `window_aliases` instead.
+/// The root storage a window operation may name: either a mutable-borrowed
+/// machine parameter (borrow authority, a transferable multiplicity, no
+/// qualifications or entry claims) or an owned home place this machine
+/// completed itself — an established record or structural leaf whose
+/// restoration debt is the same contract on owned storage. Block parameters
+/// are not roots — their aliased storage is reached through `window_aliases`
+/// instead.
 fn borrowed_window_root(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     place: PlaceId,
-) -> Option<&terminal_psi::StructuralParameterDeclaration> {
-    let parameter = machine.structural_parameters.iter().find(|parameter| {
+) -> Option<()> {
+    if let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
         parameter.place == place && parameter.access == StructuralAccess::MutableBorrow
-    })?;
-    if !matches!(
-        parameter.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || machine
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == place)
-        || machine
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == place)
-    {
-        return None;
+    }) {
+        if matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && !machine
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == place)
+            && !machine
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == place)
+        {
+            return Some(());
+        }
     }
-    Some(parameter)
+    super::record::completed_source(module, machine, place).map(|_| ())
 }
 
 /// Static shape of a `MoveStructuralField`: a structural result on a fresh
@@ -584,7 +590,7 @@ pub(super) fn validate_move_static(
     ) {
         return Err(invalid());
     }
-    if borrowed_window_root(machine, *source).is_none()
+    if borrowed_window_root(module, machine, *source).is_none()
         || declared_window_field_type(module, machine, operation) != Some(result.structural_type)
     {
         return Err(invalid());
@@ -615,7 +621,7 @@ pub(super) fn validate_store_static(
     let Some(field_type) = declared_window_field_type(module, machine, operation) else {
         return Err(invalid());
     };
-    if borrowed_window_root(machine, *destination).is_none()
+    if borrowed_window_root(module, machine, *destination).is_none()
         || value.access != StructuralAccess::Owned
         || !value.path.is_empty()
     {

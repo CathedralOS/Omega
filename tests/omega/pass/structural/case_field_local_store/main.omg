@@ -1,0 +1,35 @@
+// Regression for the structural case-field store on a non-parameter root:
+// `boxed.fmt = fresh` where `boxed` is an owned local, not a borrowed
+// parameter. The store mints a CheckedStructuralCaseFieldStorePlan whose
+// destination is `Local`, and lowering writes it through the local's live
+// home place: a leaf copy of the parameter value plus the window move/store
+// pair on the established home. Previously the checked side declined every
+// root that was not a parameter, so the machine was omitted outright
+// ("Unit structural case field store has no lowered operation").
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Fmt [copy] {
+    case Decimal;
+    case Hex;
+    case Octal;
+}
+
+data Box {
+    fmt: Fmt;
+    tag: u64;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::reseat(&mut self, fresh: Fmt) {
+    let mut boxed: Box = Box { fmt: Fmt::Decimal, tag: 4 };
+    boxed.fmt = fresh;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.reseat(Fmt::Octal);
+    self.console.exit_process(0);
+}

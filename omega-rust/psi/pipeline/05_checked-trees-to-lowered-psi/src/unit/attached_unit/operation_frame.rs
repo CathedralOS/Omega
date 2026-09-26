@@ -837,19 +837,56 @@ impl OperationFrame<'_, '_> {
         &mut self,
         store: &checked_trees::CheckedStructuralCaseFieldStorePlan,
     ) -> Result<(), LoweringError> {
-        let checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } =
-            store.destination
-        else {
-            return unsupported("structural case field store destination is not a parameter");
+        // A parameter destination roots the window at its borrowed place; an
+        // owned structural local roots it at the local's live home place.
+        // The window pair below writes through either root identically.
+        let (root_type, source) = match store.destination {
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+                let root = self
+                    .parameters
+                    .iter()
+                    .find(|parameter| parameter.position == position)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural case field store names an unknown parameter",
+                    ))?;
+                (
+                    root.structural_type,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: position,
+                    },
+                )
+            }
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+                let (_, argument) = self
+                    .evaluation
+                    .structural_locals
+                    .iter()
+                    .find(|(candidate, _)| *candidate == symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural case field store names an unknown structural local",
+                    ))?;
+                if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
+                    return unsupported(
+                        "structural case field store local root is not a whole owned home",
+                    );
+                }
+                let produced = self
+                    .operations
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.result.structural())
+                    .find(|result| result.place == argument.place)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural case field store local root has no produced place",
+                    ))?;
+                (
+                    produced.structural_type,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    },
+                )
+            }
         };
-        let root = self
-            .parameters
-            .iter()
-            .find(|parameter| parameter.position == position)
-            .ok_or(LoweringError::Unsupported(
-                "structural case field store names an unknown parameter",
-            ))?;
-        let root_type = root.structural_type;
         let (_, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
             root_type,
             &store.carrier_path,
@@ -917,9 +954,7 @@ impl OperationFrame<'_, '_> {
             store.field_identity.clone(),
         ));
         let window_place = CheckedUnitStructuralArgumentPlan {
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: position,
-            },
+            source,
             path: field_path,
             type_identity: store.value.type_identity.clone(),
             access: checked_trees::CheckedStructuralAccess::Owned,
@@ -934,6 +969,7 @@ impl OperationFrame<'_, '_> {
                 multiplicity: language_semantics::Multiplicity::Unrestricted,
             },
             self.parameters,
+            &self.evaluation.structural_locals,
             self.structural_types.declarations(),
             self.type_ids,
             self.next_place,
@@ -969,6 +1005,7 @@ impl OperationFrame<'_, '_> {
                 structural_type: hole_type,
             },
             self.parameters,
+            &self.evaluation.structural_locals,
             self.structural_types.declarations(),
             self.type_ids,
             self.operations,
@@ -1044,6 +1081,7 @@ impl OperationFrame<'_, '_> {
             source,
             result,
             self.parameters,
+            &self.evaluation.structural_locals,
             self.structural_types.declarations(),
             self.type_ids,
             self.next_place,
@@ -1380,6 +1418,7 @@ impl OperationFrame<'_, '_> {
             destination,
             repair,
             self.parameters,
+            &self.evaluation.structural_locals,
             self.structural_types.declarations(),
             self.type_ids,
             self.operations,
@@ -1426,10 +1465,10 @@ impl OperationFrame<'_, '_> {
     }
 }
 
-/// The exclusive parameter root a borrowed-storage window names, as the
-/// sequence currently holds it. An owned selection that transported the root
-/// to a join parameter leaves no machine-parameter root for the window, and
-/// Terminal verification anchors windows on machine parameters only.
+/// The exclusive root a borrowed-storage window names, as the sequence
+/// currently holds it. An owned selection that transported a parameter root
+/// to a join parameter leaves that root undetermined; owned local roots have
+/// no parameter to transport and pass vacuously.
 fn require_parameter_window_root(
     parameters: &[StructuralParameterDeclaration],
     place: &CheckedUnitStructuralArgumentPlan,

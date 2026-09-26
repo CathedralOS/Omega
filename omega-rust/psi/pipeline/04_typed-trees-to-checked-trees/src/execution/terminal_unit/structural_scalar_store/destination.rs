@@ -148,7 +148,22 @@ pub(super) fn resolve<'a>(
                 let parameter = source_parameters.get(plan.position as usize)?;
                 (parameter.symbol == root_symbol).then_some((plan, parameter))
             });
-            let (plan, parameter) = destinations.next()?;
+            let Some((plan, parameter)) = destinations.next() else {
+                // An established owned structural local roots a field store
+                // without any parameter loan: emission resolves its live home
+                // place through the structural-local roster, so admission here
+                // only pins a unique earlier declaration of plain owned
+                // contents and a non-indexed destination.
+                return owned_local_root(
+                    program,
+                    state,
+                    root_symbol,
+                    ordinal,
+                    dynamic_index,
+                    place,
+                    selectors,
+                );
+            };
             if destinations.next().is_some() {
                 return None;
             }
@@ -224,6 +239,62 @@ pub(super) fn resolve<'a>(
             })
         }
     }
+}
+
+/// An owned local store root under the parameter lane: a unique `LocalData`
+/// declaration earlier in the state whose type is non-primitive plain owned
+/// storage. Unlike the scalar-graph lane's record local this root needs no
+/// disposition row — the attached lane's emission writes through the live
+/// home place directly rather than rebuilding the local's scalar ledger.
+fn owned_local_root<'a>(
+    program: &'a TypedTrees,
+    state: &'a typed_trees::state::State,
+    root_symbol: SymbolHandle,
+    ordinal: usize,
+    dynamic_index: Option<typed_trees::expression::ExpressionHandle>,
+    place: crate::flow::CanonicalPlace,
+    selectors: Option<super::selectors::TargetSelectors>,
+) -> Option<Destination<'a>> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut locals = statements
+        .iter()
+        .enumerate()
+        .filter_map(|(local_ordinal, statement)| match statement {
+            StatementNode::LocalData(local) if local.symbol == root_symbol => {
+                Some((local_ordinal, local))
+            }
+            _ => None,
+        });
+    let (local_ordinal, local) = locals.next()?;
+    if locals.next().is_some()
+        || local_ordinal >= ordinal
+        || dynamic_index.is_some()
+        || !program
+            .expression_table
+            .expression_is_valid(local.initial_value)
+        || program
+            .primitive_type_reference(local.type_reference)
+            .is_some()
+        || !validation::has_plain_owned_contents_with_numeric_constraints(
+            program,
+            local.type_reference,
+        )
+    {
+        return None;
+    }
+    Some(Destination {
+        root: Root::Local {
+            symbol: root_symbol,
+        },
+        place,
+        dynamic_index,
+        selectors,
+        root_type: local.type_reference,
+        root_owner: crate::facts::field_domain::data_definition_for_field_type(
+            program,
+            local.type_reference,
+        ),
+    })
 }
 
 impl<'a> Destination<'a> {

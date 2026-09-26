@@ -1520,6 +1520,7 @@ pass/storage/runtime_machine_owned_indexed_struct_copy_exit checked 177ms
 pass/structs/deep_nested_write_paths_exit checked 198ms
 pass/structs/runtime_nested_struct_construction_exit checked 183ms
 pass/structs/runtime_struct_array_literal_exit checked 197ms
+pass/structural/case_field_local_store checked 762ms
 pass/structural/case_payload_record_member_read checked 441ms
 pass/structural/local_record_receivers checked 8ms
 pass/targets/aarch64_hfa_entry_argument checked 2256ms

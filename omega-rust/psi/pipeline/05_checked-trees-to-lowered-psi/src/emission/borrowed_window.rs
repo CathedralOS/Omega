@@ -114,12 +114,20 @@ impl BorrowedWindowLedger {
         moved: &CheckedUnitStructuralArgumentPlan,
         result: &CheckedUnitStructuralResultBindingPlan,
         parameters: &[StructuralParameterDeclaration],
+        locals: &[(symbols::SymbolHandle, StructuralArgument)],
         structural_types: &[StructuralTypeDeclaration],
         type_ids: &[(String, StructuralTypeId)],
         next_place: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<PlaceId, LoweringError> {
-        let place = resolve_window_place(moved, parameters, structural_types, type_ids)?;
+        let place = resolve_window_place(
+            moved,
+            parameters,
+            locals,
+            operations,
+            structural_types,
+            type_ids,
+        )?;
         if lookup_type_id(type_ids, &result.type_identity)? != place.hole_type {
             return Err(unpinned(
                 &place.spelling,
@@ -181,11 +189,19 @@ impl BorrowedWindowLedger {
         destination: &CheckedUnitStructuralArgumentPlan,
         value: BorrowedWindowRepairValue,
         parameters: &[StructuralParameterDeclaration],
+        locals: &[(symbols::SymbolHandle, StructuralArgument)],
         structural_types: &[StructuralTypeDeclaration],
         type_ids: &[(String, StructuralTypeId)],
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
-        let place = resolve_window_place(destination, parameters, structural_types, type_ids)?;
+        let place = resolve_window_place(
+            destination,
+            parameters,
+            locals,
+            operations,
+            structural_types,
+            type_ids,
+        )?;
         let Some(index) = self.open.iter().position(|absent| {
             absent.source == place.source && absent.full_path == place.full_path
         }) else {
@@ -301,38 +317,87 @@ fn paths_overlap(first: &[StructuralPathSegment], second: &[StructuralPathSegmen
 fn resolve_window_place(
     plan: &CheckedUnitStructuralArgumentPlan,
     parameters: &[StructuralParameterDeclaration],
+    locals: &[(symbols::SymbolHandle, StructuralArgument)],
+    operations: &OperationBuffer,
     structural_types: &[StructuralTypeDeclaration],
     type_ids: &[(String, StructuralTypeId)],
 ) -> Result<ResolvedWindowPlace, LoweringError> {
     let spelling = spell_place(plan, parameters);
-    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = plan.source else {
-        return Err(unpinned(
-            &spelling,
-            "borrowed-storage windows open only beneath a mutable-borrowed parameter root",
-        ));
+    let (source, root_type) = match plan.source {
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+            let parameter = parameters
+                .iter()
+                .find(|parameter| parameter.position == parameter_index)
+                .ok_or_else(|| unpinned(&spelling, "the parameter root is not declared"))?;
+            if parameter.access != StructuralAccess::MutableBorrow {
+                return Err(unpinned(
+                    &spelling,
+                    "the root is not an exclusive `&mut` borrow: shared and write-only loans \
+                     admit no extraction and owned roots use ordinary partial moves",
+                ));
+            }
+            if !matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            ) || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return Err(unpinned(
+                    &spelling,
+                    "the root carries qualifications or linear custody the window does not \
+                     restore",
+                ));
+            }
+            (parameter.place, parameter.structural_type)
+        }
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            // An owned local's home is storage this machine owns outright:
+            // the window extracts and restores through the live place the
+            // establishment produced, exactly like a borrowed root's hole.
+            let (_, argument) = locals
+                .iter()
+                .find(|(candidate, _)| *candidate == symbol)
+                .ok_or_else(|| {
+                    unpinned(
+                        &spelling,
+                        "the local root is not an established structural local",
+                    )
+                })?;
+            if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
+                return Err(unpinned(
+                    &spelling,
+                    "the local root is not a whole owned home",
+                ));
+            }
+            let produced = operations
+                .operations
+                .iter()
+                .filter_map(|operation| operation.result.structural())
+                .find(|result| result.place == argument.place)
+                .ok_or_else(|| unpinned(&spelling, "the local root has no produced place"))?;
+            if !matches!(
+                produced.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            ) || !produced.qualifications.is_empty()
+                || !produced.projected_qualifications.is_empty()
+                || !produced.claims.is_empty()
+            {
+                return Err(unpinned(
+                    &spelling,
+                    "the local root carries qualifications or claims the window does not \
+                     restore",
+                ));
+            }
+            (argument.place, produced.structural_type)
+        }
+        _ => {
+            return Err(unpinned(
+                &spelling,
+                "borrowed-storage windows open only beneath a mutable-borrowed parameter or \
+                 an owned structural local",
+            ));
+        }
     };
-    let parameter = parameters
-        .iter()
-        .find(|parameter| parameter.position == parameter_index)
-        .ok_or_else(|| unpinned(&spelling, "the parameter root is not declared"))?;
-    if parameter.access != StructuralAccess::MutableBorrow {
-        return Err(unpinned(
-            &spelling,
-            "the root is not an exclusive `&mut` borrow: shared and write-only loans admit \
-             no extraction and owned roots use ordinary partial moves",
-        ));
-    }
-    if !matches!(
-        parameter.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-    {
-        return Err(unpinned(
-            &spelling,
-            "the root carries qualifications or linear custody the window does not restore",
-        ));
-    }
     if plan.access != CheckedStructuralAccess::Owned {
         return Err(unpinned(
             &spelling,
@@ -357,18 +422,14 @@ fn resolve_window_place(
             "the route crosses an index or referent: only exact field chains are pinned",
         ));
     }
-    let (path, field) = lower_structural_field_path(
-        parameter.structural_type,
-        carrier_path,
-        field_identity,
-        structural_types,
-    )
-    .map_err(|_| {
-        unpinned(
-            &spelling,
-            "the field chain does not resolve through the declared records",
-        )
-    })?;
+    let (path, field) =
+        lower_structural_field_path(root_type, carrier_path, field_identity, structural_types)
+            .map_err(|_| {
+                unpinned(
+                    &spelling,
+                    "the field chain does not resolve through the declared records",
+                )
+            })?;
     let StructuralFieldType::Structural(hole_type) = field.field_type else {
         return Err(unpinned(
             &spelling,
@@ -384,7 +445,7 @@ fn resolve_window_place(
     let mut full_path = path.clone();
     full_path.push(StructuralPathSegment::Field(field.identity.clone()));
     Ok(ResolvedWindowPlace {
-        source: parameter.place,
+        source,
         path,
         field: field.id,
         full_path,
@@ -681,6 +742,7 @@ mod tests {
                 moved,
                 &cell_binding(),
                 parameters,
+                &[],
                 &structural_types(),
                 &type_ids(),
                 &mut self.next_place,
@@ -698,6 +760,7 @@ mod tests {
                 destination,
                 value,
                 parameters,
+                &[],
                 &structural_types(),
                 &type_ids(),
                 &mut self.operations,
@@ -1022,7 +1085,7 @@ mod tests {
                 .emit_move(&envelope_receiver(), &local)
                 .unwrap_err(),
             "local.left",
-            "mutable-borrowed parameter root",
+            "not an established structural local",
         );
         let undeclared = CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 3 },
@@ -1118,6 +1181,7 @@ mod tests {
                 ..cell_binding()
             },
             &receiver,
+            &[],
             &structural_types(),
             &type_ids(),
             &mut emission.next_place,
@@ -1164,6 +1228,7 @@ mod tests {
                     ..cell_binding()
                 },
                 &crate_receiver,
+                &[],
                 &structural_types(),
                 &type_ids(),
                 &mut emission.next_place,
@@ -1284,6 +1349,7 @@ mod tests {
                     structural_type: cell(),
                 },
                 &receiver,
+                &[],
                 &structural_types(),
                 &type_ids(),
                 &mut OperationBuffer::new(0),
@@ -1374,6 +1440,7 @@ mod tests {
                     &checked_place(&fields(&["left"]), CELL),
                     &cell_binding(),
                     &receiver,
+                    &[],
                     &structural_types(),
                     &type_ids(),
                     &mut next_place,
@@ -1391,6 +1458,7 @@ mod tests {
                     structural_type: cell(),
                 },
                 &receiver,
+                &[],
                 &structural_types(),
                 &type_ids(),
                 &mut OperationBuffer::new(0),
