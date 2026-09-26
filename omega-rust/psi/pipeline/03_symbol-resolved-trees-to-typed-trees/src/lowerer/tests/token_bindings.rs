@@ -133,3 +133,133 @@ fn operand_directed_selection_finds_the_matching_binding_only() {
         "a token nobody bound selects nothing"
     );
 }
+
+#[test]
+fn boundary_token_satisfaction_selects_each_exact_operand_overload() {
+    let program = crate::front_end::typed_program_result(
+        "boundary machine + Float::add(left: f32, right: f32) -> f32;
+         boundary machine + Float::add(left: f64, right: f64) -> f64;
+         boundary machine Provider::add32(left: f32, right: f32) -> f32
+             satisfies Float::add { left }
+         boundary machine Provider::add64(left: f64, right: f64) -> f64
+             satisfies Float::add { left }",
+    )
+    .expect("typed overloads");
+    let requirements = &program.machines()[..2];
+    for (provider, requirement) in program.machines()[2..].iter().zip(requirements) {
+        let [conformance] = program.declared_machine_trait_conformances(provider) else {
+            panic!("one satisfaction edge");
+        };
+        assert_eq!(conformance.symbol, requirement.symbol);
+        assert_eq!(conformance.requirement_symbol, requirement.symbol);
+        assert!(matches!(
+            typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance),
+            Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(selected))
+                if selected.symbol == requirement.symbol
+        ));
+    }
+}
+
+#[test]
+fn boundary_token_satisfaction_does_not_settle_a_mismatch() {
+    let program = crate::front_end::typed_program_result(
+        "boundary machine + Float::add(left: f32, right: f32) -> f32;
+             boundary machine Provider::add64(left: f64, right: f64) -> f64
+                 satisfies Float::add { left }",
+    )
+    .expect("formation precedes satisfaction validation");
+    let provider = program.machines().last().expect("provider");
+    let [conformance] = program.declared_machine_trait_conformances(provider) else {
+        panic!("one satisfaction edge");
+    };
+    assert!(
+        !conformance.symbol.is_valid(),
+        "no arbitrary family representative"
+    );
+    assert!(!conformance.requirement_symbol.is_valid());
+    assert!(
+        typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance)
+            .is_none()
+    );
+}
+
+#[test]
+fn boundary_token_satisfaction_rejects_duplicate_requirement_shapes() {
+    let syntax = crate::front_end::syntax_program_with_id(
+        source::SourceId(0),
+        "boundary machine + Float::add(left: f64, right: f64) -> f64;
+         boundary machine + Float::add(left: f64, right: f64) -> f64;
+         boundary machine Provider::add64(left: f64, right: f64) -> f64
+             satisfies Float::add { left }",
+    );
+    let diagnostics = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect_err("duplicate token declarations reject before satisfaction settlement");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .to_string()
+            .contains("same owner and operand shape")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn boundary_token_satisfaction_retains_package_scope_and_foreign_ambiguity() {
+    const REQUIREMENT: &str = "pub boundary machine + Float::add(left: f32, right: f32) -> f32;";
+    const PROVIDER: &str = "boundary machine Provider::add32(left: f32, right: f32) -> f32
+        satisfies Float::add { left }";
+    for local_requirement in [true, false] {
+        let provider_source = if local_requirement {
+            format!("{REQUIREMENT} {PROVIDER}")
+        } else {
+            PROVIDER.to_owned()
+        };
+        let mut sources = source::SourceMap::default();
+        let mut texts = Vec::new();
+        for (package, text) in [
+            ("first", REQUIREMENT),
+            ("second", REQUIREMENT),
+            ("provider", provider_source.as_str()),
+        ] {
+            let source_id = sources
+                .add_with_metadata(
+                    std::path::PathBuf::from(format!("{package}/main.omg")),
+                    text.to_owned(),
+                    std::path::PathBuf::from(package),
+                    None,
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            texts.push((source_id, text));
+        }
+        let resolved = crate::front_end::resolved_program_from_merged_source_map(sources, &texts);
+        let program = crate::lowerer::lower_symbol_resolved_trees(&resolved)
+            .expect("type source-scoped satisfaction");
+        let provider = program.machines().last().expect("provider");
+        let [conformance] = program.declared_machine_trait_conformances(provider) else {
+            panic!("one satisfaction edge");
+        };
+        assert_eq!(conformance.requirement_symbol.is_valid(), local_requirement);
+        if local_requirement {
+            assert_eq!(conformance.requirement_symbol, program.machines()[2].symbol);
+            assert_eq!(conformance.symbol, program.machines()[2].symbol);
+        }
+    }
+}
+
+#[test]
+fn boundary_token_satisfaction_preserves_generic_binder_and_bound_matching() {
+    for (provider_parameter, accepted) in [("U", true), ("U [copy]", false)] {
+        let program = crate::front_end::typed_program_result(&format!(
+            "boundary machine + Sequence::append<T>(left: &[T], right: &[T]) -> &[T];
+             boundary machine Provider::append<{provider_parameter}>(left: &[U], right: &[U]) -> &[U]
+                 satisfies Sequence::append {{ left }}"
+        )).expect("generic typed formation");
+        let provider = &program.machines()[1];
+        let [conformance] = program.declared_machine_trait_conformances(provider) else {
+            panic!("one satisfaction edge");
+        };
+        assert_eq!(conformance.requirement_symbol.is_valid(), accepted);
+    }
+}

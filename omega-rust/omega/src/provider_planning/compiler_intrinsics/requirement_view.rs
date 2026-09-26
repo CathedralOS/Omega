@@ -1,13 +1,15 @@
-//! One requirement view over both intrinsic-realizable declaration species.
+//! One requirement view over intrinsic-realizable declarations and token views.
 //!
 //! A compiler intrinsic realizes either a named boundary operator
-//! (`boundary operator F32::negate(value: f32) -> f32`) or a public
+//! (`boundary operator F32::negate(value: f32) -> f32`) or a
 //! receiver-free top-level boundary requirement (`boundary requirement
 //! F32::negate(value: f32) -> f32`). The sealed realization catalog, the
 //! diagnostic labels, the plan-schema joins and the execution rewrites need
 //! the same facts of the requirement -- its exact symbol, `Owner::name` path,
 //! entry parameters, result type and package -- so this view carries them
 //! once and each consumer keys on it instead of on one declaration species.
+//! A token-bearing boundary machine retains its ordinary requirement identity
+//! and exposes its token signature for closed primitive-meaning classification.
 
 use abstract_operations_to_target_operations::effects::provider_plan::{
     ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
@@ -16,11 +18,14 @@ use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
 use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IntrinsicRequirementKind {
     /// A named `boundary operator` declaration.
     Operator,
-    /// A public receiver-free top-level `boundary requirement` machine.
+    /// A receiver-free top-level `boundary requirement` machine.
     TopLevelRequirement,
 }
 
@@ -54,6 +59,15 @@ impl<'typed> IntrinsicRequirement<'typed> {
         if !operator.is_boundary {
             return None;
         }
+        // A token view is the machine's signature, not a second requirement.
+        // Its provider identity and satisfaction edges belong to that machine.
+        if let Some(requirement) = typed
+            .machines()
+            .iter()
+            .find(|requirement| requirement.symbol == operator.symbol)
+        {
+            return Self::from_requirement(typed, requirement);
+        }
         let [namespace, name] = typed.operator_path_members(operator.name) else {
             return None;
         };
@@ -81,7 +95,6 @@ impl<'typed> IntrinsicRequirement<'typed> {
         requirement: &'typed symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     ) -> Option<Self> {
         if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
-            || !requirement.is_public
             || requirement.body_is_present
             || !typed.machine_type_parameters(requirement).is_empty()
         {
@@ -114,7 +127,10 @@ impl<'typed> IntrinsicRequirement<'typed> {
             return_type: entry.return_type,
             package_identity: typed.symbols.symbol_package_identity(requirement.symbol),
             requirement_identity,
-            operator: None,
+            operator: typed
+                .machine_token_bindings()
+                .iter()
+                .find(|operator| operator.symbol == requirement.symbol),
         })
     }
 
@@ -149,12 +165,9 @@ impl<'typed> IntrinsicRequirement<'typed> {
         format!("{}::{}", self.namespace, self.name)
     }
 
-    /// The operator declaration when this view is the operator species.
-    pub fn as_operator(
-        &self,
-    ) -> Option<
-        &'typed symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
-    > {
+    /// The operator signature, including a boundary machine's same-symbol
+    /// token view. Token meaning does not change the machine's provider slot.
+    pub fn as_operator(&self) -> Option<&'typed symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition> {
         self.operator
     }
 
@@ -181,7 +194,9 @@ impl<'typed> IntrinsicRequirement<'typed> {
     /// Whether a selected plan's single schema method and row bind exactly
     /// this requirement: the operator schema is the overload identity with
     /// its one `realize` method; the requirement schema is the requirement
-    /// path with its leaf-named method and normalized overload identity.
+    /// path with its leaf-named method and normalized overload identity. A
+    /// token machine uses that overload identity for its family coordinate's
+    /// schema slot as well.
     pub fn plan_row_binds(
         &self,
         plan: &ProviderPlan,
@@ -202,7 +217,11 @@ impl<'typed> IntrinsicRequirement<'typed> {
             }
             IntrinsicRequirementKind::TopLevelRequirement => {
                 owner_matches
-                    && plan.schema.trait_name == self.display()
+                    && if self.operator.is_some() {
+                        plan.schema.trait_name == self.requirement_identity
+                    } else {
+                        plan.schema.trait_name == self.display()
+                    }
                     && method.name == self.name
                     && method.requirement_owner == self.namespace
             }

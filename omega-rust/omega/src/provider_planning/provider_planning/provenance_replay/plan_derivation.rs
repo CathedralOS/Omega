@@ -269,8 +269,7 @@ fn derive_top_level_requirement_plans(
             else {
                 continue;
             };
-            if !requirement.is_public
-                || clause.symbol != requirement.symbol
+            if clause.symbol != requirement.symbol
                 || clause.requirement_symbol != requirement.symbol
             {
                 continue;
@@ -516,6 +515,16 @@ fn derive_boundary_operator_plans(
             else {
                 continue;
             };
+            // A token-bearing requirement has a signature view for overload
+            // matching, not a second provider slot. Its machine declaration
+            // owns the schema and provenance in derive_top_level_requirement_plans.
+            if typed
+                .machines()
+                .iter()
+                .any(|requirement| requirement.symbol == operator.symbol)
+            {
+                continue;
+            }
             let binding = match (machine.supply_mode, clause.external_binding) {
                 (
                     language_semantics::MachineSupplyMode::ExternalRealization { .. },

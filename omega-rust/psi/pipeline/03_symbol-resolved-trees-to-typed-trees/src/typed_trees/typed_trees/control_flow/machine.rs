@@ -282,7 +282,7 @@ pub fn resolve_satisfied_declaration<'program>(
         });
     }
 
-    // An explicit top-level requirement is already one exact root-machine
+    // An explicit non-token top-level requirement is already one exact root-machine
     // declaration. Symbol resolution selects that declaration; typed
     // settlement only rejoins the retained symbol to the complete machine and
     // verifies its supply kind. Authored owner/member spellings remain
@@ -290,6 +290,7 @@ pub fn resolve_satisfied_declaration<'program>(
     if let Some(requirement) = program.machines().iter().find(|requirement| {
         requirement.symbol == conformance.symbol
             && requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+            && requirement.spelling.is_none()
     }) {
         return Some(SatisfiedDeclaration::TopLevelRequirement(requirement));
     }
@@ -305,12 +306,19 @@ pub fn resolve_satisfied_declaration<'program>(
     // policy. External supply does not turn an ordinary operator into a
     // boundary operator; validation and package admission reject that
     // unsupported association independently while retaining its exact subject.
-    let operator =
-        crate::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-            program,
-            machine,
-            conformance,
-        )?;
+    let operator = crate::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+        program,
+        machine,
+        conformance,
+    )?;
+    // Token-bearing top-level requirements share the operator signature
+    // matcher, but retain their machine declaration as the satisfaction target.
+    if let Some(requirement) = program.machines().iter().find(|requirement| {
+        requirement.symbol == operator.symbol
+            && requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+    }) {
+        return Some(SatisfiedDeclaration::TopLevelRequirement(requirement));
+    }
     Some(SatisfiedDeclaration::Operator(operator))
 }
 

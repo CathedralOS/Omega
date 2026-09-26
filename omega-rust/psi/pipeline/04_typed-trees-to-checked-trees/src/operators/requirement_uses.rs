@@ -1,4 +1,4 @@
-//! Direct calls to public receiver-free top-level boundary requirements,
+//! Direct calls to receiver-free top-level boundary requirements,
 //! retained as the requirement-spelling twin of named boundary-operator uses.
 //!
 //! The typed call targets the requirement's entry state; the fact retains the
@@ -20,11 +20,13 @@ use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
 };
 use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
-/// A public, receiver-free top-level `boundary requirement` with no static
+/// A receiver-free top-level `boundary requirement` with no static
 /// generic binders: the shape a direct call may execute through its selected
 /// provider. An erased lifetime telescope is admitted; it contributes no
 /// static application arguments, so the retained use keys on the same
 /// canonical-empty demand a nongeneric requirement produces.
+/// Lexical resolution owns visibility; a private same-package requirement
+/// uses the same selected-provider route as a public one.
 fn directly_callable_requirement(
     program: &TypedTrees,
     entry_symbol: symbols::SymbolHandle,
@@ -34,7 +36,6 @@ fn directly_callable_requirement(
     }
     program.machines().iter().find(|machine| {
         machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-            && machine.is_public
             && !machine.body_is_present
             && program.machine_type_parameters(machine).is_empty()
             && matches!(

@@ -187,6 +187,10 @@ fn lower_typed_trees_uncached(
     // mistaken for final D29 coverage. A generated or provider-selected body
     // can itself contain a dynamic selection, so family generation repeats
     // inside the same fixed point.
+    // Token syntax must expose its ordinary call before specialization sees
+    // the program. Otherwise a concrete caller keeps a generic requirement
+    // merely because it wrote `items[index]` rather than the named call.
+    crate::operators::bind_token_bound_machine_calls(&mut program)?;
     let selected_provider_templates = crate::monomorphization::SelectedProviderTemplates::prepare(
         &program,
         selected_generic_operator_providers,
@@ -209,6 +213,9 @@ fn lower_typed_trees_uncached(
             &mut program,
             selected_boundary_families,
         )?;
+        // Generated bodies can introduce new token uses. Feed them back into
+        // the same specialization loop, with unchanged call/contract checks.
+        materialized += crate::operators::bind_token_bound_machine_calls(&mut program)?;
         if materialized == 0 {
             break;
         }

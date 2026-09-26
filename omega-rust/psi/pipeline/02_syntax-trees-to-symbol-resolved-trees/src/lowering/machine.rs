@@ -118,7 +118,8 @@ pub(crate) fn lower_machine_into(
 
     // STR3: the supply mode's ONE population site. Requirement gains its
     // source when trait requirements reach this record; TopLevelRequirement is
-    // populated only from the explicit `boundary requirement` marker;
+    // the explicit `boundary requirement` marker or a bodyless token-bearing
+    // boundary machine. Both declare required callable supply, not a proof axiom.
     // AdmissionClaim is the bodyless `boundary machine` proof form (CH10
     // GR6d); a bodyless
     // NON-boundary machine with a `via` clause is PRV4's external leaf (the
@@ -136,7 +137,9 @@ pub(crate) fn lower_machine_into(
             .satisfies_clauses(machine.satisfies)
             .iter()
             .any(|clause| clause.via_expression.is_valid());
-        if machine.is_top_level_boundary_requirement {
+        if machine.is_top_level_boundary_requirement
+            || crate::lowering::operator::is_token_bearing_boundary_signature(machine)
+        {
             language_semantics::MachineSupplyMode::TopLevelRequirement
         } else if machine.bodyless && machine.boundary {
             // A bodyless boundary declaration is an admission claim only when it

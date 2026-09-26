@@ -329,7 +329,7 @@ fn collect_provider_selections<'a>(
             && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Machine
             && typed.machines().iter().any(|requirement| {
                 requirement.symbol == boundary_identity.symbol
-                    && requirement.is_public
+                    && requirement.spelling.is_none()
                     && requirement.supply_mode
                         == language_semantics::MachineSupplyMode::TopLevelRequirement
             })
@@ -338,7 +338,10 @@ fn collect_provider_selections<'a>(
                 boundary_identity,
             )
         } else if boundary_identity.symbol.is_valid()
-            && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Operator
+            && (typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Operator
+                || typed.machine_token_bindings().iter().any(|binding| {
+                    binding.is_boundary && binding.symbol == boundary_identity.symbol
+                }))
         {
             // One resolved overload symbol names its complete package-
             // qualified family; provider-planning derives the canonical

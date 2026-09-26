@@ -62,7 +62,11 @@ pub(crate) fn lower_token_binding_view(
         })?;
     let mut view = typed::operator::OperatorDefinition {
         is_public: typed_machine.is_public,
-        is_boundary: typed_machine.supply_mode == language_semantics::MachineSupplyMode::Boundary,
+        is_boundary: matches!(
+            typed_machine.supply_mode,
+            language_semantics::MachineSupplyMode::Boundary
+                | language_semantics::MachineSupplyMode::TopLevelRequirement
+        ),
         symbol: typed_machine.symbol,
         name: Default::default(),
         lifetime_parameters: typed_machine.lifetime_parameters.clone(),
@@ -458,8 +462,7 @@ fn lower_machine_contents(
         let publishes_entry_signature = machine.is_public
             || matches!(
                 machine.supply_mode,
-                language_semantics::MachineSupplyMode::TopLevelRequirement
-                    | language_semantics::MachineSupplyMode::Boundary
+                language_semantics::MachineSupplyMode::Boundary
                     | language_semantics::MachineSupplyMode::AdmissionClaim
             );
         let exposure = lowerer.type_reference_exposure.map(|_| if publishes_entry_signature && state_index == 0 {
@@ -521,11 +524,16 @@ pub(crate) fn settle_satisfied_declarations_from(
                 declaration.symbol(),
                 conformance.requirement_source_span,
                 exposure,
+                matches!(
+                    declaration,
+                    typed::machine::SatisfiedDeclaration::TopLevelRequirement(_)
+                ),
             ));
         }
     }
 
-    for (span, ordinal, requirement_symbol, source_span, exposure) in updates {
+    for (span, ordinal, requirement_symbol, source_span, exposure, top_level_requirement) in updates
+    {
         let conformances = program.machine_trait_conformances.span_mut_or_empty(span);
         let Some(conformance) = conformances.get_mut(ordinal) else {
             return Err(Diagnostic::error(
@@ -533,6 +541,9 @@ pub(crate) fn settle_satisfied_declarations_from(
             ));
         };
         conformance.requirement_symbol = requirement_symbol;
+        if top_level_requirement {
+            conformance.symbol = requirement_symbol;
+        }
         if let Some(source_span) = source_span {
             program
                 .record_resolved_authored_declaration_selection_once(
@@ -557,8 +568,7 @@ fn machine_interface_exposure(
 ) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
     let exported_boundary = matches!(
         machine.supply_mode,
-        language_semantics::MachineSupplyMode::TopLevelRequirement
-            | language_semantics::MachineSupplyMode::Boundary
+        language_semantics::MachineSupplyMode::Boundary
             | language_semantics::MachineSupplyMode::AdmissionClaim
     );
     if machine.is_public || exported_boundary {

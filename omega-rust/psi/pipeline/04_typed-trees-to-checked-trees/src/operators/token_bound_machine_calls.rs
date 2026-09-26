@@ -1,4 +1,4 @@
-//! Bind a selected token-bearing machine to its own checked body.
+//! Bind a selected token-bearing machine to its ordinary call edge.
 //!
 //! The executable-supply contract in wiki/spec/language/expressions.md says an
 //! ordinary direct `machine + Name(...) { ... }` is supplied by its own checked
@@ -9,11 +9,17 @@
 //! call the author could have written by hand -- `left + right` becomes a
 //! `Call` on `Wrapped::add`'s entry state with the operands as its arguments,
 //! in operand order, evaluated once each.
+//! A bodyless boundary token machine has the same call shape but retains
+//! requirement supply: Psi emits its requirement call and Omega installs the
+//! selected provider. Its operator view never creates a second executable slot.
 //!
 //! It runs at the checked stage rather than at typing because operand types
 //! are only settled by the checked value facts; typing rewrites `==` to a
 //! written `equals` from declared data alone, which is not enough to choose
-//! between overloaded token bindings. It runs before program validation so
+//! between overloaded token bindings. It participates in specialization's
+//! fixed point so generic token calls expose the same closed demands as named
+//! calls, including calls introduced by newly specialized bodies. It runs before
+//! program validation so
 //! ownership, effects, termination, contracts, and every executing consumer
 //! (interpreter, lowering, Terminal, native) see a plain call edge to the
 //! declaration -- the same shape build-time evaluation forms for selected
@@ -57,9 +63,9 @@ use super::expression_type_reference_for_origin;
 /// ordinary call on that machine's entry state.
 pub(crate) fn bind_token_bound_machine_calls(
     program: &mut TypedTrees,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<usize, Vec<Diagnostic>> {
     if program.machine_token_bindings().is_empty() {
-        return Ok(());
+        return Ok(0);
     }
     let mut facts = crate::derive_pre_flow_operator_selections(program);
     // A domain-homed binding (`machine + Quantity::Additive::add`) is a
@@ -102,6 +108,7 @@ pub(crate) fn bind_token_bound_machine_calls(
         bindings.push((expression, selected, operator_use.origin));
     }
 
+    let bound_count = bindings.len();
     for (expression, machine_symbol, origin) in bindings {
         // Copy the operand source handles before any endpoint normalization
         // mutates the expression table below.
@@ -196,7 +203,7 @@ pub(crate) fn bind_token_bound_machine_calls(
             });
     }
     if diagnostics.is_empty() {
-        Ok(())
+        Ok(bound_count)
     } else {
         Err(diagnostics)
     }

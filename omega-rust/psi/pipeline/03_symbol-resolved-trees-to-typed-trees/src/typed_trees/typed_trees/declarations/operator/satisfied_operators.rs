@@ -72,6 +72,33 @@ fn resolve_satisfied_operator_for_conformance<'program>(
             .into_iter()
             .find(|operator| operator.symbol == conformance.requirement_symbol);
     }
+    if candidates.iter().any(|candidate| {
+        program
+            .machine_token_bindings()
+            .iter()
+            .any(|binding| binding.symbol == candidate.symbol)
+    }) {
+        // A token-bearing requirement is a machine overload. Apply the
+        // clause's ordinary source visibility to the signature-matched set;
+        // a same-path declaration in another package cannot satisfy it.
+        let path = format!("{}::{}", conformance.name, requirement);
+        let selected = program
+            .symbols
+            .lookup_signature_free_top_level_from_source_matching(
+                &path,
+                &[symbols::SymbolKind::Machine],
+                conformance.requirement_source_span.unwrap_or_default(),
+                |symbol| {
+                    candidates
+                        .iter()
+                        .any(|candidate| candidate.symbol == symbol)
+                },
+            )
+            .unique()?;
+        return candidates
+            .into_iter()
+            .find(|candidate| candidate.symbol == selected);
+    }
     match candidates.as_slice() {
         [only] => Some(*only),
         _ => {
@@ -157,47 +184,51 @@ fn satisfied_operator_candidates<'program>(
 ) -> impl Iterator<Item = &'program OperatorDefinition> {
     let state = program.machine_states(machine).first();
     let actual_parameters = state.map(|state| program.state_parameters(state));
-    program.operators().iter().filter(move |operator| {
-        let (Some(state), Some(actual_parameters)) = (state, actual_parameters) else {
-            return false;
-        };
-        if (boundary_only && !operator.is_boundary)
-            || !operator_path_matches(operator, program, namespace, requirement)
-        {
-            return false;
-        }
-        let Some((machine_binders, operator_binders)) =
-            operator_realization_static_binders(program, machine, operator)
-        else {
-            return false;
-        };
-        let required_parameters = program.operator_parameters(operator);
-        actual_parameters.len() == required_parameters.len()
-            && actual_parameters
-                .iter()
-                .zip(required_parameters.iter())
-                .all(|(actual, required)| {
-                    actual.is_self == required.is_self
-                        && actual.is_const == required.is_const
-                        && actual.is_mutable == required.is_mutable
-                        && program.type_identity(TypeIdentityRequest {
-                            binders: &machine_binders,
-                            ..TypeIdentityRequest::ordinary(actual.type_reference)
-                        }) == program.type_identity(TypeIdentityRequest {
-                            binders: &operator_binders,
-                            ..TypeIdentityRequest::ordinary(required.type_reference)
-                        })
-                })
-            && state.return_type.is_valid() == operator.return_type.is_valid()
-            && (!state.return_type.is_valid()
-                || program.type_identity(TypeIdentityRequest {
-                    binders: &machine_binders,
-                    ..TypeIdentityRequest::ordinary(state.return_type)
-                }) == program.type_identity(TypeIdentityRequest {
-                    binders: &operator_binders,
-                    ..TypeIdentityRequest::ordinary(operator.return_type)
-                }))
-    })
+    program
+        .operators()
+        .iter()
+        .chain(program.machine_token_bindings())
+        .filter(move |operator| {
+            let (Some(state), Some(actual_parameters)) = (state, actual_parameters) else {
+                return false;
+            };
+            if (boundary_only && !operator.is_boundary)
+                || !operator_path_matches(operator, program, namespace, requirement)
+            {
+                return false;
+            }
+            let Some((machine_binders, operator_binders)) =
+                operator_realization_static_binders(program, machine, operator)
+            else {
+                return false;
+            };
+            let required_parameters = program.operator_parameters(operator);
+            actual_parameters.len() == required_parameters.len()
+                && actual_parameters
+                    .iter()
+                    .zip(required_parameters.iter())
+                    .all(|(actual, required)| {
+                        actual.is_self == required.is_self
+                            && actual.is_const == required.is_const
+                            && actual.is_mutable == required.is_mutable
+                            && program.type_identity(TypeIdentityRequest {
+                                binders: &machine_binders,
+                                ..TypeIdentityRequest::ordinary(actual.type_reference)
+                            }) == program.type_identity(TypeIdentityRequest {
+                                binders: &operator_binders,
+                                ..TypeIdentityRequest::ordinary(required.type_reference)
+                            })
+                    })
+                && state.return_type.is_valid() == operator.return_type.is_valid()
+                && (!state.return_type.is_valid()
+                    || program.type_identity(TypeIdentityRequest {
+                        binders: &machine_binders,
+                        ..TypeIdentityRequest::ordinary(state.return_type)
+                    }) == program.type_identity(TypeIdentityRequest {
+                        binders: &operator_binders,
+                        ..TypeIdentityRequest::ordinary(operator.return_type)
+                    }))
+        })
 }
 
 /// Build one alpha-normalized relation between a realizing machine's static

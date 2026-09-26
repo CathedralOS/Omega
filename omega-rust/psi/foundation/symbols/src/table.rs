@@ -552,7 +552,7 @@ impl SymbolTable {
         occurrence: SourceSpan,
         candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
     ) -> Option<SymbolHandle> {
-        self.find_declaration_from_source(path, occurrence, candidates, false)
+        self.find_declaration_from_source(path, occurrence, candidates, false, &[])
     }
 
     /// [`Self::find_product_declaration_from_source`] for a BUILD operand,
@@ -564,13 +564,19 @@ impl SymbolTable {
     /// A build that selects a provider for `ExtentRootProvider` is naming that
     /// exact declaration. Ordinary call resolution keeps the narrower rule:
     /// admitting core there changes which declaration a call selects.
+    /// `token_bound_machines` identifies the machine declarations whose token
+    /// views share this family-selection rule. Ordinary same-path machines
+    /// remain ambiguous; exact path, package and source scope must agree even
+    /// for declared family members. This selects a family representative, not
+    /// a callable overload or provider.
     pub fn find_build_subject_declaration_from_source(
         &self,
         path: &str,
         occurrence: SourceSpan,
         candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+        token_bound_machines: &[SymbolHandle],
     ) -> Option<SymbolHandle> {
-        self.find_declaration_from_source(path, occurrence, candidates, true)
+        self.find_declaration_from_source(path, occurrence, candidates, true, token_bound_machines)
     }
 
     fn find_declaration_from_source(
@@ -579,6 +585,7 @@ impl SymbolTable {
         occurrence: SourceSpan,
         candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
         admit_toolchain: bool,
+        token_bound_machines: &[SymbolHandle],
     ) -> Option<SymbolHandle> {
         let qualified = path.split_once("::");
         let dependency =
@@ -621,8 +628,12 @@ impl SymbolTable {
                 ambiguous = false;
             } else if exact == selected_exact && selected != Some(symbol) {
                 let same_operator_family = selected.is_some_and(|previous| {
-                    self.get(previous).kind == SymbolKind::Operator
-                        && self.get(symbol).kind == SymbolKind::Operator
+                    ((self.get(previous).kind == SymbolKind::Operator
+                        && self.get(symbol).kind == SymbolKind::Operator)
+                        || (self.get(previous).kind == SymbolKind::Machine
+                            && self.get(symbol).kind == SymbolKind::Machine
+                            && token_bound_machines.contains(&previous)
+                            && token_bound_machines.contains(&symbol)))
                         && self.display_path(previous, "::") == self.display_path(symbol, "::")
                         && self.symbol_package_identity(previous)
                             == self.symbol_package_identity(symbol)
