@@ -17,6 +17,134 @@ use crate::facts::crash_calls::{
 };
 use crate::tests::front_end::{checked_program_result, typed_program};
 
+#[test]
+fn scalar_builtin_computations_do_not_hide_a_private_call_summary() {
+    let checked = checked_program_result(
+        "machine capped(value: u16) -> i8 {
+             let bounded: u16 = clamp(value, 0, 127);
+             bounded as i8
+         }
+         machine root(value: u16) -> i8 { capped(value) }",
+    )
+    .unwrap();
+    let caller = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "root")
+        .unwrap();
+    let plan = checked
+        .facts
+        .contract_plans
+        .for_machine(caller.symbol)
+        .unwrap();
+    assert_eq!(
+        plan.crash.checked_calls().len(),
+        1,
+        "the private call has a checked summary"
+    );
+    assert!(plan.crash.checked_calls()[0].surviving_buckets().is_empty());
+}
+
+#[test]
+fn scalar_builtin_operands_retain_nested_machine_crash_dependencies() {
+    let checked = checked_program_result(
+        "machine risky(value: u16) -> u16 crashes Trap value == 0u16 { value }
+         machine capped(value: u16) -> u16 { clamp(risky(value), 0u16, 127u16) }
+         machine root(value: u16) -> u16 crashes Trap { capped(value) }",
+    )
+    .unwrap();
+    let caller = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "root")
+        .unwrap();
+    let plan = checked
+        .facts
+        .contract_plans
+        .for_machine(caller.symbol)
+        .unwrap();
+    assert_eq!(plan.crash.checked_calls().len(), 1);
+    assert!(!plan.crash.checked_calls()[0].surviving_buckets().is_empty());
+    let helper = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "capped")
+        .unwrap();
+    assert_eq!(
+        infer_checked_machine_crash_causes(&checked.typed, &checked.facts, helper.symbol),
+        Some(vec![checked_trees::CrashCause::Trap]),
+    );
+}
+
+#[test]
+fn builtin_spelling_does_not_erase_an_authored_machine_crash_dependency() {
+    let checked = checked_program_result(
+        "data Computation {}
+         machine Computation::max(value: u16) -> u16 crashes Trap value == 0u16 { value }
+         machine capped(value: u16) -> u16 { Computation::max(value) }
+         machine root(value: u16) -> u16 crashes Trap { capped(value) }",
+    )
+    .unwrap();
+    let caller = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "root")
+        .unwrap();
+    let plan = checked
+        .facts
+        .contract_plans
+        .for_machine(caller.symbol)
+        .unwrap();
+    assert_eq!(plan.crash.checked_calls().len(), 1);
+    assert!(!plan.crash.checked_calls()[0].surviving_buckets().is_empty());
+}
+
+#[test]
+fn unresolved_computation_target_cannot_publish_an_empty_private_summary() {
+    let mut checked = checked_program_result(
+        "machine capped(value: u16) -> u16 { min(value, 127u16) }
+         machine root(value: u16) -> u16 { capped(value) }",
+    )
+    .unwrap();
+    let caller = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "root")
+        .unwrap()
+        .symbol;
+    assert_eq!(
+        infer_checked_machine_crash_causes(&checked.typed, &checked.facts, caller),
+        Some(Vec::new()),
+    );
+    let computation = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .find_map(|(handle, call)| {
+            checked
+                .typed
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                .is_some_and(symbols::BuiltinFunction::is_scalar_computation)
+                .then_some(handle)
+        })
+        .unwrap();
+    checked
+        .facts
+        .flow
+        .control
+        .calls
+        .get_mut(computation)
+        .target_symbol = SymbolHandle::default();
+    assert_eq!(
+        infer_checked_machine_crash_causes(&checked.typed, &checked.facts, caller),
+        None,
+        "an unresolved callee removes its private callers from the viable summary graph",
+    );
+}
+
 fn integer_comparison(
     operator: typed_trees::expression::BinaryOperator,
     left: &str,

@@ -316,6 +316,17 @@ fn machine_non_transition_invocation_sites(
         .filter(|(_, state)| state.machine_symbol == machine)
     {
         for call in flow.control.calls.span_or_empty(state.calls) {
+            // Scalar builtins are computations, not machine invocations. Their
+            // operands still have separate call rows, so nested machine calls
+            // remain dependencies of this summary. Only canonical builtin
+            // symbols qualify; an unresolved target must still fail closed.
+            if program
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                .is_some_and(symbols::BuiltinFunction::is_scalar_computation)
+            {
+                continue;
+            }
             let site = crate::semantic::calls::find_call_site(
                 program,
                 state.machine_symbol,
