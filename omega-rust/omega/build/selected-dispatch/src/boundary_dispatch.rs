@@ -829,8 +829,8 @@ fn reject_unselected_direct_requirement_calls(
         }
         reported.push(target_symbol);
         // A selected compiler-intrinsic plan is executed by the named-float
-        // intrinsic bridge (the requirement use is stamped with the plan and
-        // rewritten at execution settlement); an evaluated import or syscall
+        // intrinsic bridge (the requirement use joins the plan by requirement
+        // identity and is rewritten at execution settlement); an evaluated import or syscall
         // binding keeps the call on the requirement's retained boundary seam,
         // which native realization joins to the normalized external-binding
         // row by requirement identity — the `via` leaf executes through that

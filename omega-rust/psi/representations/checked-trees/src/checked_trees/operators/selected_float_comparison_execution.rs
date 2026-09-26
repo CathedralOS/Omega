@@ -68,8 +68,6 @@ impl CheckedSelectedFloatComparisonExecution {
     ) -> Option<PrimitiveType> {
         if !facts.uses.is_valid(self.operator_use)
             || facts.uses.get(self.operator_use) != &self.selected
-            || self.selected.provider_plan_commitment.is_empty()
-            || self.selected.provider_plan_report_fingerprint == 0
             || self.selected.operands(program)?.as_slice() != self.operands
             || facts.selected_float_comparison(program, self.operator_use)
                 != Some((self.comparison, self.primitive))

@@ -492,24 +492,7 @@ mod tests {
     "#;
 
     fn checked(source: &str) -> CheckedTrees {
-        let mut checked = crate::front_end::checked_program(source);
-        // This unit boundary tests source-to-Terminal custody. Omega
-        // separately rejoins these opaque commitments to actual selected
-        // ProviderPlans.
-        let handles = checked
-            .facts
-            .operators
-            .uses
-            .iter()
-            .map(|(handle, _)| handle)
-            .collect::<Vec<_>>();
-        for handle in handles {
-            let selected = checked.facts.operators.uses.get_mut(handle);
-            selected.provider_plan_report_fingerprint = 7;
-            selected.provider_plan_commitment =
-                checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]);
-        }
-        checked
+        crate::front_end::checked_program(source)
     }
 
     /// Re-run the retention pass on the already-lowered module after the test

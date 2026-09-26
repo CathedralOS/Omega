@@ -58,8 +58,13 @@ pub(super) fn plan_selected_operator_adapter_rewrites(
     let mut diagnostics = Vec::new();
 
     for (_, operator_use) in checked.facts.operators.named_uses.iter() {
-        if operator_use.provider_plan_report_fingerprint == 0
-            && operator_use.provider_plan_commitment.is_empty()
+        if selected_use_plan(
+            checked,
+            selected_provider_plans.plans(),
+            operator_use.selected_operator_symbol,
+            operator_use.origin,
+        )
+        .is_none()
         {
             continue;
         }
@@ -85,8 +90,13 @@ pub(super) fn plan_selected_operator_adapter_rewrites(
         if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
             continue;
         }
-        if operator_use.provider_plan_report_fingerprint == 0
-            && operator_use.provider_plan_commitment.is_empty()
+        if selected_use_plan(
+            checked,
+            selected_provider_plans.plans(),
+            operator_use.selected_operator_symbol,
+            operator_use.origin,
+        )
+        .is_none()
         {
             continue;
         }
@@ -138,9 +148,10 @@ fn resolve_selected_operator_adapter_call(
     operator_use: &checked_trees::CheckedNamedOperatorUseFact,
 ) -> Result<Option<OperatorAdapterRewrite>, Diagnostic> {
     let plan = resolve_exact_selected_plan(
+        checked,
         selected_provider_plans,
-        operator_use.provider_plan_report_fingerprint,
-        operator_use.provider_plan_commitment,
+        operator_use.selected_operator_symbol,
+        operator_use.origin,
         "named operator use",
     )?;
 
@@ -427,40 +438,28 @@ pub(super) fn exact_operator_definition(
     Ok(*operator)
 }
 
-pub(super) fn resolve_exact_selected_plan<'plans>(
+/// This target's selected plan for one checked use, joined by requirement
+/// identity. Checked uses carry no selection of their own.
+pub(super) fn selected_use_plan<'plans>(
+    checked: &CheckedTrees,
     selected_provider_plans: &'plans [effects::provider_plan::ProviderPlan],
-    report_fingerprint: u64,
-    commitment: checked_trees::CheckedProviderPlanCommitment,
+    requirement: symbols::SymbolHandle,
+    origin: checked_trees::CheckedValueOrigin,
+) -> Option<&'plans effects::provider_plan::ProviderPlan> {
+    provider_planning::selected_use_plan(checked, selected_provider_plans, requirement, origin)
+        .map(|(_, plan)| plan)
+}
+
+pub(super) fn resolve_exact_selected_plan<'plans>(
+    checked: &CheckedTrees,
+    selected_provider_plans: &'plans [effects::provider_plan::ProviderPlan],
+    requirement: symbols::SymbolHandle,
+    origin: checked_trees::CheckedValueOrigin,
     use_label: &str,
 ) -> Result<&'plans effects::provider_plan::ProviderPlan, Diagnostic> {
-    if commitment.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "{use_label} carries ProviderPlan report fingerprint {report_fingerprint:#018x} without an exact commitment",
-        )));
-    }
-    let report_matches = selected_provider_plans
-        .iter()
-        .filter(|plan| plan.report_fingerprint() == report_fingerprint)
-        .collect::<Vec<_>>();
-    let plans = report_matches
-        .iter()
-        .copied()
-        .filter(|plan| plan.identity_digest().as_bytes() == commitment.as_bytes())
-        .collect::<Vec<_>>();
-    let [plan] = plans.as_slice() else {
-        return Err(Diagnostic::error(
-            match (report_matches.len(), plans.len()) {
-                (1, 0) => format!(
-                    "{use_label} ProviderPlan report fingerprint {report_fingerprint:#018x} has an exact commitment that does not match the selected plan",
-                ),
-                (0, _) => format!(
-                    "{use_label} carries unknown ProviderPlan report fingerprint {report_fingerprint:#018x}",
-                ),
-                (_, count) => format!(
-                    "{use_label} ProviderPlan report fingerprint {report_fingerprint:#018x} and exact commitment match {count} selected plans",
-                ),
-            },
-        ));
-    };
-    Ok(*plan)
+    selected_use_plan(checked, selected_provider_plans, requirement, origin).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "{use_label} for requirement {requirement:?} has no exact selected ProviderPlan",
+        ))
+    })
 }

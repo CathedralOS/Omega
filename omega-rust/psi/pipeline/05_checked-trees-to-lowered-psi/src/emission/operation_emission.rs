@@ -113,9 +113,6 @@ pub(crate) fn emit_scalar_binding(
                             operator_use: occurrence.operator_use,
                             application_site: occurrence.application_site,
                             requirement_operator: occurrence.requirement_operator,
-                            provider_plan_report_fingerprint: occurrence
-                                .provider_plan_report_fingerprint,
-                            provider_plan_commitment: occurrence.provider_plan_commitment,
                             comparison,
                             format,
                             terminal_machine,
@@ -142,9 +139,6 @@ pub(crate) fn emit_scalar_binding(
                             operator_use: occurrence.operator_use,
                             application_site: occurrence.application_site,
                             requirement_operator: occurrence.requirement_operator,
-                            provider_plan_report_fingerprint: occurrence
-                                .provider_plan_report_fingerprint,
-                            provider_plan_commitment: occurrence.provider_plan_commitment,
                             comparison,
                             operand_order,
                             negated,

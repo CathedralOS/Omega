@@ -48,6 +48,7 @@ pub use provider_planning::{
     compiler_intrinsic_diagnostic_label_for, derive_satisfies_plans, exact_checked_adapter,
     extract_external_binding_rows, extract_native_external_binding_rows,
     intrinsic_realization_matches_operator, primitive_float_binary_intrinsic_execution_identity,
+    selected_requirement_plan, selected_use_plan,
     primitive_float_binary_intrinsic_execution_identity_for,
     primitive_integer_comparison_intrinsic_execution_identity,
     primitive_integer_comparison_intrinsic_execution_identity_for, satisfied_requirement_identity,

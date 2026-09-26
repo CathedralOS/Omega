@@ -153,24 +153,8 @@ const SELECTED_FLOAT_GUARD: &str = r#"
     }
 "#;
 
-/// Source-to-Terminal custody for the selected comparison; Omega separately
-/// rejoins these opaque commitments to the actual selected ProviderPlans.
 fn selected_float_guard() -> checked_trees::CheckedTrees {
-    let mut checked = crate::front_end::checked_program(SELECTED_FLOAT_GUARD);
-    let handles = checked
-        .facts
-        .operators
-        .uses
-        .iter()
-        .map(|(handle, _)| handle)
-        .collect::<Vec<_>>();
-    for handle in handles {
-        let selected = checked.facts.operators.uses.get_mut(handle);
-        selected.provider_plan_report_fingerprint = 7;
-        selected.provider_plan_commitment =
-            checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]);
-    }
-    checked
+        crate::front_end::checked_program(SELECTED_FLOAT_GUARD)
 }
 
 fn computed_guard(

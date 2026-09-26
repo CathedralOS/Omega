@@ -285,8 +285,8 @@ fn float_match_applications_retain_selected_intrinsic_review() {
 }
 
 #[test]
-fn float_match_review_rejects_substituted_arm_and_selected_plan() {
-    for corrupt_arm in [false, true] {
+fn float_match_review_rejects_substituted_arm() {
+    {
         let (_package, mut checked) = compile(FLOAT_MATCH);
         project_checked_boundary_application_policy(
             &checked,
@@ -294,7 +294,7 @@ fn float_match_review_rejects_substituted_arm_and_selected_plan() {
             package_identity(),
         )
         .expect("unmodified Match review must succeed before corruption");
-        if corrupt_arm {
+        {
             let application =
                 checked
                     .facts
@@ -314,26 +314,6 @@ fn float_match_review_rejects_substituted_arm_and_selected_plan() {
                 panic!("Match");
             };
             *source_arm = Default::default();
-        } else {
-            let operator_use = checked
-                .facts
-                .operators
-                .uses
-                .iter()
-                .find(|(_, operator_use)| {
-                    matches!(
-                        operator_use.occurrence,
-                        checked_trees::CheckedOperatorOccurrence::MatchEquality { .. }
-                    )
-                })
-                .map(|(handle, _)| handle)
-                .expect("implicit use");
-            checked
-                .facts
-                .operators
-                .uses
-                .get_mut(operator_use)
-                .provider_plan_report_fingerprint ^= 1;
         }
         assert!(
             project_checked_boundary_application_policy(

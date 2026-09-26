@@ -99,7 +99,7 @@ fn missing_trait_plan() -> ProviderPlan {
 }
 
 #[test]
-fn selected_fixed_token_checked_adapter_copies_both_plan_coordinates_under_shared_custody() {
+fn selected_fixed_token_checked_adapter_joins_its_plan_under_shared_custody() {
     let (checked, plan) = fixed_token_checked_adapter_fixture();
     let (use_handle, use_before) = checked
         .facts
@@ -109,8 +109,6 @@ fn selected_fixed_token_checked_adapter_copies_both_plan_coordinates_under_share
         .map(|(handle, operator_use)| (handle, *operator_use))
         .next()
         .expect("one spelled boundary-operator use");
-    assert_eq!(use_before.provider_plan_report_fingerprint, 0);
-    assert!(use_before.provider_plan_commitment.is_empty());
 
     let original_contents = checked.clone();
     let original = Arc::new(checked);
@@ -132,36 +130,24 @@ fn selected_fixed_token_checked_adapter_copies_both_plan_coordinates_under_share
     let (bound, selected, _) = binding.into_parts();
 
     assert!(Arc::ptr_eq(&original, &retained_custodian));
-    assert!(!Arc::ptr_eq(&bound, &original));
     assert_eq!(original.as_ref(), &original_contents);
     assert_eq!(retained_custodian.as_ref(), &original_contents);
-    let retained_use = original.facts.operators.uses.get(use_handle);
-    assert_eq!(retained_use.provider_plan_report_fingerprint, 0);
-    assert!(retained_use.provider_plan_commitment.is_empty());
-
     let bound_use = bound.facts.operators.uses.get(use_handle);
-    assert_eq!(
-        bound_use.provider_plan_report_fingerprint,
-        plan.report_fingerprint()
-    );
-    assert_eq!(
-        bound_use.provider_plan_commitment.as_bytes(),
-        plan.identity_digest().as_bytes()
-    );
+    assert_eq!(*bound_use, use_before);
+    let (_, joined) = crate::selected_use_plan(
+        &bound,
+        selected.plans(),
+        bound_use.selected_operator_symbol,
+        bound_use.origin,
+    )
+    .expect("the spelled use joins its selected plan by requirement identity");
+    assert_eq!(joined.identity_digest(), plan.identity_digest());
     assert!(selected.installation_reach_resolutions().is_empty());
 }
 
 #[test]
 fn later_failure_publishes_no_staged_fixed_token_checked_adapter_update() {
     let (checked, operator_plan) = fixed_token_checked_adapter_fixture();
-    let use_handle = checked
-        .facts
-        .operators
-        .uses
-        .iter()
-        .map(|(handle, _)| handle)
-        .next()
-        .expect("one spelled boundary-operator use");
     let missing_trait_plan = missing_trait_plan();
     let candidates = [operator_plan.clone(), missing_trait_plan.clone()];
     let selected = effects::SelectedProviderPlanFacts::from_selection(
@@ -184,9 +170,6 @@ fn later_failure_publishes_no_staged_fixed_token_checked_adapter_update() {
     assert!(Arc::ptr_eq(&original, &retained_custodian));
     assert_eq!(original.as_ref(), &original_contents);
     assert_eq!(retained_custodian.as_ref(), &original_contents);
-    let retained_use = original.facts.operators.uses.get(use_handle);
-    assert_eq!(retained_use.provider_plan_report_fingerprint, 0);
-    assert!(retained_use.provider_plan_commitment.is_empty());
 }
 
 /// The provider realizes `+` and spells `+` inside its own body; the caller
@@ -260,7 +243,6 @@ fn spelling_the_operator_inside_the_provider_redispatches_while_a_direct_call_de
         machine_symbol, provider_machine,
         "the only spelled use is the provider's own `+`"
     );
-    assert_eq!(use_before.provider_plan_report_fingerprint, 0);
 
     let original = Arc::new(checked);
     let selected = effects::SelectedProviderPlanFacts::from_selection(
@@ -276,14 +258,14 @@ fn spelling_the_operator_inside_the_provider_redispatches_while_a_direct_call_de
         &[],
     )
     .expect("the provider-internal spelling redispatches through the selected plan");
-    let (bound, _, _) = binding.into_parts();
+    let (bound, selected, _) = binding.into_parts();
     let bound_use = bound.facts.operators.uses.get(*use_handle);
-    assert_eq!(
-        bound_use.provider_plan_report_fingerprint,
-        plan.report_fingerprint()
-    );
-    assert_eq!(
-        bound_use.provider_plan_commitment.as_bytes(),
-        plan.identity_digest().as_bytes()
-    );
+    let (_, joined) = crate::selected_use_plan(
+        &bound,
+        selected.plans(),
+        bound_use.selected_operator_symbol,
+        bound_use.origin,
+    )
+    .expect("the provider-internal spelling joins the selected plan");
+    assert_eq!(joined.identity_digest(), plan.identity_digest());
 }
