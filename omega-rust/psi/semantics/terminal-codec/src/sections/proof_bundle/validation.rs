@@ -418,6 +418,7 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), ProofCodecError> 
             ScalarTerm::Value { .. }
             | ScalarTerm::BooleanField { .. }
             | ScalarTerm::IntegerField { .. }
+            | ScalarTerm::ViewExtent { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. } => {}
         }

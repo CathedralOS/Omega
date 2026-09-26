@@ -142,7 +142,9 @@ pub(crate) fn function_claim_input(
 pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
     fn scalar_term_roots(term: &ScalarTerm, roots: &mut BTreeSet<PlaceId>) {
         match term {
-            ScalarTerm::BooleanField { root, .. } | ScalarTerm::IntegerField { root, .. } => {
+            ScalarTerm::BooleanField { root, .. }
+            | ScalarTerm::IntegerField { root, .. }
+            | ScalarTerm::ViewExtent { root, .. } => {
                 roots.insert(*root);
             }
             ScalarTerm::BooleanNot { operand }

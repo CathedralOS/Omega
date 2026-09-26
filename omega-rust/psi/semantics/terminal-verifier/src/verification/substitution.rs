@@ -288,7 +288,8 @@ fn substitute_scalar_term_places(
     ) {
         match term {
             ScalarTerm::BooleanField { root, path }
-            | ScalarTerm::IntegerField { root, path, .. } => {
+            | ScalarTerm::IntegerField { root, path, .. }
+            | ScalarTerm::ViewExtent { root, path, .. } => {
                 if let Some((replacement, prefix)) = substitutions.get(root) {
                     *root = *replacement;
                     if !prefix.is_empty() {
@@ -382,6 +383,7 @@ pub(super) fn substitute_scalar_term_values(
             .unwrap_or_else(|| term.clone()),
         ScalarTerm::BooleanField { .. }
         | ScalarTerm::IntegerField { .. }
+        | ScalarTerm::ViewExtent { .. }
         | ScalarTerm::Boolean(_)
         | ScalarTerm::Integer { .. } => term.clone(),
         ScalarTerm::BooleanNot { operand } => ScalarTerm::BooleanNot {

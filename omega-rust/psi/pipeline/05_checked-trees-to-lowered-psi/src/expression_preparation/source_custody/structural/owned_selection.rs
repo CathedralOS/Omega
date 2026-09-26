@@ -670,9 +670,7 @@ pub(super) fn validate_copied_projection(
     path: &[CheckedUnitStructuralPathSegment],
     type_identity: &str,
 ) -> Result<ProjectionRoot, LoweringError> {
-    if copied.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-        || path.is_empty()
-    {
+    if copied.access != checked_trees::CheckedStructuralAccess::SharedBorrow || path.is_empty() {
         return unsupported("copied projection changed its access or path");
     }
     let mut spelled = Vec::new();
@@ -695,15 +693,11 @@ pub(super) fn validate_copied_projection(
     if spelled.as_slice() != path {
         return unsupported("copied projection changed its authored path");
     }
-    let leaf = validation::expression_result_type_reference(
-        &checked.typed,
-        machine,
-        state,
-        expression,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "copied projection lost its leaf type",
-    ))?;
+    let leaf =
+        validation::expression_result_type_reference(&checked.typed, machine, state, expression)
+            .ok_or(LoweringError::Unsupported(
+                "copied projection lost its leaf type",
+            ))?;
     if checked.normalized_type_identity(leaf).as_str() != type_identity {
         return unsupported("copied projection changed its copied leaf type");
     }

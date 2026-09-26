@@ -157,6 +157,7 @@ impl<'input> ValueEqualities<'input> {
             ScalarTerm::Value { .. }
             | ScalarTerm::BooleanField { .. }
             | ScalarTerm::IntegerField { .. }
+            | ScalarTerm::ViewExtent { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. } => {}
         }

@@ -354,6 +354,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         content_entry_claims,
         content_identity_reshuffles,
         state_ids,
+        state_views,
         state_values,
         state_erased,
         state_erased_proof: _,
@@ -388,10 +389,26 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         if case_arrival {
             return unsupported("Unit graph requires header reached by case dispatch");
         }
+        // A state's `requires` cites its own parameter positions; the block's
+        // structural decls pair them with their terminal places.
+        let view_roster: Vec<(u32, StructuralParameterDeclaration)> = state
+            .structural_parameters
+            .iter()
+            .zip(state_views[position].iter())
+            .map(|(source, parameter)| (source.position, parameter.clone()))
+            .collect();
+        let element_views = crate::expression_preparation::bindings::element_views(
+            &view_roster,
+            &catalogs.structural_types,
+        );
         let Some(predicate) = crate::scalar_graph::scalar_contracts::clauses(
             &state.requires,
             &state_values[position],
             &state_erased[position],
+            &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+                parameters: &view_roster,
+                element_views: &element_views,
+            },
         )?
         else {
             continue;

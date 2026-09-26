@@ -42,7 +42,8 @@ fn proposition_observation_sites(proposition: &Proposition) -> Vec<ObservationSi
     fn collect_term(term: &ScalarTerm, sites: &mut Vec<ObservationSite>) {
         match term {
             ScalarTerm::BooleanField { root, path }
-            | ScalarTerm::IntegerField { root, path, .. } => {
+            | ScalarTerm::IntegerField { root, path, .. }
+            | ScalarTerm::ViewExtent { root, path, .. } => {
                 sites.push((*root, Some(path.clone())));
             }
             ScalarTerm::BooleanNot { operand }

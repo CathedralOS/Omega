@@ -525,8 +525,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                     ..
                                 }
                                 | CheckedUnitEffectOperationPlan::StructuralCall {
-                                    result,
-                                    ..
+                                    result, ..
                                 }
                                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
                                     result,

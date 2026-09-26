@@ -36,7 +36,8 @@ fn context(axioms: &[Proposition]) -> PropositionContext {
             ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }
             | ScalarTerm::BooleanField { .. }
-            | ScalarTerm::IntegerField { .. } => {}
+            | ScalarTerm::IntegerField { .. }
+            | ScalarTerm::ViewExtent { .. } => {}
             ScalarTerm::BooleanNot { operand }
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
             | ScalarTerm::IntegerWiden { operand, .. }

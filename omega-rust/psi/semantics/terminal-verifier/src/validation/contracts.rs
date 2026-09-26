@@ -4,6 +4,7 @@
 use super::{
     BTreeSet, ContractClauseKind, ContractId, ModuleError, Proposition, ScalarTerm, ScalarType,
     StructuralFieldType, TerminalMachine, TerminalModule, ValueId, structural_leaf_type,
+    view_extent_leaf_has_extent,
 };
 pub(super) fn validate_contract_clause_kind(
     proposition: &Proposition,
@@ -225,6 +226,20 @@ fn validate_term_scope(
                 Some(StructuralFieldType::BoundedInteger(bounded)) if bounded.integer_type() == *scalar_type
             ) {
                 return Err(ModuleError::InvalidIntegerFieldTerm {
+                    machine: machine.id,
+                    root: *root,
+                    path: path.clone(),
+                    scalar_type: *scalar_type,
+                });
+            }
+        }
+        ScalarTerm::ViewExtent {
+            root,
+            path,
+            scalar_type,
+        } => {
+            if !view_extent_leaf_has_extent(module, machine, *root, path) {
+                return Err(ModuleError::InvalidViewExtentTerm {
                     machine: machine.id,
                     root: *root,
                     path: path.clone(),
