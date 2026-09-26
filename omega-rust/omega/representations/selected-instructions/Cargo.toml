@@ -9,13 +9,13 @@ name = "selected_instructions"
 path = "src/lib.rs"
 
 [dependencies]
-calling-conventions = { path = "../calling-conventions" }
-optimization-core = { path = "../optimization-core" }
-optimization-unit = { path = "../optimization-unit" }
-register-model = { path = "../register-model" }
-target = { path = "../target" }
+calling-conventions = { path = "../../backend/calling-conventions" }
+optimization-core = { path = "../../foundation/optimization-core" }
+optimization-unit = { path = "../abstract-operations/optimization-unit" }
+register-model = { path = "../../backend/register-model" }
+target = { path = "../../backend/target" }
 abstract-operations = { path = "../abstract-operations" }
-legalized-operations = { path = "../legalized-operations" }
+legalized-operations = { path = "../target-operations/legalized-operations" }
 target-operations = { path = "../target-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }

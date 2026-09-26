@@ -9,11 +9,11 @@ name = "external_roots"
 path = "src/lib.rs"
 
 [dependencies]
-calling-conventions = { path = "../../../representations/calling-conventions" }
-effects = { path = "../../../representations/effects" }
+calling-conventions = { path = "../../calling-conventions" }
+effects = { path = "../../plans/effects" }
 executable-installation = { path = "../executable-installation" }
-target = { path = "../../../representations/target" }
-installation-evidence = { path = "../../../representations/installation-evidence" }
+target = { path = "../../target" }
+installation-evidence = { path = "../installation-evidence" }
 isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
 program-entry-plan = { path = "../../plans/program-entry-plan" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
@@ -30,4 +30,4 @@ sha2 = "0.10.9"
 proof-admission = { path = "../../../../psi/semantics/proof-admission" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 terminal-verifier = { path = "../../../../psi/semantics/terminal-verifier" }
-target = { path = "../../../representations/target" }
+target = { path = "../../target" }

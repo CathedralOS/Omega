@@ -58,7 +58,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering",
-        "omega-rust/omega/representations/optimization-core/src/selection.rs",
+        "omega-rust/omega/foundation/optimization-core/src/selection.rs",
         "omega-rust/omega/compiler/compiler/src/pipeline/optimization/build_vocabulary"
       ],
       "suggested_first_slice": "Add one exact address-mode, compare/branch, extension, or constant-materialization selection family with independent validation. The wave-6 run located the family seam in rewrites/selected_lowering; an Optimization tag requires optimization-core/src/selection.rs and compiler/src/pipeline/optimization/build_vocabulary/fragments.rs."

@@ -9,7 +9,7 @@ name = "representation_selections"
 path = "src/lib.rs"
 
 [dependencies]
-source = { path = "../../../psi/foundation/source" }
-symbols = { path = "../../../psi/foundation/symbols" }
-typed-trees = { path = "../../../psi/representations/typed-trees" }
+source = { path = "../../../../psi/foundation/source" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+typed-trees = { path = "../../../../psi/representations/typed-trees" }
 sha2 = "0.10.9"

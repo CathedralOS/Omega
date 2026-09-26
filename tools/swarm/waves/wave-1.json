@@ -36,7 +36,7 @@
       "owning_paths": [
         "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation",
         "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/rules",
-        "omega-rust/omega/representations/optimization-unit/semantics/src/unit_validation"
+        "omega-rust/omega/representations/abstract-operations/optimization-unit/semantics/src/unit_validation"
       ]
     },
     {

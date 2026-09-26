@@ -241,11 +241,11 @@
       "item": "TARGET-MATRICES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/representations/calling-conventions/src/plans.rs",
-        "omega-rust/omega/representations/calling-conventions/src/linux.rs",
-        "omega-rust/omega/representations/calling-conventions/src/darwin.rs",
-        "omega-rust/omega/representations/calling-conventions/src/windows.rs",
-        "omega-rust/omega/representations/calling-conventions/src/stack_realizations.rs"
+        "omega-rust/omega/backend/calling-conventions/src/plans.rs",
+        "omega-rust/omega/backend/calling-conventions/src/linux.rs",
+        "omega-rust/omega/backend/calling-conventions/src/darwin.rs",
+        "omega-rust/omega/backend/calling-conventions/src/windows.rs",
+        "omega-rust/omega/backend/calling-conventions/src/stack_realizations.rs"
       ],
       "suggested_first_slice": "Backfill for the landed selected-abi-validation slot. Complete one supported target/OS matrix class in calling-conventions \u2014 callable or unwind rows for linux/windows/darwin per plans.rs, with drift/coverage tests. Encoding and object matrices likely need isa-* or object crates held by SPILL-REALIZATION \u2014 if the slice crosses there, report blocked rather than claiming them.",
       "backfill_for": "selected-abi-validation"

@@ -153,4 +153,4 @@ Open:
   footprint.
 
 Current policy-source and normalized-model support is documented beside
-[calling conventions](../../../omega-rust/omega/representations/calling-conventions/README.md).
+[calling conventions](../../../omega-rust/omega/backend/calling-conventions/README.md).

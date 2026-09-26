@@ -60,8 +60,8 @@ class SelectionTests(unittest.TestCase):
                      "OWNER_QUESTIONS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
                      "wiki/proposals/example.md", "wiki/new.md",
                      "tools/testing.md", "tools/benchmark/README.md",
-                     "omega-rust/omega/representations/optimization-core/rules.md",
-                     "omega-rust/omega/representations/optimization-core/promotions/rule.md"]:
+                     "omega-rust/omega/foundation/optimization-core/rules.md",
+                     "omega-rust/omega/foundation/optimization-core/promotions/rule.md"]:
             with self.subTest(path=path):
                 self.assertEqual(self.select(path), ("none()", [], []))
         for path in ["fixtures/input.md", "wiki/input.omg", "wiki/config.toml",

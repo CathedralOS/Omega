@@ -91,17 +91,46 @@ historical evidence only and must not be implemented.
 
 | Responsibility | Owner |
 | --- | --- |
-| Durable current program, identities, raw evidence and codecs | `representations/` |
+| Current program forms and their attached records/codecs | `representations/`, grouped by pipeline program family |
 | Language meaning and independently reusable validity/proof | Psi `semantics/`; independent domain-specific checker packages beside their representation |
 | Transformation, rewrite, private scratch and analyses | Owning `pipeline/X-to-Y` or `X-to-X` |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `backend/` |
-| Shared target-neutral source/arena/numeric primitives | Psi `foundation/` |
-| Shared host process and filesystem primitives | Omega `foundation/` |
+| Shared target-neutral source/arena/numeric primitives and optimization selections | Psi `foundation/` |
+| Shared host primitives, native function identities and optimization vocabulary | Omega `foundation/` |
 | Product sequencing, requested outputs and composition policy | Omega `compiler/` and its independent supporting packages |
 | Source acquisition, package operations and review | Omega `package-manager/` and its independent supporting packages |
 | Checked and Terminal Psi execution | Psi `interpreter/` |
 | Target-neutral build-machine evaluation | Psi `compiler/build-time-evaluation/` |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
+
+### Program families and support packages
+
+Psi exposes seven successive program forms: tokens, syntax trees, resolved
+trees, typed trees, checked trees, Lowered Psi and Terminal Psi. Shared facts
+and flow summaries live in `psi/semantics/`; the pass-selection vocabulary lives
+in `psi/foundation/optimization-selections/`.
+
+Omega exposes six top-level program families: abstract operations, target
+operations, selected instructions, register homes, post-allocation machine and
+machine code. These are not six consecutive passes. Same-form optimization
+passes retain their input form; `machine-code` owns distinct selected-form
+encoding, resolved-layout and final machine-code roots. The
+[native representation map](omega/representations/README.md) names the actual
+producer and consumer of each form.
+
+The independent `optimization-unit` package beneath `abstract-operations/`
+contains the derived CFG/SSA and replay form used during abstract optimization.
+The independent `legalized-operations` package beneath `target-operations/`
+contains the internal form between legalization and selection inside stage 03.
+Nesting describes the family, not a new dependency on a producing stage. Preserve
+these distinct forms and manifests; do not manufacture extra pipeline steps to
+make folder counts match.
+
+Target descriptions, calling conventions and register models belong to backend;
+installation/task evidence belongs to backend runtime; boundary-application
+companions belong to backend artifacts; provider authority evidence belongs to
+backend plans. Representation-selection records remain an independent package
+beside their compiler planning owner. None of these is a pipeline program IR.
 
 ### Subsystem entrances and supporting packages
 
@@ -127,7 +156,7 @@ compiler coordinates source preparation and uses
 Interpreter ownership remains on the Psi side of the firewall.
 
 The independent `optimization-unit-semantics` checker lives at
-`omega/representations/optimization-unit/semantics/`, beside the representation
+`omega/representations/abstract-operations/optimization-unit/semantics/`, beside the representation
 whose meaning and rewrites it checks. Its own manifest depends on representation
 and semantic libraries, not on candidate-producing stages. The representation
 does not acquire a dependency on the checker. Domain-local placement does not
@@ -140,12 +169,13 @@ package-defined topology implementation lives separately at `library/topology/`:
 its graph policies, plan codec, verifier, and installer are ordinary library
 responsibilities, not compiler primitives or backend realization plans.
 
-Omega `foundation/` owns host infrastructure shared by compilation, package
-management and application workflows: bounded process execution and filesystem
-custody. These packages depend on host libraries, never on compiler stages or
-product policy. Psi retains its source/arena/numeric foundations; do not duplicate
-them in Omega. Native identities and carriers remain in representations, and
-target/runtime primitives remain in backend. Psi must not depend on Omega. A coordinator forwards complete typed
+Omega `foundation/` owns shared host primitives and native compiler vocabulary:
+bounded process execution, filesystem custody, function identities and optimization
+contracts/selections. These independent packages depend on host libraries and
+Psi foundations, never on program IRs, producing stages or product coordinators.
+Psi retains its source/arena/numeric and optimization-selection foundations; do
+not duplicate them in Omega. Target/ABI/register descriptions and retained
+realization evidence belong to their backend owners. Psi must not depend on Omega. A coordinator forwards complete typed
 results rather than owning package loading, build evaluation, stage algorithms,
 artifact formatting, or a generic orchestration subsystem. Allocation counters
 and phase-report deltas belong to [artifacts](omega/compiler/artifacts/src/compile_timings/mod.rs),
@@ -259,8 +289,11 @@ the workspace; use descriptive ownership names rather than duplicate generic
 names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 
 - Psi `foundation/` — shared vocabulary, arenas, symbols, diagnostics.
-- Omega `foundation/` — shared host process and filesystem primitives.
-- `representations/` — durable IR structs.
+- Omega `foundation/` — shared host primitives, function identities and
+  optimization contracts/selections.
+- `representations/` — pipeline program families, with independent internal or
+  derived forms nested beneath the corresponding family. Shared vocabulary,
+  configuration and standalone evidence are not additional program stages.
 - `pipeline/` — transforms only; crate names read literally as `X-to-Y`
   (`source-files-to-tokens` → `tokens-to-syntax-trees` →
   `syntax-trees-to-symbol-resolved-trees` →

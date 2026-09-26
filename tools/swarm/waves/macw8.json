@@ -120,7 +120,7 @@
                 "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold",
                 "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/legality"
             ],
-            "suggested_first_slice": "declare one further currently-impossible pair relationship — flag-consuming, clobbering, or tied-operand form (zero-compare value partition landed at 3e8da4d90e via PairImmediateBound::EncodingNonZero) — in literal_fold/pair_rule.rs with independent replay coverage in literal_fold/validate; the validator restates every grammar from instruction records and never reads a descriptor. omega-rust/omega/representations/optimization-core is claimed by linw5-custody-mutation-coverage — if your grammar needs representation-level changes, name them in claims notes and defer rather than writing outside your fence. Sibling slots own the other rewrites/ families",
+            "suggested_first_slice": "declare one further currently-impossible pair relationship — flag-consuming, clobbering, or tied-operand form (zero-compare value partition landed at 3e8da4d90e via PairImmediateBound::EncodingNonZero) — in literal_fold/pair_rule.rs with independent replay coverage in literal_fold/validate; the validator restates every grammar from instruction records and never reads a descriptor. omega-rust/omega/foundation/optimization-core is claimed by linw5-custody-mutation-coverage — if your grammar needs representation-level changes, name them in claims notes and defer rather than writing outside your fence. Sibling slots own the other rewrites/ families",
             "host_gates": [
                 "which mbx || which cargo"
             ],

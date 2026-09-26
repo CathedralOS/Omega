@@ -12,7 +12,7 @@ surface.
 
 Source of every rule below: `component_publication.md` §Service bindings and
 era entry, §Replacement and coexistence; enforcement lives in
-`omega-rust/omega/representations/effects/src/component_eras/`.
+`omega-rust/omega/backend/plans/effects/src/component_eras/`.
 
 | Spec obligation | Enforcement | Pinning tests |
 | --- | --- | --- |

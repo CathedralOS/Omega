@@ -18,9 +18,9 @@ language-semantics = { path = "../../../psi/foundation/language-semantics" }
 layout-plans = { path = "../../../psi/foundation/layout-plans" }
 numerics = { path = "../../../psi/foundation/numerics" }
 runtime-abi = { path = "../runtime/runtime-abi" }
-target = { path = "../../representations/target" }
-calling-conventions = { path = "../../representations/calling-conventions" }
-representation-selections = { path = "../../representations/representation-selections" }
+target = { path = "../target" }
+calling-conventions = { path = "../calling-conventions" }
+representation-selections = { path = "../../compiler/representation-planning/selections" }
 
 [dev-dependencies]
 build-time-evaluation = { path = "../../../psi/compiler/build-time-evaluation" }

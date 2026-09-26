@@ -9,7 +9,7 @@ name = "boundary_applications"
 path = "src/lib.rs"
 
 [dependencies]
-effects = { path = "../effects" }
-semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+effects = { path = "../../plans/effects" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"

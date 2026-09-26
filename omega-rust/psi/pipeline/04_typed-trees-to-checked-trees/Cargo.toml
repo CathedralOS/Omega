@@ -13,8 +13,8 @@ arena = { path = "../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
-flow-effects = { path = "../../representations/flow-effects" }
-facts = { path = "../../representations/facts" }
+flow-effects = { path = "../../semantics/flow-effects" }
+facts = { path = "../../semantics/facts" }
 language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }

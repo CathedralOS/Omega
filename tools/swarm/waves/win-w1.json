@@ -41,8 +41,8 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/omega/compiler/provider-planning/src/calling_policy_plans/opaque_representations.rs",
-        "omega-rust/omega/representations/boundary-applications/src/realization.rs",
-        "omega-rust/omega/representations/installation-evidence/src/lib.rs"
+        "omega-rust/omega/backend/artifacts/boundary-applications/src/realization.rs",
+        "omega-rust/omega/backend/runtime/installation-evidence/src/lib.rs"
       ],
       "suggested_first_slice": "Complete one independently compiled opaque by-value representation agreement and rejoin its consumer demands to the producer declarations."
     },

@@ -9,9 +9,9 @@ name = "image_pe"
 path = "src/lib.rs"
 
 [dependencies]
-calling-conventions = { path = "../../../representations/calling-conventions" }
+calling-conventions = { path = "../../calling-conventions" }
 arena = { path = "../../../../psi/foundation/arena" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 image = { path = "../image" }
 object-file = { path = "../../object/object-file" }
-target = { path = "../../../representations/target" }
+target = { path = "../../target" }

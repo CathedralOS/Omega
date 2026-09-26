@@ -6,7 +6,7 @@ authority. This page identifies implementation entrances, not another rule
 inventory. The [source-organization audit](../tests/architecture/optimizer_source_organization/README.md)
 owns navigation and size checks.
 
-The checked [exact-rule inventory](omega/representations/optimization-core/rules.md)
+The checked [exact-rule inventory](omega/foundation/optimization-core/rules.md)
 records current experimental status, applicability, and composition limits.
 
 ## Selection and portable publication
@@ -24,7 +24,7 @@ authored selection.
 The [Psi X-to-X entrance](psi/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs)
 consumes complete unsealed `LoweredPsi`, validates both sides, and returns the
 only optimization-stage result accepted by Terminal publication. Its
-[Psi-local catalog](psi/representations/optimization/src/optimization_selections/catalog.rs)
+[Psi-local catalog](psi/foundation/optimization-selections/src/optimization_selections/catalog.rs)
 does not import native target vocabulary. Every catalog selection runs here —
 control-flow cleanup, sparse conditional constant propagation, copy
 propagation, global value numbering, dead pure scalar elimination, and
@@ -190,5 +190,5 @@ Before deployment, run the affected target/workload checks and retain command,
 log, compiler identity, target, and output digest. Restore only the affected
 argument after semantic/corruption, differential, determinism, target,
 measurement, and rollback coverage passes; do not replace exact selection with
-a broad optimization level. [Promotion evidence](omega/representations/optimization-core/promotions/README.md)
+a broad optimization level. [Promotion evidence](omega/foundation/optimization-core/promotions/README.md)
 remains a separate owner-reviewed requirement.

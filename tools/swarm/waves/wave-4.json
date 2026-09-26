@@ -89,7 +89,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs",
-        "omega-rust/omega/representations/optimization-core/src/selection.rs"
+        "omega-rust/omega/foundation/optimization-core/src/selection.rs"
       ],
       "suggested_first_slice": "Extend the landed selected-lowering catalog descriptor with one symbolic instruction-pair rule while retaining its independent validator and optimization-core identity."
     },

@@ -42,5 +42,5 @@ use it. Current native limits belong beside the
 [lowerer](../../pipeline/02_abstract-operations-to-target-operations/README.md).
 
 Final state-footprint certificates are a separate realization check; their
-[production status](../../backend/images/image/footprint_replay.md) must not be
+[production status](../images/image/footprint_replay.md) must not be
 inferred from a passing plan evaluator.

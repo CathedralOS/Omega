@@ -12,15 +12,15 @@ path = "src/lib.rs"
 component-publication = { path = "../component-publication" }
 component-candidate = { path = "../../artifacts/component-candidate" }
 executable-installation = { path = "../executable-installation" }
-effects = { path = "../../../representations/effects" }
+effects = { path = "../../plans/effects" }
 external-roots = { path = "../external-roots" }
 image-emission = { path = "../../images/image-emission", features = ["installed-artifact"] }
-installation-evidence = { path = "../../../representations/installation-evidence" }
-boundary-applications = { path = "../../../representations/boundary-applications" }
+installation-evidence = { path = "../installation-evidence" }
+boundary-applications = { path = "../../artifacts/boundary-applications" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 
 [dev-dependencies]
-calling-conventions = { path = "../../../representations/calling-conventions" }
+calling-conventions = { path = "../../calling-conventions" }
 extents = { path = "../../../../psi/foundation/extents" }
-target = { path = "../../../representations/target" }
+target = { path = "../../target" }

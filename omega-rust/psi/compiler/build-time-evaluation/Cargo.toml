@@ -16,7 +16,7 @@ access-plans = { path = "../../foundation/access-plans" }
 checked-interpreter = { path = "../../interpreter/checked-interpreter" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
-flow-effects = { path = "../../representations/flow-effects" }
+flow-effects = { path = "../../semantics/flow-effects" }
 language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 layout-plans = { path = "../../foundation/layout-plans" }

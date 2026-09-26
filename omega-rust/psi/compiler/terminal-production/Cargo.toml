@@ -12,7 +12,7 @@ checked-trees-to-lowered-psi = { path = "../../pipeline/05_checked-trees-to-lowe
 lowered-psi = { path = "../../representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../pipeline/06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../pipeline/07_lowered-psi-to-terminal-psi" }
-optimization = { path = "../../representations/optimization" }
+optimization = { path = "../../foundation/optimization-selections" }
 symbols = { path = "../../foundation/symbols" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../semantics/terminal-semantics" }

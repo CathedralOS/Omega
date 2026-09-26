@@ -13,14 +13,14 @@ default = []
 installed-writer = ["dep:executable-installation"]
 
 [dependencies]
-calling-conventions = { path = "../../../representations/calling-conventions" }
+calling-conventions = { path = "../../calling-conventions" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
-effects = { path = "../../../representations/effects" }
-function-identity = { path = "../../../representations/function-identity" }
+effects = { path = "../effects" }
+function-identity = { path = "../../../foundation/function-identity" }
 isa-aarch64 = { path = "../../instruction_set_architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
 layout = { path = "../../layout" }
-target = { path = "../../../representations/target" }
+target = { path = "../../target" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 symbols = { path = "../../../../psi/foundation/symbols" }

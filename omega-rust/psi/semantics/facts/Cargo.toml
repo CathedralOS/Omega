@@ -14,4 +14,4 @@ language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
 symbols = { path = "../../foundation/symbols" }
-typed-trees = { path = "../typed-trees" }
+typed-trees = { path = "../../representations/typed-trees" }

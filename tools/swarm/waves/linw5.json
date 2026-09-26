@@ -74,7 +74,7 @@
    "item": "CUSTODY-MUTATION-COVERAGE",
    "owning_paths": [
     "omega-rust/psi/foundation/mutation-matrix",
-    "omega-rust/omega/representations/optimization-core"
+    "omega-rust/omega/foundation/optimization-core"
    ],
    "suggested_first_slice": "CONTINUATION leg 3 (prior legs landed 9d78249703 installed-realization, 7e1c44a589 decoded-container, both via the shared custody_field_inventory + run_one_field_substitution_matrix driver). Pick ONE next matrix: component-publication matrices external_stack_provision_rejects_every_one_field_substitution or installed_runnable_component_rejects_every_one_field_substitution, or executable-installation residual replacement_join_rejects_each_patch_substitution. Follow the landed pattern: custody_field_inventory! declaring every representable/informational/canonical-validation lane, honest substitution hook, per-lane outcome function, one run_one_field_substitution_matrix call replacing the hand-rolled battery, independent checker preserved. Widen the claim before editing outside owning_paths. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
    "host_gates": [

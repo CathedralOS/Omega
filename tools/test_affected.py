@@ -43,7 +43,7 @@ DOCUMENTATION_FILES = {
     "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
     "tools/claims.md", "tools/landing.md", "tools/release_matrix.md",
     "tools/rust_producer_omission.md", "tools/testing.md",
-    "omega-rust/omega/representations/optimization-core/rules.md",
+    "omega-rust/omega/foundation/optimization-core/rules.md",
 }
 
 # Measured multi-minute library tests by owning package
@@ -63,7 +63,7 @@ def is_documentation(filename):
     return filename in DOCUMENTATION_FILES or (
         path.parts[0] in {"wiki", "tools"} and path.suffix == ".md"
     ) or (
-        path.is_relative_to("omega-rust/omega/representations/optimization-core/promotions")
+        path.is_relative_to("omega-rust/omega/foundation/optimization-core/promotions")
         and path.suffix == ".md"
     )
 

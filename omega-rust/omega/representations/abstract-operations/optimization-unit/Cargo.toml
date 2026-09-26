@@ -1,0 +1,16 @@
+[package]
+name = "optimization-unit"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "optimization_unit"
+path = "src/lib.rs"
+
+[dependencies]
+optimization-core = { path = "../../../foundation/optimization-core" }
+abstract-operations = { path = ".." }
+language-core = { path = "../../../../psi/foundation/language-core" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }

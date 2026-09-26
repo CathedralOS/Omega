@@ -9,11 +9,11 @@ name = "register_homes_to_post_allocation_machine"
 path = "src/lib.rs"
 
 [dependencies]
-physical-instructions = { path = "../../representations/physical-instructions" }
+physical-instructions = { path = "../../representations/post-allocation-machine" }
 selected-instructions-to-register-homes = { path = "../05_selected-instructions-to-register-homes" }
 register-environment = { path = "../../backend/register-environment" }
-optimization-core = { path = "../../representations/optimization-core" }
-register-model = { path = "../../representations/register-model" }
+optimization-core = { path = "../../foundation/optimization-core" }
+register-model = { path = "../../backend/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 

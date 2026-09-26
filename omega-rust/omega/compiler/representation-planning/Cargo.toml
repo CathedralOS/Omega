@@ -9,7 +9,7 @@ name = "representation_planning"
 path = "src/lib.rs"
 
 [dependencies]
-representation-selections = { path = "../../representations/representation-selections" }
+representation-selections = { path = "selections" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 source = { path = "../../../psi/foundation/source" }
@@ -19,4 +19,4 @@ typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to
 
 [dev-dependencies]
 arena = { path = "../../../psi/foundation/arena" }
-optimization-core = { path = "../../representations/optimization-core", features = ["test-support"] }
+optimization-core = { path = "../../foundation/optimization-core", features = ["test-support"] }

@@ -110,7 +110,7 @@
             "owning_paths": [
                 "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold",
                 "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/legality",
-                "omega-rust/omega/representations/optimization-core"
+                "omega-rust/omega/foundation/optimization-core"
             ],
             "suggested_first_slice": "declare one further currently-impossible pair relationship — flag-consuming, clobbering, or tied-operand form (zero-compare value partition landed at 3e8da4d90e via PairImmediateBound::EncodingNonZero) — in literal_fold/pair_rule.rs with independent replay coverage in literal_fold/validate; the validator restates every grammar from instruction records and never reads a descriptor",
             "host_gates": [

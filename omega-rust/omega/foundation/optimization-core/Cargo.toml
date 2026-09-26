@@ -13,7 +13,7 @@ path = "src/lib.rs"
 
 [dependencies]
 mutation-matrix = { path = "../../../psi/foundation/mutation-matrix", optional = true }
-optimization = { path = "../../../psi/representations/optimization" }
+optimization = { path = "../../../psi/foundation/optimization-selections" }
 sha2 = "0.10.9"
 
 [dev-dependencies]

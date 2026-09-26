@@ -9,13 +9,13 @@ name = "abstract_operations_to_abstract_operations"
 path = "src/lib.rs"
 
 [dependencies]
-optimization-core = { path = "../../representations/optimization-core" }
-optimization-unit = { path = "../../representations/optimization-unit" }
-optimization-unit-semantics = { path = "../../representations/optimization-unit/semantics" }
+optimization-core = { path = "../../foundation/optimization-core" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-optimization = { path = "../../../psi/representations/optimization" }
+optimization = { path = "../../../psi/foundation/optimization-selections" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
