@@ -7,7 +7,7 @@ use crate::preparation::generic_data::uses::{
 };
 
 use crate::preparation::generic_data::Instantiation;
-use crate::preparation::generic_data::constant_selection;
+use crate::preparation::declaration_selection;
 
 /// A constant's declared type constrains its constructors before the value is
 /// copied into consumers. Otherwise a closed `Box<u64>` declaration can leave
@@ -18,7 +18,7 @@ use crate::preparation::generic_data::constant_selection;
 pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_constants(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) {
     let constants = syntax
         .root_items()
@@ -68,7 +68,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_constant
 pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_assignments(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) {
     let concrete_states = syntax
         .root_items()

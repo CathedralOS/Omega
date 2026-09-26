@@ -1,4 +1,4 @@
-use super::constant_selection;
+use crate::preparation::declaration_selection;
 use crate::pre_resolution::GenericDataRequest;
 use crate::pre_resolution::normalize_generic_data;
 use crate::preparation::generic_data::EvaluatedConst;
@@ -328,7 +328,7 @@ fn qualified_module_constants_cannot_fold_through_same_spelled_type_scopes() {
             panic!("qualified named argument");
         };
         let original_span = name.source_span();
-        let selection = constant_selection::ConstantSelection::new(&syntax, None, Vec::new())
+        let selection = declaration_selection::ConstantSelection::new(&syntax, None, Vec::new())
             .expect("constant headers");
         // The shared resolver admits both complete paths as candidates. It
         // selects neither; normalization must leave rejection to validation.

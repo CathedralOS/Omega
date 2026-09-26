@@ -3,7 +3,10 @@
 //! These routines consume syntax and return syntax. Discovered templates,
 //! substitutions and pending instances are private working state. Durable
 //! instance declarations remain in SyntaxTrees, not a second program schema.
+//! Exact declaration lookup comes from the shared
+//! `preparation::declaration_selection` owner.
 
+use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::uses::concrete_machine_expression_handles;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
@@ -23,7 +26,6 @@ use syntax_trees::types::{
 
 mod arguments;
 mod const_evaluation;
-pub(crate) mod constant_selection;
 mod discovery;
 pub(super) mod domain_heads;
 mod eligibility;
@@ -92,7 +94,7 @@ pub fn closed_data_const_argument_expressions(
     request: crate::ResolutionRequest<'_>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
     let syntax = request.syntax;
-    let selection = constant_selection::ConstantSelection::new(
+    let selection = declaration_selection::ConstantSelection::new(
         syntax,
         request.sources,
         request.top_level_bindings,
@@ -115,7 +117,7 @@ pub fn closed_machine_const_arguments(
     request: crate::ResolutionRequest<'_>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
     let syntax = request.syntax;
-    let selection = constant_selection::ConstantSelection::new(
+    let selection = declaration_selection::ConstantSelection::new(
         syntax,
         request.sources,
         request.top_level_bindings,
@@ -132,7 +134,7 @@ pub fn closed_machine_const_arguments(
 
 fn collect_closed_const_arguments(
     syntax: &SyntaxTrees,
-    selection: &constant_selection::ConstantSelection<'_>,
+    selection: &declaration_selection::ConstantSelection<'_>,
     positions: &[TypeReferenceHandle],
     public_positions: &[TypeReferenceHandle],
     include_machine_casts: bool,
@@ -266,7 +268,7 @@ fn collect_closed_const_arguments(
 
 fn unique_domain_index_parameters<'syntax>(
     syntax: &'syntax SyntaxTrees,
-    selection: &constant_selection::ConstantSelection<'_>,
+    selection: &declaration_selection::ConstantSelection<'_>,
     name: &str,
     reference: source::SourceSpan,
 ) -> Option<&'syntax [TypeParameter]> {
@@ -296,7 +298,7 @@ pub fn canonicalize_declared_const_definition(
 pub(crate) fn canonicalize_selected_declared_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
     let value = canonicalize_selected_declaration_value(syntax, definition, selection)?;
     if let TypeReferenceNode::Constrained { constraints, .. } = syntax
@@ -373,7 +375,7 @@ pub fn normalize_generic_data(
         }
         return Ok(syntax);
     };
-    let selection = constant_selection::ConstantSelection::with_retained_base(
+    let selection = declaration_selection::ConstantSelection::with_retained_base(
         &syntax,
         Some(sources),
         top_level_bindings,
@@ -404,7 +406,7 @@ pub(crate) fn validate_direct_const_arguments(
     syntax: &SyntaxTrees,
     base_name: &Identifier,
     arguments: HandleSpan<TypeReferenceHandle>,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Result<(), Diagnostic> {
     let arguments = syntax.type_references.type_reference_handles(arguments);
     let has_direct = arguments.iter().any(|argument| {

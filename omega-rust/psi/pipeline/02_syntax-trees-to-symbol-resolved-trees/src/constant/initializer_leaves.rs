@@ -1,7 +1,7 @@
 //! Pending const initializer leaves and aggregate placeholders.
 
 use crate::constant::requires_const_initializer_evaluation;
-use crate::preparation::generic_data::constant_selection::{
+use crate::preparation::declaration_selection::{
     GenericApplicationSubstitution, has_deferred_const_argument, resolved_generic_argument,
     type_mentions_parameters,
 };
@@ -88,13 +88,13 @@ fn resolved_fixed_length(
 pub(crate) fn pending_const_initializer_leaves(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::declaration_selection::ConstantSelection,
 ) -> Result<Vec<PendingConstInitializerLeaf>, String> {
     use syntax_trees::expression::ExpressionNode;
 
     fn collect(
         syntax: &SyntaxTrees,
-        selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+        selection: &crate::preparation::declaration_selection::ConstantSelection,
         expression: syntax_trees::expression::ExpressionHandle,
         type_reference: TypeReferenceHandle,
         substitution: &GenericApplicationSubstitution,
@@ -360,7 +360,7 @@ pub(crate) fn pending_const_initializer_leaves(
 
     fn collect_literal_fields(
         syntax: &SyntaxTrees,
-        selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+        selection: &crate::preparation::declaration_selection::ConstantSelection,
         literal: &syntax_trees::expression::TableStructLiteral,
         declared: &DataDefinition,
         substitution: &GenericApplicationSubstitution,
@@ -462,7 +462,7 @@ pub(crate) fn pending_const_initializer_leaves(
 /// The selected declaration for a computed nominal constant must be closed:
 /// generic or lifetime-carrying owners cannot produce one materialized value.
 fn require_closed_data<'syntax>(
-    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::declaration_selection::ConstantSelection,
     syntax: &'syntax SyntaxTrees,
     name: &syntax_trees::identifier::Identifier,
 ) -> Result<&'syntax syntax_trees::item::DataDefinition, String> {
@@ -478,7 +478,7 @@ fn require_closed_data<'syntax>(
 /// literal case or constructor spelling.
 fn name_selects_const(
     syntax: &SyntaxTrees,
-    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::declaration_selection::ConstantSelection,
     path: arena::HandleSpan<syntax_trees::identifier::Identifier>,
 ) -> bool {
     let members = syntax.expressions.identifier_path_members(path);
@@ -504,7 +504,7 @@ fn name_selects_const(
 /// published value.
 pub(crate) fn pending_aggregate_placeholder(
     syntax: &mut SyntaxTrees,
-    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::declaration_selection::ConstantSelection,
     type_reference: TypeReferenceHandle,
     reference: SourceSpan,
 ) -> Result<syntax_trees::expression::ExpressionHandle, String> {
@@ -519,7 +519,7 @@ pub(crate) fn pending_aggregate_placeholder(
 
 fn pending_aggregate_placeholder_at(
     syntax: &mut SyntaxTrees,
-    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::declaration_selection::ConstantSelection,
     type_reference: TypeReferenceHandle,
     substitution: &GenericApplicationSubstitution,
     reference: SourceSpan,
@@ -698,7 +698,7 @@ fn pending_aggregate_placeholder_at(
 /// into the same forest.
 fn nominal_placeholder_literal(
     syntax: &mut SyntaxTrees,
-    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::declaration_selection::ConstantSelection,
     members: &[DataMember],
     member_count: usize,
     constructor: &str,

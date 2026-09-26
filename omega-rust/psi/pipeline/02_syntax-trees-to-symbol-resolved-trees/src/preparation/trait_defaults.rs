@@ -93,7 +93,7 @@ pub fn synthesize_trait_defaults(
     sources: Option<Arc<SourceMap>>,
     bindings: Vec<SourceScopedTopLevelBinding>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let selection = crate::preparation::generic_data::constant_selection::ConstantSelection::new(
+    let selection = crate::preparation::declaration_selection::ConstantSelection::new(
         syntax, sources, bindings,
     )?;
     crate::preparation::generic_data::domain_heads::normalize(syntax, Some(&selection))?;
@@ -108,7 +108,7 @@ pub fn synthesize_trait_defaults(
 /// pass follows was already admitted by the caller's namespace validation.
 pub(crate) fn synthesize_trait_defaults_after_module_validation(
     syntax: &mut SyntaxTrees,
-    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::declaration_selection::ConstantSelection,
 ) -> Result<(), Vec<Diagnostic>> {
     let traits = syntax
         .root_items()

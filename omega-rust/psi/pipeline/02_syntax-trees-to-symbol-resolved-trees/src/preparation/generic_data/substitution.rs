@@ -2,7 +2,7 @@
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ConstScalarValue;
 use crate::preparation::generic_data::EvaluatedConst;
-use crate::preparation::generic_data::constant_selection;
+use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use crate::preparation::generic_data::selected_data_item;
@@ -38,7 +38,7 @@ pub(crate) fn substitute_member(
     member: DataMember,
     substitution: &HashMap<String, TypeReferenceHandle>,
     type_identities: &HashMap<String, ClosedArgumentIdentity>,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     instance_name: &str,
     const_values: &HashMap<String, i128>,
     const_scalars: &HashMap<String, ConstScalarValue>,
@@ -141,7 +141,7 @@ fn copy_case_where_facts(
     type_identities: &HashMap<String, ClosedArgumentIdentity>,
     const_scalars: &HashMap<String, ConstScalarValue>,
     const_values: &HashMap<String, i128>,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     instance_name: &str,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<HandleSpan<ProofFact>, Diagnostic> {
@@ -445,7 +445,7 @@ fn decide_type_equality_conjunct(
     syntax: &SyntaxTrees,
     conjunct: ExpressionHandle,
     type_identities: &HashMap<String, ClosedArgumentIdentity>,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     instance_name: &str,
 ) -> Result<ConjunctDecision, Diagnostic> {
     let ExpressionNode::Binary(binary) = syntax.expressions.expression(conjunct) else {
@@ -506,7 +506,7 @@ fn decide_type_equality_conjunct(
 /// materializing a reference node.
 pub(crate) fn closed_name_identity(
     syntax: &SyntaxTrees,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     name: &Identifier,
 ) -> Option<ClosedArgumentIdentity> {
     if let Some(atom) = symbols::BuiltinTypeAtom::ALL

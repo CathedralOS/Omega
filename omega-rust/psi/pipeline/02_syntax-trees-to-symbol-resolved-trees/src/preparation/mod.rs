@@ -1,11 +1,17 @@
 //! Syntax to syntax, before any symbol exists.
 //!
+//! `declaration_selection` owns the partial namespace used to select constants,
+//! nominal carriers, domains and traits before complete symbol assignment.
+//! Preparation and resolution retain that shared selection while their own
+//! consumers validate modules, synthesize defaults and close applications.
+//!
 //! `module_normalization` validates the forest against the constant selector,
 //! `generic_data` closes eligible generic data applications, and
 //! `trait_defaults` materializes default trait machines as ordinary attached
 //! machines. All three consume syntax and return syntax; their templates,
 //! substitutions, and evaluation scratch are not program representations.
 
+pub(crate) mod declaration_selection;
 pub(crate) mod generic_data;
 pub(crate) mod machine_equations;
 pub(crate) mod module_normalization;
@@ -21,7 +27,7 @@ use syntax_trees::SyntaxTrees;
 /// resolved under.
 pub(crate) struct Prepared {
     pub(crate) syntax: SyntaxTrees,
-    pub(crate) constant_selection: generic_data::constant_selection::ConstantSelection<'static>,
+    pub(crate) constant_selection: declaration_selection::ConstantSelection<'static>,
 }
 
 /// Select constants, validate the forest for the requested constant
@@ -33,7 +39,7 @@ pub(crate) fn prepare(
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     constants: crate::resolution::lowerer::ConstResolutionMode,
 ) -> Result<Prepared, Vec<Diagnostic>> {
-    let constant_selection = generic_data::constant_selection::ConstantSelection::new(
+    let constant_selection = declaration_selection::ConstantSelection::new(
         syntax,
         sources,
         top_level_bindings,

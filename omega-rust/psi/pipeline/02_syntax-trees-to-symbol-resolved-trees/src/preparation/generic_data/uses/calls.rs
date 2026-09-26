@@ -10,7 +10,7 @@ use crate::preparation::generic_data::uses::{
 
 use crate::preparation::generic_data::Instantiation;
 
-use crate::preparation::generic_data::constant_selection;
+use crate::preparation::declaration_selection;
 
 /// Closed callable signatures provide exact contextual types without inferring
 /// from literal fields. Free-machine overloads and concrete attached-machine
@@ -23,7 +23,7 @@ use crate::preparation::generic_data::constant_selection;
 pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_calls_and_returns(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) {
     let mut signatures = HashMap::<String, Option<Vec<TypeReferenceHandle>>>::new();
     let mut attached_signatures =

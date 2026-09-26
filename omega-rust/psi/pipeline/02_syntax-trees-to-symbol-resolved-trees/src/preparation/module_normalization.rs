@@ -31,7 +31,7 @@ use syntax_trees::item::Item;
 use syntax_trees::types::TypeReferenceNode;
 
 pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
-    let selection = crate::preparation::generic_data::constant_selection::ConstantSelection::new(
+    let selection = crate::preparation::declaration_selection::ConstantSelection::new(
         syntax,
         None,
         Vec::new(),
@@ -41,7 +41,7 @@ pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), 
 
 pub(crate) fn validate_with_selection(
     syntax: &SyntaxTrees,
-    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::declaration_selection::ConstantSelection,
 ) -> Result<(), Vec<Diagnostic>> {
     validate_with_const_resolution_mode(
         syntax,
@@ -52,7 +52,7 @@ pub(crate) fn validate_with_selection(
 
 pub(crate) fn validate_with_const_resolution_mode(
     syntax: &SyntaxTrees,
-    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::declaration_selection::ConstantSelection,
     mode: crate::resolution::lowerer::ConstResolutionMode,
 ) -> Result<(), Vec<Diagnostic>> {
     let module_sources = syntax

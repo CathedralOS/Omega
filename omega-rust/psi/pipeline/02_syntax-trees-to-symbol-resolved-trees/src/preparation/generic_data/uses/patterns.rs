@@ -11,7 +11,7 @@ use crate::preparation::generic_data::uses::{
 
 use crate::preparation::generic_data::Instantiation;
 
-use crate::preparation::generic_data::constant_selection;
+use crate::preparation::declaration_selection;
 
 use syntax_trees::expression::ExpressionHandle;
 
@@ -22,7 +22,7 @@ use syntax_trees::expression::ExpressionHandle;
 pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_local_types(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) {
     let concrete_states = syntax
         .root_items()
@@ -172,7 +172,7 @@ pub(in crate::preparation::generic_data) fn named_type_name(
 pub(in crate::preparation::generic_data) fn relabel_unique_closed_sum_paths(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) {
     for state in concrete_machine_state_handles(syntax) {
         let state = syntax.items.state(state).clone();

@@ -53,7 +53,7 @@ pub(in crate::preparation::generic_data) fn desugar_generic_data_instances(
         .root_items()
         .any(|item| matches!(item, Item::Module(_)))
     {
-        Some(super::constant_selection::ConstantSelection::new(
+        Some(crate::preparation::declaration_selection::ConstantSelection::new(
             syntax,
             None,
             Vec::new(),
@@ -68,7 +68,7 @@ pub(in crate::preparation::generic_data) fn desugar_generic_data_instances(
 pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
     syntax: &mut SyntaxTrees,
     warnings: &mut Vec<Diagnostic>,
-    selection: Option<&super::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     closed_roots: &[TypeReferenceHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     // Attachments belong to the carrier selected in their declaring source,
@@ -439,7 +439,7 @@ fn synthesize_instance(
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
     attached_machines: &HashMap<syntax_trees::item::ItemHandle, Vec<usize>>,
     const_values: &HashMap<String, i128>,
-    selection: Option<&super::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     instance: &Instantiation,
 ) -> Result<(), Vec<Diagnostic>> {
     if synthesized.iter().any(|prior| {
