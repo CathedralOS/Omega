@@ -13,13 +13,17 @@ pub(crate) fn machine_state_count(program: &typed_trees::TypedTrees) -> usize {
 // The machine table is queried once per expression through this module: a
 // whole-table `.find` per query rescans every machine. Cache each query's
 // exact scan verdict (hit AND miss) per program; monomorphization appends
-// machines mid-compile, so freshness is the owner pointer AND the current
-// machine count. Hits are still validated against the machine's own symbol,
-// so a stale or synthesized handle can only ever trigger a rescan.
+// machines mid-compile, so freshness is the owner's `ProgramIdentity` AND the
+// current machine count. A hit is still validated against the machine's own
+// symbol, so a stale or synthesized handle can only ever trigger a rescan; a
+// cached MISS has no such validation, which is why the owner has to be an
+// identity and not an address. A dropped program's address is reused, and a
+// replacement that happens to match the count and the anchor symbols would
+// otherwise be told a machine it does own is absent.
 thread_local! {
     static MACHINE_INDEX: RefCell<
         Option<(
-            *const typed_trees::TypedTrees,
+            typed_trees::ProgramIdentity,
             usize,
             Option<SymbolHandle>,
             Option<SymbolHandle>,
@@ -42,7 +46,7 @@ fn machine_index_by_symbol(
         let last = machines.last().map(|machine| machine.symbol);
         let stale = match &*slot {
             Some((owner, len, first_anchor, last_anchor, _)) => {
-                !std::ptr::eq(*owner, program as *const _)
+                owner.get() != program.identity.get()
                     || *len != machines.len()
                     || *first_anchor != first
                     || *last_anchor != last
@@ -51,7 +55,7 @@ fn machine_index_by_symbol(
         };
         if stale {
             *slot = Some((
-                program as *const typed_trees::TypedTrees,
+                program.identity,
                 machines.len(),
                 first,
                 last,
@@ -103,7 +107,7 @@ pub(crate) fn machine_by_symbol(
 thread_local! {
     static STATE_INDEX: RefCell<
         Option<(
-            *const typed_trees::TypedTrees,
+            typed_trees::ProgramIdentity,
             usize,
             Option<SymbolHandle>,
             Option<SymbolHandle>,
@@ -131,7 +135,7 @@ pub(crate) fn state_index_by_symbol(
         let last = machines.last().map(|machine| machine.symbol);
         let stale = match &*slot {
             Some((owner, len, first_anchor, last_anchor, _)) => {
-                !std::ptr::eq(*owner, program as *const _)
+                owner.get() != program.identity.get()
                     || *len != machines.len()
                     || *first_anchor != first
                     || *last_anchor != last
@@ -140,7 +144,7 @@ pub(crate) fn state_index_by_symbol(
         };
         if stale {
             *slot = Some((
-                program as *const typed_trees::TypedTrees,
+                program.identity,
                 machines.len(),
                 first,
                 last,
@@ -184,7 +188,7 @@ pub(crate) fn state_index_by_symbol(
 thread_local! {
     static DATA_DEF_INDEX: RefCell<
         Option<(
-            *const typed_trees::TypedTrees,
+            typed_trees::ProgramIdentity,
             *const typed_trees::data::DataDefinition,
             usize,
             Option<SymbolHandle>,
@@ -212,7 +216,7 @@ fn data_definition_index_by_symbol(
         let last = definitions.last().map(|definition| definition.symbol);
         let stale = match &*slot {
             Some((owner, storage, len, first_anchor, middle_anchor, last_anchor, _)) => {
-                !std::ptr::eq(*owner, program as *const _)
+                owner.get() != program.identity.get()
                     || *storage != definitions.as_ptr()
                     || *len != definitions.len()
                     || *first_anchor != first
@@ -223,7 +227,7 @@ fn data_definition_index_by_symbol(
         };
         if stale {
             *slot = Some((
-                program as *const typed_trees::TypedTrees,
+                program.identity,
                 definitions.as_ptr(),
                 definitions.len(),
                 first,
@@ -277,7 +281,7 @@ pub(crate) fn data_definition_by_symbol(
 thread_local! {
     static DROP_HOOK_INDEX: RefCell<
         Option<(
-            *const typed_trees::TypedTrees,
+            typed_trees::ProgramIdentity,
             usize,
             Option<SymbolHandle>,
             Option<SymbolHandle>,
@@ -300,7 +304,7 @@ pub(crate) fn attached_drop_machine_exists(
         let last = machines.last().map(|machine| machine.symbol);
         let stale = match &*slot {
             Some((owner, len, first_anchor, last_anchor, _)) => {
-                !std::ptr::eq(*owner, program as *const _)
+                owner.get() != program.identity.get()
                     || *len != machines.len()
                     || *first_anchor != first
                     || *last_anchor != last
@@ -309,7 +313,7 @@ pub(crate) fn attached_drop_machine_exists(
         };
         if stale {
             *slot = Some((
-                program as *const typed_trees::TypedTrees,
+                program.identity,
                 machines.len(),
                 first,
                 last,

@@ -1037,6 +1037,24 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   those methods invalidate, and the address-keyed caches are deleted with no
   loss on the CHECK-CLOSURE-ONCE timings.
 
+  Six of those caches now key on `TypedTrees::identity` instead of the
+  program's address: `write_frames/isolation.rs`, the four in
+  `lookup/symbols.rs`, `values/scalar/structural_fields.rs` and validation's
+  `service_reach.rs`. The address was never an identity -- it is reused as soon
+  as a program is dropped -- and a cached MISS is returned without the
+  validation a cached hit gets, so a replacement program was told a machine or
+  a definition it owns is absent. `facts/field_domain.rs` still holds two
+  address-keyed caches and is the remaining source; it is left alone here only
+  because it was being changed by another lane at the time (f5561114db,
+  06adf78072). Its two slots take the same one-line change.
+
+  The symptom is `-p typed-trees-to-checked-trees --lib` failing intermittently
+  under nextest's default threading and never single-threaded: at base
+  f5561114db 2 of 4 runs failed with 2 failures each; after the six caches, 1
+  of 6. The surviving failures move between `tests::contracts::assigned_values`
+  and `tests::contracts::scalar_storage_results` run to run, which is what a
+  cache serving another program's verdict looks like.
+
 - **BUILD-PRODUCT-REFERENCES.** Finish executable follow-through for
   [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).
   Product descriptions, visibility checks, and exact-symbol admission exist.
