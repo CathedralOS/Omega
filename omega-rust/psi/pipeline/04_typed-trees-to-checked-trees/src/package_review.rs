@@ -91,7 +91,8 @@ pub fn resolve_checked_builtin_float_operator_requirement(
 pub fn derive_pre_flow_operator_selections(
     program: &typed_trees::TypedTrees,
 ) -> checked_trees::CheckedOperatorFacts {
-    let values = derive_pre_flow_value_origins(program);
+    // Operator selection reads each value row's expression and origin only.
+    let values = values::build_value_origin_rows(program);
     operators::build_operator_facts(program, &values)
 }
 
