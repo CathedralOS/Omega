@@ -80,78 +80,148 @@ pub(super) fn seed_state_requirements(
         .machine_states(machine)
         .first()
         .is_some_and(|entry| entry.symbol == state.symbol);
-    let mut required = ValueEnvironment::new();
-    // A machine-level `requires` fact is a precondition on entry. It still
-    // holds at a later state's entry exactly when every place the recorded
-    // facts name survives the whole machine's write frame; otherwise a
-    // preheader or loop-body write could leave the contract stale before
-    // this arrival (the same machine-preservation law the loop-invariant
-    // index discharge applies to authored bound chains).
-    let machine_written = (!is_entry).then(|| {
-        frames.and_then(|frames| {
-            frames
-                .inferred_machine_state_write_frames(machine)
-                .into_iter()
-                .map(|frame| frame.into_complete_paths())
-                .collect::<Option<Vec<_>>>()
-                .map(|paths| paths.concat())
-        })
-    });
-    let seed_condition = |environment: &mut ValueEnvironment,
-                          required: &mut ValueEnvironment,
-                          condition| {
-        narrow_environment_by_condition(
-            program,
-            machine,
-            Some(state),
-            environment,
-            condition,
-            true,
-        );
-        narrow_environment_by_condition(program, machine, Some(state), required, condition, true);
-    };
-    for contract in program.machine_contracts(machine) {
-        if contract.kind != SignatureContractKind::Requires {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Expression(condition) = fact
-                && condition_belongs_to_state(program, machine, state, *condition, frames)
-                && (is_entry
-                    || machine_requires_survives(
-                        program,
-                        machine,
-                        state,
-                        machine_written.as_ref().and_then(Option::as_deref),
-                        *condition,
-                    ))
-            {
-                seed_condition(environment, &mut required, *condition);
+    let machine_written = (!is_entry)
+        .then(|| machine_written_paths(program, machine, frames))
+        .flatten();
+    RequirementSeeds::new(
+        program,
+        machine,
+        state,
+        frames,
+        is_entry,
+        machine_written.as_deref(),
+    )
+    .apply(program, machine, state, environment);
+}
+
+/// Every place the machine's complete state write frames can write, or
+/// `None` when a frame is opaque. Only a machine-level `requires` condition
+/// reads it, so a machine without one never infers its frames here.
+fn machine_written_paths(
+    program: &TypedTrees,
+    machine: &Machine,
+    frames: Option<&CallFrameResolver>,
+) -> Option<Vec<String>> {
+    let has_machine_requires = program
+        .machine_contracts(machine)
+        .iter()
+        .any(|contract| contract.kind == SignatureContractKind::Requires);
+    if !has_machine_requires {
+        return None;
+    }
+    frames.and_then(|frames| {
+        frames
+            .inferred_machine_state_write_frames(machine)
+            .into_iter()
+            .map(|frame| frame.into_complete_paths())
+            .collect::<Option<Vec<_>>>()
+            .map(|paths| paths.concat())
+    })
+}
+
+/// The `requires` conditions that seed one state's arrival, and the
+/// environment they establish on their own. Neither depends on the arriving
+/// environment, so a fixed-point walk selects them once per state and only
+/// re-narrows each round's arrival by them.
+pub(super) struct RequirementSeeds {
+    conditions: Vec<ExpressionHandle>,
+    required: ValueEnvironment,
+}
+
+impl RequirementSeeds {
+    pub(super) fn new(
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        frames: Option<&CallFrameResolver>,
+        is_entry: bool,
+        machine_written: Option<&[String]>,
+    ) -> Self {
+        let mut conditions = Vec::new();
+        // A machine-level `requires` fact is a precondition on entry. It still
+        // holds at a later state's entry exactly when every place the recorded
+        // facts name survives the whole machine's write frame; otherwise a
+        // preheader or loop-body write could leave the contract stale before
+        // this arrival (the same machine-preservation law the loop-invariant
+        // index discharge applies to authored bound chains).
+        for contract in program.machine_contracts(machine) {
+            if contract.kind != SignatureContractKind::Requires {
+                continue;
+            }
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                if let ProofFact::Expression(condition) = fact
+                    && condition_belongs_to_state(program, machine, state, *condition, frames)
+                    && (is_entry
+                        || machine_requires_survives(
+                            program,
+                            machine,
+                            state,
+                            machine_written,
+                            *condition,
+                        ))
+                {
+                    conditions.push(*condition);
+                }
             }
         }
-    }
-    for contract in program.state_contracts(state) {
-        if contract.kind != SignatureContractKind::Requires {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Expression(condition) = fact
-                && condition_belongs_to_state(program, machine, state, *condition, frames)
-            {
-                seed_condition(environment, &mut required, *condition);
+        for contract in program.state_contracts(state) {
+            if contract.kind != SignatureContractKind::Requires {
+                continue;
+            }
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                if let ProofFact::Expression(condition) = fact
+                    && condition_belongs_to_state(program, machine, state, *condition, frames)
+                {
+                    conditions.push(*condition);
+                }
             }
         }
+        let mut required = ValueEnvironment::new();
+        for condition in &conditions {
+            narrow_environment_by_condition(
+                program,
+                machine,
+                Some(state),
+                &mut required,
+                *condition,
+                true,
+            );
+        }
+        Self {
+            conditions,
+            required,
+        }
     }
-    if environment.intervals.values().any(|interval| {
-        interval
-            .low
-            .zip(interval.high)
-            .is_some_and(|(low, high)| low > high)
-    }) {
-        // An arrival violating requires is rejected by the call-contract
-        // checker. Check this body's return under its authored assumptions,
-        // without using an empty interval as evidence for a produced value.
-        *environment = required;
+
+    pub(super) fn apply(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        environment: &mut ValueEnvironment,
+    ) {
+        for condition in &self.conditions {
+            narrow_environment_by_condition(
+                program,
+                machine,
+                Some(state),
+                environment,
+                *condition,
+                true,
+            );
+        }
+        if environment.intervals.values().any(|interval| {
+            interval
+                .low
+                .zip(interval.high)
+                .is_some_and(|(low, high)| low > high)
+        }) {
+            // An arrival violating requires is rejected by the call-contract
+            // checker. Check this body's return under its authored
+            // assumptions, without using an empty interval as evidence for a
+            // produced value.
+            *environment = self.required.clone();
+        }
     }
 }
 
@@ -262,6 +332,23 @@ pub(super) fn incoming_environments(
         .iter()
         .map(|state| (state.symbol, ValueEnvironment::new()))
         .collect::<Vec<_>>();
+    let machine_written = (states.len() > 1)
+        .then(|| machine_written_paths(program, machine, frames))
+        .flatten();
+    let seeds = states
+        .iter()
+        .enumerate()
+        .map(|(index, state)| {
+            RequirementSeeds::new(
+                program,
+                machine,
+                state,
+                frames,
+                index == 0,
+                machine_written.as_deref(),
+            )
+        })
+        .collect::<Vec<_>>();
     // One round per state propagates acyclic chains. Cycles also contribute in
     // every round, starting with their full declared parameter domains. There
     // is no assumption that a seed guard is an inductive loop invariant.
@@ -272,14 +359,14 @@ pub(super) fn incoming_environments(
             frames,
             joined: vec![None; states.len()],
         };
-        if let Some(entry) = states.first() {
+        if let (Some(entry), Some(entry_seeds)) = (states.first(), seeds.first()) {
             let mut external = ValueEnvironment::new();
-            seed_state_requirements(program, machine, entry, frames, &mut external);
+            entry_seeds.apply(program, machine, entry, &mut external);
             walk.joined[0] = Some(external);
         }
-        for (state, (_, environment)) in states.iter().zip(&current) {
+        for ((state, (_, environment)), state_seeds) in states.iter().zip(&current).zip(&seeds) {
             let mut environment = environment.clone();
-            seed_state_requirements(program, machine, state, frames, &mut environment);
+            state_seeds.apply(program, machine, state, &mut environment);
             walk.statements(
                 state,
                 program.statement_table.statements(state.statement_nodes),
