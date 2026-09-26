@@ -89,6 +89,13 @@ fn eliminate_cases(
                 },
             });
         }
+        // Splitting on this case first loses nothing: a proof that splits
+        // on a later case first is still available inside each of this
+        // case's branches, whose extra assumption the monotone builder
+        // tolerates, and one of those branches already failed. So every later
+        // case fails too; trying them costs 2^n builder searches and never
+        // changes the answer.
+        return None;
     }
     None
 }
