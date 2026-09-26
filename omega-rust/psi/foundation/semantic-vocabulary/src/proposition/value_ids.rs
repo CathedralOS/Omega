@@ -87,9 +87,9 @@ fn walk(proposition: &Proposition, mut visit: impl FnMut(ValueId) -> bool) -> (b
                         return (true, complete);
                     }
                 }
-                ScalarTerm::BooleanField { .. } | ScalarTerm::IntegerField { .. } => {
-                    complete = false
-                }
+                ScalarTerm::BooleanField { .. }
+                | ScalarTerm::IntegerField { .. }
+                | ScalarTerm::ViewExtent { .. } => complete = false,
                 ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
                 ScalarTerm::BooleanNot { operand }
                 | ScalarTerm::IntegerBitwiseNot { operand, .. }

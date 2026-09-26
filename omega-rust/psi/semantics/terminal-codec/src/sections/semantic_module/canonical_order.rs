@@ -1066,6 +1066,7 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
             ScalarTerm::Value { .. }
             | ScalarTerm::BooleanField { .. }
             | ScalarTerm::IntegerField { .. }
+            | ScalarTerm::ViewExtent { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. } => {}
         }

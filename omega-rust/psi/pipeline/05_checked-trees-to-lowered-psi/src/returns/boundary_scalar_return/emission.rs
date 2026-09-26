@@ -339,26 +339,43 @@ pub(crate) fn emit_boundary_scalar_return(
         content_partition_compositions: Vec::new(),
         entry: evaluation.entry,
         blocks: evaluation.blocks,
-        contract: MachineContract {
-            id: identities.contract,
-            erased_scalar_formals: erased_scalar_formals.clone(),
-            erased_proof_formals:
-                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
-                    &plan.erased_proof_parameters,
-                ),
-            crash_routes: lower_checked_crash_route_buckets(
-                &crate::unit::effective_crash_routes(checked, plan.machine)?,
-                &scalar_parameters,
-            )?,
-            requires: crate::scalar_graph::scalar_contracts::clauses(
-                &checked_requirements(checked, plan)?,
-                &scalar_parameters,
-                &erased_scalar_formals,
-            )?
-            .into_iter()
-            .collect(),
-            ensures: Vec::new(),
-            outcome_specific_ensures: Vec::new(),
+        contract: {
+            let view_roster: Vec<(u32, StructuralParameterDeclaration)> = plan
+                .structural_parameters
+                .iter()
+                .zip(parameters.iter())
+                .map(|(source, parameter)| (source.position, parameter.clone()))
+                .collect();
+            let element_views = crate::expression_preparation::bindings::element_views(
+                &view_roster,
+                structural_types,
+            );
+            let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+                parameters: &view_roster,
+                element_views: &element_views,
+            };
+            MachineContract {
+                id: identities.contract,
+                erased_scalar_formals: erased_scalar_formals.clone(),
+                erased_proof_formals:
+                    crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                        &plan.erased_proof_parameters,
+                    ),
+                crash_routes: lower_checked_crash_route_buckets(
+                    &crate::unit::effective_crash_routes(checked, plan.machine)?,
+                    &scalar_parameters,
+                )?,
+                requires: crate::scalar_graph::scalar_contracts::clauses(
+                    &checked_requirements(checked, plan)?,
+                    &scalar_parameters,
+                    &erased_scalar_formals,
+                    &views,
+                )?
+                .into_iter()
+                .collect(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            }
         },
     };
     if [next_claim, next_value_identity, next_block, next_edge]

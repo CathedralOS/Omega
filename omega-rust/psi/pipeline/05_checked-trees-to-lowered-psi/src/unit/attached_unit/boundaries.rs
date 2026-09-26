@@ -130,6 +130,7 @@ fn lower_scalar_requires(
                 std::slice::from_ref(&Some(row.clone())),
                 &formals,
                 &[],
+                &crate::scalar_graph::scalar_contracts::ContractViewNamespace::EMPTY,
             )
         })
         .collect::<Result<Vec<_>, _>>()?

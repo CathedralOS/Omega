@@ -5,7 +5,7 @@
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue,
     ClosedScalarValueContractPlan, IntegerValue, LoweringError, Proposition, ScalarTerm,
-    ValueDeclaration, unsupported,
+    StructuralParameterDeclaration, StructuralTypeId, ValueDeclaration, unsupported,
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
@@ -17,7 +17,7 @@ use checked_trees::{
     CheckedErasedProofParameterPlan, CheckedProofTerm, CheckedStructuralScalarParameterPlan,
     CheckedTrees,
 };
-use semantic_vocabulary::{ProofTerm, ProofTermField};
+use semantic_vocabulary::{ProofTerm, ProofTermField, ScalarType};
 use terminal_psi::ErasedProofFormal;
 
 mod namespace;
@@ -64,16 +64,38 @@ pub(crate) fn covered_requires(
     Ok(retained)
 }
 
+/// The structural namespace a closed scalar contract may observe: the
+/// machine's `(source position, declaration)` parameter roster plus the
+/// element-view carriers resolved from it. Scalar-only contexts pass
+/// `ContractViewNamespace::EMPTY`.
+#[derive(Clone, Copy)]
+pub(crate) struct ContractViewNamespace<'a> {
+    pub parameters: &'a [(u32, StructuralParameterDeclaration)],
+    pub element_views: &'a std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
+}
+
+static EMPTY_ELEMENT_VIEWS: std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>> =
+    std::collections::BTreeMap::new();
+
+impl ContractViewNamespace<'static> {
+    /// Scalar-only contexts pass `ContractViewNamespace::EMPTY`.
+    pub(crate) const EMPTY: ContractViewNamespace<'static> = ContractViewNamespace {
+        parameters: &[],
+        element_views: &EMPTY_ELEMENT_VIEWS,
+    };
+}
+
 pub(crate) fn clauses(
     clauses: &[Option<ClosedScalarContractValue>],
     namespace: &[ValueDeclaration],
     erased: &[ValueDeclaration],
+    views: &ContractViewNamespace<'_>,
 ) -> Result<Option<Proposition>, LoweringError> {
     let mut combined = None;
     for clause in clauses {
         let proposition = match clause {
             Some(ClosedScalarContractValue::Predicate(predicate)) => {
-                proposition(predicate, namespace, erased)?
+                proposition(predicate, namespace, erased, views)?
             }
             // The checked selection gate established builtin reflexivity.
             Some(ClosedScalarContractValue::Boolean(_) | ClosedScalarContractValue::Integer(_)) => {
@@ -299,22 +321,34 @@ pub(crate) fn proposition(
     predicate: &CheckedBooleanExpression,
     namespace: &[ValueDeclaration],
     erased: &[ValueDeclaration],
+    views: &ContractViewNamespace<'_>,
 ) -> Result<Proposition, LoweringError> {
     self::namespace::validate(predicate)?;
     crate::proofs::contract_predicates::proposition(
         predicate,
-        &ScalarContractTerms { namespace, erased },
+        &ScalarContractTerms {
+            namespace,
+            erased,
+            views: *views,
+        },
     )
 }
 
 struct ScalarContractTerms<'namespace> {
     namespace: &'namespace [ValueDeclaration],
     erased: &'namespace [ValueDeclaration],
+    views: ContractViewNamespace<'namespace>,
 }
 
 impl PredicateTerms for ScalarContractTerms<'_> {
     fn integer(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
-        crate::proofs::crash_routes::checked_scalar_term(expression, self.namespace, self.erased)
+        crate::proofs::crash_routes::checked_scalar_term_with_views(
+            expression,
+            self.namespace,
+            self.erased,
+            self.views.parameters,
+            self.views.element_views,
+        )
     }
 
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {

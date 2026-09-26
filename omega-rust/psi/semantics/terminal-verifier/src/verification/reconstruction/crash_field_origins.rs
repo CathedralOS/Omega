@@ -58,7 +58,9 @@ fn content(term: &ContentTerm, machine: &TerminalMachine) -> bool {
 
 fn scalar(term: &ScalarTerm, machine: &TerminalMachine) -> bool {
     match term {
-        ScalarTerm::BooleanField { root, .. } | ScalarTerm::IntegerField { root, .. } => {
+        ScalarTerm::BooleanField { root, .. }
+        | ScalarTerm::IntegerField { root, .. }
+        | ScalarTerm::ViewExtent { root, .. } => {
             // Structural validation has already rejoined the parameter place,
             // field path and declared leaf type. Do not recover another root.
             shared_parameter(*root, machine)

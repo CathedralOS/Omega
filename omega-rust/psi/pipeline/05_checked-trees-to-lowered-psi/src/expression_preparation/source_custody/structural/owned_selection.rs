@@ -654,3 +654,70 @@ pub(super) fn validate_projection(
         reference: root_reference,
     })
 }
+
+/// A projected child under a copied shared-borrow root names a field of the
+/// copy's provenance, not a moved child: no ownership transfer is recorded
+/// for either. The authored member chain must still spell the plan's path,
+/// the leaf's declared type must be the projected identity, and the chain's
+/// root must resolve to the same borrowed carrier the copied root plan
+/// carries.
+pub(super) fn validate_copied_projection(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    expression: ExpressionHandle,
+    copied: &CheckedUnitStructuralArgumentPlan,
+    path: &[CheckedUnitStructuralPathSegment],
+    type_identity: &str,
+) -> Result<ProjectionRoot, LoweringError> {
+    if copied.access != checked_trees::CheckedStructuralAccess::SharedBorrow || path.is_empty() {
+        return unsupported("copied projection changed its access or path");
+    }
+    let mut spelled = Vec::new();
+    let mut cursor = expression;
+    let root_expression = loop {
+        match checked.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) => {
+                if member.case_variant.is_some() {
+                    return unsupported("copied projection cannot move through a case");
+                }
+                spelled.push(CheckedUnitStructuralPathSegment::Field(
+                    member.member.as_str().to_string(),
+                ));
+                cursor = member.receiver;
+            }
+            _ => break cursor,
+        }
+    };
+    spelled.reverse();
+    if spelled.as_slice() != path {
+        return unsupported("copied projection changed its authored path");
+    }
+    let leaf =
+        validation::expression_result_type_reference(&checked.typed, machine, state, expression)
+            .ok_or(LoweringError::Unsupported(
+                "copied projection lost its leaf type",
+            ))?;
+    if checked.normalized_type_identity(leaf).as_str() != type_identity {
+        return unsupported("copied projection changed its copied leaf type");
+    }
+    let ExpressionNode::Name(_) = checked.expression_table.expression(root_expression) else {
+        return unsupported("copied projection root is not a binding name");
+    };
+    let root_reference = validation::expression_result_type_reference(
+        &checked.typed,
+        machine,
+        state,
+        root_expression,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "copied projection root has no declared type",
+    ))?;
+    if checked.normalized_type_identity(root_reference).as_str() != copied.type_identity {
+        return unsupported("copied projection root is not the borrowed place");
+    }
+    Ok(ProjectionRoot {
+        expression: root_expression,
+        reference: root_reference,
+    })
+}
