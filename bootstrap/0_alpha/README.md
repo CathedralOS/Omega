@@ -18,12 +18,19 @@ zeroed upper bytes, byte and final-word stores, and the unchanged first-call
 return-address location without invoking bounds traps.
 
 The macOS source rebuild uses the selected Xcode or `xcrun` CommandLineTools
-clang and SDK with `-arch arm64 -isysroot SDK -Wl,-no_uuid`; the Alpha/Beta
-edge gate compares the rebuilt and committed containers after removing their
-OS signatures. The V4 container was rebuilt with the available CommandLineTools
-toolchain (Apple clang 17.0.0, build `clang-1700.0.13.5`, macOS SDK 15.5), not
-by patching the older native binary. Its audited disassembly
-reflects that linker layout; the tape hole remains at file offset 32,768.
+clang and SDK with `-arch arm64 -isysroot SDK`. An `LC_UUID` load command is
+mandatory — modern dyld refuses `-Wl,-no_uuid` images outright — but the
+linker stamps a fresh UUID per build, so the committed container zeroes the
+16 payload bytes (a nondeterministic stamp, not load-bearing) and is then
+re-signed ad hoc. The Alpha/Beta edge gate reproduces that recipe: rebuild,
+remove the OS signature from both containers, mask the signature-coupled
+fields (UUID payload, `LC_CODE_SIGNATURE` file pointers, and the `__LINKEDIT`
+sizes the signature blob inflates), then compare — everything else must
+match byte-for-byte. The current container was re-forged with the available
+CommandLineTools toolchain (Apple clang 17.0.0, build `clang-1700.6.4.2`,
+macOS SDK 26.2, Darwin 27), not by patching the older native binary. Its
+audited disassembly reflects that linker layout; the tape hole remains at
+file offset 32,768.
 
 The Windows PE listing keeps the same file offsets.
 The semantic memory section is gone entirely: `.data` shrinks to the registers
@@ -94,17 +101,17 @@ mechanically repacked linkedit tables. On Windows the occupied code extent
 grows for the allocation call and register compares; the tape hole, file
 offsets, and total container size are unchanged.
 
-Known divergence pending re-forge: the committed `alpha_arm64_macos`
-(SHA-256 `3a9cc311…` below) encodes its startup extent as
-`movz x1/x23, #0x2000, lsl #32` — `0x200000000000` (32 TiB) rather than the
-specified `0x2000000000` (128 GiB). `alpha_arm64_macos.s` and
-`macho_v5_transform.py` now carry the corrected immediate; the container
-itself awaits re-forge and re-signature on a macOS arm64 host plus repinning
-of its `ALPHA_SEED_ARM64_MACOS_*` identity constants and inventory row.
-Until then, the native bounds battery on macOS would observe data, fetch,
-and stack accesses in `0x2000000000..0x200000000000` admitted rather than
-trapped, so macOS MEMSIZE validation stays unestablished. The x64 seeds
-already encode the specified extent.
+Resolved divergence: the prior committed `alpha_arm64_macos` (SHA-256
+`3a9cc311…`) encoded its startup extent as `movz x1/x23, #0x2000, lsl #32` —
+`0x200000000000` (32 TiB) rather than the specified `0x2000000000` (128 GiB).
+The container has been re-forged from the corrected
+`alpha_arm64_macos.s` on a macOS arm64 host and now carries `movz …, #0x20`
+at both immediates; the refreshed disassembly, bound identity constants, and
+inventory row below moved together. Re-forge also surfaced two host facts the
+recipe above records: the retired container's ad-hoc signature no longer
+validated (it could never execute unmodified), and Darwin 27's dyld refuses
+images with no `LC_UUID` at all, which is why the shipped bytes now keep a
+zeroed-UUID load command.
 See [bounds conformance](../../tests/alpha/README.md#bounds-conformance) for
 tested behavior, observation limits, and the measured Windows execution
 record. macOS execution and source rebuild are checked on a macOS host.
@@ -154,7 +161,7 @@ repository bytes, separate from their realization/conformance obligations:
 
 | Container | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `alpha_arm64_macos` | 16,942,368 | `3a9cc3112f9f7645fca00716c347865d1b160f56d458fb6340c66f237d1ae616` |
+| `alpha_arm64_macos` | 16,844,016 | `a8a198082d00458c2645ca388e07dc814166f4380f2a42104724e6185763624b` |
 | `alpha_x64_windows.exe` | 16,782,336 | `4ee9ee0f97c1b11c5a7ef32ffd05f1eeb193d1e9b327cb89df9ac54431aad701` |
 | `alpha_x64_linux` | 16,789,856 | `39ccffa0303d07c0c1fee7dc40ded00e0e667b311836cdbced2768f868b775b1` |
 

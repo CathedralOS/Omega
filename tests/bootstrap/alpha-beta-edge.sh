@@ -2,7 +2,9 @@
 # Local trust check for the host's Alpha seed, end to end:
 #   provenance  - the committed binary re-derives from the committed source
 #                 (macOS arm64: clang rebuild modulo the OS-imposed code
-#                 signature; Windows x64: the committed forge re-emits the
+#                 signature and the fields it inflates — UUID payload,
+#                 LC_CODE_SIGNATURE pointers, __LINKEDIT sizes; Windows x64:
+#                 the committed forge re-emits the
 #                 audited .hex listing — checkable on any host with Python 3;
 #                 Linux x86-64: GNU binutils re-serializes alpha_x64_linux.s
 #                 into a byte-parity clone of the committed ELF);
@@ -62,15 +64,39 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
         ALPHA_CLANG=$(xcrun --find clang 2>/dev/null || true)
         ALPHA_SDK=$(xcrun --show-sdk-path 2>/dev/null || true)
       fi
-      if [ -x "$ALPHA_CLANG" ] && [ -d "$ALPHA_SDK" ]; then
+      # Modern dyld refuses a Mach-O image with no LC_UUID, so the audited
+      # container carries a real load command whose nondeterministic UUID
+      # payload is zeroed; the compare below masks exactly the fields the
+      # signature inflates (UUID payload, LC_CODE_SIGNATURE pointers,
+      # __LINKEDIT sizes) after codesign removal, so an unsigned rebuild must
+      # match everything else byte-for-byte.
+      if [ -x "$ALPHA_CLANG" ] && [ -d "$ALPHA_SDK" ] && command -v python3 >/dev/null 2>&1; then
         provenance_ran=$((provenance_ran + 1))
         TMP=$(mktemp -d)
-        if "$ALPHA_CLANG" -arch arm64 -isysroot "$ALPHA_SDK" -Wl,-no_uuid \
+        if "$ALPHA_CLANG" -arch arm64 -isysroot "$ALPHA_SDK" \
             -o "$TMP/rebuilt" "$OMEGA_PATH_ALPHA/alpha_arm64_macos.s" 2>"$TMP/err"; then
           cp "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/committed"
           codesign --remove-signature "$TMP/rebuilt" "$TMP/committed" 2>/dev/null
+          python3 - "$TMP/rebuilt" "$TMP/committed" <<'ALPHA_NORM_EOF' 2>"$TMP/norm_err"
+import struct, sys
+for path in sys.argv[1:3]:
+    raw = bytearray(open(path, "rb").read())
+    ncmds, = struct.unpack_from("<I", raw, 16)
+    off = 32
+    for _ in range(ncmds):
+        cmd, size = struct.unpack_from("<II", raw, off)
+        if cmd == 0x1B:            # LC_UUID: payload is a per-build stamp
+            raw[off + 8:off + 24] = b"\0" * 16
+        elif cmd == 0x1D:          # LC_CODE_SIGNATURE: dataoff/datasize
+            raw[off + 8:off + 16] = b"\0" * 8
+        elif cmd == 0x19 and raw[off + 8:off + 24].rstrip(b"\0") == b"__LINKEDIT":
+            raw[off + 32:off + 40] = b"\0" * 8   # vmsize
+            raw[off + 48:off + 56] = b"\0" * 8   # filesize
+        off += size
+    open(path, "wb").write(raw)
+ALPHA_NORM_EOF
           if cmp -s "$TMP/rebuilt" "$TMP/committed"; then
-            echo "provenance ✓ — $ALPHA_SEED reproduces from alpha_arm64_macos.s (modulo signature)"
+            echo "provenance ✓ — $ALPHA_SEED reproduces from alpha_arm64_macos.s (modulo signature-coupled fields)"
           else
             echo "provenance FAIL — committed binary differs from a rebuild of its source"; rc=1
           fi
@@ -79,7 +105,7 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
         fi
         rm -rf "$TMP"
       else
-        echo "provenance SKIP — selected Xcode/CommandLineTools clang or macOS SDK not found"
+        echo "provenance SKIP — selected Xcode/CommandLineTools clang, macOS SDK, or python3 not found"
         provenance_skipped=$((provenance_skipped + 1))
       fi
       unset ALPHA_DEVELOPER_DIR ALPHA_CLANG ALPHA_SDK

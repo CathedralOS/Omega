@@ -8,11 +8,15 @@ and every dependent field (section sizes, segment spans, symtab, linkedit item
 offsets, function starts, dysymtab, indirect symbols) is recomputed. Verified
 by capstone disassembly against the .s source.
 
-Note: the committed alpha_arm64_macos was forged with `movz` immediates of
+Note: the V5 container this script manufactured carried `movz` immediates of
 0x2000 (extent 0x200000000000, 32 TiB); the corrected source specifies
 0x20<<32 = 0x2000000000 (128 GiB, SEMANTICS.md section 8), which this script
-now emits. The container awaits re-forge + re-signature on a macOS arm64 host
-and repinning of its ALPHA_SEED_ARM64_MACOS_* identity constants.
+now emits. The committed alpha_arm64_macos has since been re-forged from the
+corrected source by a fresh clang link on a macOS arm64 host — with an
+LC_UUID the transform does not emit, because modern dyld refuses `-no_uuid`
+images outright — then UUID-zeroed and re-signed ad hoc. This script remains
+the record of the mechanical V4→V5 content transform, not the shipping
+recipe.
 """
 import struct, sys
 from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM

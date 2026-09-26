@@ -28,11 +28,16 @@
 // macOS wrinkle: dd-stamping a tape invalidates the Mach-O code signature, so a
 // stamped seed must be re-signed (codesign -f -s -) before it will exec.
 //
-// Build (reproducible — -no_uuid drops the nondeterministic Mach-O UUID, so the
-// binary is byte-identical across builds modulo the OS code signature):
-//   clang -arch arm64 -isysroot SDK -Wl,-no_uuid -o alpha_arm64_macos alpha_arm64_macos.s
-// tests/bootstrap/alpha-beta-edge.sh selects Xcode or xcrun's CommandLineTools
-// clang/SDK and re-derives the binary with these flags (signature excluded).
+// Build (reproducible — the linker's UUID stamp is the only nondeterministic
+// content; zero the LC_UUID payload after linking so the binary is
+// byte-identical across builds modulo the OS code signature):
+//   clang -arch arm64 -isysroot SDK -o alpha_arm64_macos alpha_arm64_macos.s
+//   # zero the 16 UUID payload bytes in the LC_UUID load command
+//   codesign -f -s - alpha_arm64_macos
+// Modern dyld refuses images with no LC_UUID, so -Wl,-no_uuid is no longer an
+// option. tests/bootstrap/alpha-beta-edge.sh selects Xcode or xcrun's
+// CommandLineTools clang/SDK and re-derives the binary, comparing it against
+// the committed container modulo the signature-coupled fields.
 // ============================================================================
 .global _main
 .align 4
