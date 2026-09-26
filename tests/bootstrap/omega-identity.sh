@@ -213,20 +213,12 @@ rc=0
   fail "truncated executable entry: expected exit 3, got $rc"
 echo "executable entries: a one-byte change or truncation is refused with its record"
 
-for needle in \
-  "$OMEGA_COMPILER_MANIFEST_SHA256" "$OMEGA_COMPILER_PACKED_SHA256" \
-  "569,920"
-do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/5_omega/README.md" ||
-    fail "bootstrap/5_omega/README.md lacks bound record $needle"
-done
 for record in \
   tests/bootstrap/omega-parser/gate.py \
   tests/bootstrap/omega-outcome/gate.py \
   tests/bootstrap/omega-request/gate.py \
   tests/bootstrap/source-closure.py \
-  tests/epsilon/d-composition/gate.py \
-  tests/epsilon/refinement/d_closure.py
+  tests/epsilon/d-composition/customers.py
 do
   for needle in "$OMEGA_COMPILER_PACKED_SIZE" "$OMEGA_COMPILER_PACKED_SHA256"
   do
@@ -234,66 +226,21 @@ do
       fail "$record lacks bound record $needle"
   done
 done
-echo "records: bound identities match bootstrap/5_omega/README.md and every inline packed-record pin"
+echo "records: bound identities match every inline packed-record pin"
 
-# Gate READMEs spell byte counts with digit grouping; gate.py pins are raw.
-grouped() {
-  echo "$1" | sed -e :a -e 's/\(.*[0-9]\)\([0-9][0-9][0-9]\)/\1,\2/;ta'
-}
-
-for needle in \
-  "$(grouped "$OMEGA_PARSER_ENTRY_SIZE")" "$OMEGA_PARSER_ENTRY_SHA256"
-do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-parser/README.md" ||
-    fail "tests/bootstrap/omega-parser/README.md lacks bound entry record $needle"
-done
 for needle in "$OMEGA_PARSER_ENTRY_SIZE" "$OMEGA_PARSER_ENTRY_SHA256"; do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-parser/gate.py" ||
     fail "omega-parser gate.py lacks bound entry record $needle"
 done
-for needle in \
-  "$(grouped "$OMEGA_OUTCOME_ENTRY_SIZE")" "$OMEGA_OUTCOME_ENTRY_SHA256"
-do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-outcome/README.md" ||
-    fail "tests/bootstrap/omega-outcome/README.md lacks bound entry record $needle"
-done
 for needle in "$OMEGA_OUTCOME_ENTRY_SIZE" "$OMEGA_OUTCOME_ENTRY_SHA256"; do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-outcome/gate.py" ||
     fail "omega-outcome gate.py lacks bound entry record $needle"
-done
-for needle in \
-  "$(grouped "$OMEGA_REQUEST_ENTRY_SIZE")" "$OMEGA_REQUEST_ENTRY_SHA256" \
-  "$(grouped "$OMEGA_REQUEST_FIXTURE_SIZE")" "$OMEGA_REQUEST_FIXTURE_SHA256"
-do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-request/README.md" ||
-    fail "tests/bootstrap/omega-request/README.md lacks bound record $needle"
 done
 for needle in "$OMEGA_REQUEST_ENTRY_SIZE" "$OMEGA_REQUEST_ENTRY_SHA256" \
   "$OMEGA_REQUEST_FIXTURE_SIZE" "$OMEGA_REQUEST_FIXTURE_SHA256"; do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-request/gate.py" ||
     fail "omega-request gate.py lacks bound record $needle"
 done
-for OMEGA_EXECUTABLE_ENTRY in \
-  "$OMEGA_EXECUTABLE_MAIN_ENTRY_SIZE $OMEGA_EXECUTABLE_MAIN_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE $OMEGA_EXECUTABLE_OCREQ_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_B_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_B_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_C_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_C_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_D_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_D_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_E_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_E_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_F_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_F_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_J_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_J_ENTRY_SHA256"
-do
-  set -- $OMEGA_EXECUTABLE_ENTRY
-  grep -q "$(grouped "$1")" \
-    "$OMEGA_REPO_ROOT/tests/bootstrap/omega-executable/README.md" ||
-    fail "tests/bootstrap/omega-executable/README.md lacks bound entry size $1"
-  grep -q "$2" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-executable/README.md" ||
-    fail "tests/bootstrap/omega-executable/README.md lacks bound entry digest $2"
-done
-echo "entries: bound entry pins agree with the omega-* READMEs and gate.py pins"
+echo "entries: bound entry pins agree with the gate.py pins"
 
 echo "Omega identity: bound closure materialized exactly; corrupted manifest, member, and gate-local entries refused"

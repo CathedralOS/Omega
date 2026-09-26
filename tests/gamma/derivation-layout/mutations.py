@@ -12,23 +12,23 @@ def cases():
         for offset in range(start, start + 4):
             altered = bytearray(original)
             altered[offset] ^= 1
-            yield f"magic_byte_{offset}", bytes(altered), rejected(offset), 2, 60
+            yield f"magic_byte_{offset}", bytes(altered), rejected(offset), 60
         for offset in range(start + 7, end, 4):
             altered = bytearray(original)
             altered[offset] |= 128
-            yield f"word_high_bit_{offset}", bytes(altered), rejected(offset), 2, 60
+            yield f"word_high_bit_{offset}", bytes(altered), rejected(offset), 60
 
     for section in range(3):
         for remainder in (1, 2, 3):
             altered = list(sections)
             altered[section] += b"\x00" * remainder
             yield (f"partial_word_section_{section}_{remainder}", envelope(altered),
-                   rejected(ends[section]), 2, 60)
+                   rejected(ends[section]), 60)
         for extent in range(4):
             altered = list(sections)
             altered[section] = sections[section][:extent]
             yield (f"short_magic_section_{section}_{extent}", envelope(altered),
-                   rejected(starts[section] + extent), 2, 60)
+                   rejected(starts[section] + extent), 60)
 
     # Absolute word coordinates in the published 228-byte example.
     mutations = (
@@ -59,27 +59,27 @@ def cases():
         ("congruence_premise_extent", 212, 4, 224),
     )
     for name, field, value, coordinate in mutations:
-        yield name, changed_word(original, field, value), rejected(coordinate), 2, 60
+        yield name, changed_word(original, field, value), rejected(coordinate), 60
 
     altered = changed_word(original, 84, 9)
     altered = changed_word(altered, 116, 0x80000000)
-    yield "word_scan_before_earlier_unknown_mode", altered, rejected(119), 2, 60
+    yield "word_scan_before_earlier_unknown_mode", altered, rejected(119), 60
     altered = list(sections)
     altered[0] = changed_word(altered[0], 4, 0x80000000) + b"X"
-    yield "partial_word_before_earlier_high_bit", envelope(altered), rejected(124), 2, 60
+    yield "partial_word_before_earlier_high_bit", envelope(altered), rejected(124), 60
     altered = changed_word(original, 84, 9)
     altered = changed_word(altered, 128, 0x80000000)
-    yield "theory_grammar_before_later_section_high_bit", altered, rejected(84), 2, 60
+    yield "theory_grammar_before_later_section_high_bit", altered, rejected(84), 60
     altered = bytearray(original)
     altered[24] ^= 1
     altered[31] |= 128
-    yield "magic_before_word_scan", bytes(altered), rejected(24), 2, 60
+    yield "magic_before_word_scan", bytes(altered), rejected(24), 60
 
     for section in range(3):
         altered = list(sections)
         altered[section] += words(0)
         yield (f"surplus_section_word_{section}", envelope(altered),
-               rejected(ends[section]), 2, 60)
+               rejected(ends[section]), 60)
     # A valid proof prefix does not excuse the following malformed proof record.
     altered = (sections[0], sections[1], certificate(proofs=(words(3, 1, 0, 0), words(3, 6, 0, 0))))
-    yield "late_proof_error_after_valid_prefix", envelope(altered), rejected(228), 2, 60
+    yield "late_proof_error_after_valid_prefix", envelope(altered), rejected(228), 60

@@ -203,10 +203,10 @@ remain required. The evaluator boundary and `main` are now realized by
 Complete Omega D composition and independent `RunEpsilon` refinement are now
 exercised gates — [`tests/epsilon/d-composition/`](../../tests/epsilon/d-composition/README.md)
 runs the full eight-member D closure through the canonical edge, including
-`OmegaScalarCompiler::compile` emitting the exact Alpha tape, and
-[`tests/epsilon/refinement/`](../../tests/epsilon/refinement/README.md)
-compares the contract-derived model's observations against this edge
-byte-for-byte on the same members. Resource containment beyond the derived
+`OmegaScalarCompiler::compile` emitting the exact Alpha tape, and compares
+the same base executions against the contract-derived model in
+[`tests/epsilon/refinement/`](../../tests/epsilon/refinement/README.md).
+The synthetic language corpus runs separately there. Resource containment beyond the derived
 lower-chain profile remains an implementation gap. New execution work
 must name a concrete failing program or required conformance/refinement
 obligation, not assume an unspecified syntax form is unimplemented.
@@ -215,8 +215,8 @@ are implemented. The [resource contract](LANGUAGE.md#10-resource-classification)
 requires containment of actual evaluator demand, including cumulative immutable
 Gamma allocation, not a separate hypothetical dense-storage admission pass.
 The sparse representation preserves declared bounds but does not establish
-final-profile containment; the refinement gate now discharges independent
-execution refinement over the exact D closure member sources, while
+final-profile containment; composition includes independent execution
+refinement over the exact D closure member sources, while
 final-profile containment remains undischarged by these runs. The canonical
 request/observation edge is realized under `EVALUATOR_ENTRY.md`; the standing
 conformance clause there still governs witnessed defects, so no validation

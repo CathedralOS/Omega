@@ -30,11 +30,12 @@ late failures, and the specified error order. Physically valid controls retain
 deliberately invalid sorts, references, slots, roots, and clause cardinalities
 to prevent physical admission from silently becoming semantic checking.
 
-There are 188 vectors and 374 expected observations. The 186 small vectors run
-twice under a 60-second host watchdog. A 46,484-row source
+There are 189 vectors, each executed once. The 186 small vectors use
+a 60-second host watchdog. A 46,484-row source
 spine runs once under 600 seconds: child references are physical words and must
 not cause one Gamma call frame per logical term. Its 929,848-byte request is
 not the complete Beta certificate. One 130-MiB-plus-one outer request also runs
 once; outer capacity refusal must forward unchanged without scanning invalid
-inner contents. No exact-130-MiB inner traversal is claimed or performed here.
+inner contents. An exact-130-MiB request traverses every inner payload word
+under a 1,800-second watchdog.
 Host timeouts and outer evaluator failures are not checker outcomes.

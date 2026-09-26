@@ -56,8 +56,9 @@ Boolean or session for the interrupted comparison; `resume` publishes only its
 earlier mismatch before that failure. Test-selector roots add no request fields
 and are not part of the production comparison interface.
 
-There are 39 literal vectors and 72 observations: 33 small vectors run twice
-under 60-second host watchdogs; six larger controls run once under 600 seconds.
+There are 39 literal vectors, each executed once: 33 small vectors use
+60-second host watchdogs; six larger controls use 600 seconds.
+The Gamma entries retain their in-process repeated comparisons and session reuse.
 Large inputs include two distinct 46,484-node chains (92,968 transitions) and
 separately encoded 1,024-level shared DAGs (4,094 transitions). These counts
 follow the documented visit/resume schedule: two per unary node; the shared

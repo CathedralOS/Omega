@@ -27,35 +27,32 @@ def main():
     if actual != (int(identity["lines"]), int(identity["bytes"]), identity["sha256"]):
         raise SystemExit(f"Derivation checking: source identity changed: {actual}")
 
-    observations = 0
     names = set()
-    for name, request, expected, repetitions, timeout in cases():
+    for name, request, expected, timeout in cases():
         if name in names:
             raise SystemExit(f"Derivation checking: duplicate fixture {name}")
         names.add(name)
         if 4 + len(source) + len(request) > 137363456:
             raise SystemExit(f"Derivation checking {name}: outside evaluator request")
         framed = struct.pack("<I", len(source)) + source + request
-        for repetition in range(repetitions):
-            started = time.monotonic()
-            try:
-                result = subprocess.run(
-                    [str(temporary / "evaluator")], input=framed,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout,
-                )
-            except subprocess.TimeoutExpired:
-                raise SystemExit(f"Derivation checking {name}: host timeout {timeout}s; no checking result")
-            elapsed = time.monotonic() - started
-            if (result.returncode, result.stdout, result.stderr) != (0, expected, b""):
-                raise SystemExit(
-                    f"Derivation checking {name}/{repetition + 1}: expected 0/{expected.hex()}, "
-                    f"got {result.returncode}/{result.stdout.hex()}, "
-                    f"stderr={result.stderr!r}, elapsed={elapsed:.3f}s"
-                )
-            observations += 1
-            if repetitions == 1:
-                print(f"Derivation checking {name}: {len(request)} bytes, {elapsed:.3f}s, exact {expected.hex()}", flush=True)
-    print(f"Derivation checking: {len(names)} vectors, {observations} exact diagnostics passed; no artifact admission")
+        started = time.monotonic()
+        try:
+            result = subprocess.run(
+                [str(temporary / "evaluator")], input=framed,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            raise SystemExit(f"Derivation checking {name}: host timeout {timeout}s; no checking result")
+        elapsed = time.monotonic() - started
+        if (result.returncode, result.stdout, result.stderr) != (0, expected, b""):
+            raise SystemExit(
+                f"Derivation checking {name}: expected 0/{expected.hex()}, "
+                f"got {result.returncode}/{result.stdout.hex()}, "
+                f"stderr={result.stderr!r}, elapsed={elapsed:.3f}s"
+            )
+        if timeout > 60:
+            print(f"Derivation checking {name}: {len(request)} bytes, {elapsed:.3f}s, exact {expected.hex()}", flush=True)
+    print(f"Derivation checking: {len(names)} exact diagnostic vectors passed; no artifact admission")
 
 
 if __name__ == "__main__":

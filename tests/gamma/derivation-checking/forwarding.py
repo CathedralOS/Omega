@@ -4,7 +4,7 @@ from proof_wire import ZERO, failure, record, theory, vector
 
 
 def cases():
-    yield "outer_short", b"", failure(0, 1), 2, 60
+    yield "outer_short", b"", failure(0, 1), 60
     yield vector("physical_unknown_rule", failure(116, 6), (record(9, 1, 1),))
     yield vector("formation_before_empty_proof", failure(40, 7), (), definitions=theory((record(0, 0),)))
     yield vector("ground_before_invalid_proof", failure(84, 8), (record(1, 0, 0),),

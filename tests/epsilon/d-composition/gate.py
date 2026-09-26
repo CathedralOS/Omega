@@ -1,17 +1,8 @@
-"""Check and execute whole-member D customers through the canonical edge.
+"""Run D customers once, checking literal bytes and independent refinement.
 
-Each subject is framed as one EREQ v1 envelope and evaluated by the canonical
-evaluator receipt reconstructed through the selected lower chain: the bound
-Gamma evaluator runs the bound Delta compiler over the packed Epsilon
-evaluator closure plus the bound canonical entry. The host frames bytes and
-compares observations; only the canonical edge checks and executes Epsilon.
-
-Observations are canonical: tag 00 + little-endian i32 exit + exact stdout,
-tag 01 + trap kind + stdout prefix, tag 02 + reject reason + coordinate, or
-an EEOUT refusal frame / lower-chain Incomplete status. The six whole-member
-customer identities are records of the same bound D members pinned by
-tests/epsilon/interpreted-omega-experiment/run.sh; the complete-closure
-customer is the bound packed D closure plus this gate's own composition main.
+The canonical Epsilon edge owns execution. Literal observations pin the
+composition contract; the independent Epsilon model checks the same result
+and derives expectations for the separate source-mutation controls.
 """
 
 import hashlib
@@ -22,6 +13,10 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "refinement"))
+import model
+from customers import MEMBER_RECORDS, customers
 
 EREQ = b"EEREQ\x01\x00\x00"
 
@@ -61,8 +56,14 @@ def require_identity(label, source, length, digest):
 
 def main():
     directory = Path(sys.argv[1]).resolve()
-    gate = Path(__file__).resolve().parent
     selected = sys.argv[2:]  # optional exact customer names
+    cases = customers()
+    if selected:
+        known = {case.name for case in cases}
+        unknown = [name for name in selected if name not in known]
+        if unknown:
+            raise SystemExit(f"unknown exact D customers: {unknown}")
+        cases = [case for case in cases if case.name in set(selected)]
 
     epsilon = (directory / "epsilon_compiler.delta").read_bytes()
     require_identity("Epsilon evaluator closure", epsilon, 617354,
@@ -91,130 +92,57 @@ def main():
         return (EREQ + struct.pack("<III", 1, len(source), len(stdin))
                 + closure_digest + source + stdin)
 
-    members_dir = Path(os.environ["OMEGA_PATH_OMEGA_COMPILER"])
-    customers_dir = gate.parent / "interpreted-omega-experiment/customers"
-
-    # Whole, unchanged D members. These sizes and digests are records of the
-    # same bound members pinned by omega_compiler.epsilon.sources and by the
-    # interpreted-omega-experiment gate, not independent identities.
-    REPRESENTATIONS = (members_dir / "representations.epsilon", 32026,
-                       "bb0b30da622065d298ebfc2bcb865ff3f6fd51467d259331282464c25c4060ee")
-    REQUEST_UTF8 = (members_dir / "request_and_utf8.epsilon", 23678,
-                    "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5")
-    LEXICAL = (members_dir / "lexical_classification.epsilon", 2520,
-               "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f")
-    LEXER = (members_dir / "lexer.epsilon", 44649,
-             "e16e7a42ee0848ff56b06dff4e9900569ae57724a281c0d3bada847717412ba6")
-    ALPHA_TAPE = (members_dir / "alpha_tape.epsilon", 30832,
-                  "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3")
-
-    alpha_program = bytes.fromhex(
-        "01 ff ffffffffffffffff" "01 fe 0100000000000000" "01 fd 0000000000000000"
-        "11 00" "10 00 ff 4a00000000000000" "13 4c00000000000000" "03 fd fe"
-        "0e 00 1e00000000000000" "0c 1e00000000000000" "00 fd" "12 00" "14")
-
-    cases = []
-
-    def add_customer(name, members, expected_size, expected_digest, stdin,
-                     expected_observation):
-        source = b""
-        for path, size, digest in members:
-            data = path.read_bytes()
-            require_identity(f"{name} member {path.name}", data, size, digest)
-            source += data
-        require_identity(f"{name} packed", source, expected_size, expected_digest)
-        cases.append((name, ereq(source, stdin), expected_observation))
-
-    add_customer("Omega D lexical helpers",
-                 (REPRESENTATIONS, LEXICAL,
-                  (customers_dir / "omega_lexical/main.epsilon", 1486,
-                   "6ce07453269102f7f468241d1a066a21cbe08c2a0652bb460c9c34d2f6ef11b2")),
-                 36032, "463aeb99dcfccc937b9b3ba55aa05d5d89ddc006757e38c244985a582461814a",
-                 b"", b"\x00\x00\x00\x00\x00A")
-    add_customer("Omega D Alpha tape buffers",
-                 (REPRESENTATIONS, ALPHA_TAPE,
-                  (customers_dir / "omega_alpha_tape/main.epsilon", 7274,
-                   "a186166b32d38cfafdc02fc47f1ad46f2af7d18ed15b5bb0f18b0caa525bb35d")),
-                 70132, "d9b2cf034d21d4575f3ef71f2dc92e8bd18cfaaa55121b9faab7b8c931f13e91",
-                 b"", b"\x00\x00\x00\x00\x00ABCDEFGH"
-                 b"\x0c\x09\x00\x00\x00\x00\x00\x00\x00\x14" + alpha_program)
-    add_customer("Omega D request and UTF-8",
-                 (REPRESENTATIONS, REQUEST_UTF8,
-                  (customers_dir / "omega_request/main.epsilon", 9510,
-                   "0f838c478d6497cb4ca92d35f2aeed167b61eca4ab245847fa04da0fc2f7b0b7")),
-                 65214, "7e42622802efb866699579f86d7de6f938989e36cf7db761cea4b6f38dba079f",
-                 b"", b"\x00\x00\x00\x00\x00A\n")
-    add_customer("Omega D request invocation fields",
-                 (REPRESENTATIONS, REQUEST_UTF8,
-                  (customers_dir / "omega_request_invocation/main.epsilon", 5930,
-                   "b02e8f6f973a55ead1131a28cb939af0d6c31501d38bd7b15cba2cff4e6710bd")),
-                 61634, "01e1585b6f85414393166c08ff45b77982826c5d08281350a30ab5f08ff99c29",
-                 b"", b"\x00\x00\x00\x00\x00A\n")
-    add_customer("Omega D numeric-base sums",
-                 (REPRESENTATIONS, LEXICAL,
-                  (customers_dir / "omega_numeric_base/main.epsilon", 1479,
-                   "abf50c23d589624d59b7b3603918d5ab76e6a6192594c50534fbee6cdf334386")),
-                 36025, "ec1ad469c5a6d8d3505020f7104f5f8a7590ee27056d2a24270785edaacaa97f",
-                 b"", b"\x00\x00\x00\x00\x00A")
-    add_customer("Omega D lexer",
-                 (REPRESENTATIONS, REQUEST_UTF8, LEXICAL, LEXER,
-                  (customers_dir / "omega_lexer/main.epsilon", 6771,
-                   "e4a262f1b011402970f958afbc6c950882bb75906fc7244b3ea19c8d489a0e06")),
-                 109644, "95b15745e93609a5c164b5842218782653edc779280ea932a6293fda7deede4f",
-                 b"", b"\x00\x00\x00\x00\x00A")
-
-    # The complete-D customer: the whole bound 569,920-byte closure plus this
-    # gate's own composition main, which feeds the sealed Omega source to D's
-    # actual OmegaScalarCompiler::compile and publishes the emitted tape.
-    # Checking covers every declared member; execution crosses parser,
-    # scalar compilation, and Alpha tape emission. Expected observation is
-    # pinned in expected.hex.
-    packed = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("packed Omega D closure", packed, 569920,
-                     "f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842")
-    composition_main = (gate / "main.epsilon").read_bytes()
-    require_identity("composition main", composition_main, 1759,
-                     "4fb023e60c166d5700fddc343a8ee8f3242d3c2915e7a7556ec36bef19aded9b")
-    omega_source = (gate / "program.omg").read_bytes()
-    require_identity("Omega source", omega_source, 33,
-                     "7142aacc6080f4e3c41078e712ed5f4a9947c005c5d29d19b6dedcca9aa106d6")
-    expected = bytes.fromhex((gate / "expected.hex").read_text(encoding="ascii"))
-    whole_source = packed + composition_main
-    cases.append(("Omega D complete closure", ereq(whole_source, omega_source),
-                  expected))
-
-    # The check-only counterpart: the same whole closure with a main that
-    # exits immediately. Its allocation isolates the checking phase so the
-    # complete-closure run above can be read as checking + execution; see the
-    # README allocation table.
-    check_main = (gate / "check_only_main.epsilon").read_bytes()
-    require_identity("check-only main", check_main, 245,
-                     "6ba150eb76208d88a764e4a90a6bdaf97d63a170ad26fd56d5016affadda0bbb")
-    cases.append(("Omega D complete closure check only",
-                  ereq(packed + check_main), b"\x00\x00\x00\x00\x00"))
-
     watchdog = int(os.environ.get("OMEGA_DCOMP_OBSERVATION_SECONDS", "14400"))
     if watchdog <= 0:
         raise SystemExit("OMEGA_DCOMP_OBSERVATION_SECONDS must be positive")
 
-    if selected:
-        known = {name for name, _, _ in cases}
-        unknown = [name for name in selected if name not in known]
-        if unknown:
-            raise SystemExit(f"unknown exact D customers: {unknown}")
-        cases = [case for case in cases if case[0] in set(selected)]
-
-    for name, request, expected_observation in cases:
+    covered_members = set()
+    refined = mutations = excluded = excluded_mutations = 0
+    for case in cases:
         status, observation, _ = run_evaluator(
-            directory / "evaluator.exe", receipt, request, watchdog, name)
-        if (status, observation) != (0, expected_observation):
+            directory / "evaluator.exe", receipt, ereq(case.source, case.stdin),
+            watchdog, case.name)
+        if (status, observation) != (0, case.expected):
             raise SystemExit(
-                f"{name}: expected status 0 and {expected_observation[:60].hex()}, "
+                f"{case.name}: expected status 0 and {case.expected[:60].hex()}, "
                 f"received status {status} and {observation[:60].hex()}")
-        print(f"{name}: canonical observation exact", flush=True)
+        print(f"{case.name}: literal observation exact", flush=True)
 
-    print(f"Epsilon D composition: {len(cases)} canonical observations pass",
-          flush=True)
+        try:
+            expected = model.observation(case.source, case.stdin)
+        except model.ModelExcluded as error:
+            excluded += 1
+            print(f"{case.name}: ModelExcluded ({error})", flush=True)
+            continue
+        if observation != expected:
+            raise SystemExit(
+                f"{case.name}: model derived {expected[:60].hex()}, "
+                f"evaluator published {observation[:60].hex()}")
+        refined += 1
+        covered_members.update(case.member_names)
+        for label, mutation in case.mutations:
+            changed = mutation(case.source)
+            try:
+                expected_mutation = model.observation(changed, case.stdin)
+            except model.ModelExcluded as error:
+                excluded_mutations += 1
+                print(f"{case.name} / {label}: ModelExcluded ({error})", flush=True)
+                continue
+            if expected_mutation == expected:
+                raise SystemExit(f"{case.name} / {label}: mutation did not discriminate")
+            status, observation, _ = run_evaluator(
+                directory / "evaluator.exe", receipt, ereq(changed, case.stdin),
+                watchdog, f"{case.name} / {label}")
+            if (status, observation) != (0, expected_mutation):
+                raise SystemExit(
+                    f"{case.name} / {label}: model derived {expected_mutation[:60].hex()}, "
+                    f"evaluator published status {status} and {observation[:60].hex()}")
+            mutations += 1
+
+    print(f"Epsilon D composition: {len(cases)} literal observations passed; "
+          f"{refined} model comparisons over {len(covered_members)}/{len(MEMBER_RECORDS)} "
+          f"members, {mutations} source mutations; {excluded} customers and "
+          f"{excluded_mutations} mutations ModelExcluded", flush=True)
 
 
 if __name__ == "__main__":

@@ -62,11 +62,12 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   [`evaluator_entry.delta`](../../tests/epsilon/evaluator-entry/evaluator_entry.delta)
   source compiles to the canonical receipt that consumes the EREQ envelope and
   publishes canonical observations or EEOUT refusal frames within the
-  evaluator's current construct coverage. `RunEpsilon` refinement over the
-  exact D closure member sources is exercised by
-  [`tests/epsilon/refinement/`](../../tests/epsilon/refinement/README.md), and
-  complete-D composition through the same edge by
+  evaluator's current construct coverage. Complete-D composition and
+  `RunEpsilon` refinement over the exact D closure member sources share
+  each base execution in
   [`tests/epsilon/d-composition/`](../../tests/epsilon/d-composition/README.md).
+  The independent model and synthetic language corpus remain in
+  [`tests/epsilon/refinement/`](../../tests/epsilon/refinement/README.md).
   The
   current fact pass does enforce contextual receiver/result relation and
   separate array-view extra-call rejection.

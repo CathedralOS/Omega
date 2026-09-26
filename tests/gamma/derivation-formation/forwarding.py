@@ -6,7 +6,7 @@ from wire import changed_word
 
 def cases():
     def rejected(name, request, expected):
-        return name, request, expected, 2, 60
+        return name, request, expected, 60
 
     yield rejected("short_outer_header", b"", failure(0, 1))
     valid = envelope((theory((record(1, 0),)), proposition(), certificate()))

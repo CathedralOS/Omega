@@ -7,7 +7,7 @@ from substitution_wire import (IDENTITY, NAT, ZERO, clause, compared, envelope, 
 def cases():
     yield vector("mode_zero_identity", compared(1, 7))
     sections = example()
-    yield "format_stated_unfolding", "root", envelope(sections), compared(1, 7), 2, 60
+    yield "format_stated_unfolding", "root", envelope(sections), compared(1, 7), 60
     yield vector("distinct_equal_actual_argument", compared(1, 7),
                  (ZERO, ZERO, record(2, 1, 1, 1)), left=3, right=2)
     yield vector("wrong_actual_argument_value", compared(0, 5),

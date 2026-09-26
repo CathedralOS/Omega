@@ -25,7 +25,7 @@ def cases():
     constructors = (record(1, 0),) * 65536
     assert 65537 * 65536 + 4 * 196611 + 65536 == 4295884812
     yield vector("work_diagnostic_exceeds_u32", constructors, sorts=65536,
-                 expected=failure(28, 3, 2, 8388608, 4295884812), repetitions=1, timeout=600)
+                 expected=failure(28, 3, 2, 8388608, 4295884812), timeout=600)
     # The function/constructor product alone is the limit. Its removal would
     # expose the invalid first constructor signature instead of this refusal.
     constructors = (record(0, 0),) + (record(1, 0),) * 2047
@@ -34,9 +34,9 @@ def cases():
     assert len(theory(constructors, definitions)) == 4 + 4 * (3 + 3 * 2048 + 7 * 4096)
     assert estimate == 8531981
     yield vector("function_constructor_work_product", constructors, definitions,
-                 expected=failure(28, 3, 2, 8388608, 8531981), repetitions=1, timeout=600)
+                 expected=failure(28, 3, 2, 8388608, 8531981), timeout=600)
     rows = (record(0, 0),) + tuple(record(1, 2, 1, previous) for previous in range(1, 46484))
     definitions = (ordinary(rows, (1,), 46484),)
     words = (len(theory(NAT, definitions)) - 4) // 4
     assert 2 * 3 + 2 + 4 * words + 1 < 8388608
-    yield vector("46484_deep_local_template_rows", functions=definitions, repetitions=1, timeout=600)
+    yield vector("46484_deep_local_template_rows", functions=definitions, timeout=600)

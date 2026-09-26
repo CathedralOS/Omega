@@ -35,10 +35,10 @@ def cases():
     templates = (record(0, 0),) + tuple(record(1, 2, 1, i) for i in range(1, count))
     owners = (ZERO,) + tuple(record(1, 2, 1, i) for i in range(1, count)) + (record(2, 1, 1, 1),)
     yield vector("46484_deep_template", compared(1, 139456), owners, left=count + 1, right=count,
-                 definitions=theory(NAT, (ordinary(templates, (1,), count),)), repetitions=1, timeout=600)
+                 definitions=theory(NAT, (ordinary(templates, (1,), count),)), timeout=600)
     count = 1024
     constructors = NAT + (record(1, 2, 1, 1),)
     templates = (record(0, 0),) + tuple(record(1, 3, 2, i, i) for i in range(1, count))
     owners = (ZERO,) + tuple(record(1, 3, 2, i, i) for i in range(1, count)) + (record(2, 1, 1, 1),)
     yield vector("shared_template_ground_dags", compared(1, 5122), owners, left=count + 1, right=count,
-                 definitions=theory(constructors, (ordinary(templates, (1,), count),)), repetitions=1, timeout=600)
+                 definitions=theory(constructors, (ordinary(templates, (1,), count),)), timeout=600)

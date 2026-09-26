@@ -3,6 +3,8 @@
 This directory owns replaceable invocation, tape materialization, exact
 artifact construction, and the chain-layout gate. It owns no language
 semantics, compiler source, proof, canonical artifact, or test corpus.
+These host scripts are temporary tooling, subject to the
+[whole-chain minimization contract](../../bootstrap/MINIMIZATION.md).
 
 ```sh
 sh tools/bootstrap/check-chain-hygiene.sh
@@ -61,6 +63,13 @@ repacked member closures against `bootstrap/proofs/checker/README.md` and
 `bootstrap/proofs/beta_encoding/README.md`, plus the derivation gates'
 diagnostic prefix entries packed on top of the bound member bytes, each
 recorded in its gate's README.
+
+The fast `tests/bootstrap/*-identity.sh` gates exercise exact materialized
+bytes and corruption/truncation refusals against the bound expectations.
+They retain checks against executable consumer records, but do not grep
+documentation for copies of the same hashes or formatted byte counts.
+Repeating a pin in prose adds no independent identity evidence; the cited
+audit and profile documents still explain the subjects and their obligations.
 
 `check-chain-hygiene.sh` is the single repository-topology gate. It positively
 enumerates the implemented compiler source/tape identities, inventories every

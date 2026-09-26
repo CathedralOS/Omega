@@ -37,6 +37,21 @@ not yet been validated.
 
 ## Customers
 
+[`customers.py`](customers.py) owns the eight exact source/stdin subjects,
+their literal expected observations, and the member mutations. Each base
+customer is evaluated once: its actual output must match both the literal
+expectation and the independent Epsilon model in
+[`refinement/model.py`](../refinement/model.py). The model derives expectations
+for the additional source-mutation executions. A mutation must change the
+model's observation and the evaluator must match that changed observation.
+Model-excluded customers still run against their literal expectations;
+excluded model comparisons and mutations are reported separately.
+
+The synthetic Epsilon corpus stays in `refinement/run.sh`; it no longer
+reruns these D customers. The private diagnostic adapter retains its separate
+transport controls. These commands establish different observations, not a
+requirement to execute the canonical D customer twice.
+
 The six whole-member customers concatenate the whole, unchanged D members
 pinned by `omega_compiler.epsilon.sources` with the pinned customer entries
 under `interpreted-omega-experiment/customers/`; member and packed identities
@@ -110,11 +125,12 @@ OMEGA_DCOMP_OBSERVATION_SECONDS=28800 sh tests/epsilon/d-composition/run.sh
   `omega0_compiler_bytecode.tape` product, which remains the OMEGA-D item's
   acceptance.
 
-This gate does not establish the final section-11 acceptance: that still
-requires independent `RunEpsilon` refinement agreement over the exact D
-source (see `tests/epsilon/refinement/`), and resource conformance remains
-bounded by the measured counters in `EVALUATOR_ENTRY.md`, not by these
-execution times.
+The independent model comparison and member mutations now run here with
+composition. Model exclusions remain explicit gaps, and the synthetic
+language corpus remains in `tests/epsilon/refinement/`. These bounded
+observations do not establish final section-11 acceptance: resource
+conformance remains bounded by the measured counters in `EVALUATOR_ENTRY.md`,
+not by these execution times.
 
 ## Allocation measurement
 

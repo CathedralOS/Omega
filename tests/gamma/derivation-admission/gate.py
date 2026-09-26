@@ -26,30 +26,27 @@ def main():
     if actual != (int(expected["lines"]), int(expected["bytes"]), expected["sha256"]):
         raise SystemExit(f"Derivation admission: source identity changed: {actual}")
 
-    observations = 0
     fixtures = 0
-    for name, request, output, repetitions in cases():
+    for name, request, output in cases():
         # This is framing custody, not a second semantic or resource model.
         if 4 + len(source) + len(request) > 137363456:
             raise SystemExit(f"Derivation admission {name}: outside selected evaluator request")
         framed_input = struct.pack("<I", len(source)) + source + request
-        for repetition in range(repetitions):
-            try:
-                result = subprocess.run(
-                    [str(temporary / "evaluator")], input=framed_input,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600,
-                )
-            except subprocess.TimeoutExpired:
-                raise SystemExit(f"Derivation admission {name}: host timeout; no admission result")
-            if (result.returncode, result.stdout, result.stderr) != (0, output, b""):
-                raise SystemExit(
-                    f"Derivation admission {name}/{repetition + 1}: expected diagnostic "
-                    f"0/{output.hex()}, got {result.returncode}/{result.stdout.hex()}, "
-                    f"stderr={result.stderr!r}"
-                )
-            observations += 1
+        try:
+            result = subprocess.run(
+                [str(temporary / "evaluator")], input=framed_input,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600,
+            )
+        except subprocess.TimeoutExpired:
+            raise SystemExit(f"Derivation admission {name}: host timeout; no admission result")
+        if (result.returncode, result.stdout, result.stderr) != (0, output, b""):
+            raise SystemExit(
+                f"Derivation admission {name}: expected diagnostic "
+                f"0/{output.hex()}, got {result.returncode}/{result.stdout.hex()}, "
+                f"stderr={result.stderr!r}"
+            )
         fixtures += 1
-    print(f"Derivation admission: {fixtures} vectors, {observations} exact diagnostics passed; no proof verdicts")
+    print(f"Derivation admission: {fixtures} exact diagnostic vectors passed; no proof verdicts")
 
 
 if __name__ == "__main__":

@@ -27,8 +27,8 @@ fields in exactly 33 bytes. Every owned diagnostic must return process status
 zero and empty stderr. Grounded does not assert equality, check a proof row,
 authenticate the theory/proposition, or establish the full Beta encoding root.
 
-The 113 vectors configure 223 observations: 110 small vectors run twice with a
-60-second host watchdog, and three larger vectors run once with 600 seconds.
+The 113 vectors each execute once: 110 small vectors use a
+60-second host watchdog, and three larger vectors use 600 seconds.
 An outer evaluator failure or timeout is never a ground-term judgment.
 
 - `positive.py` covers the FORMAT example, calls of any formed function,

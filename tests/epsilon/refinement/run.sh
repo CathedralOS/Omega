@@ -1,19 +1,12 @@
 #!/usr/bin/env sh
 set -eu
 
-# Direct RunEpsilon refinement: the canonical evaluator edge checked against
-# the test-owned independent model under source, stdin, profile, and
-# observation mutations — over both the synthetic corpus and the exact D
-# closure member sources (the same programs tests/epsilon/d-composition/
-# carries over the canonical edge).
-#
-#   sh tests/epsilon/refinement/run.sh                      # corpus + all D customers
-#   sh tests/epsilon/refinement/run.sh 'Omega D lexer'      # corpus + that customer
-#   sh tests/epsilon/refinement/run.sh --skip-members       # synthetic corpus only
-#   sh tests/epsilon/refinement/run.sh --skip-corpus 'Omega D lexer'
-#
-# The D-member leg inherits the d-composition watchdog shape:
-# OMEGA_REFINE_D_SECONDS overrides the 14,400-second per-invocation bound.
+# Synthetic Epsilon refinement. D customer observations and mutations share
+# one execution route in tests/epsilon/d-composition/run.sh.
+if [ "$#" -ne 0 ]; then
+    echo "usage: sh tests/epsilon/refinement/run.sh; select D customers with d-composition/run.sh" >&2
+    exit 2
+fi
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)

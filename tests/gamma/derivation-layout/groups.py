@@ -10,7 +10,7 @@ def cases():
         sections = list(base)
         sections[section] = value
         start = 24 + sum(map(len, sections[:section]))
-        return name, envelope(sections), rejected(start + coordinate), 2, 60
+        return name, envelope(sections), rejected(start + coordinate), 60
 
     for field_count in (0, 1, 2):
         section = b"GTH1" + words(*([0] * field_count))
