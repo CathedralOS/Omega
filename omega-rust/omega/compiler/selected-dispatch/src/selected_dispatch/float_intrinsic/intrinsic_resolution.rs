@@ -78,6 +78,17 @@ fn resolve_float_intrinsic_call(
     else {
         return Ok(None);
     };
+    // This walk includes every named requirement call. Primitive binary and
+    // integer-comparison realizations have their own execution identities;
+    // they are not missing named-float realizations. The exact provider join
+    // above still validates their selected row before this classification.
+    if matches!(
+        selected_realization,
+        SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(_)
+            | SelectedCompilerIntrinsicRealization::PrimitiveIntegerComparison(_)
+    ) {
+        return Ok(None);
+    }
     let SelectedCompilerIntrinsicRealization::NamedFloat(realization) = selected_realization else {
         return Err(Diagnostic::error(format!(
             "selected named-float requirement `{overload_identity}` has no named-float execution realization",
@@ -132,4 +143,60 @@ fn resolve_float_intrinsic_call(
         origin: selected_use.origin,
         requirement: requirement.symbol,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SelectedIntrinsicUse, resolve_float_intrinsic_call};
+
+    #[test]
+    fn primitive_requirement_calls_do_not_enter_named_float_settlement() {
+        for (primitive, namespace) in [("i32", "Comparison"), ("f32", "Float")] {
+            let source = format!(
+                "data {namespace} {{}}
+                 boundary machine == {namespace}::equal(left: {primitive}, right: {primitive}) -> bool;
+                 data Provider {{}}
+                 machine Provider::equal(left: {primitive}, right: {primitive}) -> bool
+                     satisfies {namespace}::equal via ForeignBinding::CompilerIntrinsic;
+                 pub machine compare(left: {primitive}, right: {primitive}) -> bool {{ left == right }}"
+            );
+            let typed = crate::core_service_fixture::typed_with_core_service(
+                "primitive_requirement.omg",
+                &source,
+            );
+            let plans = provider_planning::derive_satisfies_plans(
+                &typed,
+                provider_planning::ProviderPlanDerivation::unevaluated(None),
+            );
+            let [derived] = plans.as_slice() else {
+                panic!("one exact comparison provider is required")
+            };
+            let checked = typed_trees_to_checked_trees::lower_typed_trees(
+                typed,
+                &typed_trees_to_checked_trees::CheckingRequest::settled(),
+            )
+            .expect("check primitive comparison call");
+            let uses = checked
+                .facts
+                .operators
+                .named_requirement_uses
+                .iter()
+                .map(|(_, requirement_use)| SelectedIntrinsicUse::from(requirement_use))
+                .collect::<Vec<_>>();
+            let [selected_use] = uses.as_slice() else {
+                panic!("token syntax must retain one ordinary requirement call")
+            };
+            assert!(
+                resolve_float_intrinsic_call(&checked, selected_use, &derived.plan)
+                    .expect("primitive comparisons belong to their own execution lane")
+                    .is_none()
+            );
+            let mut mismatched = derived.plan.clone();
+            mismatched.rows[0].binding =
+                effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                    machine: "Provider::wrong".into(),
+                };
+            assert!(resolve_float_intrinsic_call(&checked, selected_use, &mismatched).is_err());
+        }
+    }
 }
