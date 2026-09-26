@@ -205,11 +205,23 @@ pub(crate) fn collect_reserved_cleanup_selection_diagnostics(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Reserved cleanup machines are few; find them once rather than testing
+    // every machine's name against every authored selection.
+    let cleanups = program
+        .machines()
+        .iter()
+        .filter(|machine| is_reserved_cleanup(program, machine))
+        .collect::<Vec<_>>();
+    if cleanups.is_empty() {
+        return;
+    }
     for selection in program.authored_declaration_selections() {
         let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
             continue;
         };
-        let Some(cleanup) = reserved_cleanup_selected_by(program, target.selected_symbol()) else {
+        let Some(cleanup) =
+            reserved_cleanup_selected_by(program, &cleanups, target.selected_symbol())
+        else {
             continue;
         };
         diagnostics.push(
@@ -232,10 +244,26 @@ pub fn validate_reserved_cleanup_selections(program: &TypedTrees) -> Result<(), 
     }
 }
 
-fn reserved_cleanup_selected_by(
+/// A `drop` machine attached to known data: the compiler selects it and
+/// source may not.
+fn is_reserved_cleanup(program: &TypedTrees, machine: &Machine) -> bool {
+    let owner = machine.attached_data_symbol;
+    machine.attached_data.is_some()
+        && owner.is_valid()
+        && machine.name.as_str().rsplit("::").next() == Some("drop")
+        && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program, owner,
+        )
+        .is_some()
+}
+
+/// The first reserved cleanup machine, in program order, that
+/// `selected_symbol` names.
+fn reserved_cleanup_selected_by<'program>(
     program: &TypedTrees,
+    cleanups: &[&'program Machine],
     selected_symbol: SymbolHandle,
-) -> Option<&Machine> {
+) -> Option<&'program Machine> {
     // At most one machine can ever match: the selected symbol is either the
     // machine itself or one of its states — and a state's retained parent
     // names its owning machine directly, so real selections collapse to a
@@ -246,24 +274,16 @@ fn reserved_cleanup_selected_by(
         symbols::SymbolKind::State => Some(program.symbols.get(selected_symbol).parent),
         _ => None,
     };
-    program.machines().iter().find(|machine| {
-        let owner = machine.attached_data_symbol;
-        machine.attached_data.is_some()
-            && owner.is_valid()
-            && machine.name.as_str().rsplit("::").next() == Some("drop")
-            && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program, owner,
-            )
-            .is_some()
-            && if let Some(machine_symbol) = machine_symbol {
-                machine.symbol == machine_symbol
-            } else {
-                machine.symbol == selected_symbol
-                    || program
-                        .machine_states(machine)
-                        .iter()
-                        .any(|state| state.symbol == selected_symbol)
-            }
+    cleanups.iter().copied().find(|machine| {
+        if let Some(machine_symbol) = machine_symbol {
+            machine.symbol == machine_symbol
+        } else {
+            machine.symbol == selected_symbol
+                || program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == selected_symbol)
+        }
     })
 }
 
