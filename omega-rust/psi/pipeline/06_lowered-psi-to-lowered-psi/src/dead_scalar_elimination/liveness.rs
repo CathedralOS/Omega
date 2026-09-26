@@ -237,6 +237,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::EstablishElementView { .. }
         | O::ElementViewLength { .. }
         | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishZeroedStructural { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::PortWrite { .. } => {}

@@ -201,7 +201,7 @@ pub use value_custody::placed_views::{
     bind_checked_atomic_resident_access,
 };
 pub use value_custody::places::declared_place_type_raw;
-pub use value_custody::places::unwrapped_type_reference;
+pub use value_custody::places::{unwrapped_type_reference, zeroed_structural_parts};
 pub use value_custody::recasts::{
     ValidatedLiteralIndexedRecastFootprint, validate_literal_indexed_recast_footprint,
 };

@@ -252,6 +252,7 @@ impl TerminalExecution {
                 matches!(
                     operation.kind,
                     OperationKind::EstablishRecord { .. }
+                        | OperationKind::EstablishZeroedStructural { .. }
                         | OperationKind::MoveStructuralField { .. }
                         | OperationKind::CallStructural { .. }
                         | OperationKind::CallStructuralWithScalarArguments { .. }
@@ -259,15 +260,28 @@ impl TerminalExecution {
                         | OperationKind::StructuralCaseLeafCopy { .. }
                 )
             })
-            .filter_map(|operation| operation.result.structural())
-            .filter(|result| {
-                result.multiplicity == StructuralMultiplicity::Unrestricted
+            .filter_map(|operation| {
+                let result = operation.result.structural()?;
+                // A zeroed structural covers record members that are
+                // themselves fixed arrays: its own leaf predicate is the
+                // plain-type test.
+                let plain = match operation.kind {
+                    OperationKind::EstablishZeroedStructural { .. } => {
+                        terminal_semantics::zeroed_structural_leaves(
+                            self.structural_types.values(),
+                            result.structural_type,
+                        )
+                        .is_some()
+                    }
+                    _ => self.plain_record_type(result.structural_type),
+                };
+                (result.multiplicity == StructuralMultiplicity::Unrestricted
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
-                    && self.plain_record_type(result.structural_type)
+                    && plain)
+                    .then_some(result.place)
             })
-            .map(|result| result.place)
             .collect::<Vec<_>>();
         for place in places {
             self.structural_values.remove(&place);

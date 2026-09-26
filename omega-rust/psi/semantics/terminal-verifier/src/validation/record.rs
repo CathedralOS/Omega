@@ -322,6 +322,7 @@ pub(super) fn completed_source<'a>(
             if !matches!(
                 operation.kind,
                 OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishZeroedStructural { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::StructuralLeafCopy { .. }
@@ -443,6 +444,7 @@ pub(super) fn result(
             matches!(
                 operation.kind,
                 OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishZeroedStructural { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::StructuralLeafCopy { .. }

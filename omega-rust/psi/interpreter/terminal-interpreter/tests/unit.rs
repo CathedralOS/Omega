@@ -74,6 +74,8 @@ mod scalar_returns_and_nominal_modules;
 mod shared_scalar_loans;
 #[path = "unit/unit_results_and_fuel.rs"]
 mod unit_results_and_fuel;
+#[path = "unit/zeroed_structural.rs"]
+mod zeroed_structural;
 
 use call_modules::{
     internal_structural_call_module, joined_parameter_dynamic_scalar_call_module,

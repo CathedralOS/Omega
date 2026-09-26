@@ -187,6 +187,7 @@ pub(super) fn register_custody_operation(
             | OperationKind::EstablishReference { .. }
             | OperationKind::EstablishScalarArray { .. }
             | OperationKind::EstablishPrimitiveLocal { .. }
+            | OperationKind::EstablishZeroedStructural { .. }
     ) {
         validate_unit_operation_static(module, machine, machines, operation)?;
         return Ok(true);
