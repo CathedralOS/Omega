@@ -6,8 +6,9 @@
 //! this file own what each call does.
 
 use crate::checked::{
-    AssembledSource, CheckedChildExecution, CheckedCompilation, PreparedCheckedSource,
-    check_selected_execution, evaluate_build_and_continue, run_on_compile_thread,
+    AssembledSource, BuildSourceCustody, BuiltCheckedProgram, CheckedChildExecution,
+    CheckedCompilation, PreparedCheckedSource, check_selected_execution,
+    evaluate_build_and_continue, run_on_compile_thread,
 };
 use crate::compiler::request::{SharedCompileInputs, ValidatedTargetCompilation};
 use crate::native::{NativeInputReuse, prepare_native_product};
@@ -38,7 +39,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
             request.shared.timings,
         );
         let target_count = request.targets.len();
-        let mut assemblies = SharedAssemblies::for_targets(target_count);
+        let mut builds = SharedBuilds::for_targets(target_count);
         let mut native_inputs = NativeInputReuse::default();
         let mut outcomes = Vec::with_capacity(target_count);
         // Checkpoint clones share immutable parsing. repeat_n moves the final
@@ -51,7 +52,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                     &request.shared,
                     target,
                     source,
-                    &mut assemblies,
+                    &mut builds,
                     &mut native_inputs,
                 )
             });
@@ -61,13 +62,14 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
     })
 }
 
-/// One target through the stage chain: assemble its sources, evaluate the
-/// build, check, admit, then produce the requested product.
+/// One target through the stage chain: assemble its sources and evaluate the
+/// build (once for every target with equal build inputs), check, admit, then
+/// produce the requested product.
 fn compile_target(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
     source: PreparedCheckedSource,
-    assemblies: &mut SharedAssemblies,
+    builds: &mut SharedBuilds,
     native_inputs: &mut NativeInputReuse,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let root_path = target.options().root_path.clone();
@@ -84,20 +86,17 @@ fn compile_target(
     let rollback = child.optimization_rollback().clone();
     let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields();
 
-    // Source assembly: the shared parse plus the imports and
-    // dependency-generated sources this target's package inputs carry.
-    // Targets carrying the same generated sources share one assembly.
+    // Source assembly, Psi 02-03 and build.omg: the shared parse plus the
+    // imports and dependency-generated sources this target's package inputs
+    // carry, resolved and typed, the build machine evaluated, and the sources
+    // it generated resolved and typed. None of it observes the target, so
+    // targets with equal build inputs share one result.
     source.admit_child(&child)?;
-    let AssembledSource {
-        source_file_count,
-        syntax,
+    let SharedBuild {
+        built,
+        build_sources,
         mut timings,
-    } = assemblies.assemble(source, package_inputs)?;
-    // Psi 02-03 and build.omg: resolve and type the program, evaluate the
-    // build machine, then resolve and type the sources it generated.
-    let (built, build_sources) = timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
-        evaluate_build_and_continue(&root_path, child, source_file_count, syntax, timings)
-    })?;
+    } = builds.build(source, child, package_inputs, &root_path)?;
     // Provider selection, const folding, Psi 04 checking and selected dispatch.
     let execution = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
         check_selected_execution(
@@ -178,56 +177,85 @@ fn compile_target(
         .with_timings(stage_timings))
 }
 
-/// Source assemblies of one invocation, keyed by the dependency-generated
-/// sources their package inputs carry. Assembly reads each bundle's package,
-/// purpose and sources and nothing else a target changes -- not the target the
-/// bundle was produced for -- so targets whose dependencies generated the same
-/// sources share one assembly.
-struct SharedAssemblies {
-    assemblies: Vec<(Vec<GeneratedSources>, AssembledSource)>,
+/// The assembled, built and typed program of one invocation, keyed by the
+/// build inputs a target carries: its package inputs and the
+/// dependency-generated sources they bring. Assembly, resolution, typing and
+/// build evaluation observe no realized target, so targets with equal build
+/// inputs share one result and each continues from its own copy.
+struct SharedBuilds {
+    builds: Vec<(BuildInputs, SharedBuild)>,
     /// Targets still to be served after the current one; the last target
     /// keeps nothing for reuse.
     remaining_targets: usize,
 }
 
-impl SharedAssemblies {
+/// One shared build: the typed program with its evaluated Build, the source
+/// custody spanning it, and the timing ladder its steps recorded.
+#[derive(Clone)]
+struct SharedBuild {
+    built: BuiltCheckedProgram,
+    build_sources: BuildSourceCustody,
+    timings: CompileTimings,
+}
+
+#[derive(PartialEq, Eq)]
+struct BuildInputs {
+    package_inputs: Option<package_compilation::PackageCompilationInputs>,
+    generated: Vec<GeneratedSources>,
+}
+
+impl SharedBuilds {
     fn for_targets(target_count: usize) -> Self {
         Self {
-            assemblies: Vec::new(),
+            builds: Vec::new(),
             remaining_targets: target_count,
         }
     }
 
-    fn assemble(
+    fn build(
         &mut self,
         source: PreparedCheckedSource,
+        child: CheckedChildExecution<'_>,
         package_inputs: Option<&package_compilation::PackageCompilationInputs>,
-    ) -> Result<AssembledSource, Vec<Diagnostic>> {
-        let generated = package_inputs
-            .map(|inputs| {
-                inputs
-                    .dependency_generated_source_instances()
-                    .map(|(purpose, bundle)| GeneratedSources {
-                        package: bundle.package(),
-                        purpose,
-                        sources: bundle.sources().to_vec(),
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+        root_path: &std::path::Path,
+    ) -> Result<SharedBuild, Vec<Diagnostic>> {
+        let inputs = BuildInputs {
+            package_inputs: package_inputs.cloned(),
+            generated: package_inputs
+                .map(|inputs| {
+                    inputs
+                        .dependency_generated_source_instances()
+                        .map(|(purpose, bundle)| GeneratedSources {
+                            package: bundle.package(),
+                            purpose,
+                            sources: bundle.sources().to_vec(),
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default(),
+        };
         self.remaining_targets = self.remaining_targets.saturating_sub(1);
-        if let Some((_, assembled)) = self
-            .assemblies
-            .iter()
-            .find(|(existing, _)| *existing == generated)
-        {
-            return Ok(assembled.clone());
+        if let Some((_, shared)) = self.builds.iter().find(|(existing, _)| *existing == inputs) {
+            return Ok(shared.clone());
         }
-        let assembled = source.assemble(package_inputs)?;
+        let AssembledSource {
+            source_file_count,
+            syntax,
+            mut timings,
+        } = source.assemble(package_inputs)?;
+        let (built, build_sources) =
+            timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
+                evaluate_build_and_continue(root_path, child, source_file_count, syntax, timings)
+            })?;
+        let shared = SharedBuild {
+            built,
+            build_sources,
+            timings,
+        };
         if self.remaining_targets > 0 {
-            self.assemblies.push((generated, assembled.clone()));
+            self.builds.push((inputs, shared.clone()));
         }
-        Ok(assembled)
+        Ok(shared)
     }
 }
 

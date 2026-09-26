@@ -12,6 +12,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 /// One coherent final typed frontend and its evaluated build selection.
+#[derive(Clone)]
 pub(crate) struct BuiltCheckedProgram {
     pub(super) typed: typed_trees::TypedTrees,
     pub(super) selected_target_machine_declarations:
@@ -30,6 +31,7 @@ pub(crate) struct BuiltCheckedProgram {
 }
 
 /// Source custody spanning the pre-build admission and generated extension.
+#[derive(Clone)]
 pub(crate) struct BuildSourceCustody {
     pub(super) source_file_count: usize,
     pub(super) build_execution_profile: Option<target::TargetProfile>,

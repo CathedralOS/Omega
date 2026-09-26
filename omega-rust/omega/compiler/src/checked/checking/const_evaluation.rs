@@ -422,8 +422,12 @@ impl SelectedConstEvaluation {
             };
             if fact.selected_operator_symbol != selected.requirement
                 || fact.policy_adapter != selected.policy
-                || joined_plan_commitment(checked, plans, fact.selected_operator_symbol, fact.origin)
-                    != Some(selected.provider)
+                || joined_plan_commitment(
+                    checked,
+                    plans,
+                    fact.selected_operator_symbol,
+                    fact.origin,
+                ) != Some(selected.provider)
             {
                 return Err(vec![Diagnostic::error(
                     "folded operator lost its exact final provider custody",
@@ -466,7 +470,8 @@ impl SelectedConstEvaluation {
                 }
             };
             if requirement != body.requirement
-                || joined_plan_commitment(checked, plans, requirement, origin) != Some(body.provider)
+                || joined_plan_commitment(checked, plans, requirement, origin)
+                    != Some(body.provider)
             {
                 return Err(vec![Diagnostic::error(
                     "folded provider body lost its exact final provider custody",

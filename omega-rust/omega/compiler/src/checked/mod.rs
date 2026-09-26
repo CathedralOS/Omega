@@ -18,7 +18,9 @@ mod optimization;
 mod package;
 
 pub use admission::{CheckedAdmission, admit_checked_compilation};
-pub(crate) use checking::build_continuation::evaluate_build_and_continue;
+pub(crate) use checking::build_continuation::{
+    BuildSourceCustody, BuiltCheckedProgram, evaluate_build_and_continue,
+};
 pub use checking::compile_thread::run_on_compile_thread;
 pub(crate) use checking::execution_settlement::check_selected_execution;
 pub(crate) use checking::{AssembledSource, CheckedChildExecution};

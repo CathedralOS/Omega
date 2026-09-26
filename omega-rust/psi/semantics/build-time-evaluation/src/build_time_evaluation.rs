@@ -165,6 +165,10 @@ impl PreResolutionEvaluation {
 /// The records and optional package selection authority are private so a
 /// caller cannot accidentally rejoin records from one pre-resolution run to
 /// another run or choose a different authority after name resolution.
+///
+/// A clone belongs to a clone of the same typed tree: one shared frontend
+/// hands each realized target its own copy of both.
+#[derive(Clone)]
 #[must_use = "the matching typed tree must consume this pre-check continuation"]
 pub struct PreCheckEvaluation {
     wire_schema_frontier: usize,

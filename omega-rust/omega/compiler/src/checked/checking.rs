@@ -9,8 +9,8 @@ pub(crate) mod phase_transitions;
 
 pub use checked_compilation::CheckedCompilation;
 
-use build_evaluation::sources::ImmutableSourceParseCheckpoint;
 use artifacts::compile_timings::CompileTimings;
+use build_evaluation::sources::ImmutableSourceParseCheckpoint;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use std::path::Path;
