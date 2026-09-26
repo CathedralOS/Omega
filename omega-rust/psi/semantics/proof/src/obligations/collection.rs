@@ -1012,15 +1012,7 @@ fn display_name_path(path: &[Identifier]) -> Identifier {
 }
 
 fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State> {
-    if !symbol.is_valid() {
-        return None;
-    }
-
-    program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine).iter())
-        .find(|state| state.symbol == symbol)
+    program.state_by_symbol(symbol)
 }
 
 fn incoming_state_guard(

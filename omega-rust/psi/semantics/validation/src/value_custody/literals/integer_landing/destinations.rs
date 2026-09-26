@@ -538,13 +538,6 @@ fn call_argument_destinations_uncached(
             .filter(|candidate| candidate.symbol == machine.symbol)
             .count()
             != 1
-        || program
-            .machines()
-            .iter()
-            .flat_map(|candidate| program.machine_states(candidate))
-            .filter(|candidate| candidate.symbol == target)
-            .count()
-            != 1
     {
         return None;
     }

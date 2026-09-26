@@ -9,15 +9,10 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
     program: &TypedTrees,
     target_state_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
-    let mut machines = program.machines().iter().filter(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == target_state_symbol)
-    });
-    let machine = machines.next()?;
-    if machines.next().is_some()
-        || machine.body_is_present
+    // State spans are disjoint append-only ranges: at most one machine can
+    // contain a state symbol, so the holder is unique by construction.
+    let machine = program.machine_holding_state(target_state_symbol)?;
+    if machine.body_is_present
         || !machine.lifetime_parameters.is_empty()
         || !program.machine_type_parameters(machine).is_empty()
     {

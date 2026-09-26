@@ -967,12 +967,7 @@ fn called_state<'program>(
     target_name: &Identifier,
 ) -> Option<&'program State> {
     if target_symbol.is_valid() {
-        if let Some(state) = program
-            .machines()
-            .iter()
-            .flat_map(|machine| program.machine_states(machine))
-            .find(|state| state.symbol == target_symbol)
-        {
+        if let Some(state) = program.state_by_symbol(target_symbol) {
             return Some(state);
         }
         if let Some(machine) = program
