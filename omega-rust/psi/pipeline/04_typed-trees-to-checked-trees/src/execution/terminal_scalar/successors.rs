@@ -267,8 +267,7 @@ fn arguments<'a>(
     {
         return None;
     }
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     let mut rows = SuccessorArguments {
         structural: Vec::new(),
         scalar: Vec::new(),

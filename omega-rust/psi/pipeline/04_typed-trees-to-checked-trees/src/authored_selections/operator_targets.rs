@@ -630,38 +630,44 @@ fn operator_contract_value_type(
                 .iter()
                 .flat_map(|domain| program.domain_operators(domain)),
         )
-        .filter(|operator| {
-            program.operator_contracts(operator).iter().any(|contract| {
-                program
-                    .proof_facts
-                    .span_or_empty(contract.facts)
-                    .iter()
-                    .any(|fact| match fact {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(root) => {
-                            crate::authored_selections::member_targets::expression_contains(
-                                program, *root, expression,
-                            )
-                        }
-                        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) => {
-                            crate::authored_selections::member_targets::expression_contains(
-                                program,
-                                membership.value,
-                                expression,
-                            )
-                        }
-                        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(_) => false,
-                    })
-            })
-        })
         .filter_map(|operator| {
-            if name == "result" {
-                return Some(operator.return_type);
-            }
+            // The name match is a field comparison; the containment walk
+            // visits every contract expression, so it runs only for an
+            // operator whose signature could type the name at all.
+            let type_reference = if name == "result" {
+                operator.return_type
+            } else {
+                program
+                    .operator_parameters(operator)
+                    .iter()
+                    .find(|parameter| parameter.name.as_str() == name)?
+                    .type_reference
+            };
             program
-                .operator_parameters(operator)
+                .operator_contracts(operator)
                 .iter()
-                .find(|parameter| parameter.name.as_str() == name)
-                .map(|parameter| parameter.type_reference)
+                .any(|contract| {
+                    program
+                        .proof_facts
+                        .span_or_empty(contract.facts)
+                        .iter()
+                        .any(|fact| match fact {
+                            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(root) => {
+                                crate::authored_selections::member_targets::expression_contains(
+                                    program, *root, expression,
+                                )
+                            }
+                            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) => {
+                                crate::authored_selections::member_targets::expression_contains(
+                                    program,
+                                    membership.value,
+                                    expression,
+                                )
+                            }
+                            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(_) => false,
+                        })
+                })
+                .then_some(type_reference)
         });
     let first = types.next()?;
     types

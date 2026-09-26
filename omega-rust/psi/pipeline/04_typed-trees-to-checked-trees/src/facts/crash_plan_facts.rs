@@ -287,7 +287,7 @@ pub(crate) fn derive_authored_machine_crash_buckets(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    let conservation = crate::validation::build_content_conservation_plans(program);
+    let conservation = crate::validation::content_conservation_plans(program);
     build_published_crash_buckets(
         program,
         program.machine_contracts(machine),
@@ -308,7 +308,7 @@ pub(crate) fn derive_authored_signature_crash_buckets(
         .iter()
         .map(|parameter| parameter.name.as_str().to_owned())
         .collect::<Vec<_>>();
-    let conservation = crate::validation::build_content_conservation_plans(program);
+    let conservation = crate::validation::content_conservation_plans(program);
     build_published_crash_buckets(
         program,
         program.state_signature_contracts(signature),

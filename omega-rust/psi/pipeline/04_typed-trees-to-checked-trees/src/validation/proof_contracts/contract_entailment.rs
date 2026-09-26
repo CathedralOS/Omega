@@ -412,8 +412,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
     // Refuse loudly until the extraction/rearrange tier (math roster N3)
     // lands; probed 2026-07-11 with a false `result == Nat::Zero` that
     // compiled clean before this fence.
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     let mut fenced_structural = false;
     let mut any_structural = false;
     // N3 rung 1: a tiny STRUCTURAL judge for the conjuncts the fence would

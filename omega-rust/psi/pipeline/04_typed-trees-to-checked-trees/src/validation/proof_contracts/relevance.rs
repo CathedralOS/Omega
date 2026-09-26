@@ -41,8 +41,7 @@ pub(super) enum Context {
 }
 
 pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     validate_supported_shapes(program, diagnostics);
 
     for machine in program.machines() {
@@ -262,13 +261,9 @@ pub(super) fn callee_parameters(
     program: &TypedTrees,
     target: SymbolHandle,
 ) -> Option<&[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter]> {
-    program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == target)
-            .map(|state| program.state_parameters(state))
-    })
+    program
+        .state_by_symbol(target)
+        .map(|state| program.state_parameters(state))
 }
 
 /// The parameters a named transition target binds: the sibling state (or
@@ -319,11 +314,7 @@ pub(super) fn call_targets_proof_machine(
     proof_only: &symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
     target: SymbolHandle,
 ) -> bool {
-    program.machines().iter().any(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == target)
-            && proof_only.is_proof_machine(program, machine)
-    })
+    program
+        .machine_holding_state(target)
+        .is_some_and(|machine| proof_only.is_proof_machine(program, machine))
 }

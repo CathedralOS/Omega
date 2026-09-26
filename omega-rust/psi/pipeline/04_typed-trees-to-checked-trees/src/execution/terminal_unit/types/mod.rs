@@ -1077,8 +1077,7 @@ pub(crate) fn erased_scalar_parameter_plans(
     {
         return Some(Vec::new());
     }
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     program
         .state_parameters(state)
         .iter()
@@ -1113,8 +1112,7 @@ pub(crate) fn erased_proof_parameter_plans(
     {
         return Some(Vec::new());
     }
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     program
         .state_parameters(state)
         .iter()

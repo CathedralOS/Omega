@@ -172,8 +172,7 @@ pub struct ValidatedQuotientFormation {
 pub fn validate_quotient_formations(
     program: &TypedTrees,
 ) -> Result<Vec<ValidatedQuotientFormation>, Vec<Diagnostic>> {
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     let mut diagnostics = Vec::new();
     let formations = collect_validated_quotient_formations(program, &proof_only, &mut diagnostics);
     if diagnostics.is_empty() {
@@ -205,8 +204,7 @@ pub fn extract_non_executable_quotient_correspondences_with_termination(
     program: &TypedTrees,
     termination: &dyn CheckedTerminationOracle,
 ) -> Result<NonExecutableQuotientCorrespondenceBatch, Vec<Diagnostic>> {
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     let mut diagnostics = Vec::new();
     collect_validated_quotient_formations(program, &proof_only, &mut diagnostics);
     if !diagnostics.is_empty() {
