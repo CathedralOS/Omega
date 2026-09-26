@@ -654,17 +654,34 @@ fn binary_result(
         {
             return None;
         }
-        // This is the selected declaration's result, never an operand guess.
-        // A concrete result needs no substitution even if operands are generic.
-        // Dependent predicates and composite result binders need an
-        // instantiated reference; exporting their declaration-local subjects
-        // would invent caller facts.
-        let result = selected.operator.return_type;
-        if let Some(bound) = bound_result_type_parameter(program, selected.operator, &operands) {
-            return Some(bound);
+        // A domain-owned meaning applies only where an operand statically
+        // selects that domain's facet; declaring a domain operator does not
+        // replace the builtin (chapter 8), which is the checked stage's
+        // `BuiltinFallback`. Reading an inactive domain declaration's result
+        // here would un-qualify an operand's arithmetic policy that the
+        // builtin meaning keeps, so the builtin arms below answer instead.
+        if selected.domain.is_none_or(|domain| {
+            operands.iter().flatten().any(|reference| {
+                typed_trees::domain::type_selects_semantic_domain(
+                    program,
+                    *reference,
+                    domain.symbol,
+                )
+            })
+        }) {
+            // This is the selected declaration's result, never an operand
+            // guess. A concrete result needs no substitution even if operands
+            // are generic. Dependent predicates and composite result binders
+            // need an instantiated reference; exporting their
+            // declaration-local subjects would invent caller facts.
+            let result = selected.operator.return_type;
+            if let Some(bound) = bound_result_type_parameter(program, selected.operator, &operands)
+            {
+                return Some(bound);
+            }
+            qualified_builtin_carrier(program, result, false)?;
+            return Some(result);
         }
-        qualified_builtin_carrier(program, result, false)?;
-        return Some(result);
     }
     match binary.operator {
         CaseMembership => {

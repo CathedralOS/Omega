@@ -903,3 +903,33 @@ mod domain_instance_proof_tests {
         ));
     }
 }
+
+/// Whether a type reference statically selects `domain_symbol`'s semantic
+/// facet — the operand-side half of chapter 8's rule that declaring a domain
+/// operator does not replace the builtin meaning. A domain-owned operator
+/// applies only where an operand carries that domain's denotation, so every
+/// reader that asks which declaration a spelled use means must ask this the
+/// same way: type-directed, with no route to flow facts.
+pub fn type_selects_semantic_domain(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        crate::types::TypeReferenceNode::Reference { referee, .. } => {
+            type_selects_semantic_domain(program, *referee, domain_symbol)
+        }
+        crate::types::TypeReferenceNode::Constrained { constraints, .. } => program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .any(|constraint| match constraint {
+                crate::types::TypeConstraintNode::Domain(domain) => {
+                    domain.symbol == domain_symbol
+                        && domain.semantic_roles.denotation_dimension.is_some()
+                }
+                _ => false,
+            }),
+        _ => false,
+    }
+}
