@@ -48,3 +48,4 @@ pub use compiler::request::{
     RequestedCompileProduct, TargetCompileConfiguration,
 };
 pub use trust_model::{TrustAdmission, TrustAdmissionSettlement};
+pub use typed_trees_to_checked_trees::{RepeatedCheckRetention, retain_repeated_checks};
