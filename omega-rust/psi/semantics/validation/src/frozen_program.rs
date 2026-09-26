@@ -5,6 +5,7 @@
 //! classify proof-only data, and every structural judge rescans the trait
 //! laws. Inside a scope they share one copy.
 
+use crate::declarations::symbols::CallerSiteCaches;
 use crate::machine_calls::calls::CallFrameCaches;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
@@ -30,6 +31,7 @@ pub(crate) struct FrozenProgramMemos {
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
+    pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
 }
 
 /// Restores the enclosing scope, if any, when dropped.
