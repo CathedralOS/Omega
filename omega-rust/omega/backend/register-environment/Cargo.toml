@@ -15,3 +15,6 @@ target = { path = "../../representations/target" }
 target-operations = { path = "../../representations/target-operations" }
 isa-aarch64 = { path = "../instruction_set_architectures/isa-aarch64" }
 isa-x86_64 = { path = "../instruction_set_architectures/isa-x86_64" }
+
+[dev-dependencies]
+mimalloc = { version = "0.1", default-features = false }
