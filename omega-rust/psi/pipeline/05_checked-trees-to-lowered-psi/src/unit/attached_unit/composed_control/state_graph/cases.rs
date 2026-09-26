@@ -207,7 +207,18 @@ pub(super) fn validate_markers(
     }
     let (result_symbol, declaration, _) = result_source(checked, machine, source, state)?;
     let statements = checked.statement_table.statements(source.statement_nodes);
-    let start = state.bindings.len() + state.operations.len();
+    // Marker lets are parsed as the contiguous run immediately ahead of the
+    // dispatch's first arm statement — the same convention the checker uses
+    // (04_typed-trees' `closed_sum` finds them by trailing run). Operation
+    // counts cannot locate the window: one authored statement may plan
+    // several effect operations, so `bindings + operations` overruns `end`.
+    let start = statements[..end]
+        .iter()
+        .rposition(|statement| {
+            !matches!(statement, StatementNode::LocalData(local)
+                if local.name.as_str().starts_with("__arm_destructure#V="))
+        })
+        .map_or(0, |index| index + 1);
     let markers = statements
         .get(start..end)
         .ok_or(LoweringError::Unsupported("Unit case body roster drifted"))?;
