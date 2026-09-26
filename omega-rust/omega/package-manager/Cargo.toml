@@ -15,7 +15,7 @@ build-declarations = { path = "../compiler/build-declarations" }
 build-evaluation = { path = "../compiler/build-evaluation" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 compiler = { path = "../compiler" }
-effects = { path = "../backend/plans/effects" }
+effects = { path = "../backend/plans/provider-evidence" }
 package-evidence = { path = "review-evidence" }
 package-source = { path = "source-acquisition" }
 package-compilation = { path = "../compiler/package-compilation" }

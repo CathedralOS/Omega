@@ -20,7 +20,7 @@ installed-writer = [
 calling-conventions = { path = "../../backend/calling-conventions" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 component-description = { path = "../../backend/artifacts/component-description" }
-effects = { path = "../../backend/plans/effects" }
+effects = { path = "../../backend/plans/provider-evidence" }
 executable-installation = { path = "../../backend/runtime/executable-installation", optional = true }
 external-roots = { path = "../../backend/runtime/external-roots", optional = true }
 layout = { path = "../../backend/layout" }

@@ -14,7 +14,7 @@ checked-trees = { path = "../../../psi/representations/checked-trees" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 calling-conventions = { path = "../../backend/calling-conventions" }
-effects = { path = "../../backend/plans/effects" }
+effects = { path = "../../backend/plans/provider-evidence" }
 target = { path = "../../backend/target" }
 
 [dev-dependencies]

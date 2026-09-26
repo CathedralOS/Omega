@@ -1,6 +1,6 @@
 //! Evaluated binding usages and receipts, foreign imports and syscalls.
 
-use crate::effects::capabilities::foreign_locator::{
+use crate::provider_evidence::providers::foreign_locator::{
     ForeignLocatorIdentityDigest, NormalizedForeignLocator,
 };
 use sha2::Digest;

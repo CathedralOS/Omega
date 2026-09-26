@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 calling-conventions = { path = "../../calling-conventions" }
-effects = { path = "../../plans/effects" }
+effects = { path = "../../plans/provider-evidence" }
 executable-installation = { path = "../executable-installation" }
 target = { path = "../../target" }
 installation-evidence = { path = "../installation-evidence" }

@@ -21,7 +21,7 @@ terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" 
 terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
 calling-conventions = { path = "../../backend/calling-conventions" }
-effects = { path = "../../backend/plans/effects" }
+effects = { path = "../../backend/plans/provider-evidence" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../../compiler/provider-planning" }
 target = { path = "../../backend/target" }

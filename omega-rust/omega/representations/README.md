@@ -64,7 +64,7 @@ embed producer-stage objects or replace the distinct current roots above.
 Shared identity and optimization vocabulary lives in
 [Omega foundation](../foundation/README.md). Target descriptions, calling
 conventions, and physical register models live under `backend/`; provider-plan
-evidence lives in [`backend/plans/effects/`](../backend/plans/effects/src/lib.rs),
+evidence lives in [`backend/plans/provider-evidence/`](../backend/plans/provider-evidence/src/lib.rs),
 and artifact boundary coverage in
 [`backend/artifacts/boundary-applications/`](../backend/artifacts/boundary-applications/src/lib.rs).
 Installation evidence and task activation plans have separate packages under

@@ -12,7 +12,7 @@ path = "src/lib.rs"
 component-publication = { path = "../component-publication" }
 component-candidate = { path = "../../artifacts/component-candidate" }
 executable-installation = { path = "../executable-installation" }
-effects = { path = "../../plans/effects" }
+effects = { path = "../../plans/provider-evidence" }
 external-roots = { path = "../external-roots" }
 image-emission = { path = "../../images/image-emission", features = ["installed-artifact"] }
 installation-evidence = { path = "../installation-evidence" }

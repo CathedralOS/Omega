@@ -15,7 +15,7 @@ selected-instructions-to-register-homes = { path = "../../../pipeline/05_selecte
 abstract-operations = { path = "../../../representations/abstract-operations" }
 boundary-applications = { path = "../boundary-applications" }
 calling-conventions = { path = "../../calling-conventions" }
-effects = { path = "../../plans/effects" }
+effects = { path = "../../plans/provider-evidence" }
 function-identity = { path = "../../../foundation/function-identity" }
 target = { path = "../../target" }
 image = { path = "../../images/image" }

@@ -1,15 +1,15 @@
-//! The effects root: the closure of provider plans a selection actually
+//! Selected provider evidence: the closure of provider plans a selection actually
 //! reached — which provider realizes each boundary requirement — and its
-//! digest. The retained evidence beside it: `capabilities` records provider
+//! digest. The retained evidence beside it: `providers` records provider
 //! plans, approvals and boundary-call audits; `authority` the terminal
 //! authority dispositions and service permissions; `executable_scopes` the
 //! executable bytes and services admitted into a scope; `component_eras` the
 //! era ledger and progress manifests.
 
 pub(crate) mod authority;
-pub(crate) mod capabilities;
 pub(crate) mod component_eras;
 pub(crate) mod executable_scopes;
+pub(crate) mod providers;
 
 use crate::provider_plan::ProviderPlan;
 use sha2::{Digest, Sha256};
@@ -372,7 +372,7 @@ impl SelectedProviderPlanFacts {
                 ));
             }
             self.opaque_executable_admissions.push(
-                crate::effects::executable_scopes::executable_tcb_manifest::validate_opaque_executable_admission(
+                crate::provider_evidence::executable_scopes::executable_tcb_manifest::validate_opaque_executable_admission(
                     &self.plans,
                     candidate,
                 )?,
@@ -589,7 +589,7 @@ impl SelectedProviderPlanFacts {
     /// Derive caller-address-space TCB facts from the selected closure, never
     /// from source service reach or the unselected candidate set.
     pub fn executable_tcb_manifest(&self) -> crate::ExecutableTcbManifest {
-        crate::effects::executable_scopes::executable_tcb_manifest::derive_static_manifest(
+        crate::provider_evidence::executable_scopes::executable_tcb_manifest::derive_static_manifest(
             &self.plans,
             self.report_fingerprint,
             self.execution_scope,

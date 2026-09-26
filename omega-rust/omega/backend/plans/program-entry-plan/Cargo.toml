@@ -15,7 +15,7 @@ installed-writer = ["dep:executable-installation"]
 [dependencies]
 calling-conventions = { path = "../../calling-conventions" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
-effects = { path = "../effects" }
+effects = { path = "../provider-evidence" }
 function-identity = { path = "../../../foundation/function-identity" }
 isa-aarch64 = { path = "../../instruction_set_architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }

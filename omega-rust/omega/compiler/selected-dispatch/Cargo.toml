@@ -9,7 +9,7 @@ name = "selected_dispatch"
 path = "src/lib.rs"
 
 [dependencies]
-effects = { path = "../../backend/plans/effects" }
+effects = { path = "../../backend/plans/provider-evidence" }
 package-compilation = { path = "../package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../provider-planning" }
