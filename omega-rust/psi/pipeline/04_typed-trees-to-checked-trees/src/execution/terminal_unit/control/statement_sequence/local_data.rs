@@ -441,9 +441,10 @@ pub(super) fn plan(
 /// place must root at a structural parameter this state already writes
 /// through, and its projection must bottom out in exactly the declared
 /// referent: a loan of a wider or narrower leaf is not this local's place.
-/// Only `&mut <primitive>` is admitted, the referent shape
-/// `reference_result_custody::parts` already describes; a shared loan carries
-/// no write authority and its reads are not rejoined here.
+/// Only an exclusive `&mut` loan is admitted. A shared loan carries no write
+/// authority and its reads are not rejoined here; the referent may be a
+/// record as well as a primitive, because the projection check below pins the
+/// loaned storage either way.
 fn is_exclusive_place_loan(
     program: &TypedTrees,
     state: &typed_trees::state::State,
@@ -472,8 +473,10 @@ fn exclusive_place_loan_referent(
     else {
         return None;
     };
-    let (referee, access) =
-        super::super::super::reference_results::parts(program, local.type_reference)?;
+    let (referee, access) = super::super::super::reference_results::mutable_borrowed_parts(
+        program,
+        local.type_reference,
+    )?;
     if borrow.access != language_core::ReferenceAccess::Mutable
         || access != CheckedStructuralAccess::MutableBorrow
         || local.is_mutable
