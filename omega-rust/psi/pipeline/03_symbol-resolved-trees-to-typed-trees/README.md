@@ -1,29 +1,29 @@
-# Admitted build and generated-source continuation
+# Symbol-resolved trees to typed trees: generated-source continuation
 
-The contract is [build execution](../../../wiki/spec/build/execution.md).
+The contract is [build execution](../../../../wiki/spec/build/execution.md).
 This note maps its Rust implementation; supported append cohorts are compiler
 limits, not a different generated-source language.
 
 ## Entry points
 
-- [build_scope.rs](../build/build-evaluation/src/evidence/filesystem_scope.rs) binds request staging and sponsor
+- [filesystem_scope.rs](../../../omega/build/build-evaluation/src/evidence/filesystem_scope.rs) binds request staging and sponsor
   inputs to the package/root filesystem scope. It checks canonical Source metadata
   before reopening review-only replay; it does not admit or execute the build.
-- [checked_entry.rs](src/checked/checking/build_continuation.rs): `AdmittedBuildCheckpoint`
+- [build_continuation.rs](../../../omega/compiler/src/checked/checking/build_continuation.rs): `AdmittedBuildCheckpoint`
   couples the coherent frontend, admitted build, package verdict, and base source
   map. Execution verifies the returned build symbol. `try_seeded_extension`
   continues the retained frontend rather than reconstructing it.
-- [build-evaluation](../build/build-evaluation/src/lib.rs):
+- [build-evaluation](../../../omega/build/build-evaluation/src/lib.rs):
   `AdmittedBuildProgram` retains the prepared program and program-bound entry
   token with reach/admission, initial Build value, target, scope, and sponsor.
   Evaluation and replay consume the admitted route.
-- [source assembly](src/sources/source_assembly.rs): generated units and
+- [source assembly](../../../omega/compiler/src/sources/source_assembly.rs): generated units and
   dependency bundles retain source bytes, logical paths, and producer custody.
-- [seeded resolution](../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
+- [seeded resolution](../02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
   appends the later stratum and rebases only extension-owned selections.
-- [typed continuation](../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer/seeded_continuation.rs)
+- [typed continuation](src/lowerer/seeded_continuation.rs)
   validates append cohorts and preserves the base. The
-  [continuation tests](../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer/tests.rs)
+  [continuation tests](src/lowerer/tests.rs)
   include extension-owned nominal static-machine binders.
 
 ## Bounded append support
@@ -72,10 +72,3 @@ Constant initializers remain detached roots in the resolved base, not runtime
 constant storage or decoded review strings. Only newly authored initializers
 undergo name resolution; later imports cannot reinterpret retained constructors.
 Typing discards the initializer link while keeping declaration/use custody.
-The exercising build continuation and independent Terminal execution command is
-`cargo nextest run -p compiler --test build_config_granted generated_bodies_use_retained_module_constants_after_build_execution --no-fail-fast`.
-
-Integration controls live in [generated invocations](tests/build_config_granted/generated_invocations.rs)
-and [package inputs](tests/package_compilation_inputs.rs). They are the places
-to check no-rerun handoff, exact custody, one-way visibility, and final package
-authority when extending this path.

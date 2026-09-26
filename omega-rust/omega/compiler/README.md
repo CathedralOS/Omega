@@ -78,7 +78,7 @@ is subtractive, not a new optimizer selection or a fallback backend.
 
 A retained native-artifact request runs the checked frontend and canonical
 Terminal producer, then the same source-free
-[native realization](native_realization.md) used for component staging.
+[native realization](#native-realization) used for component staging.
 The non-clonable result retains Terminal identity, target, selected providers,
 object/relocation evidence, encoded text and independently replayed image.
 It writes no primary output and grants no executable path, installation,
@@ -144,11 +144,132 @@ Today's implementation instead retains one immutable source parse checkpoint
 and runs an exact-target child per configuration: per-target source assembly,
 declaration filtering, build evaluation, provider settlement and checking, with
 request-level policy copied into each configuration.
-[Generated source](generated_source.md) owns append custody and
-[checked settlement](checked_settlement.md) owns its later ordered joins. The
+[Generated-source continuation](../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees/README.md)
+owns append custody and [checked settlement](#checked-settlement) owns its
+later ordered joins. The
 [pipeline route items](../../../TASKS.md#pipeline-route) replace the child
 route with the single pass above; until then
-[native preparation reuse](native_realization.md#multi-target-reuse)
+[prepared-input reuse](#prepared-input-reuse)
 shares prepared inputs across children by exact artifact/profile/selection key,
 and shared parsing never permits reusing one child's checked target, providers,
 admissions or physical evidence as another child's authority.
+
+## Checked settlement
+
+Psi owns [source checking](../../../wiki/spec/language/state_contracts.md).
+This coordinator closes build/target inputs around that phase; it does not add
+target policy to the portable Terminal module. Enter
+[phase_transitions.rs](src/checked/checking/phase_transitions.rs).
+
+`CheckedProgramSurface` retains checked Psi with exact predecessor facts:
+selected provider plans/grants, callback placements, accepted template
+classifications, and contract-entailment stand-downs. `TypedToCheckedSettlementInput`
+closes callback and provider receipts transactionally before checked ownership
+is shared. A compact identifier is not a replacement for these retained inputs.
+
+Selected execution then produces `SelectedExecutionSettlementSurface`. Its
+ordered work closes component-entry progress, selected-dispatch settlement,
+provenance, boundary-adapter associations, and task activations. Preserve that order and
+each independent sidecar when moving coordinator code; duplicating or reordering
+settlement is not a new pipeline stage.
+
+Boundary calls remain canonical in checked trees. Selected execution records
+exact receiver/requirement/entry-state associations and whether the receiver is
+forwarded. The interpreter consumes those associations before host dispatch;
+neither selection nor evaluation fabricates replacement source calls. Terminal
+publication borrows the checked program directly. Package review reads the same
+authored boundary calls and independently checks their write frames.
+
+Settlement changes no checked body, so package source queries read the
+settled trees directly. An operator application whose selected provider is a
+checked adapter or a compiler-known float realization keeps naming the
+operator; until Terminal Psi carries a requirement-level operator application
+for Omega to install, the machine applying it has no Unit plan and the
+omission reports `unimplemented:`.
+
+## Native realization
+
+This coordinator consumes canonical Terminal Psi and explicit realization
+inputs. Its public contracts are [boundary realization](../../../wiki/spec/terminal-psi/boundary_calls.md),
+[private callbacks](../../../wiki/spec/build/private_callbacks.md), and
+[component publication](../../../wiki/spec/build/component_publication.md).
+Start at [native_realization.rs](src/native/native_realization.rs):
+validate scope and entry, obtain the abstract input, admit providers, emit the
+object, and assemble the image. One `NativeRealizationRequest` carries the image
+request, optional checked scope and optional prepared input alongside target and
+provider evidence. Those inputs do not select alternate API entrypoints.
+
+The result distinguishes direct and dynamic ELF artifacts; extracting a direct
+artifact cannot grant dynamic output installation authority. Every rejection
+returns the exact image request. Program-entry and callback-custody adapters
+retain their additional owned evidence and use the same realization operation.
+
+Publication reads the abstract plan and its validated projection from the
+physical result's retained evidence owner. It shares that allocation instead
+of carrying a second plan copy and separately supplied identity fields.
+Independent fragment, object, and image replay still check the complete join.
+
+### Prepared-input reuse
+
+Until Psi runs once per compilation, each target prepares its own Terminal
+artifact. [PreparedNativeRealizationInput](src/native/native_realization/input_preparation.rs)
+shares target-neutral decoding, proof admission and abstract-input lowering
+only for equal complete `TerminalArtifactIdentity`, exact `AdmissionProfile`
+and exact `PostTerminalOptimizationSelections`, and rechecks that key on use.
+Target, entry and calling plans, provider and external settlements, authority
+policies, callbacks, FMA admission and physical evidence stay per target. The
+reuse is an optimization, not review, proof or audit evidence.
+
+### Program-entry settlement
+
+[Entry roots](../../../wiki/spec/build/entry_roots.md) owns the source/arrival
+contract. [entry_settlement](src/native/entry_settlement/mod.rs) independently replays
+target, source signature, calling/storage plans, canonical artifact, exact
+Terminal entry, and service establishment before issuing the validated carrier.
+It does not call the Psi receipt producer to validate that producer's output.
+
+[service_establishment.rs](src/native/entry_settlement/service_establishment.rs) joins
+selected Fused service evidence to the Terminal receiver's attachment and exact
+erased fields, then to the selected provider plans. Semantic receiver identity
+and retained Terminal attachment identity are separate facts and need not have
+the same spelling. The [entry controls](src/native/tests/native_realization/entry_settlement.rs)
+cover this join; it is not evidence of runtime slot publication or Independent
+execution support.
+
+### Callback custody boundaries
+
+Retained-product callback and checked-scope composition must close through
+actual native publication, not a zero-payload layout or provider-selection check.
+Widening scalar-provider forwarding additionally requires preserved incoming
+ABI homes, complete call/relocation replay, and a genuinely reachable authored
+entry. Use rooted provider and callback controls retaining complete argument,
+result, and resource custody; metadata-only receipt tests do not close the route.
+
+[callback_custody.rs](src/native/native_realization/callback_custody.rs) returns the caller's
+opaque companion by value on both success and rejection. That wrapper does not
+admit, lower, fingerprint, or interpret its contents.
+
+Native callback arguments separately enter the realization request. Their
+[target-side carrier](../pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination/native_callbacks.rs)
+binds a Terminal operation, placement index, private function, native parameter
+application, registrar plan/context, and application commitment. Target lowering
+validates the one-slot relation. The commitment remains producer provenance:
+the reduced tuple cannot reconstruct the complete authored telescope or prove
+the source-site-to-operation mapping. Independent authentication and replayable
+source correspondence remain required before claiming complete publication
+custody; see the callback work on the [execution board](../../../TASKS.md).
+
+The bounded direct-parameter route retains one callback on the normalized-import
+path with fixed-integer semantic arguments/results and complete register or
+stack placement. Field destinations and multiple callbacks need further work.
+The checked callback body is a separate canonical artifact, with its own local
+machine namespace. Lowering must bind private code, native argument ordinal,
+relocation, and final executable region without inventing a Terminal operand.
+
+The direct route supplies the declared native parameter, not a source-specific
+host operation or compiler-inserted callback storage object. Function/image
+evidence does not establish registration or lifetime. Generic runtime registration
+primitives in [component-publication](../backend/runtime/component-publication/src/callback_registration.rs)
+are separate from connecting an authored registrar result to capacity, leases,
+source registration, cleanup, and retry. Their existence alone does not close
+that end-to-end path.

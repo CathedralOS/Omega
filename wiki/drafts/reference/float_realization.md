@@ -1,8 +1,10 @@
 # Floating-point realization
 
-[Numeric semantics](../../../wiki/spec/language/numeric_values.md#floating-formats-and-operations)
+[Numeric semantics](../../spec/language/numeric_values.md#floating-formats-and-operations)
 defines the required behavior. This note identifies realization evidence and
-current boundaries, not alternate floating semantics.
+current boundaries, not alternate floating semantics. Delete it once each
+boundary below has a permanent owner in the backend crates' documentation or
+on the execution board.
 
 ## Selected plans and target features
 
@@ -20,7 +22,7 @@ exact profile and canonical AVX+FMA3 requirement to register-only
 receipts distinguishing fused from separately rounded results. An encoder or
 checked build selection alone is not hardware execution evidence.
 
-[x86_fma_plan_association.rs](../build/provider-planning/src/x86_fma_plan_association/mod.rs) joins the
+[x86_fma_plan_association.rs](../../../omega-rust/omega/build/provider-planning/src/x86_fma_plan_association/mod.rs) joins the
 complete selected `ProviderPlan`, compiler-intrinsic provenance, exact requirement,
 format/slot, and admitted profile. Repeated uses may deduplicate the selected
 association but retain distinct operation occurrences. Non-x86, cross-profile,
@@ -44,13 +46,10 @@ mbx run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests
 
 The same fixture has an ordinary free Unit application root; its original
 `choose` and `identity` machines remain callable with runtime arguments.
-The CLI requires normal project package-review acceptance; the native canary
-supplies explicit reviewed fixture inputs without changing a developer's
-acceptance records:
+The native build runs through the corpus gate:
 
 ```text
-mbx run -p omega -- --output-only --target macos_arm64 tests/omega/pass/expressions/match_float_patterns/main.omg
-mbx nextest run -p compiler --test canary_suite -E 'test(float_match_native_publication)' --no-fail-fast
+python tools/corpus_gate.py --native --filter expressions/match_float_patterns
 mbx nextest run -p omega-native-differential-test --test ieee_comparisons --no-fail-fast
 ```
 
@@ -69,14 +68,7 @@ each record to the current root, generational arm, source operands, requirement
 and selected plan commitment, then compares the saved subject and reached
 pattern through `FloatSemantics`. It does not manufacture source expressions
 or re-evaluate operands. Raw checked source without settled execution remains
-rejected; wildcard-only dispatch invokes no equality. The integration cases
-include both formats, NaNs, signed zeros, array projections, effectful subjects
-and patterns, unselected trapping bodies, and substituted execution records:
-
-```text
-mbx nextest run -p compiler --test canary_suite --no-fail-fast -E 'test(float_match_checked_interpreter) | test(float_match_interpreter::)'
-mbx nextest run -p checked-interpreter --test value_dispatch --no-fail-fast
-```
+rejected; wildcard-only dispatch invokes no equality.
 
 This interpreter milestone does not close crash-qualified equality or
 checked-adapter Match execution; those require their own arm-local custody.
@@ -121,13 +113,6 @@ returning-foreign envelope. Callback entry canonicalization/restoration remains
 separate work; a calling-policy predicate is not execution evidence.
 
 ## Differential coverage
-
-The [float canaries](tests/canary_suite/float_plans_and_policies.rs) and
-[proof/float suites](tests/canary_suite/proof_and_float_suites.rs) retain selected
-provider identities, semantic edge observations, explicit target roots, and
-reproducible images. x86 baseline receipts do not include fused/directed
-operations merely because other selected cohorts exercise them. AArch64
-receipts distinguish fused/unfused and directed behavior.
 
 Only execution on a matching host supplies the native execution leg; ELF or
 PE/COFF construction and repeated identical images are different evidence.

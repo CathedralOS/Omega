@@ -22,7 +22,7 @@ defines these distinctions precisely.
 Examples illustrate the intended source model, not a claim that every target or
 native route is implemented. Unsupported routes must reject rather than weaken
 a contract. Implementation limits belong beside the
-[native realization code](../../omega-rust/omega/compiler/native_realization.md).
+[native realization code](../../omega-rust/omega/compiler/README.md#native-realization).
 
 ## Boundary Surfaces
 
@@ -812,7 +812,7 @@ notifications for a new activation. It still respects the acyclic `invokes` grap
 executor affinity, and [callback entry-stack contract](../spec/resources/entry_stacks.md#foreign-callback-entry).
 A native declaration alone proves no absence of opaque re-entry.
 
-The [native implementation note](../../omega-rust/omega/compiler/native_realization.md#callback-custody-boundaries)
+The [native implementation note](../../omega-rust/omega/compiler/README.md#callback-custody-boundaries)
 separates current materialization support from complete authored-use, registration,
 and lifetime custody. A retained callback companion or installed-entry record
 alone does not establish that protocol.

@@ -498,7 +498,7 @@ membership with a consuming dispatch is not that acceptance.
 Later source extensions reuse the selected declaration's detached resolved
 initializer. This keeps constructor selection in the declaring source and
 deep-copies aggregate children at each use without re-reading the base source;
-the [generated-source continuation](../../omega/compiler/generated_source.md)
+the [generated-source continuation](03_symbol-resolved-trees-to-typed-trees/README.md)
 retains its exercising compiler command.
 Closed ordinary record and sum applications select their exact module-owned template
 and complete argument tuple. Nominal arguments retain declaration identity,
@@ -836,6 +836,6 @@ Resolution and typing preserve source-authored selections; checking settles late
 calls/operators and inferred evidence. Public declaration contracts remain
 interface exposure while executable bodies and internal states remain private.
 Lexical locals and source-free synthesis do not receive fictional package owners.
-See [generated continuation](../../omega/compiler/generated_source.md)
+See [generated continuation](03_symbol-resolved-trees-to-typed-trees/README.md)
 for append-only source execution and [checking](04_typed-trees-to-checked-trees/README.md)
 for the proof, flow and ownership boundary.
