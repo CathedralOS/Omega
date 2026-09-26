@@ -16,6 +16,7 @@ selected-instructions = { path = "../../../representations/selected-instructions
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+post-handoff-writer-plan = { path = "../../plans/post-handoff-writer-plan" }
 
 [dev-dependencies]
 optimization-core = { path = "../../../foundation/optimization-core" }

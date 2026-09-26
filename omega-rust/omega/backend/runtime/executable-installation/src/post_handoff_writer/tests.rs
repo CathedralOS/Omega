@@ -11,14 +11,16 @@ use crate::post_handoff_writer::{
 use extents::ExtentRights;
 use layout_plans::PlacementSite;
 use layout_plans::{
-    ByteOrder, IntegerInterpretation, MaterializationWrite, PlacementPhase, PostHandoffWriterStep,
-    StoredIntegerFit,
-};
-use layout_plans::{
-    POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterPlan, PostHandoffWriterSource,
+    ByteOrder, IntegerInterpretation, MaterializationWrite, PlacementPhase, StoredIntegerFit,
 };
 use layout_plans::{PlacementConstraints, RelocationTarget};
+use post_handoff_writer_plan::{
+    POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterPlan, PostHandoffWriterSource,
+    PostHandoffWriterStep,
+};
 use target::Architecture;
+
+mod writer_execution;
 
 #[test]
 fn installed_code_resolves_only_its_entries_for_atomic_post_handoff_writers() {

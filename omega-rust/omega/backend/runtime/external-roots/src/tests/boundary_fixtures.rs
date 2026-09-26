@@ -47,7 +47,10 @@ use isa_x86_64::{
 use layout_plans::EntryStubId;
 use layout_plans::{
     ArtifactInstallationScopeId, ByteOrder, MaterializationWrite, PlacementPhase, PlacementSite,
-    PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
+    RelocationTarget,
+};
+use post_handoff_writer_plan::{
+    PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
 };
 use std::collections::BTreeSet;
 

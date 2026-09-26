@@ -22,9 +22,6 @@ use crate::materialization::stored_integer_writes::{
     validate_write_source_value,
 };
 use crate::placement::{ByteOrder, MaterializationAction, PlacementConstraints};
-use crate::post_handoff_writer::{
-    PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
-};
 use crate::symbolic_materialization::apply_scalar_entry;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,45 +33,6 @@ pub struct SymbolicMaterializationPlan {
 }
 
 impl SymbolicMaterializationPlan {
-    pub fn derive_post_handoff_writer(
-        &self,
-    ) -> Result<PostHandoffWriterPlan, MaterializationDiagnostic> {
-        if self.actions.is_empty() {
-            return Err(MaterializationDiagnostic(
-                "post-handoff writer requires at least one fragment".into(),
-            ));
-        }
-        let mut steps = Vec::with_capacity(self.actions.len());
-        for action in &self.actions {
-            let step = match action {
-                MaterializationAction::ResolvedWrite {
-                    write,
-                    source_value,
-                } => PostHandoffWriterStep {
-                    write: write.clone(),
-                    source: PostHandoffWriterSource::Resolved(*source_value),
-                },
-                MaterializationAction::RuntimeWriter(write) => PostHandoffWriterStep {
-                    write: write.clone(),
-                    source: PostHandoffWriterSource::Resolve(write.target),
-                },
-                MaterializationAction::NativePointerRelocation { .. } => {
-                    return Err(MaterializationDiagnostic(
-                        "loader-native relocation cannot enter a post-handoff writer program"
-                            .into(),
-                    ));
-                }
-            };
-            steps.push(step);
-        }
-        Ok(PostHandoffWriterPlan {
-            byte_len: self.byte_len,
-            byte_order: self.byte_order,
-            placement: self.placement,
-            steps,
-        })
-    }
-
     /// Applies a fully resolved plan atomically with respect to the destination
     /// slice: unresolved actions reject before any output byte changes.
     pub fn materialize_resolved_into(

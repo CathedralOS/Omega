@@ -6,8 +6,9 @@
 
 use calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 use diagnostics::Diagnostic;
-use layout_plans::{
-    ByteOrder, GeneratedPostHandoffWriterFragmentPlan, GeneratedPostHandoffWriterStep,
+use layout_plans::ByteOrder;
+use post_handoff_writer_plan::{
+    GeneratedPostHandoffWriterFragmentPlan, GeneratedPostHandoffWriterStep,
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH,
     POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET, post_handoff_writer_context_byte_len,
 };
@@ -244,8 +245,10 @@ mod tests {
         post_handoff_writer_context_byte_len,
     };
     use layout_plans::{
-        EntryStubId, MaterializationWrite, PlacementConstraints, PlacementPhase,
-        PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
+        EntryStubId, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget,
+    };
+    use post_handoff_writer_plan::{
+        PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
     };
 
     fn fragment() -> GeneratedPostHandoffWriterFragmentPlan {

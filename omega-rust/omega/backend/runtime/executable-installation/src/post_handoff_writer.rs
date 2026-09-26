@@ -12,9 +12,12 @@ use crate::installation::InstalledCodeEvidence;
 use crate::installation::{InstallationDiagnostic, InstalledCode};
 use extents::{ExtentRights, MappedExtent, MappingReceiptContext};
 use layout_plans::{
-    MaterializationDiagnostic, POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PlacementSite,
-    PostHandoffWriterInvocationPlan, PostHandoffWriterPlan, PostHandoffWriterSource,
-    PostHandoffWriterSourceSlot, RelocationTarget,
+    ByteOrder, MaterializationDiagnostic, PlacementSite, RelocationTarget, apply_write,
+    validate_write_source_value,
+};
+use post_handoff_writer_plan::{
+    POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
+    PostHandoffWriterSource, PostHandoffWriterSourceSlot, PostHandoffWriterStep,
 };
 
 impl InstalledCode {
@@ -156,7 +159,7 @@ impl InstalledCode {
             ));
         }
         self.validate_post_handoff_entry_writer(plan, destination.len(), destination_site)?;
-        plan.execute(destination, destination_site, |target| {
+        execute_post_handoff_writer_plan(plan, destination, destination_site, |target| {
             context
                 .invocation
                 .sources()
@@ -301,7 +304,7 @@ impl InstalledCode {
         destination_site: PlacementSite,
     ) -> Result<(), MaterializationDiagnostic> {
         self.validate_post_handoff_entry_writer(plan, destination.len(), destination_site)?;
-        plan.execute(destination, destination_site, |target| {
+        execute_post_handoff_writer_plan(plan, destination, destination_site, |target| {
             self.resolve_entry_target(target)
         })
     }
@@ -981,6 +984,79 @@ fn non_authoritative_post_handoff_entry_writer_context_fingerprint(
         hash
     })
     .expect("fixed FNV normalization replaces zero")
+}
+
+/// Executes one writer plan atomically into a destination slice: validates the
+/// concrete placement and every write, resolves every target once, then
+/// commits one staged image. Repeated fragments of one target resolve once so
+/// a provider cannot observe inconsistent address values within one
+/// materialization. Every rejection leaves the destination bytes unchanged;
+/// successful application commits the complete writer range once. Publication
+/// remains a later transition owned by the caller.
+pub fn execute_post_handoff_writer_plan(
+    plan: &PostHandoffWriterPlan,
+    destination: &mut [u8],
+    site: PlacementSite,
+    mut resolve: impl FnMut(RelocationTarget) -> Option<u64>,
+) -> Result<(), MaterializationDiagnostic> {
+    plan.validate(destination.len(), site)?;
+
+    let mut resolved_targets = std::collections::BTreeMap::new();
+    let mut values = Vec::with_capacity(plan.steps.len());
+    for step in &plan.steps {
+        let target = step.write.target;
+        let value = if let Some(value) = resolved_targets.get(&target) {
+            *value
+        } else {
+            let value = match step.source {
+                PostHandoffWriterSource::Resolved(value) => value,
+                PostHandoffWriterSource::Resolve(target) => resolve(target).ok_or_else(|| {
+                    MaterializationDiagnostic(format!(
+                        "post-handoff writer could not resolve symbolic target {target:?}"
+                    ))
+                })?,
+            };
+            for candidate in plan
+                .steps
+                .iter()
+                .filter(|candidate| candidate.write.target == target)
+            {
+                validate_write_source_value(&candidate.write, value, "resolved symbolic")?;
+            }
+            resolved_targets.insert(target, value);
+            value
+        };
+        values.push(value);
+    }
+
+    apply_post_handoff_writes_atomically(
+        &mut destination[..plan.byte_len],
+        plan.byte_order,
+        &plan.steps,
+        &values,
+    )
+}
+
+/// Stage every write into a private copy and commit it only when the complete
+/// batch applies. A late failure leaves the destination untouched, so an
+/// atomic rejection precedes any published write.
+pub(crate) fn apply_post_handoff_writes_atomically(
+    destination: &mut [u8],
+    byte_order: ByteOrder,
+    steps: &[PostHandoffWriterStep],
+    values: &[u64],
+) -> Result<(), MaterializationDiagnostic> {
+    if steps.len() != values.len() {
+        return Err(MaterializationDiagnostic(
+            "post-handoff writer application requires one resolved value per fragment".into(),
+        ));
+    }
+    let mut staged = destination.to_vec();
+    for (step, value) in steps.iter().zip(values) {
+        apply_write(&mut staged, byte_order, &step.write, *value)?;
+    }
+    destination.copy_from_slice(&staged);
+    Ok(())
 }
 
 #[cfg(test)]

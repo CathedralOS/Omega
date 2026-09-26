@@ -91,7 +91,7 @@ pub use post_handoff_writer::{
     PreparedPostHandoffWriterDestination, PreparedPostHandoffWriterDestinationValidationError,
     ResolvedPostHandoffEntryWriterContext, ValidatedPreparedPostHandoffWriterDestination,
     ValidatedWrittenPostHandoffWriterDestination, WrittenPostHandoffWriterConsumerValidationError,
-    WrittenPostHandoffWriterDestination,
+    WrittenPostHandoffWriterDestination, execute_post_handoff_writer_plan,
 };
 pub use retirement::quarantine::{
     MappingQuarantineCause, MappingQuarantineError, MappingQuarantineReceipt,

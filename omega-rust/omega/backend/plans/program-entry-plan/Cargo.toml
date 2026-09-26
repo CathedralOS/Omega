@@ -10,11 +10,12 @@ path = "src/lib.rs"
 
 [features]
 default = []
-installed-writer = ["dep:executable-installation"]
+installed-writer = ["dep:executable-installation", "dep:post-handoff-writer-plan"]
 
 [dependencies]
 calling-conventions = { path = "../../calling-conventions" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
+post-handoff-writer-plan = { path = "../post-handoff-writer-plan", optional = true }
 effects = { path = "../provider-evidence" }
 function-identity = { path = "../../../foundation/function-identity" }
 isa-aarch64 = { path = "../../instruction_set_architectures/isa-aarch64" }

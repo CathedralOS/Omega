@@ -9,10 +9,8 @@ use std::collections::BTreeSet;
 
 use calling_conventions::{ProviderExitRealization, validate_provider_exit_realization};
 use executable_installation::{InstalledCode, ResolvedPostHandoffEntryWriterContext};
-use layout_plans::{
-    EntryStubId, PlacementSite, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
-    RelocationTarget,
-};
+use layout_plans::{EntryStubId, PlacementSite, RelocationTarget};
+use post_handoff_writer_plan::{PostHandoffWriterInvocationPlan, PostHandoffWriterPlan};
 
 use crate::identities::Fnv1a;
 use crate::{
@@ -712,7 +710,7 @@ fn selected_entry_source_slot(
             "post-handoff writer repeats the admitted external-root entry source".into(),
         ));
     }
-    if source.source != layout_plans::PostHandoffWriterSource::Resolve(target) {
+    if source.source != post_handoff_writer_plan::PostHandoffWriterSource::Resolve(target) {
         return Err(layout_plans::MaterializationDiagnostic(
             "post-handoff writer must resolve the admitted external-root entry through its sealed provider context"
                 .into(),
