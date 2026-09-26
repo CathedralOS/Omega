@@ -636,7 +636,9 @@ the complete product bar; focused successes below do not establish that baseline
 
   Four fail fixtures reject for a reason other than their own subject, so
   they pin nothing. `fail/build/uefi_program_entry_wrong_calling_policy`
-  declares its own `UefiApplication` beside the bundled one and refuses at
+  declares its own `UefiApplication` beside the one its
+  `use omega::language::std::calling;` pulls in from
+  `std/targets/uefi_x86_64/entry.omg`, and refuses at
   "requires exactly one loaded `UefiApplication` boundary schema, but found
   2" before any policy is weighed; whether ambiguity or the policy is the
   right answer there is the entry-slot owner's call.
@@ -5067,6 +5069,13 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Remove that fallback as remaining consumers acquire exact source-byte
   catalog roles or accepted semantic bindings, not by relabeling a directory.
 
+  The migration is 131 directories. 127 carry no `build.omg` at all and
+  compile standalone straight into the fallback -- 91 `fail`, 23 `pass`, one
+  `run` and 12 samples -- so each needs a build declaration before it can
+  carry an ordinary edge. The other four have a `build.omg` with no `depend`:
+  `fail/build/build_effects_undeclared`,
+  `fail/build/uefi_program_entry_wrong_calling_policy`,
+  `fail/build/build_machine_wrong_arity`, and `source/library/std` itself.
   Migrate remaining corpus/member imports and package roots, including
   bundled proof, host/objc, fail and run consumers, through ordinary
   dependency edges and target-correct Console, Filesystem and physical-entry
