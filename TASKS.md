@@ -652,6 +652,19 @@ the complete product bar; focused successes below do not establish that baseline
   recorded there. All four are pinned `unexpected` in the golden rather than
   hidden.
 
+  When an item's acceptance names a pass fixture, check that the fixture's
+  entry runs the thing. 102 of 685 pass fixtures end in an empty
+  `machine X::main(&mut self) {}`. Only one is named `_exit`, so the naming
+  is mostly honest, but the count understates the problem: among those 102
+  are the acceptance customers of executable features.
+  **CONSERVATION-CONTRACT**'s `core/content_conservation_contract` and
+  `core/content_retained_custody_round_trip` declare the contract and never
+  invoke it, and **QUOTIENT-RUNTIME-REALIZATION**'s
+  `proofs/quotient_define_managed_compile` and
+  `quotient_lift_managed_compile` never call the machine holding the
+  operation. Those items cannot be judged against their own customers until
+  an entry performs the work, whatever their compilers do.
+
   `corpus_runner`'s pass route requests the Check product targetless and
   establishes no program entry, so a `_exit` fixture whose unit plan is
   omitted still records `checked`. Every `pass/recast/*_exit` row is green on
