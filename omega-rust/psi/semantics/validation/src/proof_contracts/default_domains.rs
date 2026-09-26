@@ -61,6 +61,23 @@ struct StateExit {
     was_reached: bool,
 }
 
+/// One state's walk under its current entry: its exit and what that walk
+/// reports.
+struct StateWalk {
+    exit: StateExit,
+    diagnostics: Vec<Diagnostic>,
+    crash_sites: Vec<OpenInvariantCrashSite>,
+}
+
+/// Each state's predecessors, in edge order.
+fn state_predecessors(edges: &[(usize, usize)], state_count: usize) -> Vec<Vec<usize>> {
+    let mut predecessors = vec![Vec::new(); state_count];
+    for (from, to) in edges {
+        predecessors[*to].push(*from);
+    }
+    predecessors
+}
+
 /// Source-independent evidence that one explicit crash occurs while at least
 /// one default-domain invariant window is open. The place spelling remains a
 /// validator diagnostic concern; checked damage evidence retains only the
@@ -176,43 +193,43 @@ fn analyze_default_domain_writes(
             )
         } else {
             let edges = state_edges(program, states);
+            let predecessors = state_predecessors(&edges, states.len());
             let mut entry: Vec<Vec<String>> = vec![Vec::new(); states.len()];
-            let exits = loop {
-                let exits: Vec<Vec<String>> = states
-                    .iter()
-                    .enumerate()
-                    .map(|(index, state)| {
-                        walk_state(
-                            program,
-                            call_frames.as_ref(),
-                            machine,
-                            state,
-                            &entry[index],
-                            &[],
-                            &[],
-                            &no_summaries,
-                            &state_to_machine,
-                            false,
-                            true,
-                            &mut throwaway,
-                            &mut throwaway_crash_sites,
-                            false,
-                        )
-                        .0
-                    })
-                    .collect();
+            // A walk reads only its own entry, so a state is walked again only
+            // after its entry changed.
+            let mut exits: Vec<Vec<String>> = vec![Vec::new(); states.len()];
+            let mut stale = vec![true; states.len()];
+            loop {
+                for (index, state) in states.iter().enumerate() {
+                    if !std::mem::take(&mut stale[index]) {
+                        continue;
+                    }
+                    exits[index] = walk_state(
+                        program,
+                        call_frames.as_ref(),
+                        machine,
+                        state,
+                        &entry[index],
+                        &[],
+                        &[],
+                        &no_summaries,
+                        &state_to_machine,
+                        false,
+                        true,
+                        &mut throwaway,
+                        &mut throwaway_crash_sites,
+                        false,
+                    )
+                    .0;
+                }
                 let mut changed = false;
                 for (index, current_entry) in entry.iter_mut().enumerate().skip(1) {
-                    let predecessors: Vec<usize> = edges
-                        .iter()
-                        .filter(|(_, to)| *to == index)
-                        .map(|(from, _)| *from)
-                        .collect();
+                    let predecessors = &predecessors[index];
                     if predecessors.is_empty() {
                         continue;
                     }
                     let mut meet: Option<Vec<String>> = None;
-                    for predecessor in &predecessors {
+                    for predecessor in predecessors {
                         let exit = &exits[*predecessor];
                         meet = Some(match meet {
                             None => exit.clone(),
@@ -225,13 +242,14 @@ fn analyze_default_domain_writes(
                     let meet = meet.unwrap_or_default();
                     if meet != *current_entry {
                         *current_entry = meet;
+                        stale[index] = true;
                         changed = true;
                     }
                 }
                 if !changed {
-                    break exits;
+                    break;
                 }
-            };
+            }
             let terminal: Vec<usize> = (0..states.len())
                 .filter(|index| !edges.iter().any(|(from, _)| from == index))
                 .collect();
@@ -297,48 +315,60 @@ fn analyze_default_domain_writes(
         // A TERMINAL state (no outgoing transition) is where the machine
         // returns: its exit is a hard consumption point for open windows.
         let is_terminal = |index: usize| !edges.iter().any(|(from, _)| *from == index);
+        let predecessors = state_predecessors(&edges, states.len());
+        // A walk reads only its own entry, so a state is walked again only
+        // after its entry changed. Each walk keeps its own diagnostics and
+        // crash sites; at the fixed point every state's last walk ran on its
+        // final entry, so those are the ones reported.
+        let mut walks: Vec<Option<StateWalk>> = (0..states.len()).map(|_| None).collect();
+        let mut stale = vec![true; states.len()];
         loop {
-            let mut changed = false;
-            let exits: Vec<StateExit> = states
-                .iter()
-                .enumerate()
-                .map(|(index, state)| {
-                    let (established, valuations, windows) = walk_state(
-                        program,
-                        call_frames.as_ref(),
-                        machine,
-                        state,
-                        &entry_established[index],
-                        entry_valuations[index].as_deref().unwrap_or(&[]),
-                        &entry_windows[index],
-                        &summaries,
-                        &state_to_machine,
-                        born_zero(index),
-                        is_terminal(index),
-                        &mut throwaway,
-                        &mut throwaway_crash_sites,
-                        false,
-                    );
-                    StateExit {
+            for (index, state) in states.iter().enumerate() {
+                if !std::mem::take(&mut stale[index]) {
+                    continue;
+                }
+                let mut state_diagnostics = Vec::new();
+                let mut state_crash_sites = Vec::new();
+                let (established, valuations, windows) = walk_state(
+                    program,
+                    call_frames.as_ref(),
+                    machine,
+                    state,
+                    &entry_established[index],
+                    entry_valuations[index].as_deref().unwrap_or(&[]),
+                    &entry_windows[index],
+                    &summaries,
+                    &state_to_machine,
+                    born_zero(index),
+                    is_terminal(index),
+                    &mut state_diagnostics,
+                    &mut state_crash_sites,
+                    true,
+                );
+                walks[index] = Some(StateWalk {
+                    exit: StateExit {
                         established,
                         valuations,
                         windows,
                         was_reached: entry_valuations[index].is_some(),
-                    }
-                })
-                .collect();
+                    },
+                    diagnostics: state_diagnostics,
+                    crash_sites: state_crash_sites,
+                });
+            }
+            let exits = walks
+                .iter()
+                .map(|walk| &walk.as_ref().expect("every state is walked").exit)
+                .collect::<Vec<_>>();
+            let mut changed = false;
             for index in 1..states.len() {
-                let predecessors: Vec<usize> = edges
-                    .iter()
-                    .filter(|(_, to)| *to == index)
-                    .map(|(from, _)| *from)
-                    .collect();
+                let predecessors = &predecessors[index];
                 if predecessors.is_empty() {
                     continue;
                 }
                 // Establishment meet (intersection over ALL predecessors).
                 let mut established_meet: Option<Vec<String>> = None;
-                for predecessor in &predecessors {
+                for predecessor in predecessors {
                     let exit = &exits[*predecessor].established;
                     established_meet = Some(match established_meet {
                         None => exit.clone(),
@@ -351,11 +381,12 @@ fn analyze_default_domain_writes(
                 let established_meet = established_meet.unwrap_or_default();
                 if established_meet != entry_established[index] {
                     entry_established[index] = established_meet;
+                    stale[index] = true;
                     changed = true;
                 }
                 // Window MAY-union: open from ANY predecessor -> open here.
                 let mut window_union: Vec<InvariantWindow> = Vec::new();
-                for predecessor in &predecessors {
+                for predecessor in predecessors {
                     for window in &exits[*predecessor].windows {
                         if !window_union.contains(window) {
                             window_union.push(window.clone());
@@ -372,6 +403,7 @@ fn analyze_default_domain_writes(
                 });
                 if window_union != entry_windows[index] {
                     entry_windows[index] = window_union;
+                    stale[index] = true;
                     changed = true;
                 }
                 // Valuation meet (over VISITED predecessors only -- the
@@ -400,6 +432,7 @@ fn analyze_default_domain_writes(
                 canonicalize_valuations(&mut valuation_meet);
                 if entry_valuations[index].as_ref() != Some(&valuation_meet) {
                     entry_valuations[index] = Some(valuation_meet);
+                    stale[index] = true;
                     changed = true;
                 }
             }
@@ -407,23 +440,9 @@ fn analyze_default_domain_writes(
                 break;
             }
         }
-        for (index, state) in states.iter().enumerate() {
-            walk_state(
-                program,
-                call_frames.as_ref(),
-                machine,
-                state,
-                &entry_established[index],
-                entry_valuations[index].as_deref().unwrap_or(&[]),
-                &entry_windows[index],
-                &summaries,
-                &state_to_machine,
-                born_zero(index),
-                is_terminal(index),
-                diagnostics,
-                crash_sites,
-                true,
-            );
+        for walk in walks.into_iter().flatten() {
+            diagnostics.extend(walk.diagnostics);
+            crash_sites.extend(walk.crash_sites);
         }
     }
 }
