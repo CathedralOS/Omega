@@ -31,7 +31,12 @@ Twenty-five items cite at least one `.rs` path that no longer resolves, 34
 dead paths in all, mostly from that deletion and from the selected-operator
 plan removal. Re-measure one of these before planning against it; a gone
 anchor file usually means the claim around it needs restating, not a path
-substitution. AP-BRINGUP, ASM-INSTRUCTION-CATALOG-EXPANSION, BLOCKEXEC,
+substitution. `python3 tools/board_paths.py` re-derives the list rather than
+trusting this paragraph, understands the directory-relative and
+`{a,b}.rs` citation forms, and exits nonzero while any path is dead;
+`--hints` names real files sharing a dead path's basename.
+`TASKS_OPTIMIZER.md` carries one of its own, `tests/linw4_translation_probe.rs`,
+whose basename matches nothing in the tree. AP-BRINGUP, ASM-INSTRUCTION-CATALOG-EXPANSION, BLOCKEXEC,
 BOUNDED-INSTALLATION-REACH-ROWS, BUILD-PRODUCT-REFERENCES,
 BUILD-SEMANTIC-EXCLUSIONS, CML4, CRASH-CONTRACT, EXCEPTION-ROOTS-AND-TIMER,
 FILESYSTEM-RELEASE-CONTRACT, GENERAL-CYCLIC-EXECUTION,
