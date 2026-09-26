@@ -70,17 +70,17 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
     {
         return false;
     }
-    let mut results = program.machines().iter().flat_map(|target| {
-        program
+    // State spans are disjoint append-only ranges, so a state symbol's
+    // holder is unique — no second-machine witness can exist.
+    if let Some(target) = program.machine_holding_state(call.target_symbol) {
+        let Some(target_state) = program
             .machine_states(target)
             .iter()
-            .filter_map(move |target_state| {
-                (target_state.symbol == call.target_symbol).then_some((target, target_state))
-            })
-    });
-    if let Some((target, target_state)) = results.next() {
-        return results.next().is_none()
-            && unit_type(program, target_state.return_type)
+            .find(|candidate| candidate.symbol == call.target_symbol)
+        else {
+            return false;
+        };
+        return unit_type(program, target_state.return_type)
             && (target_state.return_type.is_valid()
                 || !has_inferred_value_return(program, target));
     }

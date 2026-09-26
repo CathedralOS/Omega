@@ -29,12 +29,7 @@ pub(crate) fn legacy_quotient_call_candidate<'program>(
         return None;
     }
 
-    let operation = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|candidate| candidate.symbol == state.symbol)
-    })?;
+    let operation = program.machine_holding_state(state.symbol)?;
     let is_attached = operation.attached_data.is_some();
     if is_attached != receiver_type.is_some() {
         return None;
