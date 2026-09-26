@@ -26,6 +26,15 @@ A pass fixture named `*_exit` is executed by the native leg, and its exit code
 is recorded in the host's golden; name a fixture that way when its observable
 result is the exit code.
 
+Alternatively, add `expected_native_exit.txt` containing one decimal exit code
+or `trap`. This opts the fixture into execution regardless of its name and makes
+the native gate enforce that result even with `--record`. `trap` requires the
+target's trap signal/exception, not an arbitrary abnormal termination. These
+fixtures must bind the running host; missing execution fails the oracle.
+The checked interpreter also attempts them with `--interpret`/`--both`, but its
+current error API does not distinguish traps from unsupported evaluation:
+`interpreter:declined` does not establish agreement with a native trap.
+
 Do not add per-feature Rust test files to this directory. The crate sets
 `autotests = false`, so a new file here is not a test target, and each extra
 target would link the whole compiler again. `support/` holds the package-input
