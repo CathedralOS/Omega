@@ -700,6 +700,21 @@ the complete product bar; focused successes below do not establish that baseline
   `state graph: terminator: conditional successors: guard expression` on its
   own, with no float store involved.
 
+  That float guard is not a producer gap, and the obvious repair is a dead
+  end. `boolean_lowering.rs` mentions no floating type at all, so
+  `lower_boolean_guard` records no `Guard` fact and `retained_guard` finds
+  nothing; the omission is deliberate. `CheckedBooleanExpression` does spell
+  `ScalarIeeeFloatComparison` and every consumer in `04_` handles it, so
+  building one there makes `self.lo == 1.5` check -- and realization then
+  refuses it in `expression_preparation/prepare_expression` as "structural
+  equality is contract-only terminal vocabulary", because
+  `LoweredBooleanReturnExpression` has no floating form. Minting it for a
+  guard trades an omission for a program that passes `omega --check` and
+  cannot be built. The executable lowered form and its Terminal and backend
+  emission come first; `CheckedIeeeFloatComparisonKind` also spells only
+  `Equal` and `NotEqual`, so ordering guards need a representation decision
+  beyond that.
+
   No corpus fixture sees that diagnostic at all -- a full record carries zero
   occurrences -- because the pass tier compiles targetless through Check and
   never installs a provider. The sample is the only witness either half has.
