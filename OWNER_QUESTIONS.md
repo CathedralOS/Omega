@@ -6,12 +6,11 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Six owner-level decisions remain. Only the affected behavior below awaits a
+Five owner-level decisions remain. Only the affected behavior below awaits a
 ruling; other work on the same task may proceed under existing contracts.
 
 | Named decision | Affected work |
 | --- | --- |
-| `interpreted-inline-assembly` | Assembly-dependent INTERPRETED-CATHEDRAL acceptance |
 | `unmanaged-root-package-identity` | Portable publication in MODULE-NAMESPACE-RESOLUTION |
 | `borrowed-service-suspension-carrier` | Suspension/transfer semantics in RC-BUILD-AND-PACKAGES; refresh the witness first |
 | `linear-carrier-vacuous-qualification` | Qualification/custody boundary for BUMP-ALLOCATOR-CANARY and placed access |
@@ -77,44 +76,7 @@ Proposed solutions below are recommendations, not owner rulings. Remove an
 entry when the contract answers it; retain any unfinished implementation on
 its owning task.
 
-### Q1 - How should interpreted components execute checked inline assembly?
-
-Named decision: `interpreted-inline-assembly`.
-
-**Context:** [Embedding](wiki/spec/build/embedding.md) includes interpreted
-Cathedral startup and replacement. [Checked assembly](wiki/spec/language/assembly.md)
-remains legitimate source; moving all device operations behind new interfaces
-has not been ratified.
-
-**Problem:** The contracts do not select live hardware versus modeled target
-state, or the correspondence evidence needed for port I/O, idle, and external
-entry. Only the assembly-dependent part of **INTERPRETED-CATHEDRAL** is blocked.
-
-[Address exposure](wiki/spec/language/counts_and_addresses.md#address-exposure)
-is settled separately: `address_of` queries, executable-entry demand, and
-noncolliding interpreted code/storage identities. Native code-region descriptions
-and data `size_of`/`align_of` queries are also settled. Interpreted IDs do not
-establish native byte geometry or execute instructions. This does not select an
-answer to the assembly/environment question.
-
-Root [assumed binding contracts](wiki/spec/build/assumed_binding_contracts.md)
-likewise do not weaken checked assembly or provide an interpreter for it. Their
-runtime-only trust relationship is separate from this execution-model question.
-
-**Proposed solution:** Admit a bounded set of instruction contracts against an
-explicit target-state/environment model. Preserve authority, memory, registers,
-flags, ordering, control, and faults; reject unsupported instructions explicitly.
-Validate one real device sequence and one idle/external-entry sequence.
-
-**Alternatives:**
-- Bind checked alternate realizations to the same instruction contracts, with
-  correspondence evidence. This can avoid emulating each instruction.
-- Define a limited interpreter profile that rejects assembly-bearing components;
-  honest scope, but it does not deliver assembly-dependent Cathedral startup.
-- Tempting but wrong: replace hardware idle with interpreter pause, redefine
-  instructions through provider names, or move OS policy into the compiler.
-
-### Q2 - What portable identity should a root without a package declaration have?
+### Q1 - What portable identity should a root without a package declaration have?
 
 Named decision: `unmanaged-root-package-identity`.
 
@@ -141,7 +103,7 @@ route. Keep ordinary local compilation separate from portable publication.
 - Tempting but wrong: use host paths or import order, exempt toolchain declarations,
   or assume distinct owner identities make competing visible names unambiguous.
 
-### Q3 - How does a state machine holding service borrows perform a suspending operation?
+### Q2 - How does a state machine holding service borrows perform a suspending operation?
 
 Named decision: `borrowed-service-suspension-carrier`.
 
@@ -189,7 +151,7 @@ only if ordinary carry and preservation contracts cannot express the requirement
   saying what keeps a live borrow sound across a park. The rejection is the only
   thing currently preventing a borrow from crossing a suspension.
 
-### Q4 - Does a vacuous qualification on a linear carrier need establishment?
+### Q3 - Does a vacuous qualification on a linear carrier need establishment?
 
 Named decision: `linear-carrier-vacuous-qualification`.
 
@@ -248,7 +210,7 @@ declare. `Extent` would be marked; `Region` would not.
   legality of one module's `as` depend on an unrelated declaration in another,
   which no other qualification rule does.
 
-### Q5 - How does a comparison order two integer operands of different types?
+### Q4 - How does a comparison order two integer operands of different types?
 
 Named decision: `mixed-integer-comparison`.
 
@@ -283,7 +245,7 @@ its unsigned promotion.
 - Adopt the interpreter's promotion to unsigned. This is C's rule and silently
   answers wrongly for negative operands.
 
-### Q6 - May an assumed runtime binding override a checker-refutable claim?
+### Q5 - May an assumed runtime binding override a checker-refutable claim?
 
 Named decision: `assumed-binding-refutable-claim`.
 

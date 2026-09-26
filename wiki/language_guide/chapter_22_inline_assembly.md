@@ -38,6 +38,26 @@ Neither clause manufactures evidence or overrides an instruction contract.
 An authored clobber set must be exact: both omitted and invented changes reject.
 `hlt` and `jmp` blocks have no local post-state for `ensures`.
 
+## Blocks do not share hidden registers
+
+Separate blocks cannot communicate through whatever a previous block left in
+a general register or scratch flag. Inputs and outputs use ordinary typed places:
+
+```omega
+asm { mov saved, input }
+asm { mov output, saved }
+```
+
+Here `saved` carries the value, not incidental register preservation. Each
+block accounts for its own scratch dataflow and clobbers. An explicit catalog
+operation may observe architectural state, but it cannot invent a guarantee
+about surrounding compiler scratch.
+
+This does not isolate side effects: memory writes, device commands and changes
+to interrupt state persist. For example, interrupt masking can cover ordinary
+Omega code between assembly blocks; restoring the saved state remains an
+explicit obligation. A block is not an atomic transaction or rollback scope.
+
 ## No quiet spelling
 
 Direct assembly cannot hide a mechanism's service reach or authority by avoiding
@@ -102,9 +122,44 @@ realization, not by granting arbitrary mnemonic access. A catalog entry, parser
 test or emitted byte sequence alone is not evidence of complete native execution.
 Current families and rejected forms are listed beside the catalog.
 
+## Running assembly under interpretation
+
+The interpreter executes the supported instruction's meaning, not a blob of
+native bytes. For the structured `mov` above, that means an ordinary checked
+assignment. Other operations can use block-local scratch or the supplied target
+environment:
+
+| Instruction effect | Interpreter responsibility |
+| --- | --- |
+| Move a value | Read/write the same authorized typed places. |
+| Write a device port | Perform the exact port operation through the supplied environment. |
+| Change interrupt state | Update persistent modeled state that governs subsequent event delivery. |
+| Halt | Follow the processor model's halt and external-control contract, not report successful return or fuel exhaustion. |
+
+The root and receiving host select/admit that environment. A simulated processor
+does not confer control of the real host processor. Device providers supply
+mechanisms; Cathedral still executes its own drivers, scheduler and boot logic.
+No alternate body or `Binding` wrapper is required around every assembly block,
+and no full-host emulator is required simply to interpret value operations.
+
+Fuel pauses preserve the activation's scratch, persistent state and progress.
+Resumption does not repeat an already performed port write. Interrupt timing,
+ordering and legal external-entry points follow the target model; an interpreter
+step is not automatically a native instruction. Address IDs alone do not supply
+a physical memory map.
+
+Missing instruction semantics, authority or environment support rejects before
+execution. There is no implicit native/JIT fallback. A no-op is valid only for
+effects the catalog actually permits to be elided. Interpretation does not by
+itself admit an operation into constants or build-time code. See the
+[complete execution contract](../spec/language/assembly.md#interpreted-execution)
+and [embedding](chapter_24_embedding.md#native-and-interpreted-cathedral).
+
 ## Working rules
 
-Keep the semantic operation in the public API and the checked instruction
-sequence in its selected implementation. Preserve exact effects, authority,
-control exits and state restoration. If those obligations cannot be discharged,
-the assembly rejects; a helper or admission receipt cannot leave them open.
+When offering a boundary API, describe the semantic operation in its contract
+and keep instruction details in the selected implementation. Direct checked
+assembly is also legitimate; a wrapper is not required for interpretation.
+Preserve exact effects, authority, control exits and state restoration. If those
+obligations cannot be discharged, the assembly rejects; a helper or admission
+receipt cannot leave them open.

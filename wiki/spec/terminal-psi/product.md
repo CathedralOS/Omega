@@ -32,6 +32,15 @@ The reference interpreter executes the portable semantics directly. Native
 code realizes the same semantics. Differential agreement is evidence about
 implementations, not a definition of the language.
 
+[Checked assembly](../language/assembly.md#interpreted-execution) crosses this
+same boundary as typed operations with exact target semantics, operand/place
+identities, authority, persistent-state effects and control exits. Reuse ordinary
+operations where they completely express the instruction; otherwise retain the
+catalog identity and its executable semantics, not raw text, backend register
+allocation or a clobber-only summary. Scratch state cannot become an implicit
+cross-block input. Consumer admission checks the selected instruction/environment
+coverage; a native encoder alone does not establish interpreted support.
+
 Concrete service closure retains fixed declaration contributions, including
 services contributed by declared synchronous invocations, separately from
 installation-selected requirement bounds. The verifier unions those contributions

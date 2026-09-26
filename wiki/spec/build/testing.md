@@ -141,6 +141,14 @@ external effects, or roll back a real filesystem. Host-backed operations need
 an admitted execution protocol with enforceable scope. Unsupported providers
 cannot execute by escaping to native code or ambient host APIs.
 
+Tests containing [checked assembly](../language/assembly.md#interpreted-execution)
+use the same supported instruction semantics and explicitly supplied environment.
+Private model state is fresh per test unless an admitted shared resource contract
+says otherwise; it persists between that test's blocks and fuel pauses. A model's
+machine-owner authority is not host machine authority. Unknown operations or
+missing environment support reject before execution, never pass as no-ops.
+Simulation does not validate real hardware timing or device behavior.
+
 ## Scheduling, execution, and outcomes
 
 Automatic build-time tests cannot execute

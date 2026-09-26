@@ -29,6 +29,15 @@ binding-adapter, shutdown, and interpreter-backed replacement library remains
 tracked under [embedding tasks](../../../../TASKS.md#embedding-and-interpreted-components).
 Do not expose the raw effect hook as an admitted binding API.
 
+Checked assembly follows the [instruction interpretation contract](../../../../wiki/spec/language/assembly.md#interpreted-execution):
+reuse ordinary value/place/transition operations, keep scratch state block-local,
+and preserve explicit memory and environment effects across calls and fuel stops.
+The selected target environment must supply every demanded operation before
+execution. A generic effect hook or successful Unit response alone establishes
+neither instruction semantics nor environment correspondence. End-to-end
+instruction coverage remains **INTERPRETED-ASSEMBLY** on the execution board;
+this contract is not a claim that all catalog entries already run here.
+
 The source-free [embedding lifetime probes](tests/unit/embedding_lifetimes.rs)
 cover owned artifact lifetime, separate host contexts, once-only scalar effects
 across fuel stops, rejection after an effect, response shape, and a host result

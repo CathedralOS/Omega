@@ -66,6 +66,12 @@ Permission to select a declaration does not establish its execution meaning.
 An unresolved authored operator cannot be evaluated using the builtin meaning
 of its token, including when reached through a helper machine.
 
+[Interpreted assembly](assembly.md#interpreted-execution) is subject to these
+same rules. A pure catalog operation can evaluate when its complete invocation
+is admitted; having an interpreter handler does not make device state, physical
+memory, interrupts or runtime-only trust into hermetic inputs. Build-time tests
+may instead use admitted model providers under their separate runner contract.
+
 A direct token-bearing machine evaluates its declaration-owned checked body
 through the ordinary machine evaluator. Compiler-catalog semantic primitives
 retain their exact catalog execution; boundary operators retain the admitted

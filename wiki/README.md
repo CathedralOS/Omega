@@ -30,6 +30,7 @@ beside code; completed work belongs in Git, not current reference material.
   [value-dependent facts and views](spec/language/dependent_values.md),
   [service reach and operational ceilings](spec/language/effects.md),
   [inline assembly](spec/language/assembly.md),
+  [interpreted instructions and environments](spec/language/assembly.md#interpreted-execution),
   [semantic evaluation](spec/language/evaluation.md),
   [expressions and operators](spec/language/expressions.md),
   [constants](spec/language/constants.md), [numeric values and bounds](spec/language/numeric_values.md),

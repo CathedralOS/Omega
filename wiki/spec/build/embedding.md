@@ -88,9 +88,11 @@ These numbers are neither host pointers nor native trampolines. The query create
 no host ABI adapter, indirect-call permission, byte-addressed memory model, or
 reflective edit operation. Native interoperation still uses the selected
 import/export adapters. The identities do not make native address arithmetic or
-checked assembly execute under interpretation; `interpreted-inline-assembly`
-remains a separate owner decision. `code_layout<Machine>()` cannot describe a
-purely interpreted body's native regions: those do not exist. Data
+physical memory accesses meaningful by themselves. Interpreted assembly follows
+the [instruction execution contract](../language/assembly.md#interpreted-execution),
+including explicit mappings for operations requiring physical geometry.
+`code_layout<Machine>()` cannot describe a purely interpreted body's native
+regions: those do not exist. Data
 `size_of<T>()` and `align_of<T>()` instead observe the selected target layout,
 not the interpreter's host storage.
 
@@ -273,7 +275,30 @@ not the embedding API. Test harnesses reuse this lifecycle with fresh instances
 and selected providers; semantic constant evaluation retains its separate
 admission regime. Exact SDK packaging and method spellings remain engineering.
 
-## Interpreted Cathedral acceptance and open assembly question
+## Checked assembly and target environments
+
+Interpreted components execute supported checked instruction semantics, not
+arbitrary machine-code bytes. Ordinary moves, computation and transitions reuse
+the interpreter's existing operations. Block-local scratch registers/flags do
+not communicate implicitly with another block or surrounding generated code.
+Explicit values, authorized memory and contracted target state do communicate;
+those effects persist across blocks and pauses.
+
+The root selects and the receiving host admits the environment required by the
+selected executable closure. External mechanisms use ordinary scoped bindings
+and state; no per-block alternate implementation or wrapper is required. A
+modeled device, interrupt mask or processor is not the host's device or processor.
+Live access requires actual host authority. Keep device mechanisms in environment
+providers and OS policy in the interpreted application, not the compiler.
+
+Instruction coverage and environment compatibility are checked before execution
+and at component installation. Unknown/unsupported effects reject without native
+fallback. Halt and external entry obey the target model, not fuel-pause behavior;
+the existing invocation/resource lifecycle retains pending effects and prevents
+re-execution on resume. The full [assembly contract](../language/assembly.md#interpreted-execution)
+also governs ordering, state observations, faults and realization evidence.
+
+## Interpreted Cathedral acceptance
 
 The integration goal is the same Cathedral algorithms and state machines under
 native or interpreted execution, with selected providers/build composition rather
@@ -289,10 +314,10 @@ and later retired. Preserve exact contract/custody and reject incompatible or
 unauthorized replacement. Simulation establishes behavior under its stated model,
 not native timing or actual hardware correctness.
 
-Interpreted target-specific inline assembly is **undetermined**, tracked as
-`interpreted-inline-assembly` in [OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md).
-Checked assembly is not revoked, and OS source may legitimately need it. This
-contract neither requires moving every assembly operation behind a provider nor
-promises universal instruction emulation. Its support, target-state model, and
-evidence need a concrete decision before claiming unchanged assembly-bearing
-Cathedral boot. Generic embedding and component work do not wait on that decision.
+Assembly-bearing startup additionally exercises a device-interaction sequence
+and a processor idle/external-entry sequence against the selected environment,
+with authority, persistent state and once-only effects preserved across fuel
+pauses. This is required implementation work, not a remaining owner decision.
+Do not replace the exercised OS sequence with a host routine, demand assembly
+removal, or report support for unimplemented instructions. Generic embedding and
+component work need not wait for complete Cathedral instruction coverage.

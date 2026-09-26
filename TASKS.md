@@ -1423,6 +1423,26 @@ the implementation migration actually lands.
   disposition, preserving unaffected components. Loading alone never publishes;
   the outer host must not implement the guest's update coordinator for the test.
 
+- **INTERPRETED-ASSEMBLY.** (split-of:ASM-INSTRUCTION-CATALOG-EXPANSION)
+  Deliver [checked instruction interpretation](wiki/spec/language/assembly.md#interpreted-execution)
+  through source -> Terminal Psi -> verification -> the ordinary interpreter and
+  supplied target environment. Owners: catalog semantics, existing Terminal
+  operations, interpreter execution/custody, and environment provider packages.
+  Reuse value/place/transition operations and **PRIVILEGED-PORT-EFFECT-SETTLEMENTS**'s
+  port adapter work; no separate asm pipeline, whole-host emulator, or required
+  source wrapper per block. Native encoding alone is not interpreted support.
+  Acceptance: separate blocks exchange explicit values and authorized memory but
+  cannot read hidden scratch from each other; a device sequence and interrupt-
+  state/idle/external-entry sequence retain their effects across helpers and fuel
+  pauses. Resume never repeats a completed I/O operation. Check target ordering,
+  delayed effects, legal event points, control exits and resource custody against
+  the instruction model, not interpreter-step counts. Missing operation semantics,
+  wrong/missing environment, widened host authority and numeric-ID-as-physical-
+  pointer attempts reject before effects, including on component installation.
+  Preserve existing hermetic/build-test admission and runtime-assumption bans.
+  Validate model behavior separately from native byte/hardware correspondence;
+  host providers supply mechanisms, not Cathedral's drivers or scheduling policy.
+
 - **INTERPRETED-CATHEDRAL.** (new-scope) Drive actual Cathedral startup,
   memory establishment and visible device work, then event delivery while it
   remains live, then guest-owned component replacement. Depends on the connected
@@ -1432,10 +1452,10 @@ the implementation migration actually lands.
   select providers/build composition rather than add execution-mode conditionals.
   A host routine replacing Cathedral's boot, scheduler, or update policy does not
   count. Report each delivered slice and its real remaining dependencies rather
-  than claim a boot banner demonstrates the full system. Unchanged assembly-
-  bearing boot is OWNER-BLOCKED on `interpreted-inline-assembly` in
-  **OWNER_QUESTIONS.md**; generic embedding work is not blocked. Do not silently
-  require removing OS assembly or promise an emulator. Simulation is evidence
+  than claim a boot banner demonstrates the full system. Assembly-bearing boot
+  depends on **INTERPRETED-ASSEMBLY**'s demanded instruction/environment coverage,
+  not an owner ruling. Preserve the actual OS sequence; do not require assembly
+  removal or replace boot/idle/device work with host policy. Simulation is evidence
   under the selected environment model, not native timing/hardware correctness.
 
   Cathedral's `tools/*-canary/run.sh` harnesses still assert over retired
@@ -2113,9 +2133,10 @@ syntax and other terminal services are not prerequisites.
   and attempts to launder addresses into borrows or call authority. Check that
   evaluator IDs cannot escape into constants and native relocation bits are not
   treated as known semantic-evaluation integers. Preserve private callback ABI
-  selection and custody. This does not depend on or settle
-  `interpreted-inline-assembly`, and does not implement indirect-call syntax,
-  arbitrary code patching, or native-address interchange for interpreter IDs.
+  selection and custody. Address exposure is separate from
+  [instruction interpretation](wiki/spec/language/assembly.md#interpreted-execution)
+  and does not implement indirect-call syntax, arbitrary code patching, or
+  native-address interchange for interpreter IDs.
 
 - **DATA-LAYOUT-QUERIES.** (new-scope) Implement core `size_of<T>()` and
   `align_of<T>()` from the selected target's validated layout, following
@@ -5741,9 +5762,9 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   consistent when catalog mechanisms change; exercise an ordinary native
   compile so a production inventory assertion cannot hide behind source checks.
 
-  Embedded target-specific assembly remains the `interpreted-inline-assembly`
-  owner question, not a blocker for native support. The checked interpreter's
-  unit-return arms in `interpreter/evaluator/statements_and_calls.rs` do not
+  **INTERPRETED-ASSEMBLY** owns the settled interpreted execution route; native
+  support need not wait on it. The checked interpreter's unit-return arms in
+  `interpreter/evaluator/statements_and_calls.rs` do not
   establish fidelity for unmodeled halt/register/cache effects. Unsupported
   effects must reject, while genuinely elidable hints retain their catalog
   meaning; do not silently turn all asm into successful no-ops.

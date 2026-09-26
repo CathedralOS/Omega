@@ -217,7 +217,9 @@ not native byte offsets or instruction patching.
 Nor is this necessarily compile-time arithmetic: local addresses depend on the
 running invocation, and final native entry bits may be fixed only at loading.
 A relocation is not an evaluated integer, and evaluator IDs cannot be baked into
-ordinary constants. This feature does not settle interpreted inline assembly.
+ordinary constants. Interpreted [assembly](chapter_22_inline_assembly.md#running-assembly-under-interpretation)
+executes supported instruction semantics separately; address IDs alone provide
+neither physical memory geometry nor authority over it.
 
 ## Inspecting Emitted Code
 
