@@ -3,11 +3,10 @@
 //! Completion uses the sibling structural-completion checker; this module owns
 //! array shape, storage and operand correspondence.
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, Operation, OperationKind,
-    OperationResult, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, ValueDeclaration, allocate_dense, lookup_type_id,
-    place_id, terminal_scalar_type, unsupported,
+    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
+    Multiplicity, Operation, OperationKind, OperationResult, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    ValueDeclaration, allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::expression_preparation::source_custody::array_sources::construction_expression;
@@ -16,21 +15,16 @@ use checked_trees::{CheckedCallScalarArgument, CheckedUnitStructuralResultBindin
 
 pub(super) fn validate(
     checked: &CheckedTrees,
-    machine: &CheckedUnitEffectMachinePlan,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
     source: CheckedArrayConstructionSource,
     result: &CheckedUnitStructuralResultBindingPlan,
     elements: &[CheckedCallScalarArgument],
 ) -> Result<(), LoweringError> {
-    let (expression, reference) = construction_expression(
-        checked,
-        machine.machine,
-        machine.state,
-        result.statement_index,
-        source,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "array constructor does not rejoin its source owner",
-    ))?;
+    let (expression, reference) =
+        construction_expression(checked, machine, state, result.statement_index, source).ok_or(
+            LoweringError::Unsupported("array constructor does not rejoin its source owner"),
+        )?;
     if result.multiplicity != Multiplicity::Unrestricted
         || result.type_identity != checked.typed.normalized_type_identity(reference).as_str()
     {
@@ -73,7 +67,7 @@ pub(super) fn validate(
                     .facts
                     .values
                     .scalar_expressions
-                    .bound_expression_at(machine.state, result.statement_index, role)
+                    .bound_expression_at(state, result.statement_index, role)
                     .ok_or(LoweringError::Unsupported(
                         "array element has no exact pure source binding",
                     ))?;
@@ -92,7 +86,7 @@ pub(super) fn validate(
                     .roots
                     .iter()
                     .any(|(_, root)| {
-                        root.state == machine.state
+                        root.state == state
                             && root.statement_ordinal == result.statement_index
                             && root.role == role
                     })
@@ -103,7 +97,7 @@ pub(super) fn validate(
             CheckedCallScalarArgument::Computation(handle) => {
                 let plans = &checked.facts.values.scalar_computations;
                 let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
-                    root.state == machine.state
+                    root.state == state
                         && root.statement_ordinal == result.statement_index
                         && root.role == role
                 });
@@ -111,7 +105,7 @@ pub(super) fn validate(
                     "array element has no exact computation root",
                 ))?;
                 if roots.next().is_some()
-                    || root.machine != machine.machine
+                    || root.machine != machine
                     || root.root != *handle
                     || !plans.nodes.is_valid(*handle)
                     || plans.nodes.get(*handle).authored_root != *leaf
@@ -123,7 +117,7 @@ pub(super) fn validate(
                         .expressions
                         .iter()
                         .any(|value| {
-                            value.state == machine.state
+                            value.state == state
                                 && value.statement_ordinal == result.statement_index
                                 && value.role == role
                         })
@@ -132,8 +126,8 @@ pub(super) fn validate(
                 }
                 crate::expression_preparation::source_custody::validate_computation_calls(
                     checked,
-                    machine.machine,
-                    machine.state,
+                    machine,
+                    state,
                     result.statement_index,
                     *handle,
                     *leaf,
@@ -142,7 +136,7 @@ pub(super) fn validate(
         }
         crate::expression_preparation::source_custody::value_correspondence::validate(
             checked,
-            machine.state,
+            state,
             result.statement_index,
             *leaf,
             *primitive,

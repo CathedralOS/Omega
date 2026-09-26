@@ -50,7 +50,14 @@ pub(super) fn validate<'a>(
                 result,
                 elements,
             } => {
-                scalar_arrays::validate(checked, machine, *source, result, elements)?;
+                scalar_arrays::validate(
+                    checked,
+                    machine.machine,
+                    machine.state,
+                    *source,
+                    result,
+                    elements,
+                )?;
             }
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
                 structural_calls::validate_cleanup(checked, machine, operation_index)?;
