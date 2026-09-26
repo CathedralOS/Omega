@@ -183,6 +183,47 @@ pub(crate) fn admissible_invariant_byte_read(
     .then_some((*source, *index, *length))
 }
 
+/// A `StructuralByteSequenceFieldRead` is the byte family's structural-field
+/// member: the same verifier-approved observation shape a `ByteSequenceRead`
+/// carries — one scalar result, a dynamic `index`, the `length` operand a
+/// length observation defined — but the measured place is the field the
+/// operation's `path` and `field` spell inside `source`, so the coupling a
+/// `ByteSequenceLength` provides for a whole-root read is instead a
+/// `StructuralByteSequenceFieldLength` on the same `source`, `path`, and
+/// `field`. The node must keep its own operation identity as the first
+/// provenance row, define exactly one result, use exactly its `index` and
+/// `length` operands in operand order, and carry no successors or ownership
+/// events. `path` and `field` are not operand positions — they stay
+/// byte-exact inside the moved operation, as does the bounds obligation the
+/// index proof produced — and since that obligation's accepted fact is
+/// recorded over the `index`/`length` operand identities, both are
+/// proposition-pinned: [`invariant_field_byte_read_admission`] requires them
+/// to stay byte-exact where a whole-root read would substitute. Root
+/// invariance and preheader visibility are decided by the shared
+/// [`invariant_observation_root`] resolution.
+pub(crate) fn admissible_invariant_field_byte_read(
+    node: &OptimizationNode,
+) -> Option<(PlaceId, ValueId, ValueId)> {
+    let O::StructuralByteSequenceFieldRead {
+        psi_operation,
+        source,
+        index,
+        length,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.len() == 1
+        && node.uses.len() == 2
+        && node.uses[0].value == *index
+        && node.uses[1].value == *length
+        && node.successors.is_empty()
+        && node.ownership.is_empty())
+    .then_some((*source, *index, *length))
+}
+
 /// A `ByteSequenceSubslice` is the structural-producing member of the byte
 /// observation family: still a verifier-approved read of an established
 /// storage root's extent, but it additionally evaluates two scalar endpoints,

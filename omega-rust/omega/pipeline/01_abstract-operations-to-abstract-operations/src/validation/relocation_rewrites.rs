@@ -443,6 +443,12 @@ pub(crate) fn substitute_invariant_scalar_operands(
             substitute(index, substitution);
             substitute(length, substitution);
         }
+        // A relocated field byte read deliberately takes no operand
+        // substitution: its `index` and `length` identities are part of the
+        // accepted bounds fact recorded for the operation, so the moved
+        // operation keeps them byte-exact — admission already required each
+        // to be a result the same run preserves. Only its `source` root
+        // moves, through `substitute_invariant_place_root`.
         // A relocated subslice rebinds `start`, `end`, and `length` the same
         // way; its `source` root moves through `substitute_invariant_place_root`
         // while its structural result place and obligation stay byte-exact.
@@ -525,12 +531,14 @@ pub(crate) fn substitute_invariant_scalar_operands(
 }
 
 /// Rewrite the observed storage root of an admitted place observation, byte
-/// read, or subslice from an invariant member parameter to its agreed
-/// representative. Only the variants [`admissible_invariant_place_read`],
-/// [`admissible_invariant_byte_read`], and [`admissible_invariant_subslice`]
-/// admit carry a `source` root position; the rewrite fires only when the
-/// operation's current root is `parameter`, so a drifted plan cannot rebind a
-/// different place. Returns whether the root was rebound.
+/// read, field byte read, or subslice from an invariant member parameter to
+/// its agreed representative. Only the variants
+/// [`admissible_invariant_place_read`], [`admissible_invariant_byte_read`],
+/// [`admissible_invariant_field_byte_read`], and
+/// [`admissible_invariant_subslice`] admit carry a `source` root position;
+/// the rewrite fires only when the operation's current root is `parameter`,
+/// so a drifted plan cannot rebind a different place. Returns whether the
+/// root was rebound.
 pub(crate) fn substitute_invariant_place_root(
     operation: &mut O,
     parameter: PlaceId,
@@ -543,6 +551,7 @@ pub(crate) fn substitute_invariant_place_root(
         | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
+        | O::StructuralByteSequenceFieldRead { source, .. }
         | O::BooleanStructuralField { source, .. }
         | O::IntegerStructuralField { source, .. } => source,
         _ => return false,
