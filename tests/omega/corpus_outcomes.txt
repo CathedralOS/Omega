@@ -139,19 +139,23 @@ fail/build/build_machine_wrong_arity rejected 1ms expected
 	tests/omega/fail/build/build_machine_wrong_arity/build.omg: invalid project build declaration: package build machine must have exactly one parameter: `builder: &mut Build`
 fail/build/duplicate_program_entry_binding rejected 5ms expected
 	root slot `windows_x86_64::ProgramEntry` is already bound to `Main::main`; it cannot also bind `Main::main`
-fail/build/hosted_program_entry_visible_parameter checked 75ms
+fail/build/hosted_program_entry_visible_parameter rejected 450ms expected
+	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
 fail/build/program_entry_binding_outside_build rejected 1ms expected
 	root binding requires a compiler-issued &mut Build receiver
 fail/build/program_entry_receiver_not_zii rejected 12ms expected
 	reading `self.launch_count` crosses an open default-domain invariant window before data `Application` is established: the zeroed representation is not yet a `Application` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 	data `Application`'s default domain is still FALSE at state exit: the invariant window opened on `self` must close first -- restore the `where` facts before this consumption point (ch11)
 	exact arithmetic in machine `Application::launch` state `launch` assignment may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
-fail/build/program_entry_returns_value checked 65ms
+fail/build/program_entry_returns_value rejected 445ms expected
+	entry machine `launch` returns a value, but `ProgramEntry` has no result
 fail/build/static_machine_parameter_contract_mismatch rejected 5ms expected
 	machine argument `wrong_width` for `apply` does not refine `F`: parameter 0 expects `u16`, got `u32`
 	machine argument `wrong_width` for `apply` does not refine `F`: expected return `u16`, got `u32`
-fail/build/uefi_program_entry_missing_storage_roots checked 72ms
-fail/build/uefi_program_entry_wrong_calling_policy checked 737ms
+fail/build/uefi_program_entry_missing_storage_roots rejected 448ms expected
+	target schema `ProgramStorageApplication` exposes exactly image and initial-storage roots, but `launch` declares 0 visible parameters
+fail/build/uefi_program_entry_wrong_calling_policy rejected 464ms unexpected
+	target root slot `uefi_x86_64::ProgramEntry` requires exactly one loaded `UefiApplication` boundary schema, but found 2
 fail/calls/discarded_call_result rejected 1ms expected
 	call to `roll` discards its non-unit `bool` result; consume the value or discard it explicitly with `_ = roll(...);`
 fail/calls/duplicate_named_machine_overload_rejected rejected 0ms expected
@@ -584,7 +588,8 @@ fail/parse/machine_clause_garbage_rejected rejected 0ms expected
 	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:31: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
 fail/parser/nesting_exceeds_max_depth rejected 1ms expected
 	tests/omega/fail/parser/nesting_exceeds_max_depth/main.omg:7:1070: expression or type nesting is too deep (exceeds the maximum of 1024 levels)
-fail/ports/asm_port_in_unsettled checked 65ms
+fail/ports/asm_port_in_unsettled rejected 695ms expected
+	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: target state, statement 0)") })
 fail/proofs/accepted_axiom_engine_veto rejected 57ms expected
 	accepted boundary machine `false_axiom` claims `Nat == Nat`, which the engine REFUTES structurally -- a refutable statement is a compile error, grants notwithstanding (chapter 10 engine veto)
 fail/proofs/accumulator_guarantee_unbounded_formals rejected 23ms expected
