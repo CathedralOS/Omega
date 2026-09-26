@@ -52,6 +52,7 @@ mod arrays;
 mod diagnostics;
 mod expressions;
 mod facts;
+pub(crate) use facts::enter_root_currency_scope;
 mod guards;
 mod proofs;
 pub(crate) mod types;
