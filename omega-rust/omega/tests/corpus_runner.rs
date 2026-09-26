@@ -193,11 +193,13 @@ fn interpret_fixture(root_path: &Path, fixture_dir: &Path) -> Vec<String> {
         return vec!["interpreter:unchecked".to_owned()];
     };
     let stdin = fs::read(fixture_dir.join("input.txt")).unwrap_or_default();
-    let outcome = checked_interpreter::interpret_entry(
+    let outcome = omega::checked_interpreter::interpret_entry(
         &checked,
-        checked_interpreter::BuildMachineEntry::Symbol(entry.source_signature().machine_symbol()),
+        omega::checked_interpreter::BuildMachineEntry::Symbol(
+            entry.source_signature().machine_symbol(),
+        ),
         &stdin,
-        checked_interpreter::InterpretOptions::default(),
+        omega::checked_interpreter::InterpretOptions::default(),
     );
     if outcome.error.is_some() {
         return vec!["interpreter:declined".to_owned()];

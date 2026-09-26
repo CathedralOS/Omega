@@ -53,7 +53,7 @@ pub(super) fn guarded_slice_tail_call<'a>(
     let TransitionGuardNode::When(guard) = transition.guard else {
         return false;
     };
-    if !crate::validation::slice_tail_strictly_decreases_with_bound_lookup(
+    if !crate::validation::proof_contracts::slice_ranking::slice_tail_strictly_decreases_with_bound_lookup(
         program,
         guard,
         argument,

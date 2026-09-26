@@ -1152,10 +1152,10 @@ fn only_plain_semantic_edges_carry_the_member() {
         };
         successor.structural_case = Some(
             target_operations_to_selected_instructions::SelectedStructuralCaseEdge {
-                source: target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
+                source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
                     slot: target_operations_to_selected_instructions::LocalStorageSlotId::Spill {
-                        register: R_BOUND,
-                    },
+                    register: R_BOUND,
+                }
                 },
                 case: StructuralCaseId::new(1).unwrap(),
                 case_tag: 0,
@@ -1235,8 +1235,8 @@ fn only_plain_semantic_edges_carry_the_member() {
             _ => unreachable!(),
         };
         successor.structural_case = Some(target_operations_to_selected_instructions::SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
-                slot: target_operations_to_selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
+            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: target_operations_to_selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND }
             },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,

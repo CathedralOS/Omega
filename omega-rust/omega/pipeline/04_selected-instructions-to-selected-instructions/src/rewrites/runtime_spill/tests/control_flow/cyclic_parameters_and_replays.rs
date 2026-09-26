@@ -367,7 +367,7 @@ fn case_payload_parameter_and_unmaterialized_references_remain_outside_spill_adm
             unreachable!()
         };
         successor.structural_case = Some(SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
+            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::Boundary {
                     operation: OperationId::new(1).unwrap(),
                 },

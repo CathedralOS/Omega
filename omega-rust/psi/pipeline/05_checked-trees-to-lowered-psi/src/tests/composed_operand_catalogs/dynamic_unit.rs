@@ -3,7 +3,7 @@ use super::{
     CheckedTrees, DYNAMIC_CONTINUATION_SOURCE, LoweredPsi, OperationKind, Terminator,
     checked_source_with_core_service, lower_machine, roundtrip,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };

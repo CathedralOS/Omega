@@ -1,11 +1,11 @@
 //! Structural Unit cleanup regression families.
 
 use super::{CheckedTrees, LoweringError, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::unit::unit_cleanup::{
     lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_psi::{
     OperationKind, StructuralFieldType, StructuralPathSegment, StructuralTypeShape, Terminator,
 };

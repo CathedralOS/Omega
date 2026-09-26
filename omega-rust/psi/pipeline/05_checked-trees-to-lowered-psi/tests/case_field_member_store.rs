@@ -3,12 +3,13 @@
 //! parameter. The store lowers through a structural leaf copy plus the
 //! destination's window move/store pair, and the produced artifact verifies.
 use checked_trees_to_lowered_psi::*;
-use lowered_psi_to_terminal_psi::terminal_production;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn produce(source: &str, machine: &str) -> Result<(), String> {
     let checked = crate::front_end::checked_program(source);
-    match terminal_production::TerminalProductionRequest::new(
+    match lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name(machine),
     )

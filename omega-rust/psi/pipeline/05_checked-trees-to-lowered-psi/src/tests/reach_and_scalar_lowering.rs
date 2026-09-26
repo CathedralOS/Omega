@@ -1,13 +1,13 @@
 use super::{assert_source_direct_float_result, checked_float_projection_source};
+use crate::TerminalMachineSelection;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
+use crate::lower_machine;
 use crate::proofs::crash_routes::checked_boolean_proposition;
 use crate::retention::conformance_applications::lower_closed_conformance_applications;
 use crate::scalar_graph::shared_runtime_parameters::normalize_shared_boolean_comparison_leaves;
 use crate::terminal_identities::{operation_id, service_id, value_id};
 use crate::unit::attached_unit::lower_root_service_reach;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use checked_trees_to_lowered_psi::lower_machine;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::integer_policy::IntegerPolicyPrimitive;
 use semantic_vocabulary::{IeeeFloatFormat, Proposition, PropositionContext, ScalarType};
@@ -282,7 +282,7 @@ fn direct_float_result_proof_only_contract_rejects_additional_value_clauses() {
     // the closed-literal contract shape is ever selected.
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("result")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "scalar contract contains an unsupported clause"
         ))
     ));

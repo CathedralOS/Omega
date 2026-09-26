@@ -1,6 +1,6 @@
 use super::service_names;
+use crate::TerminalMachineSelection;
 use crate::tests::lower_machine;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };

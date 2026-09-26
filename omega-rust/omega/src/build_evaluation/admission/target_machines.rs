@@ -52,7 +52,7 @@ use tokens_to_syntax_trees::syntax_trees::item::Item;
 /// consumes it exactly once when rebinding the corresponding typed machines.
 /// Each retained name carries its declaring source so two checked instances
 /// of one path rebind to their own typed machine rather than colliding.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SelectedTargetMachineDeclarations {
     provider_default_machine_names: Vec<(String, source::SourceId)>,
     selected_machine_origins: Vec<(String, String, source::SourceId)>,
@@ -73,19 +73,11 @@ struct TargetMachineOrigin {
     selected: bool,
 }
 
-/// The selected target per dependency scope. Product scope selects each
-/// family's canonical body (the first recognized target in name order), so the
-/// frontend is the same program for every realized target; the realized
-/// target's body replaces it before checking
-/// (`SelectedTargetMachineDeclarations::select_product_target`).
+/// The selected target per dependency scope.
 struct ScopeTargets<'a> {
-    product: ProductSelection,
+    product: NativeTarget,
     execution: NativeTarget,
     build_scope_sources: &'a HashSet<source::SourceId>,
-}
-
-enum ProductSelection {
-    Canonical(BTreeMap<String, String>),
 }
 
 impl ScopeTargets<'_> {
@@ -109,11 +101,9 @@ impl ScopeTargets<'_> {
         machine: &tokens_to_syntax_trees::syntax_trees::item::Machine,
         target: &str,
     ) -> bool {
-        let scope_target = match (self.scope_of(machine), &self.product) {
-            (source::DependencyScope::Build, _) => self.execution,
-            (source::DependencyScope::Product, ProductSelection::Canonical(canonical)) => {
-                return canonical.get(machine.name.as_str()).map(String::as_str) == Some(target);
-            }
+        let scope_target = match self.scope_of(machine) {
+            source::DependencyScope::Build => self.execution,
+            source::DependencyScope::Product => self.product,
         };
         NativeTarget::from_omega_target_name(Some(target))
             .is_ok_and(|resolved| resolved == scope_target)
@@ -164,17 +154,13 @@ impl SelectedTargetMachineDeclarations {
         syntax: &mut SyntaxTrees,
         target_name: Option<&str>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        // Generated source is product source: like the base, it selects each
-        // family's canonical body, and the realized target's body replaces it
-        // before checking. The target is only validated here.
+        // Generated source is product source: it selects against the
+        // product target only.
         let selected = NativeTarget::from_omega_target_name(target_name)
             .map_err(|diagnostic| vec![diagnostic])?;
         let no_build_scope = HashSet::new();
         let scopes = ScopeTargets {
-            product: ProductSelection::Canonical(canonical_product_targets(
-                syntax,
-                &no_build_scope,
-            )),
+            product: selected,
             execution: selected,
             build_scope_sources: &no_build_scope,
         };
@@ -279,13 +265,6 @@ impl SelectedTargetMachineDeclarations {
         Ok(())
     }
 
-    /// Replace each product-scope family's canonical body with `target`'s own
-    /// body before checking: calls that resolved to the canonical body move to
-    /// the target's sibling, which loses its sibling marker and so brings its
-    /// own conformances into selection, while the canonical body becomes that
-    /// target's sibling. A family implemented by two or more targets but not by
-    /// `target` rejects; a single-target helper for another target stays an
-    /// inert sibling with its callers.
     pub fn select_product_target(
         &mut self,
         typed: &mut TypedTrees,
@@ -548,54 +527,18 @@ pub fn filter_target_machines_by_scope(
     execution_profile_name: Option<&str>,
     build_scope_sources: &HashSet<source::SourceId>,
 ) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {
-    // The product target no longer selects before resolution; it is still
-    // validated here so an unknown spelling rejects at admission.
-    NativeTarget::from_omega_target_name(product_target_name)
+    let product = NativeTarget::from_omega_target_name(product_target_name)
         .map_err(|diagnostic| vec![diagnostic])?;
     let execution = NativeTarget::from_omega_target_name(execution_profile_name)
         .map_err(|diagnostic| vec![diagnostic])?;
     let scopes = ScopeTargets {
-        product: ProductSelection::Canonical(canonical_product_targets(
-            syntax,
-            build_scope_sources,
-        )),
+        product,
         execution,
         build_scope_sources,
     };
     let origins = target_machine_origins(syntax, &scopes);
     validate_target_machine_origins(&origins)?;
     Ok(select_target_machines(syntax, &scopes, origins))
-}
-
-/// Each product-scope family's canonical target: the first recognized target
-/// in name order among its bodies.
-fn canonical_product_targets(
-    syntax: &SyntaxTrees,
-    build_scope_sources: &HashSet<source::SourceId>,
-) -> BTreeMap<String, String> {
-    let mut canonical: BTreeMap<String, String> = BTreeMap::new();
-    for item in syntax.root_items() {
-        let Item::Machine(machine) = item else {
-            continue;
-        };
-        let Some(target) = &machine.target else {
-            continue;
-        };
-        if build_scope_sources.contains(&machine.name.source_span().source_id)
-            || NativeTarget::from_omega_target_name(Some(target.as_str())).is_err()
-        {
-            continue;
-        }
-        canonical
-            .entry(machine.name.as_str().to_owned())
-            .and_modify(|current| {
-                if target.as_str() < current.as_str() {
-                    *current = target.as_str().to_owned();
-                }
-            })
-            .or_insert_with(|| target.as_str().to_owned());
-    }
-    canonical
 }
 
 fn target_machine_origins(
@@ -748,14 +691,6 @@ fn select_target_machines(
     )
 }
 
-/// A surviving caller of a body this target does not realize.
-///
-/// A family implemented only by other targets keeps its declaration as an
-/// inert sibling with its callers, so the call still resolves. Nothing then
-/// realizes the callee: checking accepts the program and the closure refuses
-/// at `Legs::bump::linux_x86_64 ... selects no terminal machine for it`,
-/// past `omega --check`. A caller that is itself scoped to the sibling's
-/// target goes inert with it and is not reported.
 fn reject_inert_sibling_callers(
     typed: &TypedTrees,
     target: NativeTarget,
@@ -1014,8 +949,7 @@ fn collect_expression_callees(
 #[cfg(test)]
 mod tests {
     use super::{
-        Diagnostic, NativeTarget, SelectedTargetMachineDeclarations, filter_target_machines,
-        filter_target_machines_by_scope,
+        SelectedTargetMachineDeclarations, filter_target_machines, filter_target_machines_by_scope,
     };
     use std::collections::HashSet;
 
@@ -1065,119 +999,22 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(selected_markers, vec![None, Some("windows_x86_64".into())]);
 
-        // The same declarations as product scope select the family's
-        // canonical body (the first target in name order) for every product
-        // target; the realized target's body replaces it before checking.
+        // The same declarations as product scope keep the product rule: a
+        // contract name implemented only by foreign targets is the loud edge.
         let mut product = syntax(7, HELPER);
-        let retained = filter_target_machines_by_scope(
+        let diagnostics = filter_target_machines_by_scope(
             &mut product,
             Some("linux_x86_64"),
             Some("macos_arm64"),
             &HashSet::new(),
         )
-        .expect("product-scope declarations select the canonical body");
-        assert_eq!(
-            retained.selected_machine_origins,
-            vec![(
-                "Tool::probe".into(),
-                "macos_arm64".into(),
-                source::SourceId(7)
-            )]
+        .expect_err("product-scope declarations still select against the product target");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("machine `Tool::probe` has no implementation for the selected target"),
+            "{diagnostics:?}"
         );
-    }
-
-    /// A build for one target keeps a family declared only for another as an
-    /// inert sibling, and the call into it still resolves. A caller that
-    /// survives the selection must not be left calling a body nothing
-    /// realizes.
-    fn inert_sibling_selection(text: &str) -> Result<(), Vec<Diagnostic>> {
-        let mut sources = source::SourceMap::default();
-        let source_id = sources
-            .add(std::path::PathBuf::from("sibling.omg"), text.to_owned())
-            .source_id;
-        let mut syntax = syntax(source_id.0, text);
-        let mut selected = filter_target_machines_by_scope(
-            &mut syntax,
-            Some("macos_arm64"),
-            Some("macos_arm64"),
-            &HashSet::new(),
-        )
-        .expect("target machines select");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
-                sources: Some(std::sync::Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-            },
-        )
-        .expect("resolve sibling fixture");
-        let mut typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                .expect("type sibling fixture");
-        selected.select_product_target(&mut typed, NativeTarget::macos_arm64())
-    }
-
-    #[test]
-    fn an_unscoped_caller_of_a_foreign_only_machine_rejects() {
-        let diagnostics = inert_sibling_selection(
-            "data Legs { count: i32 in Wrapping; }\n\
-             linux_x86_64 machine Legs::bump(&mut self) { self.count = self.count + 1; }\n\
-             data Rack { legs: Legs; }\n\
-             machine Rack::run(&mut self) { self.legs.bump(); }",
-        )
-        .expect_err("a surviving caller of an unrealized body must reject");
-        let rendered = diagnostics
-            .iter()
-            .map(|diagnostic| diagnostic.message.clone())
-            .collect::<Vec<_>>()
-            .join("\n");
-        for expected in ["Legs::bump", "linux_x86_64", "macos_arm64", "Rack::run"] {
-            assert!(
-                rendered.contains(expected),
-                "refusal should name {expected}: {rendered}"
-            );
-        }
-    }
-
-    /// The value-call spelling reaches the same unrealized body as a
-    /// statement-position call. A walk keyed on `StatementNode::Call` alone
-    /// saw nothing here, so the call site vanished with its filtered callee
-    /// and the initializer silently kept the ZII zero.
-    #[test]
-    fn a_value_call_into_a_foreign_only_machine_rejects() {
-        let diagnostics = inert_sibling_selection(
-            "data Legs { count: i32; }\n\
-             linux_x86_64 machine Legs::measure(&self) -> i32 { transition { _ -> 1 } }\n\
-             data Rack { legs: Legs; total: i32; }\n\
-             machine Rack::run(&mut self) { let n: i32 = self.legs.measure(); self.total = n; }",
-        )
-        .expect_err("a value call into an unrealized body must reject");
-        let rendered = diagnostics
-            .iter()
-            .map(|diagnostic| diagnostic.message.clone())
-            .collect::<Vec<_>>()
-            .join("\n");
-        for expected in ["Legs::measure", "linux_x86_64", "macos_arm64", "Rack::run"] {
-            assert!(
-                rendered.contains(expected),
-                "refusal should name {expected}: {rendered}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_caller_scoped_to_the_same_foreign_target_goes_inert_with_it() {
-        // The filter's own rule: a name implemented by one foreign target is
-        // that target's internal and is filtered with its callers. A caller
-        // scoped to the same target is one of those callers, so it is not a
-        // survivor and must not be reported.
-        inert_sibling_selection(
-            "data Legs { count: i32 in Wrapping; }\n\
-             linux_x86_64 machine Legs::bump(&mut self) { self.count = self.count + 1; }\n\
-             data Rack { legs: Legs; }\n\
-             linux_x86_64 machine Rack::run(&mut self) { self.legs.bump(); }",
-        )
-        .expect("a caller scoped to the callee's own target is inert with it");
     }
 
     #[test]
@@ -1382,6 +1219,23 @@ mod tests {
     }
 
     #[test]
+    fn generated_extension_completes_missing_target_validation_across_base_stratum() {
+        let mut base = syntax(0, "windows_x86_64 machine Missing::value() -> u64 { 1 }\n");
+        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
+            .expect("one foreign-only base row remains an inert target-local helper");
+        let mut extension = syntax(1, "macos_arm64 machine Missing::value() -> u64 { 2 }\n");
+
+        let diagnostics = retained
+            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
+            .expect_err("base and generated rows must form one portable target cohort");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("no implementation"));
+        assert!(diagnostics[0].message.contains("macos_arm64"));
+        assert!(diagnostics[0].message.contains("windows_x86_64"));
+    }
+
+    #[test]
     fn generated_units_reject_a_duplicate_selected_target_row() {
         let mut base = syntax(0, "const BASE: u64 = 1;\n");
         let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
@@ -1397,5 +1251,24 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].message.contains("implemented twice"));
         assert!(diagnostics[0].message.contains("Duplicate::value"));
+    }
+
+    #[test]
+    fn generated_units_reject_a_portable_cohort_missing_the_selected_target() {
+        let mut base = syntax(0, "const BASE: u64 = 1;\n");
+        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
+            .expect("base has no target rows");
+        let mut extension = syntax(1, "windows_x86_64 machine Missing::value() -> u64 { 2 }\n");
+        let second = syntax(2, "macos_arm64 machine Missing::value() -> u64 { 3 }\n");
+        extension.extend_from(&second);
+
+        let diagnostics = retained
+            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
+            .expect_err("generated units must expose a complete target cohort");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("no implementation"));
+        assert!(diagnostics[0].message.contains("macos_arm64"));
+        assert!(diagnostics[0].message.contains("windows_x86_64"));
     }
 }

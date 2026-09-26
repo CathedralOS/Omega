@@ -4,7 +4,7 @@
 //! Each program executes the published artifact after independent checking.
 
 use super::lower_machine;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -620,6 +620,6 @@ fn a_guarantee_no_shared_exit_fact_proves_stops_lowering() {
     state_graph(&checked, "split");
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("split")),
-        Err(checked_trees_to_lowered_psi::LoweringError::OperationProofUnavailable(_))
+        Err(crate::LoweringError::OperationProofUnavailable(_))
     ));
 }

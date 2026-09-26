@@ -1,6 +1,6 @@
 //! A case actual retains its constructor and each authored payload occurrence.
 use super::lower_machine;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -171,7 +171,7 @@ fn ordered_structural_constructor_replays_guards_fallback_and_exact_values() {
                 &changed,
                 TerminalMachineSelection::Name("MemoryAlignment::from")
             ),
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+            Err(crate::LoweringError::Unsupported(
                 "composed Unit attachment disagrees with its authored owner"
             ))
         ),

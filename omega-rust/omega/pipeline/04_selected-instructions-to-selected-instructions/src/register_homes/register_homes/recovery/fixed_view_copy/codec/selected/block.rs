@@ -436,17 +436,7 @@ fn decode_case(
         1 => {}
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     }
-    let source = match cursor.byte()? {
-        0 => target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
-            slot: super::structural::decode_local_slot(cursor)?,
-        },
-        1 => target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Borrowed {
-            place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
-            pointer: VirtualRegisterId(cursor.u32()?),
-            byte_size: cursor.u32()?,
-        },
-        tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
-    };
+    let slot = super::structural::decode_local_slot(cursor)?;
     let case = decode_id(cursor, semantic_vocabulary::StructuralCaseId::new)?;
     let case_tag = i32::from_le_bytes(cursor.array()?);
     let count = cursor.length()?;
@@ -486,7 +476,7 @@ fn decode_case(
     }
     Ok(Some(
         target_operations_to_selected_instructions::SelectedStructuralCaseEdge {
-            source,
+            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local { slot },
             case,
             case_tag,
             payloads,

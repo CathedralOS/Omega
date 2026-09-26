@@ -1,11 +1,11 @@
 use super::{checked_public_reach_wrapper, reach_fixture, service_names, summary};
+use crate::TerminalMachineSelection;
 use crate::terminal_identities::service_id;
 use crate::tests::{LoweringError, lower_machine};
 use crate::unit::attached_unit::{
     collect_contract_services, collect_published_contract_services, lower_contract_service_ceiling,
     lower_published_service_ceiling, lower_root_service_reach,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::{ServiceReachInterface, ServiceReachPlan};
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,

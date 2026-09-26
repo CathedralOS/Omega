@@ -3,12 +3,14 @@
 use crate::validation::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbols::SymbolHandle;
+
+use crate::validation::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
 use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode,
 };
 use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
 use symbol_resolved_trees_to_typed_trees::typed_trees::types::{PrimitiveType, TypeReferenceNode};
-use symbols::SymbolHandle;
 
 /// A taken nonempty-slice guard makes its exact parameter's `start..` tail
 /// strictly shorter whenever `start` is provably positive and the guard proves
@@ -69,11 +71,7 @@ pub fn slice_tail_strictly_decreases_with_bound_lookup<'p>(
     // above reject most selectors before it is needed.
     let Some(start) = tail_bound(
         program,
-        bound_lookup.get_or_insert_with(|| {
-            crate::validation::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(
-                program,
-            )
-        }),
+        bound_lookup.get_or_insert_with(|| ImmutableBoundLookup::new(program)),
         range.start,
     ) else {
         return false;
@@ -111,9 +109,7 @@ pub fn slice_tail_strictly_decreases_with_bound_lookup<'p>(
         && names_parameter(program, length.receiver, parameter)
         && tail_bound(
             program,
-            bound_lookup.get_or_insert_with(|| {
-                crate::validation::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program)
-            }),
+            bound_lookup.get_or_insert_with(|| ImmutableBoundLookup::new(program)),
             binary.right,
         )
         .is_some_and(|bound| bound_ordering_at_least(program, bound, start, bonus))

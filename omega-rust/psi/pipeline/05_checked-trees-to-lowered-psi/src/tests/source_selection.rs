@@ -1,12 +1,12 @@
 //! Source closure ownership travels with the selected lowering result.
 
 use super::lower_machine;
+use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch::{lower_selected_machine, select_terminal_machine};
 use crate::producer_result::{
     DebugPublication, OperandProofCompletion, SourceMappedLowered, SourceMapping,
 };
 use crate::scalar_graph::scalar_call_closure;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[test]
 fn scalar_selection_returns_the_source_closure_used_to_emit_its_catalog() {
     let checked = crate::front_end::checked_program(

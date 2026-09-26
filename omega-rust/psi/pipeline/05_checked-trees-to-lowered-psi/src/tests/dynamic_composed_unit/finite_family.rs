@@ -13,8 +13,8 @@ use super::{
     REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE, assert_dynamic_unit_artifact_executes,
     unsupported_message,
 };
+use crate::TerminalMachineSelection;
 use crate::tests::lower_machine;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };

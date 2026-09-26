@@ -1,6 +1,6 @@
 use super::{DIRECT_DYNAMIC_SOURCE, DIRECT_DYNAMIC_UNIT_SOURCE};
+use crate::TerminalMachineSelection;
 use crate::tests::lower_machine;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };

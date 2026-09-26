@@ -1,9 +1,9 @@
 use super::lower_machine;
+use crate::TerminalMachineSelection;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::scalar_graph_lowering::prepare_scalar_graph_machine;
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
 use crate::terminal_identities::machine_id;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };

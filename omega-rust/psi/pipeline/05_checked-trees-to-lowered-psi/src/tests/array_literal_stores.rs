@@ -3,7 +3,7 @@
 //! its complete, ordered element roster.
 
 use super::lower_machine;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use terminal_psi::OperationKind;
 use typed_trees_to_checked_trees::checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 

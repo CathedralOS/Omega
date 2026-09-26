@@ -1,7 +1,7 @@
 //! Pre-Terminal Psi optimization entrance regressions.
 use super::{ScalarType, TerminalMachineResult, hard_root_checked_fixture, lower_machine};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
+use crate::TerminalMachineSelection;
+use crate::lowered_psi::LoweredPsi;
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
 use semantic_vocabulary::{IntegerValue, ObligationId, OperationId, Proposition, ValueId};

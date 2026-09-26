@@ -19,6 +19,7 @@
 use super::{AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target::control_flow::sources::dominates;
+use crate::legalized_operations;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
 
@@ -191,17 +192,15 @@ fn root_type(
                 operation,
                 result,
             } => (operation, result),
-            crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+            legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                 block: owner,
                 declaration,
             } => {
                 return (owner == block || dominates(function, owner, block))
                     .then_some(declaration.structural_type);
             }
-            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
-                ..
-            } => {
+            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
                 return None;
             }
         }

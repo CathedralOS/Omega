@@ -9,7 +9,7 @@
 //! is the shape the run canaries exercise.
 
 use super::{checked_source_with_core_service, lower_machine};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use terminal_psi::{OperationKind, StructuralAccess};
 
 /// A multi-state caller calls a value method on its whole receiver and

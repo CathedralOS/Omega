@@ -5,6 +5,7 @@ use super::{
     TargetOperationPlan, ValueDefinitionSite, ValueShape, evaluate_call_plan, scalar_shape,
 };
 use crate::LegalizationError;
+use crate::legalized_operations;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
 
@@ -274,10 +275,10 @@ pub(super) fn cleanup(
                     && declaration.qualifications.is_empty()
                     && declaration.projected_qualifications.is_empty()
             }
-            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
-                ..
-            } => false,
+            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
+                false
+            }
         })
     };
     actions.iter().all(|action| {
@@ -794,10 +795,8 @@ pub(super) fn result_home(
             )
         }
         // A function parameter is an arrival, not an activation-local home.
-        crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-        | crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
-            ..
-        } => {
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+        | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
             return Err(LegalizationError::custody());
         }
     };

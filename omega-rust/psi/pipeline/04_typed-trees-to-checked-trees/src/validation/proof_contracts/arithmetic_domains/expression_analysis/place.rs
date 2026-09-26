@@ -95,9 +95,9 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     // projection (`cells[k].v`) resolves the field's own declared type, so the
     // collection domain applies only to a direct `Indexed` leaf.
     let domain = match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::Indexed(indexed)
-            if domain == ArithmeticDomain::Exact =>
-        {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Indexed(
+            indexed,
+        ) if domain == ArithmeticDomain::Exact => {
             declared_place_type_raw(program, walk.machine, walk.state, indexed.collection)
                 .map(|collection| program.arithmetic_domain_for_type_reference(collection))
                 .filter(|collection_domain| *collection_domain != ArithmeticDomain::Exact)

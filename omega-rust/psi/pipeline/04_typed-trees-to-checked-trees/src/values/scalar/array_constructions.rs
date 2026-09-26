@@ -145,8 +145,11 @@ pub(crate) fn call_array_constructions_in(
             if parameter.is_self
                 || parameter.is_const
                 || parameter.is_mutable
-                || !validation::is_closed_primitive_array_type(program, parameter.type_reference)
-                || validation::scalar_array_elements(
+                || !crate::validation::is_closed_primitive_array_type(
+                    program,
+                    parameter.type_reference,
+                )
+                || crate::validation::scalar_array_elements(
                     program,
                     machine.symbol,
                     *expression,

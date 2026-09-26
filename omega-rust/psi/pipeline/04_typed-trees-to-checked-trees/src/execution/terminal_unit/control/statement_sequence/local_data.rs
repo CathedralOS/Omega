@@ -460,10 +460,10 @@ pub(super) fn plan(
 /// loaned storage either way.
 fn is_exclusive_place_loan(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
-    local: &typed_trees::statement::TableLocalData,
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
 ) -> bool {
     exclusive_place_loan_referent(
         program,
@@ -477,10 +477,10 @@ fn is_exclusive_place_loan(
 
 fn exclusive_place_loan_referent(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
-    local: &typed_trees::statement::TableLocalData,
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
 ) -> Option<()> {
     let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
     else {

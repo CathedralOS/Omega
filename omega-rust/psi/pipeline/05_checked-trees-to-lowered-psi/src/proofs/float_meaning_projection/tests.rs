@@ -11,7 +11,7 @@ use super::{
     lower_float_meaning_projection, rejoin_float_semantic_applications,
     resolve_direct_float_source_binding,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use numerics::float_projection::FloatProjectionOperation;
 use source::{SourceMap, SourceOrigin};
 use std::path::PathBuf;
@@ -1043,11 +1043,8 @@ fn semantic_application_lowers_to_the_terminal_carrier_end_to_end() {
         "#,
     );
     assert_eq!(checked.facts.proof.float_semantic_applications.len(), 1);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("terminal_root"),
-    )
-    .expect("lower semantic fixture");
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("terminal_root"))
+        .expect("lower semantic fixture");
     let projections = &lowered.semantic_module.float_meaning_projections;
     let application_index = projections
         .iter()

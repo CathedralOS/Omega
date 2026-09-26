@@ -322,6 +322,14 @@ impl StagedOptimizedActiveResidentRematerializationPressure {
     ) -> StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
         self.custody
     }
+
+    /// Corrupt the recorded custody receipt so an independent replay must
+    /// reject this prefix; the fixed alternate cannot equal an honest count.
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn corrupt_custody_for_test(&mut self) {
+        self.custody.function_count = usize::MAX;
+    }
 }
 
 /// Custody receipt for the proven rematerialization prefix: every identity

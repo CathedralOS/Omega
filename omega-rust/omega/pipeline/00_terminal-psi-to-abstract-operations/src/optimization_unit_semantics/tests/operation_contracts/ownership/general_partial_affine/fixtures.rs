@@ -391,7 +391,4 @@ pub(super) fn cleanup_actions(
         panic!("fixture ends in a Unit return");
     };
     cleanup_actions
-pub(super) fn source(tree: &Tree, main: &str, build: &str) {
-    package(&tree.path("sources/root"), "policy_fixture", build);
-    fs::write(tree.path("sources/root/main.omg"), main).unwrap();
 }

@@ -1,6 +1,6 @@
 use super::{CheckedTrees, PathBuf, SourceMap, SourceOrigin, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch::select_terminal_machine;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const REACHABLE_PROOF_SCC: &str = r#"
@@ -403,7 +403,7 @@ fn stale_checked_edge_rank_parameter_rejects_before_erasure() {
         symbols::SymbolHandle::invalid();
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::main")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "checked recursive edge rank parameter is stale"
         ))
     ));

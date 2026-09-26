@@ -1,7 +1,7 @@
 //! Scalar prefixes compose with ordinary graph edges and effect sequencing.
 
 use super::{CheckedTrees, lower_machine};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -234,7 +234,7 @@ fn prefixed_control_rejects_scalar_edge_and_topology_corruption() {
     let rejects = |checked: &CheckedTrees| {
         assert!(matches!(
             lower_machine(checked, TerminalMachineSelection::Name("Root::enter")),
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+            Err(crate::LoweringError::Unsupported(_))
         ));
     };
 
@@ -333,7 +333,7 @@ fn multi_prefixed_control_rejects_second_edge_corruption() {
         typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 };
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }
 

@@ -2,11 +2,11 @@
 //! at the exact emitted operation, and every crash-qualified use the closure
 //! cannot carry that way fails closed.
 
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use std::collections::BTreeMap;
 
+use crate::lower_machine;
 use crate::proofs::crash_routes::lower_formal_crash_routes;
-use checked_trees_to_lowered_psi::lower_machine;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType, ValueId,
 };
@@ -84,7 +84,7 @@ const GUARDED_NEGATED_INTEGER_OPERATOR_SOURCE: &str =
 
 /// The block and operation one crash contract row names.
 fn joined_operation<'lowered>(
-    lowered: &'lowered checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+    lowered: &'lowered crate::lowered_psi::LoweredPsi,
     row: &TerminalOperationCrashContract,
 ) -> (&'lowered Block, &'lowered Operation) {
     lowered
@@ -197,7 +197,7 @@ fn a_recaused_site_roster_fails_closed_at_verification() {
     // lowering refuses to attach a roster a receiver would reject.
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("compare")),
-        Err(checked_trees_to_lowered_psi::LoweringError::UndischargedCrashObligations(owners))
+        Err(crate::LoweringError::UndischargedCrashObligations(owners))
             if owners.iter().any(|owner| matches!(
                 owner,
                 terminal_psi::CrashObligationOwner::Continuation {
@@ -306,7 +306,7 @@ fn a_guarded_integer_operator_route_lowers_end_to_end_to_the_row_the_verifier_ac
     };
     assert_eq!(
         occurrence.comparison,
-        checked_trees_to_lowered_psi::lowered_psi::LoweredSelectedIntegerComparisonOperation::Equal
+        crate::lowered_psi::LoweredSelectedIntegerComparisonOperation::Equal
     );
     assert_eq!(occurrence.integer_type, i32_type());
     let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {
@@ -368,11 +368,11 @@ fn a_reordered_greater_route_publishes_the_operations_own_formal_telescope() {
     };
     assert_eq!(
         occurrence.comparison,
-        checked_trees_to_lowered_psi::lowered_psi::LoweredSelectedIntegerComparisonOperation::LessThan
+        crate::lowered_psi::LoweredSelectedIntegerComparisonOperation::LessThan
     );
     assert_eq!(
         occurrence.operand_order,
-        checked_trees_to_lowered_psi::lowered_psi::LoweredSelectedIntegerComparisonOperandOrder::Swapped
+        crate::lowered_psi::LoweredSelectedIntegerComparisonOperandOrder::Swapped
     );
     assert!(!occurrence.negated);
     let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {
@@ -435,11 +435,11 @@ fn a_negated_route_keeps_its_contract_on_the_emitted_comparison() {
     };
     assert_eq!(
         occurrence.comparison,
-        checked_trees_to_lowered_psi::lowered_psi::LoweredSelectedIntegerComparisonOperation::Equal
+        crate::lowered_psi::LoweredSelectedIntegerComparisonOperation::Equal
     );
     assert_eq!(
         occurrence.operand_order,
-        checked_trees_to_lowered_psi::lowered_psi::LoweredSelectedIntegerComparisonOperandOrder::Authored
+        crate::lowered_psi::LoweredSelectedIntegerComparisonOperandOrder::Authored
     );
     assert!(occurrence.negated);
     let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {

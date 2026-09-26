@@ -40,6 +40,21 @@ impl RuntimeSpillAllocation {
     pub(crate) fn recovery_prefix_selection(&self) -> Option<optimization_core::Optimization> {
         self.source.recovery_prefix_selection()
     }
+
+    /// Corrupt the recorded active-resident rematerialization prefix this
+    /// recovery claims, so an independent replay must reject it. Returns
+    /// `false` when the source carried no such prefix.
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn corrupt_active_resident_prefix_custody_for_test(&mut self) -> bool {
+        match &mut self.source {
+            RuntimeSpillSource::ActiveResidentRematerialization(pressure) => {
+                pressure.corrupt_custody_for_test();
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 /// The staged custody a spill recovery began from. The direct route enters

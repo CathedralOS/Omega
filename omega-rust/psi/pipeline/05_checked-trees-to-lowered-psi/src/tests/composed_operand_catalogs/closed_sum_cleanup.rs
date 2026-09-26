@@ -1,6 +1,6 @@
 //! Case selection consumes its subject; ordinary edges own every other local.
 use super::{CLOSED_SUM_UNIT_SOURCE, checked_source_with_core_service, lower_machine, roundtrip};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
 use terminal_psi::{OperationResult, Terminator};
 

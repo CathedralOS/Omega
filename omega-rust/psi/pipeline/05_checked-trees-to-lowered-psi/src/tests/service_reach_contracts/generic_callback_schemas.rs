@@ -1,8 +1,6 @@
 use super::{nominal_schema_forwarding_module, service_names};
 
-use checked_trees_to_lowered_psi::{
-    TerminalMachineSelection, callback_lowering_receipt, lower_machine,
-};
+use crate::{TerminalMachineSelection, callback_lowering_receipt, lower_machine};
 use lowered_psi_to_lowered_psi::run_psi_optimization;
 use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
 use lowered_psi_to_terminal_psi::terminal_production::{

@@ -4,12 +4,12 @@ use super::{
     PermissionClaimIdentity, checked_source_with_core_service, hard_root_checked_fixture,
     lower_machine, unit_claim_at,
 };
+use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::terminal_identities::{
     boundary_machine_id, claim_id, edge_id, machine_id, place_id, service_id, structural_domain_id,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::Multiplicity;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
@@ -512,7 +512,7 @@ fn attached_unit_hard_root_fails_closed_on_missing_transitive_member() {
     assert!(format!("{result:?}").contains("Helper::run"), "{result:?}");
     assert!(matches!(
         result,
-        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
+        Err(crate::LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
             if machine == "Helper::run"
                 && reason == "attached Unit closure is missing a checked transitive machine plan"
     ));
@@ -542,7 +542,7 @@ fn attached_unit_duplicate_plan_names_the_ambiguous_helper() {
         .push(duplicate);
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
+        Err(crate::LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
             if machine == "Helper::run"
                 && reason == "attached Unit closure contains duplicate checked machine plans"
     ));
@@ -565,7 +565,7 @@ fn attached_unit_boundary_rejects_missing_canonical_contract_custody() {
 
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "Unit boundary target is missing its canonical checked contract identity",
         )),
     );
@@ -584,7 +584,7 @@ fn attached_unit_boundary_rejects_compact_equal_commitment_substitution() {
 
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "Unit boundary target contract compatibility coordinate or strong commitment drifted",
         )),
     );
@@ -616,7 +616,7 @@ fn attached_unit_port_write_requires_exact_direct_checked_port_service() {
 
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "port output does not carry the unique exact checked PortIo service"
         ))
     ));

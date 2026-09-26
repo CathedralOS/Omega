@@ -1,8 +1,8 @@
+use crate::TerminalMachineSelection;
+use crate::lower_machine;
 use crate::terminal_identities::service_id;
 use crate::tests::checked_write_line_literal;
 use crate::unit::attached_unit::lower_root_service_reach;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use checked_trees_to_lowered_psi::lower_machine;
 use semantic_vocabulary::{IntegerValue, ScalarType, StructuralPlaceKind, ValueId};
 use terminal_psi::{
     ByteSequenceCarrier, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,

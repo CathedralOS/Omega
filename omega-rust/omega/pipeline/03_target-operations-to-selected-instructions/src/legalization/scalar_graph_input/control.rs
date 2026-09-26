@@ -5,6 +5,7 @@ use super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::value_type;
+use crate::legalized_operations;
 pub(super) fn validate(
     node: &OptimizationNode,
     _body: &[OptimizationNode],
@@ -55,8 +56,8 @@ pub(super) fn validate(
                         ..
                     } => (declaration.structural_type, declaration.multiplicity),
                     // `source_owner` never resolves a function parameter.
-                    crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-                    | crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+                    legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+                    | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
                         ..
                     } => {
                         return Err(LegalizationError::custody());

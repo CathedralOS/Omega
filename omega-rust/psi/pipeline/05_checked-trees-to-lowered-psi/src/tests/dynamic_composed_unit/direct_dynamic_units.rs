@@ -7,9 +7,9 @@ use super::{
     MULTI_HOP_DYNAMIC_UNIT_SOURCE, REBOUND_DYNAMIC_UNIT_SOURCE,
     assert_dynamic_unit_artifact_executes, unsupported_message,
 };
+use crate::TerminalMachineSelection;
 use crate::terminal_identities::value_id;
 use crate::tests::{checked_source_with_core_service, lower_machine};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };

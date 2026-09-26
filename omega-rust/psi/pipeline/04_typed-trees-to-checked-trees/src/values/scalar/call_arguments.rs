@@ -5,7 +5,6 @@ use crate::checked_trees::CheckedScalarExpressionBindings;
 use crate::checked_trees::CheckedScalarExpressionPlans;
 use crate::checked_trees::CheckedScalarExpressionRole;
 use crate::checked_trees::FlowFacts;
-use crate::validation;
 use crate::values::scalar::call_lowering::lower_call_arguments;
 use crate::values::scalar::call_lowering::retain_call_arguments;
 use crate::values::scalar::expression_plans::ScalarLocal;
@@ -43,7 +42,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
     flow: &FlowFacts,
     plans: &mut CheckedScalarExpressionPlans,
     proof_terms: &mut Vec<crate::checked_trees::CheckedLocatedProofTerm>,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -85,7 +84,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
                     })
                     .unwrap_or_default()
                 {
-                    let Some(array) = validation::scalar_array_elements(
+                    let Some(array) = crate::validation::scalar_array_elements(
                         program,
                         machine.symbol,
                         construction.expression,
@@ -372,19 +371,19 @@ pub(crate) fn nested_structural_call_return_type(
             TypeReferenceNode::Unit
         )
         && ((program.type_multiplicity(return_type) == language_semantics::Multiplicity::Affine
-            && (validation::has_plain_owned_contents(program, return_type)
+            && (crate::validation::has_plain_owned_contents(program, return_type)
                 // A checked-body record carrying borrowed referents is affine
                 // through its captured leaf loans; the caller's own operand
                 // scheduling still has to replay that custody exactly.
                 || (ordinary
-                    && validation::reference_result_custody::is_reference_record(
+                    && crate::validation::reference_result_custody::is_reference_record(
                         program,
                         return_type,
                     ))))
             || (ordinary
                 && program.type_multiplicity(return_type)
                     == language_semantics::Multiplicity::Unrestricted
-                && (validation::has_plain_owned_contents(program, return_type)
+                && (crate::validation::has_plain_owned_contents(program, return_type)
                     // A checked-body `&[u8]`/`&'a V` borrowed-view result
                     // lends caller-frame storage through a shared loan;
                     // the caller's operand scheduling replays that custody
