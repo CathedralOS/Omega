@@ -3902,7 +3902,30 @@ syntax and other terminal services are not prerequisites.
   Consolidate receiver and named mutable-argument domain obligations across
   call admission, entry assumptions, return checks, and fact handback. Remove
   receiver-only ZII filtering and superseded special cases rather than adding
-  stronger facts alongside the old path. Keep ZII seeding for actual zeroed
+  stronger facts alongside the old path.
+
+  Measured direction, which is the opposite of "the receiver is exempt". Two
+  bodies differing only in receiver against named argument -- a guarded
+  `buf.line[buf.i] = 46` into a `[u8; 4] in Utf8` followed by a call taking the
+  same place -- split: the `&mut self` form is ACCEPTED, and the
+  `&mut Holder` form reports "cannot prove default-domain field requirement for
+  call done from run::put: parameter buf.line requires `[u8; N]::Utf8`".
+  Changing the receiver form's literal to 200 rejects it, so the receiver path
+  is discharging a provable ASCII byte rather than skipping the obligation. The
+  named path is the deficient one, and consolidation has to adopt the
+  receiver's discharge, not delete it.
+
+  `append_state_parameter_domain_facts` skips `parameter.is_self` when seeding
+  entry field-domain premises, so the receiver reaches its call without them
+  and is still admitted; the named parameter has them and is refused after the
+  write. The asymmetry is therefore in how a write's effect on the domain is
+  evaluated per place, not in the entry seeding.
+
+  `samples/cli/rendering/dungeon_render` is the sample customer and needs more
+  than this: its glyph reaches the carrier as `put(ch: u8)` -> `self.lab` ->
+  `self.line[self.c]`, and `u8` carries no range, so no ASCII fact exists to
+  discharge even once the paths agree. The literal cases above are the ones
+  this item can close. Keep ZII seeding for actual zeroed
   storage establishment; never infer incoming value validity from allocation.
   Reuse nominal-input and whole-extent collection-field checking. Update comments
   and tests that encode the receiver exception without removing real construction,
