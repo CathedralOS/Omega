@@ -39,64 +39,131 @@ pub(super) fn validate(
     {
         return Err(SelectedInstructionError::custody());
     }
-    let slot = match subject {
+    let dispatch_source = match subject {
         legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
             result,
-        } => LocalStorageSlotId::Structural {
-            operation: *operation,
-            place: result.place,
+        } => selected_instructions::SelectedCaseDispatchSource::Local {
+            slot: LocalStorageSlotId::Structural {
+                operation: *operation,
+                place: result.place,
+            },
         },
         legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
             block,
             declaration,
-        } => LocalStorageSlotId::StructuralBlockParameter {
-            block: *block,
-            place: declaration.place,
+        } => selected_instructions::SelectedCaseDispatchSource::Local {
+            slot: LocalStorageSlotId::StructuralBlockParameter {
+                block: *block,
+                place: declaration.place,
+            },
         },
         // The entry retains an owned parameter's value copy in its own slot.
         legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
-            LocalStorageSlotId::StructuralParameter {
-                place: declaration.place,
+            selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::StructuralParameter {
+                    place: declaration.place,
+                },
+            }
+        }
+        // A borrowed parameter's referent pointer was retained at entry; the
+        // exact register is recorded on every selected case edge.
+        legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { declaration } => {
+            let SelectedTerminator::ConditionalBranch { when_zero, .. } = &replay.block.terminator
+            else {
+                return Err(SelectedInstructionError::custody());
+            };
+            let retained = when_zero
+                .structural_case
+                .as_ref()
+                .ok_or_else(SelectedInstructionError::custody)?;
+            let selected_instructions::SelectedCaseDispatchSource::Borrowed {
+                place,
+                pointer,
+                byte_size,
+            } = retained.source
+            else {
+                return Err(SelectedInstructionError::custody());
+            };
+            if place != declaration.place
+                || byte_size != u32::from(layout.shape.byte_size)
+                || !matches!(
+                    replay
+                        .selected
+                        .virtual_registers
+                        .get(pointer.0 as usize)
+                        .map(|register| (register.id, register.origin)),
+                    Some((id, VirtualRegisterOrigin::AbiTransport {
+                        instruction,
+                        place: origin_place,
+                        byte_offset: 0,
+                    })) if id == pointer
+                        && origin_place == place
+                        && (instruction.0 as usize) < replay.instruction_cursor
+                        && replay
+                            .selected
+                            .virtual_registers
+                            .get(pointer.0 as usize)
+                            .is_some_and(|register| {
+                                register.scalar_type
+                                    == ScalarType::Integer(
+                                        IntegerType::new(IntegerSign::Unsigned, 64)
+                                            .expect("u64 pointer type"),
+                                    )
+                            })
+                )
+            {
+                return Err(SelectedInstructionError::custody());
+            }
+            selected_instructions::SelectedCaseDispatchSource::Borrowed {
+                place,
+                pointer,
+                byte_size,
             }
         }
     };
-    if replay
-        .transport
-        .local_slots
-        .iter()
-        .filter(|row| {
-            row.id == slot
-                && row.byte_size == u32::from(layout.shape.byte_size)
-                && row.alignment == layout.shape.alignment
-        })
-        .count()
-        != 1
-    {
-        return Err(SelectedInstructionError::custody());
-    }
-    let address = temporary(replay, subject.place(), 0, false)?;
-    memory(
-        replay,
-        block.id,
-        subject.place(),
-        0,
-        u32::from(layout.shape.byte_size),
-        SelectedMemoryAccessRole::AddressLocal { slot },
-    )?;
-    replay.check_instruction(
-        SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: 0,
-        },
-        replay
-            .constraints
-            .keys
-            .frame_address
-            .ok_or_else(|| SelectedInstructionError::custody())?,
-        &[address],
-        &Default::default(),
-    )?;
+    let address = match dispatch_source {
+        selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+            if replay
+                .transport
+                .local_slots
+                .iter()
+                .filter(|row| {
+                    row.id == slot
+                        && row.byte_size == u32::from(layout.shape.byte_size)
+                        && row.alignment == layout.shape.alignment
+                })
+                .count()
+                != 1
+            {
+                return Err(SelectedInstructionError::custody());
+            }
+            let address = temporary(replay, subject.place(), 0, false)?;
+            memory(
+                replay,
+                block.id,
+                subject.place(),
+                0,
+                u32::from(layout.shape.byte_size),
+                SelectedMemoryAccessRole::AddressLocal { slot },
+            )?;
+            replay.check_instruction(
+                SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                replay
+                    .constraints
+                    .keys
+                    .frame_address
+                    .ok_or_else(|| SelectedInstructionError::custody())?,
+                &[address],
+                &Default::default(),
+            )?;
+            address
+        }
+        selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => pointer,
+    };
     let tag = temporary(replay, subject.place(), 0, true)?;
     memory(
         replay,
@@ -151,9 +218,9 @@ pub(super) fn validate(
         else {
             return Err(SelectedInstructionError::custody());
         };
-        successor(&cases[ordinal], when_zero, slot, replay)?;
+        successor(&cases[ordinal], when_zero, dispatch_source, replay)?;
         let next = if ordinal + 2 == cases.len() {
-            successor(&cases[ordinal + 1], when_nonzero, slot, replay)?;
+            successor(&cases[ordinal + 1], when_nonzero, dispatch_source, replay)?;
             None
         } else {
             let expected_origin = selected_instructions::SelectedBlockOrigin::CaseDispatch {
@@ -212,7 +279,7 @@ pub(super) fn validate(
 fn successor(
     expected: &legalized_operations::LegalizedStructuralCaseSuccessor,
     actual: &selected_instructions::SelectedSuccessor,
-    slot: LocalStorageSlotId,
+    dispatch_source: selected_instructions::SelectedCaseDispatchSource,
     replay: &Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let destination = replay
@@ -234,7 +301,7 @@ fn successor(
         || actual.fuel != expected.fuel
         || !actual.bindings.is_empty()
         || !actual.structural_bindings.is_empty()
-        || retained.slot != slot
+        || retained.source != dispatch_source
         || retained.case != expected.case
         || retained.case_tag != expected.case_tag
         || retained.trivial_affine_discards != expected.trivial_affine_discards

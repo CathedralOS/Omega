@@ -749,7 +749,9 @@ fn only_plain_semantic_edges_carry_the_member() {
             _ => unreachable!(),
         };
         successor.structural_case = Some(selected_instructions::SelectedStructuralCaseEdge {
-            slot: selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
+            },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
             payloads: Vec::new(),
@@ -821,7 +823,9 @@ fn only_plain_semantic_edges_carry_the_member() {
         });
         successor.role = SelectedSuccessorRole::EdgeTransferContinuation;
         successor.structural_case = Some(selected_instructions::SelectedStructuralCaseEdge {
-            slot: selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
+            },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
             payloads: vec![selected_instructions::SelectedCasePayloadBinding {

@@ -202,7 +202,7 @@ fn validate(
                                 || argument_row.definition_site.is_some()
                                 || !matches!(argument_row.origin, VirtualRegisterOrigin::StructuralObservation {
                                     place, byte_offset, ..
-                                } if Some(place) == case.slot.structural_place()
+                                } if Some(place) == case.source.place()
                                     && byte_offset == payload.semantic.field_byte_offset)
                                 || !available(argument, block_index, block.instructions.len() + 1) {
                                 return Err(invalid());

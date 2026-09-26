@@ -76,7 +76,9 @@ pub(super) fn parameter_root(
 /// root is the function's own parameter, resolved exactly as a tag observation
 /// resolves it, and then held to the owned-arrival contract a block parameter
 /// home already meets: payload bindings read the activation's value copy, so a
-/// borrowed referent, a linear value, or a qualified root has no such copy.
+/// linear value or a qualified root has no such copy. A readable borrow is the
+/// one exception: the referent stays a caller-owned home behind the borrow
+/// pointer, so the dispatch reads tag and payload leaves through it directly.
 fn case_source(
     function: &AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
@@ -94,8 +96,11 @@ fn case_source(
         .iter()
         .find(|declaration| declaration.place == source)
         .ok_or_else(invalid)?;
-    if declaration.access != StructuralAccess::Owned
-        || declaration.is_self
+    let borrowed = matches!(
+        declaration.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    );
+    if (!borrowed && (declaration.access != StructuralAccess::Owned || declaration.is_self))
         || declaration.multiplicity == StructuralMultiplicity::Linear
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
@@ -113,6 +118,17 @@ fn case_source(
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
     )?;
+    if borrowed {
+        // The parameter's shape is the pointer carrier, not the referent's;
+        // the sum layout describes the referent the dispatch reads through it.
+        if parameter.shape.class != calling_conventions::ValueClass::BorrowedReference {
+            return Err(invalid());
+        }
+        return Ok(TargetStructuralCaseSource::BorrowedParameter {
+            parameter: parameter.clone(),
+            layout: TargetStructuralHomeLayout::Sum(layout),
+        });
+    }
     if layout.shape != parameter.shape {
         return Err(invalid());
     }

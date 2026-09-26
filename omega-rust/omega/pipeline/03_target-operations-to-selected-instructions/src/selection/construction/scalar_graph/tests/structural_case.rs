@@ -474,7 +474,10 @@ fn parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot() {
             panic!("case branch")
         };
         for successor in [when_zero, when_nonzero] {
-            assert_eq!(successor.structural_case.as_ref().unwrap().slot, slot);
+            assert_eq!(
+                successor.structural_case.as_ref().unwrap().source,
+                selected_instructions::SelectedCaseDispatchSource::Local { slot }
+            );
         }
     }
 }
@@ -580,7 +583,10 @@ fn mixed_parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot
             panic!("case branch")
         };
         for successor in [when_zero, when_nonzero] {
-            assert_eq!(successor.structural_case.as_ref().unwrap().slot, slot);
+            assert_eq!(
+                successor.structural_case.as_ref().unwrap().source,
+                selected_instructions::SelectedCaseDispatchSource::Local { slot }
+            );
         }
     }
 }

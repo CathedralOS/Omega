@@ -11,7 +11,8 @@ use super::{
     VirtualRegisterId, VirtualRegisterOrigin, prepare,
 };
 use selected_instructions::{
-    LocalStorageSlotId, SelectedCasePayloadBinding, SelectedStructuralCaseEdge,
+    LocalStorageSlotId, SelectedCaseDispatchSource, SelectedCasePayloadBinding,
+    SelectedStructuralCaseEdge,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, OperationId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId,
@@ -88,7 +89,7 @@ fn case_payload_bridge_snapshots_each_used_field_before_destination_binding() {
             bindings: Vec::new(),
             structural_bindings: Vec::new(),
             structural_case: Some(SelectedStructuralCaseEdge {
-                slot,
+                source: SelectedCaseDispatchSource::Local { slot },
                 case: StructuralCaseId::new(2).unwrap(),
                 case_tag: 1,
                 payloads,

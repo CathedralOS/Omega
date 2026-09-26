@@ -271,15 +271,17 @@ fn implementation_block_origin_round_trips_without_a_fabricated_source_block() {
 #[test]
 fn case_payload_codec_retains_every_semantic_and_transport_field() {
     use selected_instructions::{
-        LocalStorageSlotId, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
-        SelectedStructuralCaseEdge,
+        LocalStorageSlotId, SelectedCaseDispatchSource, SelectedCasePayloadBinding,
+        SelectedCasePayloadTransport, SelectedStructuralCaseEdge,
     };
     use semantic_vocabulary::{OperationId, PlaceId, StructuralCaseId, StructuralFieldId};
     let mut original = successor();
     original.structural_case = Some(SelectedStructuralCaseEdge {
-        slot: LocalStorageSlotId::Structural {
-            operation: OperationId::new(7).unwrap(),
-            place: PlaceId::new(11).unwrap(),
+        source: SelectedCaseDispatchSource::Local {
+            slot: LocalStorageSlotId::Structural {
+                operation: OperationId::new(7).unwrap(),
+                place: PlaceId::new(11).unwrap(),
+            },
         },
         case: StructuralCaseId::new(2).unwrap(),
         case_tag: 1,
@@ -334,8 +336,10 @@ fn case_payload_codec_retains_every_semantic_and_transport_field() {
             2 => case.payloads[0].semantic.parameter.value = ValueId::new(10).unwrap(),
             3 => case.trivial_affine_discards.clear(),
             4 => {
-                case.slot = LocalStorageSlotId::Boundary {
-                    operation: OperationId::new(7).unwrap(),
+                case.source = SelectedCaseDispatchSource::Local {
+                    slot: LocalStorageSlotId::Boundary {
+                        operation: OperationId::new(7).unwrap(),
+                    },
                 }
             }
             _ => {

@@ -255,7 +255,7 @@ pub(crate) fn incoming_argument(
                 || source.class != destination_register.class
                 || source.definition_site.is_some()
                 || !matches!(source.origin, VirtualRegisterOrigin::StructuralObservation { place, byte_offset, .. }
-                    if Some(place) == case.slot.structural_place() && byte_offset == payload.semantic.field_byte_offset)
+                    if case.source.place() == Some(place) && byte_offset == payload.semantic.field_byte_offset)
             {
                 return Err(mismatch());
             }
@@ -325,7 +325,7 @@ fn validate_case_transport(
     let Some(case) = &edge.structural_case else {
         return Ok(());
     };
-    if case.slot.structural_place().is_none()
+    if case.source.place().is_none()
         || case.case_tag < 0
         || (edge.role == SelectedSuccessorRole::EdgeTransferContinuation
             && !case.trivial_affine_discards.is_empty())
@@ -343,7 +343,7 @@ fn validate_case_transport(
         let Some(next_case) = &continuation.structural_case else {
             return Err(mismatch());
         };
-        if next_case.slot != case.slot
+        if next_case.source != case.source
             || next_case.case != case.case
             || next_case.case_tag != case.case_tag
             || !next_case.trivial_affine_discards.is_empty()

@@ -1323,8 +1323,8 @@ fn edge_unobserved(
     }
     if let Some(case) = &successor.structural_case {
         let slot_touches = match dead.storage {
-            SubjectStorage::Place => case.slot.structural_place() == Some(dead.place),
-            SubjectStorage::Staging(slot) => case.slot == slot,
+            SubjectStorage::Place => case.source.place() == Some(dead.place),
+            SubjectStorage::Staging(slot) => case.source.local_slot() == Some(slot),
         };
         let discard_touches = matches!(dead.storage, SubjectStorage::Place)
             && case.trivial_affine_discards.contains(&dead.place);
