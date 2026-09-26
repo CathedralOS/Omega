@@ -560,13 +560,13 @@ the complete product bar; focused successes below do not establish that baseline
   carry a `build.omg`, so it never measured the tree.
 
   A direct CLI slice of the whole tree, every seventh project in path order,
-  17 of 22 completed before the sweep was stopped: 7 check clean and 10
-  refuse. The dominant cause over that population is not the one recorded
-  below -- 5 stop at "selected ProgramEntry Binding field `Main::clock`
-  requires a selected Fused provider for boundary `Clock`", 3 at the
-  unit-plan omission, and 1 at IMPLICIT-STORE-CONVERSION's new refusal.
-  Both readings can hold, since the curated 33 and the full 148 are
-  different populations; measure the one being reported.
+  all 22 measured: 9 check clean and 13 refuse -- 7 at the unit-plan
+  omission, 5 at "selected ProgramEntry Binding field `Main::clock` requires
+  a selected Fused provider for boundary `Clock`", and 1 at
+  IMPLICIT-STORE-CONVERSION's new refusal. The unit-plan omission still
+  leads over the whole tree, as it does over the curated cohort, though by a
+  smaller margin; the Clock provider is the second cause and is not named in
+  the sweep below at all.
   `cli/simulation/game_of_life_glider` alone took over two minutes to check,
   which belongs with `windowed_calculator`'s stall below rather than with
   its own refusal.
