@@ -7,6 +7,23 @@ use omega::compiler::{
 /// so these tests reconstruct the same report from the checked program the way
 /// `admit_checked_compilation` does. Each fact is unchanged; only its carrier
 /// is, and the rows are the structure the renderer used to print.
+/// A derived provider plan is named for the target it was derived for.
+/// These fixtures request no target, so derivation falls back to the compiler
+/// host the way the rest of provider planning does, and an expectation naming
+/// only the trait matches no row at all. Deriving the qualifier keeps every
+/// assertion exact on each supported host instead of pinning one of them.
+fn qualified_plan_name(plan: &str) -> String {
+    match target::TargetProfile::host_if_supported() {
+        Some(profile) => format!("{}::{plan}", profile.target_name()),
+        None => plan.to_owned(),
+    }
+}
+
+/// The same qualifier as it appears at the head of a rendered commitment.
+fn plan_commitment_prefix(rest: &str) -> String {
+    format!("provider plan: {}", qualified_plan_name(rest))
+}
+
 fn trust_report(checked: &CheckedCompilation) -> omega::artifacts::TrustReport {
     omega::trust_model::reconstruct_trust_report(
         checked.terminal_production_trees(),
@@ -48,7 +65,7 @@ fn requirement_row<'report>(
     report
         .provider_requirements
         .iter()
-        .find(|row| row.provider_plan == provider_plan && row.method == method)
+        .find(|row| row.provider_plan == qualified_plan_name(provider_plan) && row.method == method)
         .unwrap_or_else(|| {
             panic!(
                 "no `{provider_plan}` requirement row for `{method}`:\n{:#?}",
@@ -146,7 +163,7 @@ machine Main::exercise(&mut self) reaches Console {
         .iter()
         .find(|row| {
             row.commitment
-                .starts_with("provider plan: satisfies::Flags [")
+                .starts_with(&plan_commitment_prefix("satisfies::Flags ["))
         })
         .unwrap_or_else(|| {
             panic!(
@@ -460,8 +477,9 @@ machine Main::exercise(&mut self) {}
         .rows
         .iter()
         .find(|row| {
-            row.commitment
-                .starts_with("provider plan: StorageEntryProvider::satisfies::StorageEntry [")
+            row.commitment.starts_with(&plan_commitment_prefix(
+                "StorageEntryProvider::satisfies::StorageEntry [",
+            ))
         })
         .unwrap_or_else(|| {
             panic!(
@@ -480,7 +498,8 @@ machine Main::exercise(&mut self) {}
         .qualifications
         .iter()
         .filter(|row| {
-            row.provider_plan == "StorageEntryProvider::satisfies::StorageEntry"
+            row.provider_plan
+                == qualified_plan_name("StorageEntryProvider::satisfies::StorageEntry")
                 && row.subject.starts_with("parameter:")
         })
         .collect::<Vec<_>>();
@@ -517,7 +536,9 @@ machine Main::exercise(&mut self) {}
     let result_row = report
         .qualifications
         .iter()
-        .find(|row| row.provider_plan == "satisfies::Issuer" && row.subject == "result")
+        .find(|row| {
+            row.provider_plan == qualified_plan_name("satisfies::Issuer") && row.subject == "result"
+        })
         .unwrap_or_else(|| panic!("routed result row:\n{:#?}", report.qualifications));
     assert_eq!(
         result_row.provider_type, "",
@@ -588,7 +609,9 @@ machine Main::exercise(&mut self) {}
     let row = report
         .qualifications
         .iter()
-        .find(|row| row.provider_plan == "satisfies::Issuer" && row.subject == "result")
+        .find(|row| {
+            row.provider_plan == qualified_plan_name("satisfies::Issuer") && row.subject == "result"
+        })
         .unwrap_or_else(|| panic!("routed result row:\n{:#?}", report.qualifications));
     assert_eq!(row.provenance, "root grant (build.omg)");
     assert_eq!(row.grant_selectors, ["Issuer"]);
@@ -630,7 +653,7 @@ machine Main::exercise(&mut self) reaches Console {
         .iter()
         .find(|row| {
             row.commitment
-                .starts_with("provider plan: satisfies::Pair [")
+                .starts_with(&plan_commitment_prefix("satisfies::Pair ["))
         })
         .unwrap_or_else(|| {
             panic!(
@@ -688,7 +711,7 @@ machine Main::exercise(&mut self) {}
         .iter()
         .find(|row| {
             row.commitment
-                .starts_with("provider plan: satisfies::Pair [")
+                .starts_with(&plan_commitment_prefix("satisfies::Pair ["))
         })
         .unwrap_or_else(|| panic!("partial provider plan row:\n{:#?}", commitments(&report)));
     assert!(plan_row.commitment.contains("coverage 1/2"));
@@ -698,7 +721,9 @@ machine Main::exercise(&mut self) {}
     let qualification = report
         .qualifications
         .iter()
-        .find(|row| row.provider_plan == "satisfies::Pair" && row.subject == "result")
+        .find(|row| {
+            row.provider_plan == qualified_plan_name("satisfies::Pair") && row.subject == "result"
+        })
         .unwrap_or_else(|| {
             panic!(
                 "bound result qualification row:\n{:#?}",
@@ -775,7 +800,7 @@ machine Main::exercise(&mut self) reaches Console {
         "separate partial provider candidates should compile",
     );
     for provider in ["FirstProvider", "SecondProvider"] {
-        let prefix = format!("provider plan: {provider}::satisfies::Pair [");
+        let prefix = plan_commitment_prefix(&format!("{provider}::satisfies::Pair ["));
         let row = report
             .rows
             .iter()
@@ -843,7 +868,7 @@ machine Main::exercise(&mut self) {}
         .expect("explicitly selected granted provider should check");
     let report = trust_report(&checked);
     let plan = |provider: &str| {
-        let prefix = format!("provider plan: {provider}::satisfies::Pair [");
+        let prefix = plan_commitment_prefix(&format!("{provider}::satisfies::Pair ["));
         report
             .rows
             .iter()
@@ -868,7 +893,7 @@ machine Main::exercise(&mut self) {}
         report
             .provider_requirements
             .iter()
-            .find(|row| row.provider_plan == plan)
+            .find(|row| row.provider_plan == qualified_plan_name(&plan))
             .unwrap_or_else(|| {
                 panic!(
                     "{provider} requirement row:\n{:#?}",
