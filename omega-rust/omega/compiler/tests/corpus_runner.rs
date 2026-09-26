@@ -50,7 +50,7 @@ use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
     compile_to_checked,
 };
-use omega::checked_interpreter;
+use checked_interpreter;
 use std::path::{Path, PathBuf};
 use std::{env, fs, process};
 
