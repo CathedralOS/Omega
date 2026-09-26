@@ -663,8 +663,34 @@ the complete product bar; focused successes below do not establish that baseline
   `fail/calls/value_call_param_effect_arm_rejected` expects "composed scalar
   call structural actual lost its authored position" from checking and is
   instead refused at realization by Terminal validation
-  (`InvalidBlockStructuralParameter`), so the checked-stage rule it names
-  goes unexercised. `fail/ranges/index_signed_guard_below_zero` and
+  (`InvalidBlockStructuralParameter`). Both the fixture's header and that
+  expectation name the wrong cause, measured at the raise site: the refused
+  machine is the *callee* `Picker::pick`, whose parameters are
+  `(SharedBorrow Picker, MutableBorrow Tally)`, not the composed caller
+  `Main::main`; no rule spelled "composed scalar call structural actual lost
+  its authored position" exists anywhere (the nearest strings, "ordinary
+  structural source lost its authored position" and "scalar wrapper parameter
+  lost its authored position", are stage-05 lowering guards neither of which
+  is reached). The real gap is that a state declaring `&mut` of a record --
+  `state hi(&self, tally: &mut Tally)` -- lowers to a block structural
+  parameter Terminal verification does not admit. Widening it is the mutable
+  analogue of 9e5948024d's shared-borrow record joins and is at least three
+  gates deep, each confirmed by advancing past the one before it:
+  1. `block_views::validate_declarations`' structural-type clause admits
+     `Owned`, borrowed-view and element-view shapes, or `SharedBorrow` of a
+     primitive or plain record -- never `MutableBorrow` of a record. This is
+     where the fixture dies today.
+  2. with that clause widened, `block_views::validate_successor` refuses:
+     a `MutableBorrow` target parameter requires its argument place in
+     `available` and unique, and `available` is empty at the entry
+     terminator, so the machine's own `&mut Tally` parameter place is never
+     offered to its arm states.
+  3. past those, the frontier still owes exclusive loans what
+     `SharedStructuralLoanDisturbed` gives shared ones, and the interpreter
+     and native lanes owe operand support.
+  So this is a producer/verifier gap in the borrowed-argument lane, not a
+  missing checked-stage rejection. Re-pinning stays wrong, but so does
+  repairing the caller: fix the fixture's stated cause when the gap closes. `fail/ranges/index_signed_guard_below_zero` and
   `fail/ranges/loop_increment_index_unbounded` are masked by
   **IMPLICIT-STORE-CONVERSION**'s new refusal on a `__hoist_0` local and are
   recorded there. All four are pinned `unexpected` in the golden rather than
@@ -3442,7 +3468,10 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     `calls/value_call_param_effect_arm_rejected` produces an invalid Terminal
     module (`InvalidBlockStructuralParameter`) rather than its pinned
     expected.txt fragment: a producer defect to repair, not a rejection to
-    re-pin.
+    re-pin. The defect is not in the projected-receiver caller at all -- the
+    refused machine is the callee, for declaring `&mut` of a record at an arm
+    state. The three gates that widening crosses are measured under the
+    fail-fixture roster above.
   - `runtime_trailing_state_mut_param_phase` stops on the ordinary route
     (`call operation: structural arguments: parameter access`).
     `rooted_residual_scalar_entry_cohort` lowers through Terminal and stops in
