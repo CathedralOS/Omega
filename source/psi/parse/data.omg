@@ -38,10 +38,10 @@ machine Parser::parse_data(
     }
 
     state data_start(&mut self, input: &TokenStream) {
-        self.data_first_member = self.output.data_member_count;
-        self.data_first_field = self.output.field_count;
-        self.data_first_case = self.output.case_count;
-        self.data_first_generic = self.output.generic_parameter_count;
+        self.data_first_member = self.output.data_member_count as u64 in Trapping;
+        self.data_first_field = self.output.field_count as u64 in Trapping;
+        self.data_first_case = self.output.case_count as u64 in Trapping;
+        self.data_first_generic = self.output.generic_parameter_count as u64 in Trapping;
         self.data_multiplicity = DataMultiplicity::Affine;
         self.cursor = self.cursor + 1;
         self.skip_trivia(input);
@@ -496,7 +496,7 @@ machine Parser::parse_data(
     ) {
         self.case_name_start = start;
         self.case_name_end = end;
-        self.case_first_payload_field = self.output.payload_field_count;
+        self.case_first_payload_field = self.output.payload_field_count as u64 in Trapping;
         self.cursor = self.cursor + 1;
         self.skip_trivia(input);
         transition self.cursor < input.token_count {
@@ -763,7 +763,7 @@ machine Parser::parse_data(
         field_end: u64 in Trapping,
         has_more: bool
     ) {
-        let type_index: u64 in Trapping = self.output.type_reference_count;
+        let type_index: u64 in Trapping = self.output.type_reference_count as u64 in Trapping;
         self.output.type_references[self.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Qualified,
             name: IdentifierSpan {
@@ -793,7 +793,7 @@ machine Parser::parse_data(
         field_end: u64 in Trapping,
         has_more: bool
     ) {
-        let type_index: u64 in Trapping = self.output.type_reference_count;
+        let type_index: u64 in Trapping = self.output.type_reference_count as u64 in Trapping;
         self.output.type_references[self.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Named,
             name: IdentifierSpan {
@@ -892,7 +892,7 @@ machine Parser::parse_data(
     }
 
     state retain_case_bounded(&mut self, input: &TokenStream, case_end: u64 in Trapping) {
-        let case_index: u64 in Trapping = self.output.case_count;
+        let case_index: u64 in Trapping = self.output.case_count as u64 in Trapping;
         self.output.cases[self.output.case_count] = DataCase {
             name: IdentifierSpan {
                 source_span: SourceSpan {
@@ -1320,7 +1320,7 @@ machine Parser::parse_data(
     }
 
     state retain_qualified_type_reference_bounded(&mut self, input: &TokenStream, field_end: u64 in Trapping) {
-        let type_index: u64 in Trapping = self.output.type_reference_count;
+        let type_index: u64 in Trapping = self.output.type_reference_count as u64 in Trapping;
         self.output.type_references[self.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Qualified,
             name: IdentifierSpan {
@@ -1345,7 +1345,7 @@ machine Parser::parse_data(
     }
 
     state retain_type_reference_bounded(&mut self, input: &TokenStream, field_end: u64 in Trapping) {
-        let type_index: u64 in Trapping = self.output.type_reference_count;
+        let type_index: u64 in Trapping = self.output.type_reference_count as u64 in Trapping;
         self.output.type_references[self.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Named,
             name: IdentifierSpan {
@@ -1387,7 +1387,7 @@ machine Parser::parse_data(
         field_end: u64 in Trapping,
         type_index: u64 in Trapping
     ) {
-        let field_index: u64 in Trapping = self.output.field_count;
+        let field_index: u64 in Trapping = self.output.field_count as u64 in Trapping;
         self.output.fields[self.output.field_count] = DataField {
             name: IdentifierSpan {
                 source_span: SourceSpan {
@@ -1795,8 +1795,8 @@ machine Parser::parse_data(
             true -> generic_dup_bytes(
                 input,
                 index,
-                prior.name_decoded_start,
-                self.generic_decoded_start,
+                prior.name_decoded_start as u64 in Trapping,
+                self.generic_decoded_start as u64 in Trapping,
                 prior.name_decoded_start + prior.name_decoded_length
             )
             _ -> generic_dup_next(input, index)
@@ -1859,8 +1859,8 @@ machine Parser::parse_data(
             true -> generic_dup_bytes(
                 input,
                 index,
-                prior_cursor + 1,
-                current_cursor + 1,
+                (prior_cursor + 1) as u64 in Trapping,
+                (current_cursor + 1) as u64 in Trapping,
                 prior_end
             )
             _ -> generic_dup_next(input, index)
@@ -1868,7 +1868,7 @@ machine Parser::parse_data(
     }
 
     state generic_dup_next(&mut self, input: &TokenStream, index: u64 [0..=255]) {
-        transition { _ -> generic_dup_scan(input, index + 1) }
+        transition { _ -> generic_dup_scan(input, (index + 1) as u64 in Trapping) }
     }
 
     state generic_dup_found(&mut self, input: &TokenStream) {
@@ -2049,7 +2049,7 @@ machine Parser::parse_data(
     }
 
     state retain_qualified_generic_type_bounded(&mut self, input: &TokenStream) {
-        self.generic_type_index = self.output.type_reference_count;
+        self.generic_type_index = self.output.type_reference_count as u64 in Trapping;
         self.output.type_references[self.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Qualified,
             name: IdentifierSpan {
@@ -2074,7 +2074,7 @@ machine Parser::parse_data(
     }
 
     state retain_named_generic_type_bounded(&mut self, input: &TokenStream) {
-        self.generic_type_index = self.output.type_reference_count;
+        self.generic_type_index = self.output.type_reference_count as u64 in Trapping;
         self.output.type_references[self.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Named,
             name: IdentifierSpan {
@@ -2341,7 +2341,7 @@ machine Parser::parse_data(
     }
 
     state retain_data_bounded(&mut self, item_end: u64 in Trapping) {
-        let data_index: u64 in Trapping = self.output.data_count;
+        let data_index: u64 in Trapping = self.output.data_count as u64 in Trapping;
         self.output.data_items[self.output.data_count] = DataItem {
             name: IdentifierSpan {
                 source_span: SourceSpan {
