@@ -811,6 +811,8 @@ fail/slices/unguarded_slice_parameter_index_compile rejected 1ms expected
 	cannot prove index `index` is within unknown slice length of `entries` in Main::main::choose
 fail/slices/window_shrink_index_out_of_length rejected 1ms expected
 	cannot prove index `3` is within length 3
+fail/targets/sibling_body_type_error_rejected rejected 209ms expected
+	machine `Helper::paradigm_internal` state `paradigm_internal` local `wrong` stores a boolean into a `i32` local, which holds a numeric value
 fail/targets/target_machine_duplicate_rejected rejected 1ms expected
 	machine `Helper::pick` is implemented twice for the selected target -- a target supplies exactly one implementation of a contract machine
 fail/targets/target_machine_missing_rejected rejected 1ms expected
