@@ -1045,23 +1045,32 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   those methods invalidate, and the address-keyed caches are deleted with no
   loss on the CHECK-CLOSURE-ONCE timings.
 
-  Six of those caches now key on `TypedTrees::identity` instead of the
+  Seven of those caches now key on `TypedTrees::identity` instead of the
   program's address: `write_frames/isolation.rs`, the four in
-  `lookup/symbols.rs`, `values/scalar/structural_fields.rs` and validation's
-  `service_reach.rs`. The address was never an identity -- it is reused as soon
-  as a program is dropped -- and a cached MISS is returned without the
-  validation a cached hit gets, so a replacement program was told a machine or
-  a definition it owns is absent. `facts/field_domain.rs` still holds two
-  address-keyed caches and is the remaining source; it is left alone here only
-  because it was being changed by another lane at the time (f5561114db,
-  06adf78072). Its two slots take the same one-line change.
+  `lookup/symbols.rs`, `values/scalar/structural_fields.rs`, validation's
+  `service_reach.rs` and `facts/field_domain.rs`'s `DOMAIN_SYMBOL_INDEX`. The
+  address was never an identity -- it is reused as soon as a program is
+  dropped -- and a cached MISS is returned without the validation a cached hit
+  gets, so a replacement program was told a machine or a definition it owns is
+  absent. `OWNED_FIELD_DOMAIN_SLOT` in that same file needs nothing: its outer
+  `None` means no checked build is open and the program is borrowed for the
+  whole scope, so its address cannot be recycled under it. The remaining
+  thread-local caches key on other programs, not on `TypedTrees`.
 
-  The symptom is `-p typed-trees-to-checked-trees --lib` failing intermittently
-  under nextest's default threading and never single-threaded: at base
-  f5561114db 2 of 4 runs failed with 2 failures each; after the six caches, 1
-  of 6. The surviving failures move between `tests::contracts::assigned_values`
-  and `tests::contracts::scalar_storage_results` run to run, which is what a
-  cache serving another program's verdict looks like.
+  `-p typed-trees-to-checked-trees --lib` failed intermittently under nextest's
+  default threading and never single-threaded: 2 of 4 runs at base f5561114db
+  with 2 failures each, 1 of 6 after the first six caches, and 10 of 10 clean
+  once the domain index followed. The failures moved between
+  `tests::contracts::assigned_values`,
+  `tests::contracts::scalar_storage_results` and `range_*` run to run, which is
+  what a cache serving another program's verdict looks like.
+
+  Keep the discriminating samples when re-keying one of these. Trimming
+  `DOMAIN_SYMBOL_INDEX`'s slice and name-text terms to lengths while adding the
+  identity took the crate from 1 of 6 runs failing to 10 of 10, because a clone
+  shares its source's tag and only the fingerprint separates two states of it.
+  With the owner an identity those terms can no longer produce a false hit, so
+  there is no reason to drop them.
 
 - **BUILD-PRODUCT-REFERENCES.** Finish executable follow-through for
   [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).
