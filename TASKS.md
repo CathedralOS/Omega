@@ -183,7 +183,10 @@ backend-visible; full corpus runs only at the end of an item.
   (`bind_selected_provider_plan_facts`), selected float-comparison executions,
   boundary-dispatch settlement (`selected_dispatch::settle_selected_execution_dispatch`),
   callback materialization, task activations, component progress, the x86 FMA
-  plan association and fused program-entry establishments. Invert the layering
+  plan association and fused program-entry establishments. Moving the
+  provider-body const folds waits on OWNER_QUESTIONS.md Q10
+  (`provider-dependent-constants`): a const application folded through a
+  selected provider gives a type that varies by target. Invert the layering
   guard `omega_provider_selection_consumes_psi_frontend_directly` so
   `provider-planning` may not depend on `typed-trees` or `validation`. Scalar
   `ensures` of a requirement are not yet retained on its Terminal
