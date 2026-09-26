@@ -1836,10 +1836,13 @@ syntax and other terminal services are not prerequisites.
   compatibility, not this source-position restriction.
   Carry checked layout/validity, backing identity, lifetime and access through
   ordinary expression sequencing and temporary loans rather than bypassing
-  the recast check. Runtime `recast_views` canaries remain blocked on a
-  pre-existing Terminal unit-plan omission at local construction (entry
-  establishment rejoins 0 attachment identities), reproduced identically on
-  the pre-change base — not recast machinery. Acceptance: valid inline
+  the recast check. The `tests/omega/{pass,fail}/recast` corpus is
+  green: all 14 pass fixtures check and all 12 fail fixtures reject with their
+  expected fragments. The last pass-tier holdout,
+  `runtime_interior_slice_congruent_offset_exit`, was refused at "cannot bound
+  the recast offset `self.k * 2`" and not at any unit-plan omission; its bound
+  lives in `data Main where k <= 3`, which the leaf bound walk did not read.
+  No fixture named `recast_views` exists. Acceptance: valid inline
   equivalents of supported shared
   and mutable recasts check and execute; incompatible geometry/validity,
   access escalation and conflicting backing use reject at the offending
