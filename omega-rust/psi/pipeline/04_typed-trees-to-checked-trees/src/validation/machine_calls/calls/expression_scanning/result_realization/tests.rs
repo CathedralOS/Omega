@@ -25,6 +25,57 @@ machine enter(left: Flags, marker: bool, right: Flags, other: bool) -> bool {
 "#;
 
 #[test]
+fn state_graph_boundary_scalar_initializers_keep_their_result_destination() {
+    let program = crate::front_end::typed_program(
+        "pub data Sink {} data Root {}
+         pub boundary requirement Sink::produce(value: u32) -> u32;
+         machine identity(value: u32) -> u32 { value }
+         machine Root::enter(input: u32) {
+             let ordinary: u32 = identity(input);
+             let boundary: u32 = Sink::produce(identity(ordinary));
+             transition boundary == input { true -> done() _ -> done() }
+             state done() {}
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::enter")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        let StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        assert_eq!(
+            unit_result_initializer_call_is_supported(&program, machine, local.initial_value),
+            local.name.as_str() == "boundary",
+            "ordinary helper computations and boundary result operations have distinct owners"
+        );
+        if local.name.as_str() != "boundary" {
+            continue;
+        }
+        let mut invalid = program.clone();
+        let StatementNode::LocalData(changed) = &mut invalid
+            .statement_table
+            .statements_mut(state.statement_nodes)[statement_index]
+        else {
+            unreachable!()
+        };
+        changed.is_mutable = true;
+        assert!(
+            !unit_result_initializer_call_is_supported(&invalid, machine, local.initial_value),
+            "boundary receiving contracts still require an immutable destination"
+        );
+    }
+}
+
+#[test]
 fn linear_result_initializers_share_operand_admission_without_losing_fences() {
     use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
         DomainConstraint, TypeConstraintNode, TypeReferenceNode,

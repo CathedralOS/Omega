@@ -1,0 +1,31 @@
+// One Build selection covers both overloads. Both calls must use RightProvider,
+// not the competing LeftProvider and not primitive subtraction.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Math {}
+boundary machine - Math::choose(left: i32, right: i32) -> i32;
+boundary machine - Math::choose(left: u32, right: u32) -> u32;
+
+data LeftProvider {}
+machine LeftProvider::signed(left: i32, right: i32) -> i32
+satisfies Math::choose { left }
+machine LeftProvider::unsigned(left: u32, right: u32) -> u32
+satisfies Math::choose { left }
+
+data RightProvider {}
+machine RightProvider::signed(left: i32, right: i32) -> i32
+satisfies Math::choose { right }
+machine RightProvider::unsigned(left: u32, right: u32) -> u32
+satisfies Math::choose { right }
+
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self)
+reaches Console
+{
+    let signed: i32 = (3 as i32) - (30 as i32);
+    let unsigned: u32 = (90 as u32) - (40 as u32);
+    transition signed == 30 && unsigned == 40 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

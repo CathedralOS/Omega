@@ -69,6 +69,45 @@ fn distinct_const_tuples_share_a_copy_and_converged_demand_copies_nothing() {
 }
 
 #[test]
+fn token_requirement_calls_retain_distinct_closed_provider_demands() {
+    let program = typed_program(
+        r#"
+        data ArrayOps {}
+        boundary machine [] ArrayOps::measure<const Count: u64>(items: [u8; Count], offset: i32) -> bool;
+        data Provider {}
+        machine Provider::measure<const Length: u64>(items: [u8; Length], offset: i32) -> bool
+        satisfies ArrayOps::measure { true }
+        machine four(items: [u8; 4]) -> bool { items[(0 as i32)] }
+        machine eight(items: [u8; 8]) -> bool { items[(0 as i32)] }
+    "#,
+    );
+    let selected = [crate::SelectedGenericOperatorProviderSpecialization {
+        requirement_operator: program.machine_token_bindings()[0].symbol,
+        realization_machine: program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Provider::measure")
+            .expect("provider")
+            .symbol,
+    }];
+    let checked = crate::lower_typed_trees(
+        program,
+        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&selected),
+    )
+    .expect("token calls specialize their selected providers");
+    let receipts = checked
+        .machine_specializations
+        .iter()
+        .filter(|receipt| !receipt.operator_realizations.is_empty())
+        .collect::<Vec<_>>();
+    assert_eq!(receipts.len(), 2);
+    assert_ne!(
+        receipts[0].const_argument_identities,
+        receipts[1].const_argument_identities
+    );
+}
+
+#[test]
 fn invalid_provider_request_rejects_even_without_applications() {
     let mut program = typed_program("machine identity(value: i32) -> i32 { value }");
     let selected = [crate::SelectedGenericOperatorProviderSpecialization {

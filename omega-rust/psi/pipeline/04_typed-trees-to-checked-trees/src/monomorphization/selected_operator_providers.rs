@@ -555,14 +555,35 @@ fn selected_operator_application_at_expression(
     state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
-) -> Result<Option<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument>>, Diagnostic>{
-    let (operands, explicit_static_arguments) = match program
-        .expression_table
-        .expression(expression)
-    {
-        ExpressionNode::Call(call) => {
-            if symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call)
-                    .is_none_or(|resolved| resolved.symbol != operator.symbol)
+) -> Result<Option<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument>>, Diagnostic> {
+    let (operands, explicit_static_arguments) =
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) => {
+                // Token rewriting targets an ordinary entry state; static
+                // specialization may already have redirected it to a closed
+                // requirement instance. Rejoin that exact instance to its
+                // template, rather than recovering demand from a display path
+                // or expecting the legacy operator symbol on the call.
+                let calls_requirement_machine = call.target_symbol.is_valid()
+                    && program.machines().iter().any(|requirement| {
+                        requirement.supply_mode
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                            && program
+                                .machine_states(requirement)
+                                .first()
+                                .is_some_and(|entry| entry.symbol == call.target_symbol)
+                            && (requirement.symbol == operator.symbol
+                                || program
+                                    .machine_specializations
+                                    .iter()
+                                    .any(|specialization| {
+                                        specialization.template == operator.symbol
+                                            && specialization.instance == requirement.symbol
+                                    }))
+                    });
+                if !calls_requirement_machine
+                    && symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call)
+                        .is_none_or(|resolved| resolved.symbol != operator.symbol)
                 {
                     return Ok(None);
                 }

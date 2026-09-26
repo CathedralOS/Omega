@@ -404,12 +404,24 @@ pub fn unit_result_initializer_call_is_supported(
     };
     let has_ordinary_structural_initializer =
         ordinary_structural_initializer(program, local.initial_value, local.type_reference);
+    let has_boundary_scalar_initializer = program
+        .primitive_type_reference(local.type_reference)
+        .is_some()
+        && initializer_target_is_supported(
+            program,
+            machine,
+            local.initial_value,
+            local.type_reference,
+            false,
+            false,
+        );
     if initializers.next().is_some()
-        // Scalar locals in state graphs keep their whole-call computation
-        // owner. Ordinary structural results already use statement sequencing
-        // in each state, including the constructor's nested operands.
+        // Ordinary scalar helpers in state graphs keep their whole-call
+        // computation owner. Bodyless boundaries instead retain their result
+        // operation, independently of the surrounding state's successors.
         || (program.machine_states(machine).len() != 1
-            && !has_ordinary_structural_initializer)
+            && !has_ordinary_structural_initializer
+            && !has_boundary_scalar_initializer)
         // Mutable plain results retain the ordinary constructor's storage.
         // Primitive initialization, linear custody, and boundary results keep
         // their separate receiving contracts.

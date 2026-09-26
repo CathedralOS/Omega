@@ -2,6 +2,8 @@
 //! operator and single-requirement conformance, named evidence contracts
 //! and forwarded trait arguments.
 
+mod closed_requirement;
+
 use crate::validation::declarations::traits::conformance::signature_matching::{
     TraitTypeBinding, TraitTypeBindingTarget, parameter_shape_label,
     type_reference_lifetimes_match_requirement_application,
@@ -48,6 +50,7 @@ pub(crate) fn validate_machine_trait_conformances(
                 machine,
                 requirement,
                 conformance,
+                symbols,
                 diagnostics,
             );
             continue;
@@ -142,6 +145,7 @@ fn validate_machine_top_level_requirement_conformance(
     machine: &Machine,
     requirement: &Machine,
     conformance: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::TraitConformance,
+    symbols: &crate::validation::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let requirement_identity = requirement.name.as_str();
@@ -171,6 +175,16 @@ fn validate_machine_top_level_requirement_conformance(
         )));
         return;
     }
+    // The authored edge above still names the generic template. A checked
+    // provider instance must refine the corresponding closed requirement,
+    // including its substituted contracts and effects, not the open telescope.
+    let requirement = match closed_requirement::resolve(program, machine, requirement, symbols) {
+        Ok(requirement) => requirement,
+        Err(diagnostic) => {
+            diagnostics.push(diagnostic);
+            return;
+        }
+    };
     let Some(requirement_entry) = program.machine_states(requirement).first() else {
         diagnostics.push(Diagnostic::error(format!(
             "top-level boundary requirement `{requirement_identity}` has no entry signature"
@@ -488,12 +502,15 @@ pub fn revalidate_top_level_requirement_realization(
             machine.name
         )));
     } else {
+        let symbols =
+            crate::declarations::symbols::TopLevelSymbols::build(program, &mut diagnostics);
         validate_machine_top_level_requirement_conformance(
             program,
             &service_reaches,
             machine,
             requirement,
             conformance,
+            &symbols,
             &mut diagnostics,
         );
     }
