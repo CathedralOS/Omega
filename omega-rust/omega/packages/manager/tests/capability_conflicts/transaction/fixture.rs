@@ -38,7 +38,7 @@ impl ExactCompilerRowScenario {
         write_package(
             &live,
             r#"pub machine add_u64(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 {
-    left + right
+    (left + right) as u64
 }
 "#,
         );
@@ -60,7 +60,7 @@ impl ExactCompilerRowScenario {
         write_package(
             &live,
             r#"pub machine add_u64(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 {
-    left + right
+    (left + right) as u64
 }
 
 pub proposition ready();
@@ -84,7 +84,7 @@ pub proposition ready();
         write_package(
             &live,
             r#"pub machine add_u64(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 {
-    left + right
+    (left + right) as u64
 }
 
 pub proposition ready();
