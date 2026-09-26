@@ -14,7 +14,7 @@ test-support = []
 [dependencies]
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
-effects = { path = "../../backend/plans/effects" }
+effects = { path = "../../backend/plans/provider-evidence" }
 target = { path = "../../backend/target" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 build-time-evaluation = { path = "../../../psi/compiler/build-time-evaluation" }

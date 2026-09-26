@@ -9,7 +9,7 @@ name = "component_publication"
 path = "src/lib.rs"
 
 [dependencies]
-effects = { path = "../../plans/effects" }
+effects = { path = "../../plans/provider-evidence" }
 boundary-applications = { path = "../../artifacts/boundary-applications" }
 executable-installation = { path = "../executable-installation" }
 external-roots = { path = "../external-roots" }

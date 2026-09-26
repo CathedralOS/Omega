@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
 calling-conventions = { path = "../../backend/calling-conventions" }
-effects = { path = "../../backend/plans/effects" }
+effects = { path = "../../backend/plans/provider-evidence" }
 function-identity = { path = "../../foundation/function-identity" }
 target = { path = "../../backend/target" }
 abstract-operations = { path = "../../representations/abstract-operations" }

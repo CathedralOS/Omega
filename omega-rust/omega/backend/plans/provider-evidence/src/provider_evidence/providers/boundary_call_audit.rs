@@ -8,7 +8,7 @@
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-use crate::effects::capabilities::provider_approval::{
+use crate::provider_evidence::providers::provider_approval::{
     BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
 

@@ -35,7 +35,7 @@ pub use service_schemas::{
 };
 pub use typed_trees::typed_trees::BoundaryCallingPlanCommitment;
 
-use crate::effects::capabilities::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
+use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
 
 /// How one method binds on one target. Instructions are checked `asm` bodies
 /// whose catalog contracts contribute their obligations; they are deliberately

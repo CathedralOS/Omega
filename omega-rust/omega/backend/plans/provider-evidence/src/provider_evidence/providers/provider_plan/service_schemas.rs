@@ -1,8 +1,8 @@
 //! Provider plan and service schema digests, service schemas, methods,
 //! progress premises and entry claims.
 
-use crate::effects::capabilities::provider_plan::ProviderPlanRow;
-use crate::effects::capabilities::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
+use crate::provider_evidence::providers::provider_plan::ProviderPlanRow;
+use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
 use typed_trees::typed_trees::BoundaryCallingPlanCommitment;
 
 /// Collision-resistant identity of one exact normalized provider plan.

@@ -1,6 +1,6 @@
 //! The provider plan digest encoder.
 
-use crate::effects::capabilities::provider_plan::{
+use crate::provider_evidence::providers::provider_plan::{
     ProviderBinding, ServiceEntryAuthorityFlow, ServiceMethod,
     ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };

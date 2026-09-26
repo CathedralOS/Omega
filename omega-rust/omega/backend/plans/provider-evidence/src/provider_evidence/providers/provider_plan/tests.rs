@@ -8,7 +8,7 @@ use super::{
     ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
     ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
 };
-use crate::effects::capabilities::foreign_locator::NormalizedForeignLocator;
+use crate::provider_evidence::providers::foreign_locator::NormalizedForeignLocator;
 
 fn evaluated_import(locator: NormalizedForeignLocator, seed: u8) -> EvaluatedForeignImport {
     let usage = EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0)

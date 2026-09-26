@@ -20,7 +20,7 @@ validation = { path = "../../../psi/semantics/validation" }
 build-output = { path = "../build-output" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 component-description = { path = "../../backend/artifacts/component-description" }
-effects = { path = "../../backend/plans/effects" }
+effects = { path = "../../backend/plans/provider-evidence" }
 optimization-core = { path = "../../foundation/optimization-core" }
 package-compilation = { path = "../package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }

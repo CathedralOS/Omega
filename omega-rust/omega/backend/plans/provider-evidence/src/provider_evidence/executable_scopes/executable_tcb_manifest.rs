@@ -122,6 +122,8 @@ pub struct SelectedProviderRequirement {
     pub requirement_identity: String,
 }
 
+// Readable method labels may drift without changing the selected requirement.
+// Equality also deduplicates repeated entries for that exact requirement.
 impl PartialEq for SelectedProviderRequirement {
     fn eq(&self, other: &Self) -> bool {
         self.requirement_identity == other.requirement_identity

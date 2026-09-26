@@ -1056,6 +1056,8 @@ fn compare_closure_leaves(
         })
 }
 
+// A mechanism is a claim about this key, not part of its identity. Including
+// it would admit two different mechanisms for the same requirement and plan.
 fn same_closure_leaf_key(
     left: &TerminalAuthorityClosureLeaf,
     right: &TerminalAuthorityClosureLeaf,

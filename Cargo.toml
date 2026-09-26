@@ -63,7 +63,7 @@ members = [
     "omega-rust/omega/foundation/function-identity",
     "omega-rust/omega/backend/artifacts/boundary-applications",
     "omega-rust/omega/backend/instruction_set_architectures/x86-encoding",
-    "omega-rust/omega/backend/plans/effects",
+    "omega-rust/omega/backend/plans/provider-evidence",
     "omega-rust/omega/representations/abstract-operations",
     "omega-rust/omega/representations/abstract-operations/optimization-unit",
     "omega-rust/omega/backend/register-model",

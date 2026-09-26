@@ -52,7 +52,7 @@ checked-trees = { path = "../../psi/representations/checked-trees" }
 checked-interpreter = { path = "../../psi/interpreter/checked-interpreter" }
 build-time-evaluation = { path = "../../psi/compiler/build-time-evaluation" }
 validation = { path = "../../psi/semantics/validation" }
-effects = { path = "../backend/plans/effects" }
+effects = { path = "../backend/plans/provider-evidence" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 target-operations = { path = "../representations/target-operations" }
 flow-effects = { path = "../../psi/semantics/flow-effects" }
