@@ -48,6 +48,10 @@ pub(crate) fn parse(mut arguments: impl Iterator<Item = OsString>) -> Result<Inv
                 "usage: omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>"
                     .to_owned()
             }),
+        // The usage text already exists and every other entry point prints
+        // it on a parse failure; without this arm the conventional spelling
+        // answers "unrecognized option `--help`" instead of showing it.
+        Some("--help" | "-h" | "help") => Ok(Invocation::Help(compile::usage())),
         Some("refresh-samples") => Ok(Invocation::RefreshSamples(
             arguments
                 .next()
