@@ -9,55 +9,14 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
     program: &TypedTrees,
     target_state_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
-    // Only a state symbol, or one the table cannot resolve, names stored
-    // state rows, and a state under a trait is a requirement signature no
-    // machine stores; call targets naming anything else hold no intrinsic.
-    let symbol = program.symbols.get(target_state_symbol);
-    if !matches!(
-        symbol.kind,
-        symbols::SymbolKind::State | symbols::SymbolKind::Unknown
-    ) || program.symbols.get(symbol.parent).kind == symbols::SymbolKind::Trait
-    {
-        return None;
-    }
     // State spans are disjoint append-only ranges: at most one machine can
     // contain a state symbol, so the holder is unique by construction.
     let machine = program.machine_holding_state(target_state_symbol)?;
-    if machine.body_is_present
-        || !machine.lifetime_parameters.is_empty()
-        || !program.machine_type_parameters(machine).is_empty()
-    {
+    if !program.machine_type_parameters(machine).is_empty() {
         return None;
     }
-    // Only a bodiless, lifetime-free machine with an intrinsic binding or a
-    // hosted catalog name can qualify, so the state scan runs over those
-    // alone. Uniqueness still spans every machine: a qualifying owner is
-    // rejected when any other machine also holds the target state.
-    let (machine, authored_binding, inferred_hosted_intrinsic) =
-        program.machines().iter().find_map(|machine| {
-            let (authored_binding, inferred_hosted_intrinsic) =
-                intrinsic_realization_candidate(program, machine)?;
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == target_state_symbol)
-                .then_some((machine, authored_binding, inferred_hosted_intrinsic))
-        })?;
-    if program
-        .machines()
-        .iter()
-        .filter(|other| {
-            program
-                .machine_states(other)
-                .iter()
-                .any(|state| state.symbol == target_state_symbol)
-        })
-        .nth(1)
-        .is_some()
-        || !program.machine_type_parameters(machine).is_empty()
-    {
-        return None;
-    }
+    let (authored_binding, inferred_hosted_intrinsic) =
+        intrinsic_realization_candidate(program, machine)?;
     let inferred_trait_name = inferred_hosted_intrinsic.map(|(_, trait_name)| trait_name);
     let [state] = program.machine_states(machine) else {
         return None;

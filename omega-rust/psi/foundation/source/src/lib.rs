@@ -38,7 +38,7 @@ pub fn display_literal_bytes(bytes: &[u8]) -> String {
     output
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
@@ -56,7 +56,7 @@ pub struct SourceId(pub usize);
 
 /// A span inside one loaded source: the coordinate every token and diagnostic
 /// carries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct SourceSpan {
     pub source_id: SourceId,
     pub span: Span,
