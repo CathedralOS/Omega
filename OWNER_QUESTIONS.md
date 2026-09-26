@@ -6,6 +6,27 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
+All nine named decisions below are open: none carries a recorded answer, so
+every board item whose prerequisite is one of them is design-blocked on it
+rather than on implementation. Checked against `TASKS.md`:
+
+| named decision | board items waiting |
+| --- | --- |
+| `compile-time-proof-work-ceiling` | C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT |
+| `aarch64-semantic-wrapper-arrival-shape` | 1 |
+| `interpreted-inline-assembly` | 2 |
+| `unmanaged-root-package-identity` | MODULE-NAMESPACE-RESOLUTION |
+| `owned-self-receiver-implicit-retirement` | OWNED-SELF-RECEIVER-AFFINE-DISCARD |
+| `borrowed-service-suspension-carrier` | RC-BUILD-AND-PACKAGES |
+| `copy-data-shared-reference-fields` | CANARY-CORPUS, BORROWED-STORAGE-RESTORATION |
+| `linear-carrier-vacuous-qualification` | none |
+| `mixed-integer-comparison` | none |
+
+The last two have no owning item. A decision with nothing waiting on it is
+either one whose item closed without pruning the question, or one whose
+dependency was never recorded on its item; settle which before answering it,
+since an answer nobody is blocked on buys nothing.
+
 Question numbers are mutable queue positions, not permanent decision identities.
 Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled
