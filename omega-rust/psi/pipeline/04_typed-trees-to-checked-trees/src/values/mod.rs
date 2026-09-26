@@ -89,11 +89,29 @@ pub(crate) fn build_value_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
 ) -> CheckedValueFacts {
-    let assignment_ranges = proof::checker::AssignmentRangeContext::new(proof_plan);
+    collect_value_facts(
+        program,
+        Some(ValueTyping {
+            proof_plan,
+            assignment_ranges: proof::checker::AssignmentRangeContext::new(proof_plan),
+        }),
+    )
+}
+
+/// Every value row's expression and origin, in `build_value_facts` order,
+/// without the type, primitive and proved range it attaches to each row.
+/// Pre-flow operator selection reads nothing else, so it needs no proof plan.
+pub(crate) fn build_value_origin_rows(program: &TypedTrees) -> CheckedValueFacts {
+    collect_value_facts(program, None)
+}
+
+fn collect_value_facts<'program, 'plan>(
+    program: &'program TypedTrees,
+    typing: Option<ValueTyping<'program, 'plan>>,
+) -> CheckedValueFacts {
     let mut builder = ValueFactBuilder {
         program,
-        proof_plan,
-        assignment_ranges,
+        typing,
         facts: CheckedValueFacts::default(),
     };
 
@@ -140,9 +158,16 @@ pub(crate) fn build_value_facts(
 
 pub(super) struct ValueFactBuilder<'program, 'plan> {
     pub(super) program: &'program TypedTrees,
-    pub(super) proof_plan: &'plan ProofPlan<'program>,
-    pub(super) assignment_ranges: proof::checker::AssignmentRangeContext<'program>,
+    /// Absent when only the rows' expressions and origins are wanted.
+    typing: Option<ValueTyping<'program, 'plan>>,
     pub(super) facts: CheckedValueFacts,
+}
+
+/// What a typed value row needs beyond the traversal: the proof plan and
+/// its assignment ranges for proved integer ranges.
+struct ValueTyping<'program, 'plan> {
+    proof_plan: &'plan ProofPlan<'program>,
+    assignment_ranges: proof::checker::AssignmentRangeContext<'program>,
 }
 
 impl ValueFactBuilder<'_, '_> {
@@ -182,6 +207,17 @@ impl ValueFactBuilder<'_, '_> {
         if !expression.is_valid() {
             return;
         }
+        let Some(typing) = &self.typing else {
+            self.facts.values.insert(CheckedValueFact {
+                expression,
+                origin,
+                type_reference: typed_trees::types::TypeReferenceHandle::invalid(),
+                primitive_type: None,
+                integer_range: None,
+            });
+            self.collect_expression_children(expression);
+            return;
+        };
 
         let type_reference = crate::operators::expression_type_reference_for_origin(
             self.program,
@@ -219,11 +255,11 @@ impl ValueFactBuilder<'_, '_> {
                 _,
                 _,
             ) => proof::checker::proved_assignment_integer_range_with_context(
-                self.proof_plan,
+                typing.proof_plan,
                 machine_symbol,
                 state_symbol,
                 statement_index,
-                &self.assignment_ranges,
+                &typing.assignment_ranges,
             )
             .map(|range| CheckedIntegerRange {
                 minimum: range.minimum,
