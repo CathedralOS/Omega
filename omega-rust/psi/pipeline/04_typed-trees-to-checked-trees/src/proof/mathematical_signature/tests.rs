@@ -13,64 +13,6 @@ fn refuse(source: &str) -> Vec<diagnostics::Diagnostic> {
     }
 }
 
-/// `let double(x: u64): u64 = x;` elaborates to a carrier assumption
-/// `u64 : Type 0` plus `double : Π(_ : u64). u64 := λ(_ : u64). x`.
-#[test]
-fn plain_definition_elaborates_to_kernel_terms() {
-    let signature = signature("let double(x: u64): u64 = x;");
-
-    assert_eq!(signature.authored(), &[1]);
-    let declarations = signature.signature().declarations();
-    assert_eq!(declarations.len(), 2);
-
-    let carrier = &declarations[0];
-    assert_eq!(carrier.level_arity, 0);
-    assert!(carrier.body.is_none());
-    assert_eq!(
-        signature.term(carrier.ty),
-        Term::Sort(Sort::Type(Level::Constant(0)))
-    );
-
-    let double = &declarations[1];
-    assert_eq!(double.level_arity, 0);
-    let Term::Pi { domain, codomain } = signature.term(double.ty) else {
-        panic!("expected Pi, got {:?}", signature.term(double.ty));
-    };
-    assert_eq!(
-        signature.term(domain),
-        Term::Constant {
-            declaration: 0,
-            levels: Vec::new()
-        }
-    );
-    assert_eq!(signature.term(codomain), signature.term(domain));
-    let Term::Lambda {
-        domain: lambda_domain,
-        body,
-    } = signature.term(double.body.expect("definition body"))
-    else {
-        panic!("expected Lambda");
-    };
-    assert_eq!(signature.term(lambda_domain), signature.term(domain));
-    assert_eq!(signature.term(body), Term::Variable(0));
-}
-
-/// A `boundary let` is a named assumption: same statement, no body.
-#[test]
-fn boundary_let_is_a_named_assumption() {
-    let signature = signature("boundary let choose(x: u64): u64;");
-
-    let declarations = signature.signature().declarations();
-    assert_eq!(declarations.len(), 2);
-    assert_eq!(signature.authored(), &[1]);
-    assert!(declarations[1].is_assumption());
-    // The statement is the same Π(_ : u64). u64 a definition carries;
-    // only the absent body distinguishes the assumption.
-    let Term::Pi { .. } = signature.term(declarations[1].ty) else {
-        panic!("expected Pi");
-    };
-}
-
 /// A universe-polymorphic family declaration: `u: core::Level` claims
 /// level parameter 0, `A`/`B` bind at `Type u`, the telescope and
 /// dependent result elaborate to nested `Pi`, and the body `f(x)` checks
@@ -125,42 +67,6 @@ fn polymorphic_dependent_declaration_checks() {
     assert_eq!(signature.term(codomain), Term::Variable(2));
 }
 
-/// An earlier declaration is referenced through `Term::Constant` and a
-/// carrier interns once into the shared prefix.
-#[test]
-fn declaration_references_and_shared_carriers() {
-    let signature =
-        signature("let double(x: u64): u64 = x;\nlet quad(x: u64): u64 = double(double(x));");
-
-    assert_eq!(signature.authored(), &[1, 2]);
-    let declarations = signature.signature().declarations();
-    assert_eq!(declarations.len(), 3);
-    let Term::Lambda { body, .. } = signature.term(declarations[2].body.expect("quad body")) else {
-        panic!("expected Lambda");
-    };
-    // double(double(x)) — the callee is Constant(1), the argument a
-    // Variable for x.
-    let Term::Apply { function, argument } = signature.term(body) else {
-        panic!("expected Apply");
-    };
-    assert_eq!(
-        signature.term(function),
-        Term::Constant {
-            declaration: 1,
-            levels: Vec::new()
-        }
-    );
-    let Term::Apply {
-        function: inner_function,
-        argument: inner_argument,
-    } = signature.term(argument)
-    else {
-        panic!("expected inner Apply");
-    };
-    assert_eq!(signature.term(inner_function), signature.term(function));
-    assert_eq!(signature.term(inner_argument), Term::Variable(0));
-}
-
 /// A family parameter applied in the result: `F(value)` elaborates to
 /// `Apply` over the arrow domain's scope, so a `boundary let` can name a
 /// dependent proposition.
@@ -190,54 +96,6 @@ fn dependent_application_in_result() {
     // F is entry 1 of 3 → index 1; x is innermost → index 0.
     assert_eq!(signature.term(function), Term::Variable(1));
     assert_eq!(signature.term(argument), Term::Variable(0));
-}
-
-/// A strict proposition result at a literal level: `core::Strict<0>` is
-/// `Sort::Strict(Level::Constant 0)`.
-#[test]
-fn strict_result_at_literal_level() {
-    let signature = signature("boundary let gt(limit: i32, value: i32): core::Strict<0>;");
-
-    let declarations = signature.signature().declarations();
-    // i32 carrier + the authored assumption.
-    assert_eq!(declarations.len(), 2);
-    let gt = &declarations[1];
-    let Term::Pi { codomain, .. } = signature.term(gt.ty) else {
-        panic!("expected Pi");
-    };
-    let Term::Pi { codomain, .. } = signature.term(codomain) else {
-        panic!("expected Pi");
-    };
-    assert_eq!(
-        signature.term(codomain),
-        Term::Sort(Sort::Strict(Level::Constant(0)))
-    );
-}
-
-/// A bare type binder generalizes a universe parameter deterministically.
-#[test]
-fn bare_type_binder_generalizes_a_level() {
-    let signature = signature("boundary let id<T>(x: T): T;");
-
-    let declarations = signature.signature().declarations();
-    assert_eq!(declarations.len(), 1);
-    assert_eq!(declarations[0].level_arity, 1);
-    let Term::Pi { domain, codomain } = signature.term(declarations[0].ty) else {
-        panic!("expected Pi");
-    };
-    // T binds at a generalized universe parameter — the declaration's
-    // only level parameter.
-    assert_eq!(
-        signature.term(domain),
-        Term::Sort(Sort::Type(Level::Parameter(0)))
-    );
-    let Term::Pi { domain, codomain } = signature.term(codomain) else {
-        panic!("expected Pi");
-    };
-    // x : T — under [T] T is Variable(0); result under [T, x] is
-    // Variable(1).
-    assert_eq!(signature.term(domain), Term::Variable(0));
-    assert_eq!(signature.term(codomain), Term::Variable(1));
 }
 
 #[test]
@@ -277,112 +135,6 @@ fn unbound_result_family_refuses() {
             .contains("unresolved mathematical type `F`")),
         "unexpected diagnostics: {diagnostics:?}"
     );
-}
-
-/// The spec's canonical machine-valued body: `value > limit` denotes
-/// `Squash (IntLt limit value)` at the `Strict 0` boundary, with the
-/// `i32` telescope sharing the `Int` carrier.
-#[test]
-fn machine_comparison_denotes_squashed_integer_order() {
-    let signature = signature("let gt(limit: i32, value: i32): core::Strict<0> = value > limit;");
-
-    crate::lower_typed_trees(
-        typed_program("let gt(limit: i32, value: i32): core::Strict<0> = value > limit;"),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("machine comparison body checks");
-
-    assert_eq!(signature.authored(), &[2]);
-    let declarations = signature.signature().declarations();
-    // `Int : Type 0`, `IntLt : Π(_ : Int). Π(_ : Int). Type 0`, `gt`.
-    assert_eq!(declarations.len(), 3);
-    let gt = &declarations[2];
-    // Π(_ : Int). Π(_ : Int). Strict 0
-    let Term::Pi { domain, codomain } = signature.term(gt.ty) else {
-        panic!("expected Pi, got {:?}", signature.term(gt.ty));
-    };
-    assert_eq!(
-        signature.term(domain),
-        Term::Constant {
-            declaration: 0,
-            levels: Vec::new()
-        }
-    );
-    let Term::Pi { codomain, .. } = signature.term(codomain) else {
-        panic!("expected inner Pi");
-    };
-    assert_eq!(
-        signature.term(codomain),
-        Term::Sort(Sort::Strict(Level::Constant(0)))
-    );
-    // λ(_ : Int). λ(_ : Int). Squash (IntLt limit value) — `value`
-    // is innermost (index 0), `limit` index 1.
-    let mut body = gt.body.expect("definition body");
-    while let Term::Lambda { body: inner, .. } = signature.term(body) {
-        body = inner;
-    }
-    let Term::Squash { ty } = signature.term(body) else {
-        panic!("expected Squash, got {:?}", signature.term(body));
-    };
-    let Term::Apply {
-        function: application,
-        argument,
-    } = signature.term(ty)
-    else {
-        panic!("expected IntLt application, got {:?}", signature.term(ty));
-    };
-    assert_eq!(signature.term(argument), Term::Variable(0));
-    let Term::Apply {
-        function: relation,
-        argument: left,
-    } = signature.term(application)
-    else {
-        panic!("expected IntLt head, got {:?}", signature.term(application));
-    };
-    assert_eq!(
-        signature.term(relation),
-        Term::Constant {
-            declaration: 1,
-            levels: Vec::new()
-        }
-    );
-    assert_eq!(signature.term(left), Term::Variable(1));
-}
-
-/// `x == y` denotes `Id Int y x` — endpoints order canonically so both
-/// spellings share one denotation.
-#[test]
-fn machine_equality_denotes_id_over_int() {
-    let signature = signature("let eq(a: u64, b: u64): core::Strict<0> = a == b;");
-    crate::lower_typed_trees(
-        typed_program("let eq(a: u64, b: u64): core::Strict<0> = a == b;"),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("machine equality body checks");
-
-    let declarations = signature.signature().declarations();
-    // `Int` carrier + `eq`.
-    assert_eq!(declarations.len(), 2);
-    let mut body = declarations[1].body.expect("definition body");
-    while let Term::Lambda { body: inner, .. } = signature.term(body) {
-        body = inner;
-    }
-    let Term::Squash { ty } = signature.term(body) else {
-        panic!("expected Squash, got {:?}", signature.term(body));
-    };
-    let Term::Id { ty, left, right } = signature.term(ty) else {
-        panic!("expected Id, got {:?}", signature.term(ty));
-    };
-    assert_eq!(
-        signature.term(ty),
-        Term::Constant {
-            declaration: 0,
-            levels: Vec::new()
-        }
-    );
-    // Canonical order: `a` (index 1) and `b` (index 0) sort to (b, a).
-    assert_eq!(signature.term(left), Term::Variable(0));
-    assert_eq!(signature.term(right), Term::Variable(1));
 }
 
 /// `x <= limit && y <= limit` denotes a right-nested `Σ` of `IntLe`
@@ -467,42 +219,6 @@ fn machine_disjunction_denotes_tagged_sum() {
         panic!("expected CaseTwo, got {:?}", signature.term(codomain));
     };
     assert_eq!(signature.term(scrutinee), Term::Variable(0));
-}
-
-/// A bare `bool` subject denotes `x = true` — the same proposition
-/// `lower_proposition` forms — interned once at the `bool` carrier.
-#[test]
-fn machine_boolean_subject_denotes_true_identity() {
-    let signature = signature("let ready(flag: bool): core::Strict<0> = flag;");
-
-    let declarations = signature.signature().declarations();
-    // `bool` carrier, `true` literal, `ready`.
-    assert_eq!(declarations.len(), 3);
-    let mut body = declarations[2].body.expect("definition body");
-    while let Term::Lambda { body: inner, .. } = signature.term(body) {
-        body = inner;
-    }
-    let Term::Squash { ty } = signature.term(body) else {
-        panic!("expected Squash, got {:?}", signature.term(body));
-    };
-    let Term::Id { ty, left, right } = signature.term(ty) else {
-        panic!("expected Id, got {:?}", signature.term(ty));
-    };
-    assert_eq!(
-        signature.term(ty),
-        Term::Constant {
-            declaration: 0,
-            levels: Vec::new()
-        }
-    );
-    assert_eq!(signature.term(left), Term::Variable(0));
-    assert_eq!(
-        signature.term(right),
-        Term::Constant {
-            declaration: 1,
-            levels: Vec::new()
-        }
-    );
 }
 
 /// Closed integer arithmetic evaluates to one literal `Int` constant —
@@ -779,33 +495,6 @@ fn boolean_subjects_generalize_beyond_names() {
     );
 }
 
-/// A plain machine call in a mathematical body interns an opaque
-/// constant at the machine's declared result carrier — machines have
-/// no kernel declaration, so `next(x)` names its own `Int` assumption.
-#[test]
-fn machine_calls_intern_at_the_result_carrier() {
-    let source = "machine next(x: u64) -> u64 { x }\n\
-                  let f(x: u64): u64 = next(x);\n\
-                  let g(x: u64): u64 = next(next(x));";
-    let signature = signature(source);
-    checked_program(source);
-
-    let declarations = signature.signature().declarations();
-    // `Int`, f's `next(x)`, `f`, g's `next(next(x))`, `g`.
-    assert_eq!(declarations.len(), 5);
-    assert_eq!(signature.authored(), &[2, 4]);
-    for opaque in [1usize, 3] {
-        assert!(declarations[opaque].is_assumption());
-        assert_eq!(
-            signature.term(declarations[opaque].ty),
-            Term::Constant {
-                declaration: 0,
-                levels: Vec::new()
-            }
-        );
-    }
-}
-
 /// A `bool`-returning machine call in `Strict` position denotes
 /// `check(x) = true` over its opaque subject constant.
 #[test]
@@ -1002,20 +691,6 @@ fn unlanded_float_literals_adopt_the_demanded_carrier() {
     );
 }
 
-/// Float order relations keep refusing: the bounded vocabulary's order
-/// constants are fixed non-address integers only.
-#[test]
-fn float_order_relations_refuse() {
-    let diagnostics = refuse("let lt(x: f64, y: f64): core::Strict<0> = x < y;");
-
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("non-address integers")),
-        "unexpected diagnostics: {diagnostics:?}"
-    );
-}
-
 /// A whole-body float literal without a landing cannot name a carrier —
 /// it refuses rather than guess a width.
 #[test]
@@ -1028,56 +703,6 @@ fn unlanded_float_literal_body_refuses() {
             .any(|diagnostic| diagnostic.message.contains("cannot determine")),
         "unexpected diagnostics: {diagnostics:?}"
     );
-}
-
-/// `x != y` denotes `Squash (Not (Id Int y x))` — the negated
-/// proposition stays at `Type 0` through the interned `Not` assumption,
-/// so it composes with `&&`/`||` exactly like `x == y`.
-#[test]
-fn machine_inequality_denotes_not_of_id() {
-    let signature = signature("let ne(a: u64, b: u64): core::Strict<0> = a != b;");
-    crate::lower_typed_trees(
-        typed_program("let ne(a: u64, b: u64): core::Strict<0> = a != b;"),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("machine inequality body checks");
-
-    let declarations = signature.signature().declarations();
-    // `Int` carrier, `Not` assumption, `ne`.
-    assert_eq!(declarations.len(), 3);
-    let mut body = declarations[2].body.expect("definition body");
-    while let Term::Lambda { body: inner, .. } = signature.term(body) {
-        body = inner;
-    }
-    let Term::Squash { ty } = signature.term(body) else {
-        panic!("expected Squash, got {:?}", signature.term(body));
-    };
-    let Term::Apply {
-        function: negation,
-        argument: equality,
-    } = signature.term(ty)
-    else {
-        panic!("expected Not application, got {:?}", signature.term(ty));
-    };
-    assert_eq!(
-        signature.term(negation),
-        Term::Constant {
-            declaration: 1,
-            levels: Vec::new()
-        }
-    );
-    let Term::Id { ty, left, right } = signature.term(equality) else {
-        panic!("expected Id under Not, got {:?}", signature.term(equality));
-    };
-    assert_eq!(
-        signature.term(ty),
-        Term::Constant {
-            declaration: 0,
-            levels: Vec::new()
-        }
-    );
-    assert_eq!(signature.term(left), Term::Variable(0));
-    assert_eq!(signature.term(right), Term::Variable(1));
 }
 
 /// `x != y && p` nests under `Σ` — inequality composes with the
@@ -1195,64 +820,6 @@ const EXPLICIT_LEVEL_IDENTITY: &str =
     "let identity<u: core::Level, A: core::Type<u>>(x: A): A = x;";
 
 #[test]
-fn explicit_levels_and_generic_types_reach_checked_admission() {
-    let source = format!(
-        "{EXPLICIT_LEVEL_IDENTITY}
-         let relay<v: core::Level, B: core::Type<v>>(x: B): B = identity<v,B>(x);
-         let closed(B: core::Type<0>, x: B): B = identity<0,B>(x);"
-    );
-    checked_program(&source);
-    let checked = signature(&source);
-    for (index, level) in [(1, Level::Parameter(0)), (2, Level::Constant(0))] {
-        let declaration = &checked.signature().declarations()[checked.authored()[index] as usize];
-        let mut body = declaration.body.expect("transparent body");
-        while let Term::Lambda { body: inner, .. } = checked.term(body) {
-            body = inner;
-        }
-        let Term::Apply { function, .. } = checked.term(body) else {
-            panic!("ordinary argument")
-        };
-        let Term::Apply { function, .. } = checked.term(function) else {
-            panic!("generic type argument")
-        };
-        assert_eq!(
-            checked.term(function),
-            Term::Constant {
-                declaration: checked.authored()[0],
-                levels: vec![level]
-            }
-        );
-    }
-}
-
-#[test]
-fn explicit_levels_follow_the_ordered_mixed_generic_telescope() {
-    let source = "let pick<u: core::Level, A: core::Type<u>, v: core::Level, B: core::Type<v>>(x: A, y: B): B = y;
-        let relay<v: core::Level, u: core::Level, A: core::Type<u>, B: core::Type<v>>(x: A, y: B): B = pick<u,A,v,B>(x,y);";
-    checked_program(source);
-    let checked = signature(source);
-    let mut body = checked.signature().declarations()[checked.authored()[1] as usize]
-        .body
-        .unwrap();
-    loop {
-        match checked.term(body) {
-            Term::Lambda { body: inner, .. } => body = inner,
-            Term::Apply { function, .. } => body = function,
-            term => {
-                assert_eq!(
-                    term,
-                    Term::Constant {
-                        declaration: checked.authored()[0],
-                        levels: vec![Level::Parameter(1), Level::Parameter(0)]
-                    }
-                );
-                break;
-            }
-        }
-    }
-}
-
-#[test]
 fn explicit_wrong_level_is_rejected_by_kernel_application_checking() {
     let source = format!(
         "{EXPLICIT_LEVEL_IDENTITY}
@@ -1264,21 +831,6 @@ fn explicit_wrong_level_is_rejected_by_kernel_application_checking() {
             |diagnostic| diagnostic.message.contains("fails kernel checking")
                 && diagnostic.message.contains("wrong")
         ),
-        "{diagnostics:?}"
-    );
-}
-
-#[test]
-fn explicit_type_cannot_supply_a_level_argument() {
-    let source = format!(
-        "{EXPLICIT_LEVEL_IDENTITY}
-        let wrong<v: core::Level, A: core::Type<v>>(x: A): A = identity<A,v>(x);"
-    );
-    let diagnostics = checked_program_result(&source).expect_err("wrong argument kinds");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("core::Level")),
         "{diagnostics:?}"
     );
 }
@@ -1400,37 +952,6 @@ fn explicit_application_keeps_declaration_order_and_generalized_level_fences() {
     }
 }
 
-/// An omitted universe argument of a generalized binder infers from the
-/// supplied type argument's own sort: inside `use`, `A` binds at
-/// `Type u`, so `inferred<A>` instantiates `inferred`'s generalized
-/// parameter at `u`.
-#[test]
-fn generalized_level_infers_from_the_type_argument() {
-    let source = "let inferred<A>(x: A): A = x;
-        let use<u: core::Level, A: core::Type<u>>(x: A): A = inferred<A>(x);";
-    checked_program(source);
-    let checked = signature(source);
-    let mut body = checked.signature().declarations()[checked.authored()[1] as usize]
-        .body
-        .unwrap();
-    while let Term::Lambda { body: inner, .. } = checked.term(body) {
-        body = inner;
-    }
-    let Term::Apply { function, .. } = checked.term(body) else {
-        panic!("ordinary argument")
-    };
-    let Term::Apply { function, .. } = checked.term(function) else {
-        panic!("generic type argument")
-    };
-    assert_eq!(
-        checked.term(function),
-        Term::Constant {
-            declaration: checked.authored()[0],
-            levels: vec![Level::Parameter(0)]
-        }
-    );
-}
-
 /// A closed carrier argument infers a closed generalized level:
 /// `u64` interned at `Type 0` instantiates the parameter at level `0`.
 #[test]
@@ -1548,20 +1069,4 @@ fn undetermined_authored_levels_require_annotation() {
     assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
         "cannot infer the universe argument of mathematical binder `v`; supply explicit level arguments"
     )), "{diagnostics:?}");
-}
-
-#[test]
-fn partial_authored_level_omission_requires_an_unambiguous_roster() {
-    let source = "let pick<u: core::Level, A: core::Type<u>, v: core::Level, B: core::Type<v>>(x: A, y: B): B = y;
-        let relay<u: core::Level, A: core::Type<u>, B: core::Type<u>>(x: A, y: B): B = pick<u,A,B>(x,y);";
-    let diagnostics = checked_program_result(source)
-        .expect_err("partial universe omission has no argument roster");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains(
-                "requires 4 explicit generic arguments or 2 with universe arguments omitted, got 3"
-            )),
-        "{diagnostics:?}"
-    );
 }

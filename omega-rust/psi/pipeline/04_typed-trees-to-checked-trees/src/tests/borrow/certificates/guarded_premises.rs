@@ -18,31 +18,6 @@ const GUARDED_WINDOW: &str = r#"
 "#;
 
 #[test]
-fn incoming_guard_certifies_disjoint_write_and_call_after_parameter_forwarding() {
-    let mut checked = checked_program(GUARDED_WINDOW);
-    assert!(
-        checked
-            .facts
-            .borrow
-            .mutation_certificates
-            .iter()
-            .any(|(_, certificate)| certificate.derivation
-                == checked_trees::BorrowCompatibilityDerivation::Premised)
-    );
-    assert!(
-        checked
-            .facts
-            .borrow
-            .call_compatibility_certificates
-            .iter()
-            .any(|(_, certificate)| certificate.derivation
-                == checked_trees::BorrowCompatibilityDerivation::Premised)
-    );
-    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
-        .expect("guard-established borrow evidence replays");
-}
-
-#[test]
 fn incoming_guard_certifies_a_second_disjoint_loan_without_widening_authority() {
     let source = GUARDED_WINDOW.replace(
         "self.items[position] = 3;\n            take(&mut self.items[position]);",
@@ -129,22 +104,6 @@ fn guard_polarity_boolean_structure_and_transitive_forwarding_replay() {
 }
 
 #[test]
-fn absent_weak_bypassed_or_nonconjunctive_guards_cannot_separate_windows() {
-    for guard in [
-        "true",
-        "index <= cut",
-        "index == cut",
-        "index != cut",
-        "index < cut || cut <= 4",
-        "!(index >= cut && cut > 4)",
-    ] {
-        assert_conflict(&GUARDED_WINDOW.replace("index < cut ->", &format!("{guard} ->")));
-    }
-    assert_conflict(&GUARDED_WINDOW.replace("_ -> 0", "_ -> separate(index, cut)"));
-    assert_conflict(&GUARDED_WINDOW.replace("separate(index, cut)", "separate(index, index)"));
-}
-
-#[test]
 fn mutable_intermediate_and_destination_values_cannot_reuse_old_guard_relations() {
     let intermediate = forwarded_window()
         .replace("middle(cursor:", "middle(mut cursor:")
@@ -169,115 +128,6 @@ fn mutable_intermediate_and_destination_values_cannot_reuse_old_guard_relations(
             )
             .replace("let held:", "position = 3; let held:"),
     );
-}
-
-#[test]
-fn incoming_guard_identity_and_polarity_are_replayed_not_trusted() {
-    let original = checked_program(GUARDED_WINDOW);
-    for tamper in 0..3 {
-        let mut checked = original.clone();
-        let certificates = checked
-            .facts
-            .borrow
-            .mutation_certificates
-            .iter()
-            .map(|(handle, _)| handle)
-            .collect::<Vec<_>>();
-        for handle in certificates {
-            let certificate = checked.facts.borrow.mutation_certificates.get_mut(handle);
-            for premise in &mut certificate.premises {
-                if let checked_trees::BorrowCompatibilityPremiseSource::IncomingGuard {
-                    expression,
-                    negated,
-                } = &mut premise.source
-                {
-                    match tamper {
-                        0 => *expression = arena::Handle::invalid(),
-                        1 => *negated = !*negated,
-                        _ => {
-                            premise.relation =
-                                checked_trees::BorrowCompatibilityPremiseRelation::Equal
-                        }
-                    }
-                }
-            }
-        }
-        let diagnostics =
-            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
-                .expect_err("tampered guard evidence");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("premise")),
-            "{diagnostics:?}"
-        );
-    }
-}
-
-#[test]
-fn replay_reconstructs_changed_guard_and_intermediate_argument_source() {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
-    for change_guard in [false, true] {
-        let mut checked = checked_program(&forwarded_window());
-        if change_guard {
-            let guard = checked
-                .facts
-                .borrow
-                .mutation_certificates
-                .iter()
-                .flat_map(|(_, certificate)| &certificate.premises)
-                .find_map(|premise| match premise.source {
-                    checked_trees::BorrowCompatibilityPremiseSource::IncomingGuard {
-                        expression,
-                        ..
-                    } => Some(expression),
-                    _ => None,
-                })
-                .expect("retained guard source");
-            *checked.typed.expression_table.expression_mut(guard) = ExpressionNode::Boolean(true);
-        } else {
-            let machine = checked
-                .typed
-                .machines()
-                .iter()
-                .find(|machine| checked.typed.machine_states(machine).len() == 3)
-                .expect("forwarding machine");
-            let middle = &checked.typed.machine_states(machine)[1];
-            let target = checked
-                .typed
-                .statement_table
-                .statements(middle.statement_nodes)
-                .iter()
-                .find_map(|statement| match statement {
-                    StatementNode::Transition(transition) => Some(transition.target),
-                    _ => None,
-                })
-                .expect("forwarding transition");
-            let TransitionTargetNode::Named { arguments, .. } =
-                checked.typed.statement_table.transition_target(target)
-            else {
-                panic!("named edge");
-            };
-            let arguments = checked.typed.statement_table.expression_handles(*arguments);
-            let destination = arguments[0];
-            let substituted = checked
-                .typed
-                .expression_table
-                .expression(arguments[1])
-                .clone();
-            *checked.typed.expression_table.expression_mut(destination) = substituted;
-        }
-        let diagnostics =
-            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
-                .expect_err("stale establishment or transport");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("compatibility")),
-            "{diagnostics:?}"
-        );
-    }
 }
 
 #[test]

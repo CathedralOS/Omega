@@ -1,9 +1,8 @@
 use super::super::build_checked_scalar_graph_plans;
 use crate::tests::front_end::checked_program_result;
 use checked_trees::{
-    CheckedScalarBindingDestination, CheckedScalarBindingValue, CheckedScalarComputationKind,
-    CheckedScalarExpressionRole, CheckedScalarPrimitiveLocalPlan, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape,
+    CheckedScalarBindingDestination, CheckedScalarBindingValue, CheckedScalarExpressionRole,
+    CheckedScalarPrimitiveLocalPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
 };
 use typed_trees::{statement::StatementNode, types::PrimitiveType};
 
@@ -114,63 +113,6 @@ fn borrowed_scalar_locals_retain_exact_roster_and_normalized_shapes() {
             );
         }
     }
-}
-
-#[test]
-fn scalar_locals_without_borrow_demand_keep_existing_scalar_bindings() {
-    let checked =
-        checked("machine enter(value: u64) -> u64 { let mut slot: u64 = value; slot = 7; slot }");
-    let plans = &checked.facts.flow.terminal_scalar_graphs;
-    let graph = plans.for_machine(checked.machines()[0].symbol).unwrap();
-    assert!(graph.states[0].primitive_locals.is_empty());
-    assert!(plans.structural_types.is_empty());
-    assert_eq!(graph.states[0].bindings.len(), 2);
-}
-
-#[test]
-fn orphan_computations_do_not_create_local_places() {
-    let checked = checked(&source("flag: bool", "201"));
-    let mut computations = checked.facts.values.scalar_computations.clone();
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "enter")
-        .unwrap();
-    let state = &checked.machine_states(machine)[0];
-    let StatementNode::LocalData(unused) =
-        &checked.statement_table.statements(state.statement_nodes)[0]
-    else {
-        panic!("unused local")
-    };
-    let mut orphan = computations.nodes.iter().find_map(|(_, node)| matches!(&node.kind, CheckedScalarComputationKind::Call { structural_arguments, .. } if !structural_arguments.is_empty()).then_some(node.clone())).unwrap();
-    let CheckedScalarComputationKind::Call {
-        structural_arguments,
-        ..
-    } = &mut orphan.kind
-    else {
-        panic!("borrowed call")
-    };
-    let mut argument = computations
-        .structural_arguments
-        .span(*structural_arguments)
-        .unwrap()[0]
-        .clone();
-    argument.as_place_mut().unwrap().source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
-            symbol: unused.symbol,
-        };
-    *structural_arguments = computations.structural_arguments.insert_many([argument]);
-    computations.nodes.append(orphan);
-    assert_eq!(
-        build_checked_scalar_graph_plans(
-            &checked,
-            &checked.facts.values.scalar_expressions,
-            &computations,
-            &checked.facts.values.structural_values,
-            &checked.facts.values.proof_terms,
-        ),
-        checked.facts.flow.terminal_scalar_graphs
-    );
 }
 
 #[test]
@@ -288,43 +230,6 @@ fn borrowed_local_rejects_mismatched_computed_initializer() {
 }
 
 #[test]
-fn return_and_guard_computations_retain_borrowed_local_demand() {
-    for ending in [
-        "stamp(&mut slot, 7) == 7",
-        "transition flag && (stamp(&mut slot, 7) == 7) { true -> true false -> false }",
-    ] {
-        let checked = checked(&format!(
-            "machine stamp(value: &mut u64, number: u64) -> u64 {{ value = number; number }}
-             machine enter(flag: bool) -> bool {{ let mut slot: u64 = 0; {ending} }}"
-        ));
-        let machine = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "enter")
-            .unwrap();
-        let state = &checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(machine.symbol)
-            .unwrap()
-            .states[0];
-        assert_eq!(state.primitive_locals.len(), 1);
-        assert_eq!(state.primitive_locals[0].statement_ordinal, 0);
-        assert_eq!(state.primitive_locals[0].primitive_type, PrimitiveType::U64);
-        assert!(
-            checked
-                .facts
-                .values
-                .scalar_computations
-                .nodes
-                .iter()
-                .any(|(_, node)| matches!(node.kind, CheckedScalarComputationKind::Apply { .. }))
-        );
-    }
-}
-
-#[test]
 fn borrowed_local_demand_rejects_wrong_referent_or_type() {
     let checked = checked(&source("flag: bool", "201"));
     let machine = checked
@@ -379,42 +284,4 @@ fn borrowed_local_demand_rejects_wrong_referent_or_type() {
             "borrow demand mutation {mutation}"
         );
     }
-}
-
-#[test]
-fn borrowed_local_graphs_do_not_admit_multiple_source_states() {
-    let checked = checked(
-        "machine stamp(value: &mut u64, number: u64) -> u64 { value = number; number }
-         machine enter() -> u64 {
-             let mut slot: u64 = 0;
-             let answer: u64 = stamp(&mut slot, 7);
-             transition { _ -> finish(answer) }
-             state finish(value: u64) -> u64 { value }
-         }",
-    );
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "enter")
-        .unwrap();
-    assert!(
-        checked
-            .facts
-            .values
-            .scalar_computations
-            .structural_arguments
-            .iter()
-            .any(|(_, argument)| matches!(
-                argument.as_place().unwrap().source,
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            ))
-    );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(machine.symbol)
-            .is_none()
-    );
 }

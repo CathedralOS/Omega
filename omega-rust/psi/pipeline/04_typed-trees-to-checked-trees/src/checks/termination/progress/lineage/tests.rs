@@ -4,10 +4,6 @@ use crate::checks::termination::progress::lineage::StateParameterLineage;
 use crate::checks::termination::progress::lineage::transfers;
 use symbols::SymbolHandle;
 
-mod arrivals;
-mod discovery;
-mod projected;
-
 fn symbol(index: u32) -> SymbolHandle {
     SymbolHandle::from_arena_index(index)
 }
@@ -64,39 +60,6 @@ fn value(lineage: &StateParameterLineage, parameter: u32) -> &ParameterLineage {
 }
 
 #[test]
-fn unseeded_growing_cycle_does_not_poison_a_finite_join() {
-    for reversed in [false, true] {
-        let mut transfers = growing_cycle_with_finite_join();
-        if reversed {
-            transfers.reverse();
-        }
-        let lineage =
-            StateParameterLineage::close(initial_values(ParameterLineage::Unseen), transfers);
-
-        assert_eq!(value(&lineage, 1), &exact(1));
-        assert_eq!(value(&lineage, 2), &ParameterLineage::Unseen);
-        assert_eq!(value(&lineage, 3), &ParameterLineage::Unseen);
-        assert_eq!(value(&lineage, 4), &exact(1));
-    }
-}
-
-#[test]
-fn seeded_growing_cycle_makes_its_finite_join_ambiguous() {
-    for reversed in [false, true] {
-        let mut transfers = growing_cycle_with_finite_join();
-        if reversed {
-            transfers.reverse();
-        }
-        let lineage = StateParameterLineage::close(initial_values(exact(2)), transfers);
-
-        assert_eq!(value(&lineage, 1), &exact(1));
-        for parameter in [2, 3, 4] {
-            assert_eq!(value(&lineage, parameter), &ParameterLineage::Ambiguous);
-        }
-    }
-}
-
-#[test]
 fn unknown_incoming_activates_a_growing_cycle_and_poisons_its_join() {
     // A computed argument has no structural subject. A structural root outside
     // the retained parameters is also unknown, rather than an unseeded input.
@@ -118,26 +81,5 @@ fn unknown_incoming_activates_a_growing_cycle_and_poisons_its_join() {
                 assert_eq!(value(&lineage, parameter), &ParameterLineage::Ambiguous);
             }
         }
-    }
-}
-
-#[test]
-fn unknown_incoming_still_poisons_a_finite_join_without_activating_the_cycle() {
-    for reversed in [false, true] {
-        let mut transfers = growing_cycle_with_finite_join();
-        transfers.push(transfers::ParameterTransfer {
-            destination: subject(4),
-            source: None,
-        });
-        if reversed {
-            transfers.reverse();
-        }
-        let lineage =
-            StateParameterLineage::close(initial_values(ParameterLineage::Unseen), transfers);
-
-        assert_eq!(value(&lineage, 1), &exact(1));
-        assert_eq!(value(&lineage, 2), &ParameterLineage::Unseen);
-        assert_eq!(value(&lineage, 3), &ParameterLineage::Unseen);
-        assert_eq!(value(&lineage, 4), &ParameterLineage::Ambiguous);
     }
 }

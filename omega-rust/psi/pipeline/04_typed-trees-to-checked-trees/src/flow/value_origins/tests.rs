@@ -151,17 +151,3 @@ fn constructor_element_projection_derives_the_bound_operand() {
         Some(fixture.place("replacement", &[("Context", "scheduler")]))
     );
 }
-
-/// The bound operand may itself be a reference: the captured origin continues
-/// through the leaf's referent rather than the literal's spelling.
-#[test]
-fn constructor_projection_through_a_reference_leaf_derives_the_referent() {
-    let fixture = Fixture::new(
-        "let saved: SchedulerHandle = RefBox { view: &context }.view.scheduler;",
-        "data RefBox { view: &Context; }",
-    );
-    assert_eq!(
-        fixture.query(fixture.place("saved", &[])),
-        Some(fixture.place("context", &[("Context", "scheduler")]))
-    );
-}

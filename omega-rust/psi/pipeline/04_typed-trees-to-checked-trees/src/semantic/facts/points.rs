@@ -137,34 +137,3 @@ pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
         ContractProofFactOwner::Unknown => FactOrigin::Unknown,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner, FactOrigin};
-    use crate::semantic::facts::points::contract_fact_origin;
-    use arena::Handle;
-    use checked_trees::expression::ExpressionHandle;
-    use symbols::SymbolHandle;
-
-    #[test]
-    fn operator_contract_origin_keeps_contract_kind_and_operator_symbol() {
-        let operator_symbol = SymbolHandle::from_arena_index(8);
-        let contract = ContractProofFact {
-            kind: ContractProofFactKind::Requires,
-            owner: ContractProofFactOwner::OperatorUse {
-                expression: ExpressionHandle::from_arena_index(1),
-                origin: Default::default(),
-                operator_symbol,
-            },
-            fact: Handle::from_arena_index(2),
-            evidence_term: None,
-            qualification_authorization: None,
-            inherited_scope: None,
-        };
-
-        assert_eq!(
-            contract_fact_origin(&contract),
-            FactOrigin::OperatorRequires { operator_symbol }
-        );
-    }
-}

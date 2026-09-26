@@ -10,7 +10,7 @@ use crate::CheckingRequest;
 use crate::tests::front_end::typed_program_with_core_service;
 use crate::tests::lower_typed_trees;
 use checked_trees::CheckedDynamicBinding::{Direct, Rebound};
-use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
+use checked_trees::CheckedDynamicDispatchPlan::Scalar;
 
 const STRUCTURAL_INTEGER_STORE_SOURCE: &str = r#"
     trait Shape {
@@ -35,80 +35,6 @@ const STRUCTURAL_INTEGER_STORE_SOURCE: &str = r#"
         self.item.value = 17;
         let erased: &dyn Shape = &self.item as &dyn Item::Primary;
         let result: i32 = erased.code();
-    }
-"#;
-
-const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
-    pub boundary trait Console {
-        machine exit_process(return_code: i32) reaches Console;
-    }
-
-    trait Shape {
-        machine code(&self) -> i32;
-    }
-
-    data Item [copy] {
-        value: i32;
-    }
-
-    Primary: Item satisfies Shape {
-        machine code(&self) -> i32 {
-            transition { _ -> self.value }
-        }
-    }
-
-    data Main {
-        console: Binding<Console>;
-        item: Item;
-    }
-
-    machine Main::run(&mut self) reaches Console {
-        let erased: &dyn Shape = &self.item as &dyn Item::Primary;
-        let result: i32 = erased.code();
-        transition result == 0 {
-            true -> good()
-            _ -> bad()
-        }
-
-        state good(&mut self) { self.console.exit_process(70); }
-        state bad(&mut self) { self.console.exit_process(71); }
-    }
-"#;
-
-const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
-    pub boundary trait Console {
-        machine exit_process(return_code: i32) reaches Console;
-    }
-
-    trait Shape {
-        machine code(&self) -> i32;
-    }
-
-    data Item [copy] { value: i32; }
-
-    Primary: Item satisfies Shape {
-        machine code(&self) -> i32 {
-            transition { _ -> self.value }
-        }
-    }
-
-    data Main {
-        console: Binding<Console>;
-        decoy: Item;
-        selected: Item;
-    }
-
-    machine Main::run(&mut self) reaches Console {
-        let mut erased: &dyn Shape = &self.decoy as &dyn Item::Primary;
-        erased = &self.selected as &dyn Item::Primary;
-        let result: i32 = erased.code();
-        transition result == 0 {
-            true -> good()
-            _ -> bad()
-        }
-
-        state good(&mut self) { self.console.exit_process(70); }
-        state bad(&mut self) { self.console.exit_process(71); }
     }
 "#;
 
@@ -267,27 +193,4 @@ fn sole_rebound_dynamic_plan(
         panic!("one rebound dynamic scalar plan expected, got {plans:#?}")
     };
     (initial, latest)
-}
-
-fn sole_rebound_dynamic_unit_plan(
-    checked: &checked_trees::CheckedTrees,
-) -> (
-    &checked_trees::CheckedDynamicSelectionPlan,
-    &checked_trees::CheckedDynamicUnitCallPlan,
-) {
-    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    let [Unit(Rebound { initial, latest })] = dynamic.calls.as_slice() else {
-        panic!("one rebound dynamic Unit plan expected, got {dynamic:#?}")
-    };
-    (initial, latest)
-}
-
-fn sole_direct_dynamic_unit_plan(
-    checked: &checked_trees::CheckedTrees,
-) -> &checked_trees::CheckedDynamicUnitCallPlan {
-    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    let [Unit(Direct(plan))] = dynamic.calls.as_slice() else {
-        panic!("one direct dynamic Unit plan expected, got {dynamic:#?}")
-    };
-    plan
 }

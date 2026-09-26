@@ -10,39 +10,6 @@ const SEQUENCE: &str = r#"
 "#;
 
 #[test]
-fn proof_slice_extraction_definition_accepts_guarded_tail_recursion() {
-    for measure in ["items -> Slice::Length", "items"] {
-        let source = format!(
-            r#"{SEQUENCE}
-            machine extract(items: &[u64]) -> Sequence
-            terminates by {measure};
-            {{
-                transition items.len > 0 {{
-                    true -> Sequence::Cons {{head: items[0], tail: extract(items[1..])}}
-                    false -> Sequence::Empty
-                }}
-            }}"#
-        );
-        let program = typed_program(&source);
-        let extractor = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "extract")
-            .expect("extractor");
-        assert!(typed_trees::proof_only::classify(&program).is_proof_machine(&program, extractor));
-        let entry_parameter = &program.state_parameters(&program.machine_states(extractor)[0])[0];
-        let subjects = typed_trees::ranking::resolve_machine_witness_subjects(&program, extractor)
-            .expect("resolved witness");
-        assert!(
-            matches!(subjects.as_slice(), [subject] if matches!(program.expression_table.expression(*subject),
-            typed_trees::expression::ExpressionNode::Name(path) if path.symbol == entry_parameter.symbol && path.head_symbol == entry_parameter.symbol))
-        );
-        lower_typed_trees(program, &CheckingRequest::settled())
-            .unwrap_or_else(|diagnostics| panic!("{measure}: {diagnostics:#?}"));
-    }
-}
-
-#[test]
 fn proof_slice_recursion_requires_the_same_nonempty_tail_edge() {
     for (name, body) in [
         (

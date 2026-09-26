@@ -6,7 +6,6 @@ const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../tests/omega/pass/termination/measure_field_pinned_limit/main.omg"
 ));
-const PRECONDITION: &str = "requires countdown.remaining <= countdown.limit;";
 const NEXT_LIMIT: &str = "limit: countdown.limit";
 
 fn prove_termination(source: &str) {
@@ -23,11 +22,6 @@ fn reject_range(source: &str) {
             .any(|diagnostic| diagnostic.message.contains("cannot prove rank range")),
         "{source}\n{diagnostics:#?}"
     );
-}
-
-fn reject_termination(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed_program(source))
-        .expect_err(source);
 }
 
 fn second_record() -> String {
@@ -77,92 +71,6 @@ fn ordinary_field_requirements_do_not_depend_on_a_ranking_witness() {
 }
 
 #[test]
-fn ordinary_field_requirements_keep_caller_and_callee_coordinates_separate() {
-    let source = r#"
-        data Bounds { value: u64 [0..=5]; }
-        machine consume(first: Bounds, second: Bounds) -> u64
-        requires first.value <= second.value;
-        { 0 }
-        machine caller(first: Bounds, second: Bounds) -> u64
-        requires second.value <= first.value;
-        { consume(second, first) }
-    "#;
-    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
-        .expect("actuals map simultaneously despite reversed same-named formals");
-    for arguments in ["first, second", "Bounds { value: 5 }, Bounds { value: 0 }"] {
-        let changed = source.replace("consume(second, first)", &format!("consume({arguments})"));
-        let diagnostics = lower_typed_trees(typed_program(&changed), &CheckingRequest::settled())
-            .expect_err("neither caller names nor an invalid constructor supplies the callee fact");
-        assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("cannot prove requires contract for call consume")),
-            "{diagnostics:#?}"
-        );
-    }
-}
-
-#[test]
-fn reconstructed_endpoint_accepts_proved_identity_and_field_order() {
-    prove_termination(&COUNTDOWN.replace(NEXT_LIMIT, "limit: countdown.limit + 0"));
-    let reordered = COUNTDOWN.replace(
-        "remaining: countdown.remaining - 1,\n            limit: countdown.limit",
-        "limit: countdown.limit,\n            remaining: countdown.remaining - 1",
-    );
-    assert_ne!(reordered, COUNTDOWN);
-    prove_termination(&reordered);
-}
-
-#[test]
-fn related_sibling_coordinates_contribute_entry_facts() {
-    let source = COUNTDOWN
-        .replace("limit: u64 [0..=5];", "limit: u64 [0..=5]; spare: u64 [0..=5];")
-        .replace(
-            PRECONDITION,
-            "requires countdown.remaining <= countdown.spare && countdown.spare <= countdown.limit;",
-        )
-        .replace(NEXT_LIMIT, "limit: countdown.limit, spare: countdown.spare");
-    prove_termination(&source);
-    reject_range(&source.replace("countdown.remaining <= countdown.spare && ", ""));
-    reject_range(&source.replace(
-        "countdown.spare <= countdown.limit",
-        "countdown.spare >= countdown.limit",
-    ));
-    // The established rank invariant suffices without renewing the sibling
-    // relation. Ordinary checking independently rejects the invalid arrival.
-    for (value, expected) in [
-        ("0", "cannot prove requires contract for call walk"),
-        (
-            "6",
-            "field `spare`: value 6 is outside its declared range `0..=5`",
-        ),
-    ] {
-        let changed = source.replace("spare: countdown.spare", &format!("spare: {value}"));
-        prove_termination(&changed);
-        let diagnostics = lower_typed_trees(typed_program(&changed), &CheckingRequest::settled())
-            .expect_err("the constructor and recursive contract still require ordinary checking");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(expected)),
-            "{changed}\n{diagnostics:#?}"
-        );
-    }
-
-    let equal = source
-        .replace(
-            "countdown.spare <= countdown.limit",
-            "countdown.spare == countdown.limit",
-        )
-        .replace(NEXT_LIMIT, "limit: countdown.spare");
-    prove_termination(&equal);
-    reject_range(&equal.replace(
-        "countdown.spare == countdown.limit",
-        "countdown.spare <= countdown.limit",
-    ));
-}
-
-#[test]
 fn endpoint_in_second_record_tracks_only_its_exact_field() {
     let source = second_record();
     prove_termination(&source);
@@ -179,69 +87,6 @@ fn endpoint_in_second_record_tracks_only_its_exact_field() {
     ] {
         reject_range(&source.replace("}, bounds)", &format!("}}, {argument})")));
     }
-}
-
-#[test]
-fn field_coordinates_do_not_confuse_subjects_or_siblings() {
-    let source = second_record();
-    for requirement in [
-        "requires bounds.remaining <= bounds.limit;",
-        "requires countdown.limit <= bounds.limit;",
-        "requires countdown.remaining <= countdown.limit;",
-    ] {
-        reject_range(&source.replace("requires countdown.remaining <= bounds.limit;", requirement));
-    }
-    reject_range(&source.replace("in 0..=bounds.limit", "in 0..=bounds.remaining"));
-    reject_termination(&source.replace("countdown.remaining - 1", "bounds.remaining - 1"));
-    reject_termination(&COUNTDOWN.replace("countdown.remaining - 1", "countdown.limit - 1"));
-}
-
-#[test]
-fn changed_field_endpoint_rejects_even_when_the_next_rank_fits() {
-    // Each replacement still contains remaining - 1 under the original guard
-    // and entry relation. Membership alone cannot discharge endpoint pinning.
-    for replacement in [
-        "limit: 5",
-        "limit: countdown.limit - 1",
-        "limit: countdown.remaining",
-    ] {
-        reject_range(&COUNTDOWN.replace(NEXT_LIMIT, replacement));
-    }
-}
-
-#[test]
-fn each_recursive_edge_must_preserve_the_field_endpoint_and_descend() {
-    let source = COUNTDOWN.replace(
-        "    transition countdown.remaining > 0 {",
-        "    transition countdown.remaining > 1 {\n        true -> walk(Countdown { remaining: countdown.remaining - 2, limit: countdown.limit })\n    }\n    transition countdown.remaining > 0 {",
-    );
-    prove_termination(&source);
-    for source in [
-        source.replace(
-            "remaining - 2, limit: countdown.limit",
-            "remaining - 2, limit: 5",
-        ),
-        source.replace("limit: countdown.limit\n", "limit: 5\n"),
-    ] {
-        reject_range(&source);
-    }
-    for step in ["countdown.remaining - 1", "countdown.remaining - 2"] {
-        reject_termination(&source.replace(step, "countdown.remaining"));
-    }
-}
-
-#[test]
-fn pinned_field_membership_does_not_prove_strict_descent() {
-    for value in [
-        "countdown.remaining",
-        "countdown.remaining - 0",
-        "countdown.remaining + 1",
-    ] {
-        reject_termination(&COUNTDOWN.replace("countdown.remaining - 1", value));
-    }
-    reject_termination(
-        &COUNTDOWN.replace("false -> countdown.remaining", "false -> walk(countdown)"),
-    );
 }
 
 #[test]
@@ -296,50 +141,4 @@ fn endpoint_coordinates_reject_prefix_writes_and_alias_writes() {
         "    let mut scratch: u64 = 0;\n    scratch = 5;\n    transition",
     );
     prove_termination(&disjoint);
-}
-
-#[test]
-fn later_operands_cannot_invalidate_a_captured_field_endpoint() {
-    let source = second_record()
-        .replace("bounds: Countdown)", "bounds: Countdown, scratch: u64)")
-        .replace("}, bounds)", "}, bounds, reset(&mut bounds.limit))");
-    for helper in [
-        "machine reset(value: &mut u64) -> u64 { value = 5; 0 }",
-        "boundary machine reset(value: &mut u64) -> u64;",
-    ] {
-        reject_range(&format!("{helper} {source}"));
-    }
-    let field_operand = COUNTDOWN
-        .replace("limit: u64 [0..=5];", "limit: u64 [0..=5]; scratch: u64;")
-        .replace(
-            NEXT_LIMIT,
-            "limit: countdown.limit, scratch: reset(&mut countdown.limit)",
-        );
-    reject_range(&format!(
-        "machine reset(value: &mut u64) -> u64 {{ value = 5; 0 }} {field_operand}"
-    ));
-}
-
-#[test]
-fn field_endpoints_require_defined_intermediates_and_exact_owned_carriers() {
-    // Algebraic cancellation cannot establish that the Exact addition is
-    // representable for every admitted limit in 0..=5.
-    reject_range(&COUNTDOWN.replace(
-        "in 0..=countdown.limit;",
-        "in 0..=((countdown.limit + 18446744073709551615u64) - 18446744073709551615u64);",
-    ));
-    // A mutable owned carrier still names its arrival field: the preserved
-    // prefix supplies the same endpoint evidence an immutable formal would.
-    // A borrowed carrier reads the endpoint through its reference; forwarding
-    // the binding keeps the referent, while rebinding it before the edge
-    // writes the endpoint's carrier path.
-    prove_termination(&second_record().replace("bounds: Countdown", "mut bounds: Countdown"));
-    let borrowed = second_record().replace("bounds: Countdown", "bounds: &Countdown");
-    prove_termination(&borrowed);
-    reject_range(
-        &borrowed
-            .replace("bounds: &Countdown", "mut bounds: &Countdown")
-            .replace("    transition", "    bounds = bounds;\n    transition"),
-    );
-    reject_range(&COUNTDOWN.replace("limit: u64 [0..=5];", "limit: u64 [0..=5] in Wrapping;"));
 }

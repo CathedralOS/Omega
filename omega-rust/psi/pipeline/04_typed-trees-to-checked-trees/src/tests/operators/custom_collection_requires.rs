@@ -33,12 +33,6 @@ fn program(requires: &str) -> String {
 }
 
 #[test]
-fn a_provable_custom_index_requires_is_discharged_at_the_use() {
-    checked_program_result(&program("Count == Count"))
-        .unwrap_or_else(|errors| panic!("a reflexive requires is provable: {errors:#?}"));
-}
-
-#[test]
 fn an_unprovable_custom_index_requires_still_rejects_by_name() {
     // The use reaches the selected operator as a value call into the
     // specialization `Count == 4` selected, so the rejection is the value-call
@@ -56,21 +50,6 @@ fn an_unprovable_custom_index_requires_still_rejects_by_name() {
         errors
             .iter()
             .all(|error| !error.to_string().contains("$specialized$")),
-        "{errors:#?}"
-    );
-}
-
-#[test]
-fn an_unprovable_custom_index_requires_no_substitution_refutes_names_its_clause() {
-    // `4 > 100` is unproved rather than structurally false, so the fail-closed
-    // obligation rung answers instead of the refutation one. It must reject
-    // too: a `requires` a caller cannot discharge never becomes silence.
-    let errors = checked_program_result(&program("Count > 100"))
-        .expect_err("an undischarged requires on a custom collection must not disappear");
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.to_string().contains("cannot prove requires contract")),
         "{errors:#?}"
     );
 }

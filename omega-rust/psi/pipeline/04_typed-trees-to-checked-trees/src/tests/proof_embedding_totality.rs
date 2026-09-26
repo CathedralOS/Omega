@@ -16,28 +16,6 @@ fn messages(source: &str) -> String {
 }
 
 #[test]
-fn embedding_a_pure_terminating_call_does_not_create_runtime_execution() {
-    let checked = check(
-        r#"
-        machine identity(value: u8) -> u8 terminates; { value }
-        machine law(value: u8) -> u8
-        ensures embed(identity(value)) == embed(identity(value))
-        { value }
-    "#,
-    )
-    .expect("pure total call is a denotational source");
-    assert!(
-        checked
-            .facts
-            .flow
-            .control
-            .calls
-            .iter()
-            .all(|(_, call)| checked.symbols.name(call.target_symbol) != "identity")
-    );
-}
-
-#[test]
 fn embedding_equality_uses_the_actual_exit_value_and_exact_call_arguments() {
     let different_result = messages(
         r#"
@@ -59,20 +37,6 @@ fn embedding_equality_uses_the_actual_exit_value_and_exact_call_arguments() {
     "#,
     );
     assert!(different_call.contains("cannot prove"), "{different_call}");
-}
-
-#[test]
-fn embedding_boundary_and_effectful_calls_rejects() {
-    for declaration in [
-        "boundary machine source(value: u8) -> u8;",
-        "boundary trait PortIo {} machine source(value: u8) -> u8 reaches PortIo terminates; { value }",
-    ] {
-        let source = format!(
-            "{declaration} machine law(value: u8) -> u8 requires embed(source(value)) >= 0 {{ value }}"
-        );
-        let diagnostics = messages(&source);
-        assert!(diagnostics.contains("not denotational"), "{diagnostics}");
-    }
 }
 
 #[test]

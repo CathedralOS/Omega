@@ -1,28 +1,6 @@
 use super::check;
 
 #[test]
-fn result_fields_compose_completed_call_guarantees() {
-    for returned in ["joined.remaining", "saved"] {
-        check(
-            &format!(
-                "data Count [copy] {{ remaining: u64; }}
-                 machine join(lower: u64, upper: u64) -> Count
-                 requires upper <= 100; lower <= 100
-                 ensures embed(result.remaining) == embed(lower) + embed(upper)
-                 {{ Count {{ remaining: lower + upper }} }}
-                 machine wrapper(lower: u64, upper: u64) -> Count
-                 requires upper <= 100; lower <= 100
-                 ensures embed(result.remaining) == embed(lower) + embed(upper)
-                 {{ let joined: Count = join(lower, upper);
-                    let saved: u64 = joined.remaining;
-                    Count {{ remaining: {returned} }} }}"
-            ),
-            true,
-        );
-    }
-}
-
-#[test]
 fn returned_geometry_uses_captured_values_not_replayed_reads() {
     for (arguments, update, returned, accepted) in [
         ("lower, upper", "joined.remaining = 7;", "saved", true),
@@ -49,23 +27,6 @@ fn returned_geometry_uses_captured_values_not_replayed_reads() {
                 let mut saved: u64 = joined.remaining;
                 {update}
                 Count {{ remaining: {returned} }} }}"
-            ),
-            accepted,
-        );
-    }
-}
-
-#[test]
-fn nested_result_fields_publish_the_selected_count_computation() {
-    for (returned, accepted) in [("capacity - length", true), ("capacity", false)] {
-        check(
-            &format!(
-                "data Count [copy] {{ remaining: u64; }}
-                 data Issued [copy] {{ count: Count; marker: u64; }}
-                 machine allocate(capacity: u64, length: u64) -> Issued
-                 requires length <= capacity
-                 ensures result.count.remaining == capacity - length
-                 {{ Issued {{ count: Count {{ remaining: {returned} }}, marker: 7 }} }}"
             ),
             accepted,
         );

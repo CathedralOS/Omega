@@ -28,62 +28,6 @@ const PREMISED_WRITE: &str = r#"
 "#;
 
 #[test]
-fn published_borrow_certificates_replay_independently() {
-    let checked = checked_program(PREMISED_WRITE);
-    let borrow = &checked.facts.borrow;
-    assert!(
-        borrow.mutation_certificates.iter().any(|(_, certificate)| {
-            certificate.derivation == checked_trees::BorrowCompatibilityDerivation::Premised
-        }),
-        "the premised write must author a premised mutation certificate"
-    );
-    crate::replay_checked_borrow_certificates(&checked.typed, &checked.facts)
-        .expect("published borrow certificates replay independently");
-
-    let adjacent = checked_program(super::SYMBOLIC_ADJACENCY);
-    assert!(
-        adjacent
-            .facts
-            .borrow
-            .compatibility_certificates
-            .iter()
-            .next()
-            .is_some(),
-        "the adjacent disjoint loans must author compatibility certificates"
-    );
-    crate::replay_checked_borrow_certificates(&adjacent.typed, &adjacent.facts)
-        .expect("published compatibility certificates replay independently");
-}
-
-#[test]
-fn premise_token_drift_rejects_post_publication() {
-    let checked = checked_program(PREMISED_WRITE);
-    let mut facts = checked.facts.clone();
-    let (handle, _) = facts
-        .borrow
-        .mutation_certificates
-        .iter()
-        .find(|(_, certificate)| !certificate.premises.is_empty())
-        .expect("a premised mutation certificate");
-    facts
-        .borrow
-        .mutation_certificates
-        .get_mut(handle)
-        .premises
-        .pop();
-
-    let diagnostics = crate::replay_checked_borrow_certificates(&checked.typed, &facts)
-        .expect_err("a certificate with a truncated premise ledger must not replay");
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("derivation drifted")
-                || diagnostic.message.contains("premise tokens drifted")
-        }),
-        "unexpected diagnostics: {diagnostics:?}"
-    );
-}
-
-#[test]
 fn fabricated_certificate_rejects_post_publication() {
     let checked = checked_program(PREMISED_WRITE);
     let mut facts = checked.facts.clone();

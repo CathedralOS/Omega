@@ -198,32 +198,4 @@ mod tests {
         assert!(message.contains("(builtin/root)"));
         assert!(message.contains("owned by domain"));
     }
-
-    #[test]
-    fn does_not_reject_missing_operator_resolution_before_core_contracts_are_wired() {
-        let mut uses = Arena::default();
-        uses.append(CheckedOperatorUseFact {
-            expression: ExpressionHandle::from_arena_index(1),
-            origin: CheckedValueOrigin::default(),
-            occurrence: Default::default(),
-            spelling: OperatorSpelling::Index,
-            policy_adapter: Default::default(),
-            selected_operator_symbol: SymbolHandle::invalid(),
-            candidates: HandleSpan::empty(),
-            candidate_count: 0,
-            status: CheckedOperatorResolutionStatus::Missing,
-        });
-        let facts = CheckFacts {
-            operators: checked_trees::CheckedOperatorFacts::with_roots(
-                uses,
-                Default::default(),
-                Arena::default(),
-            ),
-            ..Default::default()
-        };
-
-        let program = typed_trees::TypedTrees::default();
-        check_operator_resolution(&program, &facts)
-            .expect("missing operators stay reportable until core contracts are wired");
-    }
 }

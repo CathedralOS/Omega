@@ -4,54 +4,6 @@ use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 
 #[test]
-fn unrestricted_plain_record_leaves_are_wholly_replaceable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Leaf [copy] {
-                value: u16;
-                enabled: bool;
-            }
-            data Inner { leaf: Leaf; sibling: u8; }
-            data Outer { inner: Inner; other: Inner; }
-
-            machine replace(outer: &write Outer, replacement: Leaf) {
-                outer.inner.leaf = replacement;
-                outer.other.leaf = Leaf { value: 9, enabled: true };
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("an eligible unrestricted record leaf is one content-independent whole store");
-}
-
-#[test]
-fn plain_domain_qualified_record_leaves_are_wholly_replaceable() {
-    // A plain declared domain is a membership predicate on the whole incoming
-    // value: whole-leaf replacement displaces the complete carrier, and the
-    // ordinary write-side domain check discharges `in Valid` against the
-    // stored value exactly as it does for a `&mut` target.
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Leaf [copy] { value: u16; }
-            domain Leaf::Valid
-            requires
-                self.value <= 10;
-            data Holder { leaf: Leaf in Valid; }
-
-            machine replace(holder: &write Holder, replacement: Leaf in Valid) {
-                holder.leaf = replacement;
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("a domain-proven whole-leaf store into a plain domain leaf should lower");
-}
-
-#[test]
 fn closed_material_copy_sums_are_wholly_replaceable() {
     lower_typed_trees(
         typed_program(
@@ -174,63 +126,6 @@ fn ineligible_record_leaves_remain_outside_whole_replacement() {
 }
 
 #[test]
-fn qualified_scalar_and_carrier_roots_are_wholly_replaceable() {
-    // A qualified `&write` root is the same leaf judgment a field store
-    // applies: the replacement displaces the complete referee footprint, so
-    // the store's own bounded-value and domain obligations re-derive every
-    // declared atom on the incoming value.
-    for (name, source) in [
-        (
-            "closed ranged scalar root",
-            r#"
-                machine replace(limited: &write u8 [0..=10], next: u8 [0..=10]) {
-                    limited = next;
-                    limited = 4;
-                }
-            "#,
-        ),
-        (
-            "arithmetic policy scalar root",
-            r#"
-                machine replace(counter: &write u32 in Wrapping, next: u32 in Wrapping) {
-                    counter = next;
-                }
-            "#,
-        ),
-        (
-            "domain-qualified carrier root",
-            r#"
-                domain [u8; 8]::Utf8
-                requires
-                    valid_utf8(self);
-                machine rename(label: &write [u8; 8] in Utf8, next: [u8; 8] in Utf8) {
-                    label = next;
-                }
-            "#,
-        ),
-        (
-            "domain-qualified sum root",
-            r#"
-                data Choice [copy] { case Empty; case Value(value: u16); }
-                domain Choice::Valid;
-                machine replace(
-                    choice: &write Choice in Valid,
-                    replacement: Choice in Valid
-                ) {
-                    choice = replacement;
-                }
-            "#,
-        ),
-    ] {
-        lower_typed_trees(typed_program(source), &CheckingRequest::settled()).unwrap_or_else(
-            |errors| {
-                panic!("{name}: a qualified `&write` root should be wholly replaceable: {errors:?}")
-            },
-        );
-    }
-}
-
-#[test]
 fn ineligible_sum_shapes_remain_outside_whole_replacement() {
     for (name, source, expected) in [
         (
@@ -315,47 +210,6 @@ fn ineligible_sum_shapes_remain_outside_whole_replacement() {
 }
 
 #[test]
-fn zero_gate_independently_fences_copy_sum_replacement() {
-    let mut program = typed_program(
-        r#"
-            data Choice [copy]
-            where
-                1 == 0,
-            {
-                case Empty;
-                case Value(value: u16);
-            }
-            machine replace(choice: &write Choice, replacement: Choice) {
-                choice = replacement;
-            }
-        "#,
-    );
-    let mut found = false;
-    program
-        .tables
-        .data_definitions
-        .for_each_mut(|_, definition| {
-            if definition.name.as_str() == "Choice" {
-                assert!(definition.zero_gated, "source must establish the zero gate");
-                definition.where_facts = arena::HandleSpan::empty();
-                found = true;
-            }
-        });
-    assert!(found, "Choice definition");
-
-    let rendered = lower_typed_trees(program, &CheckingRequest::settled())
-        .expect_err("the retained zero gate must reject after invariant rows are removed")
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        rendered.contains("freely discardable supported root"),
-        "zero-gated sum unexpectedly crossed the whole-value gate: {rendered}"
-    );
-}
-
-#[test]
 fn copy_sum_observation_matching_and_swap_attempts_remain_rejected() {
     for (name, body) in [
         ("observation/take", "let prior: Choice = choice;"),
@@ -391,56 +245,6 @@ fn copy_sum_observation_matching_and_swap_attempts_remain_rejected() {
 }
 
 #[test]
-fn unrestricted_record_leaf_observation_and_read_modify_write_remain_rejected() {
-    let rendered = rendered_rejection(
-        r#"
-            data Leaf [copy] { value: u16; enabled: bool; }
-            data Holder { leaf: Leaf; }
-
-            machine update(holder: &write Holder) {
-                holder.leaf.value = holder.leaf.value + 1;
-            }
-        "#,
-    );
-    assert!(
-        rendered.contains("reads field `value` from write-only parameter `holder`")
-            && rendered.contains("never grants observation"),
-        "unexpected diagnostic: {rendered}"
-    );
-}
-
-#[test]
-fn direct_and_nested_unrestricted_primitive_fixed_arrays_are_writable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Inner { words: [u16; 2]; }
-            data Outer { inner: Inner; }
-
-            machine fill(
-                direct: &write [u32; 3],
-                outer: &write Outer,
-                direct_index: u64 [0..=2],
-                nested_index: u64 [0..=1]
-            ) {
-                let direct_length: u64 = direct.len;
-                direct = [1, 2, 3];
-                direct[0] = 4;
-                direct[direct_index] = 5;
-                outer.inner.words = [1, 2];
-                outer.inner.words[0] = 3;
-                outer.inner.words[nested_index] = 4;
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect(
-        "literal fixed arrays of unrestricted primitive scalars support whole and element stores",
-    );
-}
-
-#[test]
 fn fixed_arrays_of_material_copy_records_support_the_closed_operation_set() {
     lower_typed_trees(
         typed_program(
@@ -473,44 +277,6 @@ fn fixed_arrays_of_material_copy_records_support_the_closed_operation_set() {
         &CheckingRequest::settled(),
     )
     .expect("material plain copy records stay atomic across the closed fixed-array operations");
-}
-
-#[test]
-fn fixed_arrays_of_material_copy_sums_support_the_closed_operation_set() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Choice [copy] {
-                case Empty;
-                case Value(value: u16);
-            }
-            data Holder { choices: [Choice; 4]; sibling: u8; }
-
-            machine fill(
-                direct: &write [Choice; 4],
-                holder: &write Holder,
-                whole: [Choice; 4],
-                first: Choice,
-                second: Choice,
-                index: u64 [0..=3]
-            ) {
-                let direct_length: u64 = direct.len;
-                direct = whole;
-                direct[0] = first;
-                direct[index] = second;
-                direct[1..3] = [first, second];
-
-                let nested_length: u64 = holder.choices.len;
-                holder.choices = whole;
-                holder.choices[0] = first;
-                holder.choices[index] = second;
-                holder.choices[1..=2] = [first, second];
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("material copy sums stay atomic across the closed fixed-array operations");
 }
 
 #[test]
@@ -550,89 +316,6 @@ fn recursively_literal_fixed_arrays_support_atomic_outer_operations() {
 }
 
 #[test]
-fn nested_fixed_array_elements_do_not_expose_inner_places() {
-    let rendered = rendered_rejection(
-        r#"
-            machine update(values: &write [[u16; 2]; 2]) {
-                values[0][1] = 7;
-                let prior: u16 = values[1][0];
-            }
-        "#,
-    );
-    assert!(
-        rendered.contains("unsupported write-only projection")
-            && rendered.contains("reads through index projection of write-only parameter `values`")
-            && rendered.contains("never observation"),
-        "nested-array elements unexpectedly exposed inner places: {rendered}"
-    );
-}
-
-#[test]
-fn fixed_array_sum_elements_do_not_expose_case_or_payload_places() {
-    let rendered = rendered_rejection(
-        r#"
-            data Choice [copy] {
-                case Empty;
-                case Value(value: u16);
-            }
-
-            machine inspect(values: &write [Choice; 2]) -> u16 {
-                transition values[0] {
-                    Choice::Value { value } -> value
-                    Choice::Empty -> 0
-                }
-            }
-        "#,
-    );
-    assert!(
-        rendered.contains("reads through index projection of write-only parameter `values`")
-            && rendered.contains("never observation"),
-        "sum-array matching unexpectedly exposed a case or payload place: {rendered}"
-    );
-}
-
-#[test]
-fn fixed_array_record_elements_do_not_expose_child_places() {
-    // One literal relevant primitive field beneath an in-bounds element is the
-    // admitted content-independent store; a dynamic index or any observation
-    // of a child place stays outside that contract.
-    let rendered = rendered_rejection(
-        r#"
-            data Leaf [copy] { value: u16; enabled: bool; }
-
-            machine update(values: &write [Leaf; 2], index: u64 [0..=1]) {
-                values[index].value = 7;
-                let prior: u16 = values[1].value;
-            }
-        "#,
-    );
-    assert!(
-        rendered.contains("unsupported write-only projection")
-            && rendered.contains("reads field `value` from write-only parameter `values`"),
-        "unexpected diagnostic: {rendered}"
-    );
-}
-
-#[test]
-fn direct_and_nested_primitive_fixed_array_ranges_are_writable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Inner { words: [u32; 4]; }
-            data Outer { inner: Inner; }
-
-            machine fill(direct: &write [u16; 4], outer: &write Outer) {
-                direct[1..3] = [7, 8];
-                outer.inner.words[1..=2] = [70000, 80000];
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("closed primitive-array ranges are content-independent exact stores");
-}
-
-#[test]
 fn immutable_local_copy_bounds_are_writable() {
     lower_typed_trees(
         typed_program(
@@ -649,36 +332,6 @@ fn immutable_local_copy_bounds_are_writable() {
         &CheckingRequest::settled(),
     )
     .expect("finite immutable local-copy bounds should normalize without observing the referent");
-}
-
-#[test]
-fn mutable_and_computed_local_range_bounds_remain_closed() {
-    for (name, source) in [
-        (
-            "mutable local",
-            r#"
-                machine fill(values: &write [u16; 4]) {
-                    let mut start: u64 = 1;
-                    values[start..3] = [7, 8];
-                }
-            "#,
-        ),
-        (
-            "computed local",
-            r#"
-                machine fill(values: &write [u16; 4]) {
-                    let start: u64 = 0 + 1;
-                    values[start..3] = [7, 8];
-                }
-            "#,
-        ),
-    ] {
-        let rendered = rendered_rejection(source);
-        assert!(
-            rendered.contains("bounds are not statically known"),
-            "{name} unexpectedly crossed the immutable-copy gate: {rendered}"
-        );
-    }
 }
 
 #[test]

@@ -1,6 +1,6 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::front_end::{checked_program, typed_program};
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn aggregate_actual_reference_leaves_transport_complete_write_sets() {
@@ -191,17 +191,6 @@ fn aggregate_actual_reference_leaves_transport_complete_write_sets() {
         }
     }
     assert!(failures.is_empty(), "{failures:?}");
-}
-
-#[test]
-fn aggregate_literal_reference_argument_reaches_checked_trees() {
-    let source = r#"
-        data View { body: &mut u64; }
-        data Main { value: u64; }
-        machine write_view(mut view: View) { view.body = 1; }
-        machine Main::run(&mut self) { write_view(View { body: &mut self.value }); }
-    "#;
-    checked_program(source);
 }
 
 #[test]

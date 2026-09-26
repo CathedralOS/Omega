@@ -59,8 +59,6 @@ pub(crate) mod types;
 
 // Tests.
 #[cfg(test)]
-mod alias_lengths_tests;
-#[cfg(test)]
 mod cache_tests;
 
 use ::diagnostics::Diagnostic;

@@ -185,30 +185,6 @@ impl ScalarCallSite<'_> {
     }
 }
 
-#[cfg(test)]
-fn is_available(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    candidates: &[CheckedUnitEffectMachinePlan],
-    caller: &CheckedUnitEffectMachinePlan,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> bool {
-    let scalar_callees = ScalarCalleePlans {
-        boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
-        structural_returns: &facts.flow.terminal_structural_scalar_returns,
-    };
-    available_target(
-        program,
-        facts,
-        scalar_callees,
-        candidates,
-        &[],
-        &ScalarCallSite::of_plan(caller),
-        operation,
-    )
-    .is_some()
-}
-
 pub(super) fn available_target(
     program: &TypedTrees,
     facts: &CheckFacts,

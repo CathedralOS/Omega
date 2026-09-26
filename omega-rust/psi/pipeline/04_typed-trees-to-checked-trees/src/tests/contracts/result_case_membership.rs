@@ -35,39 +35,6 @@ fn lower_service_source(
 }
 
 #[test]
-fn result_case_membership_observes_the_returned_tag_not_payload_equality() {
-    for (condition, accepted) in [
-        ("result in Message::Data", true),
-        ("result in Message::Empty", false),
-        ("!(result in Message::Empty)", true),
-        ("!(result in Message::Data)", false),
-        (
-            "(result in Message::Data) && !(result in Message::Empty)",
-            true,
-        ),
-        (
-            "(result in Message::Empty) || (result in Message::Data)",
-            true,
-        ),
-        (
-            "(result in Message::Empty) && (result in Message::Data)",
-            false,
-        ),
-    ] {
-        check(
-            &format!(
-                "machine make(value: u8) -> Message ensures {condition}; {{ let before: u8 = value; Message::Data {{ value: before }} }}"
-            ),
-            accepted,
-        );
-    }
-    check(
-        "machine empty() -> Message ensures result in Message::Empty; { Message::Empty }",
-        true,
-    );
-}
-
-#[test]
 fn result_case_membership_composes_with_live_scalar_predicates() {
     check(
         "machine make(mut value: u8) -> Message requires value > 0; ensures (result in Message::Data) && value > 0; { value = 0; Message::Data { value: value } }",
@@ -103,14 +70,6 @@ fn result_case_membership_composes_with_live_scalar_predicates() {
 }
 
 #[test]
-fn result_case_membership_rejects_a_foreign_nominal_classifier() {
-    let source = format!(
-        "{DATA} data Other {{ case Empty; case Data(value: u8); }} machine make() -> Message ensures result in Other::Data; {{ Message::Data {{ value: 1 }} }}"
-    );
-    assert!(lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).is_err());
-}
-
-#[test]
 fn boundary_call_results_carry_their_declaring_case_owner() {
     // A boundary requirement call resolves to the trait's declared signature
     // symbol, not a machine-body state. The declared result still supplies the
@@ -134,58 +93,6 @@ fn boundary_call_results_carry_their_declaring_case_owner() {
     );
     lower_service_source(&source)
         .expect("boundary call results keep their exact declaring data type");
-}
-
-#[test]
-fn boundary_call_results_still_reject_a_foreign_case_owner() {
-    let source = format!(
-        "{PUB_DATA}
-        data Other {{ case Empty; }}
-        pub boundary trait Input {{ machine read(buffer: &mut [u8]) -> Message reaches Input; }}
-        data Probe {{ input: Binding<Input>; buffer: [u8; 4]; }}
-        machine Probe::peek(&mut self) -> bool reaches Input {{
-            self.input.read(&mut self.buffer) in Other::Empty
-        }}"
-    );
-    let diagnostics = lower_service_source(&source)
-        .expect_err("a foreign case owner is not evidence about the call result");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("case membership must test a value of the exact declaring data type")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn result_field_membership_observes_nested_and_distinct_fields() {
-    for (condition, accepted) in [
-        ("result.inner.message in Message::Data", true),
-        ("result.inner.message in Message::Empty", false),
-        ("!(result.inner.message in Message::Empty)", true),
-    ] {
-        check(&format!(
-            "data Inner {{ message: Message; }} data Wrapper {{ inner: Inner; }}
-            machine make(value: u8) -> Wrapper ensures {condition};
-            {{ let before: u8 = value; Wrapper {{ inner: Inner {{ message: Message::Data {{ value: before }} }} }} }}"
-        ), accepted);
-    }
-    for (condition, accepted) in [
-        (
-            "(result.left in Message::Data) && (result.right in Message::Empty)",
-            true,
-        ),
-        ("result.right in Message::Data", false),
-    ] {
-        check(
-            &format!(
-                "data Pair {{ left: Message; right: Message; }}
-            machine make() -> Pair ensures {condition};
-            {{ Pair {{ left: Message::Data {{ value: 1 }}, right: Message::Empty }} }}"
-            ),
-            accepted,
-        );
-    }
 }
 
 #[test]

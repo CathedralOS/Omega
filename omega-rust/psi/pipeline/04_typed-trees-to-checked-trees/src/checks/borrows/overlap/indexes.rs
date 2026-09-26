@@ -520,26 +520,6 @@ pub(super) fn index_extents_may_overlap(
     }
 }
 
-#[cfg(test)]
-pub(super) fn index_expression_may_contain_fixed(
-    program: &typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-    index: usize,
-) -> bool {
-    let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
-    let extent = index_expression_extent_with_selectors(
-        program,
-        expression,
-        SelectorLocation {
-            side: BorrowCompatibilityPlaceSide::Forming,
-            segment_index: 0,
-        },
-        &mut selectors,
-        &mut None,
-    );
-    index_extents_may_overlap(extent, fixed_index_extent(index), &mut selectors)
-}
-
 /// The point extent of a fixed literal index segment. An index above the i64
 /// window stays unknown rather than borrowing a different bound's identity.
 pub(super) fn fixed_index_extent(index: usize) -> EvaluatedIndexExtent {

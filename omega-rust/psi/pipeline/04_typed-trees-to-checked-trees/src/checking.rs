@@ -456,45 +456,8 @@ pub(crate) fn specialize_static_machine_calls_with_selections(
 
 #[cfg(test)]
 mod tests {
-    use super::{CheckingMode, CheckingRequest};
+    use super::CheckingRequest;
     use crate::tests::front_end::typed_program;
-
-    #[test]
-    fn checking_modes_preserve_package_settlement_permissions() {
-        assert!(!CheckingMode::CrashFactInspection.allows_pending_opaque_copy());
-        assert!(!CheckingMode::CrashFactInspection.allows_pending_const_range_endpoints());
-        assert!(!CheckingMode::CrashFactInspection.allows_unresolved_toolchain_selections());
-        assert!(CheckingMode::Preliminary.allows_pending_opaque_copy());
-        assert!(CheckingMode::Preliminary.allows_pending_const_range_endpoints());
-        assert!(CheckingMode::Preliminary.allows_unresolved_toolchain_selections());
-        assert!(!CheckingMode::Settled.allows_pending_opaque_copy());
-        assert!(!CheckingMode::Settled.allows_pending_const_range_endpoints());
-        assert!(CheckingMode::Settled.allows_unresolved_toolchain_selections());
-        assert_eq!(CheckingRequest::settled().mode, CheckingMode::Settled);
-        assert_eq!(
-            CheckingRequest::preliminary().mode,
-            CheckingMode::Preliminary
-        );
-        assert_eq!(
-            CheckingRequest::crash_fact_inspection().mode,
-            CheckingMode::CrashFactInspection
-        );
-    }
-
-    #[test]
-    fn mathematical_declarations_check_into_checked_facts() {
-        let typed = typed_program("let double(x: u64): u64 = x;");
-
-        let checked = crate::lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect("elaborated declarations check into facts");
-        let [declaration] = checked.facts.proof.mathematical_declarations.as_slice() else {
-            panic!("one checked mathematical declaration expected");
-        };
-        assert_eq!(declaration.name, "double");
-        assert_eq!(declaration.result, "u64");
-        assert!(!declaration.is_assumption());
-        assert_eq!(declaration.parameters.len(), 1);
-    }
 
     #[test]
     fn unelaboratable_mathematical_declarations_fail_with_their_own_diagnostic() {

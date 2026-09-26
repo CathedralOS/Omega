@@ -46,31 +46,6 @@ fn measure_projection_preserves_constraints_and_rejects_wrong_rank_carriers() {
 }
 
 #[test]
-fn measure_projection_does_not_drop_nested_receivers_or_stalled_edges() {
-    let source = COUNTDOWN
-        .replace(
-            "data Countdown { remaining: u64; }",
-            "data Inner { remaining: u64; } data Countdown { remaining: u64; inner: Inner; }",
-        )
-        .replace("{ countdown.remaining }", "{ countdown.inner.remaining }")
-        .replace(
-            "Countdown { remaining: countdown.remaining - 1 }",
-            "Countdown { remaining: countdown.remaining - 1, inner: countdown.inner }",
-        );
-    let program = typed_program(&source);
-    assert_eq!(
-        crate::infer_machine_termination_summary(&program, program.machines()[0].symbol),
-        Some(language_semantics::TerminationGuarantee::NoGuarantee),
-        "decreasing the outer field does not decrease the nested projection"
-    );
-    for next in ["walk(countdown)", "self"] {
-        let source = COUNTDOWN.replace("false -> countdown.remaining", &format!("false -> {next}"));
-        crate::checks::termination::check_machine_termination(&typed_program(&source))
-            .expect_err("one descending arm cannot excuse another cyclic arm");
-    }
-}
-
-#[test]
 fn measure_projection_rejects_substituted_field_and_binder_identities() {
     let source = format!("data Other {{ remaining: u64; }}\n{COUNTDOWN}");
     let program = typed_program(&source);

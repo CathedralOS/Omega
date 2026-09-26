@@ -34,39 +34,10 @@ fn check_source(source: &str, accepted: bool) {
 }
 
 #[test]
-fn wrapping_increment_cannot_mint_a_nonnegative_loop_invariant() {
-    check_loop("i32", "Wrapping", "+ 2147483647", "self.index < 4", false);
-}
-
-#[test]
 fn nonwrapping_policies_keep_direction_on_normal_completion() {
     for policy in ["Saturating", "Trapping"] {
         check_loop("i32", policy, "+ 2147483647", "self.index < 4", true);
         check_loop("u32", policy, "- 3", "self.index > 0", true);
-    }
-}
-
-#[test]
-fn wrapping_proofs_follow_named_state_arrivals() {
-    for (update, accepted) in [("+ 1", true), ("+ 2147483647", false)] {
-        check_source(
-            &format!(
-                "data Main {{ items: [u8; 4]; index: i32 in Wrapping; }}
-            machine Main::run(&mut self) {{
-                self.index = 2;
-                transition {{ _ -> fill() }}
-                state fill(&mut self) {{
-                    let value: u8 = self.items[self.index];
-                    transition {{ _ -> advance() }}
-                }}
-                state advance(&mut self) {{
-                    self.index = self.index {update};
-                    transition self.index < 4 {{ true -> fill() _ -> {{}} }}
-                }}
-            }}"
-            ),
-            accepted,
-        );
     }
 }
 

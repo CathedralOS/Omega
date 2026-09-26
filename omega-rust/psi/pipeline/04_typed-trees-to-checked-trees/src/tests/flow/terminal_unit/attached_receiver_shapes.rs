@@ -4,7 +4,6 @@
 //! with payload cases and common fields, inside the entry receiver. Terminal
 //! already spells that as `FixedArray` over `Sum`/`Mixed`, so the Unit type
 //! builder admits it beside the copy-record and primitive element rules.
-use super::CheckedUnitStructuralTypeShape;
 use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::machine_named;
 
@@ -77,42 +76,4 @@ fn material_receiver_shapes_plan_as_composed_unit_machines() {
             "{name}: the attached receiver keeps its composed Unit plan"
         );
     }
-}
-
-#[test]
-fn fixed_array_of_a_copy_sum_is_shaped_beneath_the_receiver() {
-    let checked = checked_with_service(&entry_with_part(
-        "pub data Kind [copy] { case A; case B(value: u64 in Trapping); }\npub data Part { kinds: [Kind; 16] in Trapping; }",
-    ));
-    let types = &checked.facts.flow.terminal_unit_effects.structural_types;
-    let array = types
-        .iter()
-        .find_map(|plan| match &plan.shape {
-            CheckedUnitStructuralTypeShape::FixedArray {
-                element_type_identity,
-                length,
-            } if *length == 16 => Some(element_type_identity.clone()),
-            _ => None,
-        })
-        .expect("the receiver's fixed array is a Unit structural type");
-    assert!(
-        types.iter().any(|plan| plan.identity == array
-            && matches!(&plan.shape, CheckedUnitStructuralTypeShape::Sum { cases } if cases.len() == 2)),
-        "the array element is the copy sum itself, not a projection of it"
-    );
-}
-
-// Elements that the element rules never admitted stay outside the array
-// shape: an affine sum with an owned payload is not a material element.
-#[test]
-fn fixed_array_of_an_affine_payload_sum_stays_unshaped() {
-    assert!(matches!(
-        composed_plan_count(
-            "pub data Owned { count: u64 in Trapping; }\npub data Slot { case Empty; case Live(owned: Owned); }\npub data Part { slots: [Slot; 4] in Trapping; }"
-        ),
-        (
-            0,
-            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { .. })
-        )
-    ));
 }

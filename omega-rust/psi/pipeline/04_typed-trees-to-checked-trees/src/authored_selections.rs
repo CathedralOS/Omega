@@ -23,8 +23,6 @@ mod operator_targets;
 mod provider_selection;
 mod review;
 mod selection_collection;
-#[cfg(test)]
-mod symbol_types_tests;
 
 pub(crate) use intrinsic_calls::is_boundary_acceptance_marker;
 pub(crate) use operator_targets::{

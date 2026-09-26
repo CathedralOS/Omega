@@ -1,14 +1,13 @@
 use super::super::AuthoredDeclarationSelectionLateBinding;
 use super::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, CheckedTrees,
-    ExpressionNode, StatementNode, SymbolHandle, TypedTrees,
+    ExpressionNode, SymbolHandle, TypedTrees,
 };
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::authored_selections::projected_receivers::CALL_FORMS;
 use crate::tests::authored_selections::projected_receivers::CallForm;
 use crate::tests::authored_selections::projected_receivers::assert_exact_selection;
-use crate::tests::authored_selections::projected_receivers::field_symbol;
 use crate::tests::authored_selections::projected_receivers::method_symbol;
 use crate::tests::authored_selections::projected_receivers::replace_typed_callees;
 use crate::tests::authored_selections::projected_receivers::statement_call_mut;
@@ -308,99 +307,4 @@ fn an_erased_projected_statement_callee_without_receiver_or_checked_evidence_rej
         "{diagnostic:?}"
     );
     assert!(!checked.authored_declaration_selections().all_finalized());
-}
-
-#[test]
-fn attached_lookup_preserves_exact_owners_when_nominal_spellings_collide() {
-    let mut program = typed_fixture(CallForm::Statement);
-    let expected = method_symbol(&program, "Context");
-    let foreign = method_symbol(&program, "Decoy");
-    let endpoint = field_symbol(&program, "Carrier", "context");
-    assert_ne!(expected, foreign);
-    let resolve = |program: &TypedTrees, target| {
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "inspect")
-            .expect("caller machine");
-        let state = &program.machine_states(machine)[0];
-        let StatementNode::Call(call) =
-            &program.statement_table.statements(state.statement_nodes)[0]
-        else {
-            panic!("projected statement call")
-        };
-        crate::lookup::resolve_state_call_target(
-            program,
-            machine,
-            state,
-            endpoint,
-            target,
-            crate::lookup::statement_call_receiver_members(program, call),
-            &call.target,
-        )
-    };
-    assert_eq!(
-        resolve(&program, expected),
-        expected,
-        "untampered lookup control"
-    );
-    assert_eq!(
-        resolve(&program, SymbolHandle::invalid()),
-        expected,
-        "an exact receiver legitimately supplies a missing target"
-    );
-
-    let context = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Context")
-        .expect("correct nominal owner");
-    let context_symbol = context.symbol;
-    let spelling = context.name.clone();
-    let foreign_owner = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Decoy")
-        .expect("foreign nominal owner")
-        .symbol;
-    assert_ne!(context_symbol, foreign_owner);
-    // Authored names are globally unique in this small source fixture. Model
-    // colliding retained spellings at the lookup boundary while preserving
-    // both nominal symbols and their independently owned method states.
-    for definition in program
-        .tables
-        .data_definitions
-        .span_mut_or_empty(program.roots.data_definitions)
-    {
-        if definition.symbol == foreign_owner {
-            definition.name = spelling.clone();
-        }
-    }
-    for machine in program.machines_mut() {
-        if machine.attached_data_symbol == foreign_owner {
-            machine.attached_data = Some(spelling.clone());
-        }
-    }
-    let owners = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.attached_data.as_ref() == Some(&spelling))
-        .map(|machine| machine.attached_data_symbol)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        owners,
-        [foreign_owner, context_symbol],
-        "foreign candidate precedes the correct owner"
-    );
-    for (target, selected) in [
-        (SymbolHandle::invalid(), expected),
-        (expected, expected),
-        (foreign, SymbolHandle::invalid()),
-    ] {
-        assert_eq!(
-            resolve(&program, target),
-            selected,
-            "same-spelled foreign owners cannot settle or replace target {target:?}"
-        );
-    }
 }

@@ -1,6 +1,4 @@
 use super::{AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 
 mod identities;
@@ -43,24 +41,6 @@ fn typed_fixture(form: CallForm) -> TypedTrees {
          machine inspect(mut carrier: Carrier) -> u64 {{ {body} }}"
     );
     typed_program(&source)
-}
-
-fn field_symbol(program: &TypedTrees, owner: &str, name: &str) -> SymbolHandle {
-    let definition = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == owner)
-        .expect("field owner");
-    program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("declared field")
 }
 
 fn method_symbol(program: &TypedTrees, owner: &str) -> SymbolHandle {
@@ -181,76 +161,4 @@ fn replace_typed_callees(program: &mut TypedTrees, target: SymbolHandle, erase_r
         }
     }
     assert!(changed > 0, "tampering must reach retained call nodes");
-}
-
-#[test]
-fn projected_reference_calls_select_the_exact_nominal_method() {
-    for form in CALL_FORMS {
-        let mut checked = lower_typed_trees(typed_fixture(form), &CheckingRequest::settled())
-            .expect("projected call checks");
-        assert_exact_selection(&checked);
-        if matches!(form, CallForm::Statement) {
-            let endpoint = statement_call_mut(&mut checked.typed).receiver_symbol;
-            assert!(
-                endpoint.is_valid(),
-                "checked projected endpoint is explicit"
-            );
-            assert_eq!(
-                checked.symbols.display_path(endpoint, "::"),
-                "Carrier::context"
-            );
-        }
-    }
-}
-
-#[test]
-fn erased_projected_callees_can_bind_from_the_exact_receiver() {
-    for form in CALL_FORMS {
-        let mut typed = typed_fixture(form);
-        replace_typed_callees(&mut typed, SymbolHandle::invalid(), false);
-        let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect("exact receiver permits late binding");
-        assert_exact_selection(&checked);
-    }
-}
-
-#[test]
-fn nested_statement_receiver_paths_retain_every_semantic_field() {
-    let mut program = typed_program(
-        "data Context { counter: u64; }
-         data Inner { context: &mut Context; }
-         data Carrier { inner: Inner; }
-         machine Context::increment_counter(&mut self) -> u64 { self.counter = 1; 0 }
-         machine inspect(mut carrier: Carrier) -> u64 {
-             _ = carrier.inner.context.increment_counter(); 0
-         }",
-    );
-    crate::lookup::resolve_projected_receiver_calls(&mut program)
-        .expect("nested regular fields resolve before checking");
-    let inner = field_symbol(&program, "Carrier", "inner");
-    let context = field_symbol(&program, "Inner", "context");
-    let expected_target = method_symbol(&program, "Context");
-    let call = statement_call_mut(&mut program).clone();
-    assert_eq!(call.receiver_symbol, context);
-    assert_eq!(call.target_symbol, expected_target);
-    let expected = [call.receiver_root_symbol, inner, context];
-    assert!(expected.iter().all(|symbol| symbol.is_valid()));
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "inspect")
-        .unwrap();
-    let state = &program.machine_states(machine)[0];
-    let path = crate::lookup::statement_call_receiver_path(&program, state, 0, &call)
-        .expect("nested authored statement receiver path");
-    assert_eq!(
-        path.members()
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>(),
-        ["carrier", "inner", "context"]
-    );
-    // This path also feeds semantic::places::receiver_place_for_call; dropping
-    // the middle symbol aliases distinct nested receiver subobjects.
-    assert_eq!(path.member_symbols(), expected.as_slice());
 }

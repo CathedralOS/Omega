@@ -8,21 +8,13 @@ use checked_trees::{
 
 mod attached_receiver_shapes;
 mod borrowed_view_returns;
-mod borrowed_window_pairs;
 mod boundary_result_operands;
-mod call_argument_casts;
 mod call_result_field_stores;
-mod callable_composed;
 pub(crate) mod calls;
 mod cleanup;
 mod closed_case_pairs;
 mod composed_call_arguments;
-mod composed_claims;
-mod composed_internal_calls;
 mod composed_nested_control;
-mod composed_prefixed_control;
-mod composed_transitive_internal_calls;
-mod constructed_field_replacements;
 mod discarded_results;
 mod free_scalar_parameters;
 mod linear_local_consumers;
@@ -30,33 +22,23 @@ mod nested_boundary_results;
 mod outer_calls;
 mod primitive_locals;
 mod receiver_stores;
-mod repro_cyclic;
 mod returns;
-mod returns_primitive_effects;
 mod scalar_boundary_targets;
 mod scalar_primitive_targets;
 mod scalar_sequences;
 mod shared_convergence;
 mod shared_result_borrows;
 mod slice_view_locals;
-mod state_graph_carriers;
-mod state_graph_crash_exit;
-mod state_graph_forwarded_views;
-mod state_graph_guarded_jumps;
-mod state_graph_literals;
 mod state_graph_scalars;
 mod state_graph_subslices;
 mod structural_call_arguments;
-mod structural_local_bindings;
 mod tail_calls;
 mod whole_view_returns;
 
 use checked_trees::{
-    CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
 };
-use language_core::BindingRelevance;
 use language_semantics::Multiplicity;
 use typed_trees::types::PrimitiveType;
 

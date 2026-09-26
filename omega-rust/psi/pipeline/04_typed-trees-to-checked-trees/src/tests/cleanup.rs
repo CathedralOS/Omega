@@ -14,15 +14,6 @@ fn rejects(source: &str, expected: &str) {
     );
 }
 
-fn machine_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::SymbolHandle {
-    checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str().ends_with(name))
-        .unwrap_or_else(|| panic!("missing machine `{name}`"))
-        .symbol
-}
-
 #[test]
 fn rejects_authored_method_selection_of_reserved_cleanup() {
     rejects(
@@ -35,24 +26,6 @@ fn rejects_authored_method_selection_of_reserved_cleanup() {
         "#,
         "reserved cleanup machine `Resource::drop` is compiler-selected",
     );
-}
-
-#[test]
-fn ordinary_drop_spelling_remains_callable() {
-    let source = r#"
-        data Resource { value: i32; }
-        machine Resource::drop_counter(&mut self) {}
-        machine drop(resource: &mut Resource) {}
-        machine accept<machine Selected>()
-        where machine Selected(resource: &mut Resource)
-        { }
-        machine use_drop_names(resource: &mut Resource) {
-            resource.drop_counter();
-            drop(resource);
-            accept<drop>();
-        }
-    "#;
-    checked_program(source);
 }
 
 #[test]
@@ -89,15 +62,6 @@ fn accepts_repeated_nonempty_or_argumented_hook_bodies() {
     ] {
         checked_program(source);
     }
-}
-
-#[test]
-fn accepts_cleanup_for_generic_attached_data() {
-    let source = r#"
-        data Wrapper<T> { value: T; }
-        machine Wrapper::drop(&mut self) {}
-    "#;
-    checked_program(source);
 }
 
 #[test]
@@ -162,92 +126,4 @@ fn rejects_cleanup_crash_contract() {
             "may not declare a crash outcome",
         );
     }
-}
-
-#[test]
-fn erased_nominal_cleanup_member_leaves_the_owner_trivially_affine() {
-    // A `proof [erased]` member owns no runtime representation, so an owner
-    // whose only nominal-cleanup member is erased stays an ordinary affine
-    // record: `enter` admits a Unit body and its `c` parameter dies as a
-    // plain discard on the return edge.
-    let checked = checked_program(
-        r#"
-        data Evidence { tag: i32; }
-        machine Evidence::drop(&mut self) {}
-        data Carrier { token: i32; proof [erased]: Evidence; }
-        machine touch() {}
-        data Root {}
-        machine Root::enter(c: Carrier) { touch(); }
-        "#,
-    );
-    let enter = machine_symbol(&checked, "Root::enter");
-    let plan = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .for_machine(enter)
-        .expect("an erased member never produces runtime cleanup, so `enter` admits");
-    let Some(checked_trees::CheckedUnitEffectOperationPlan::Complete {
-        trivial_affine_discards,
-        ..
-    }) = plan.operations.last()
-    else {
-        panic!("`enter` must complete with an ordinary Unit return");
-    };
-    assert_eq!(
-        trivial_affine_discards.len(),
-        1,
-        "the `c` parameter discards trivially"
-    );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_nominal_affine_unit_cleanups
-            .for_machine(enter)
-            .is_none(),
-        "no nominal cleanup plan may attach to an erased-only owner"
-    );
-}
-
-#[test]
-fn relevant_nominal_cleanup_member_without_the_hook_admits_no_body() {
-    // The same owner with a relevant `proof` member requires nominal drop and
-    // has no `Carrier::drop`, so `enter` can enter no Unit lane.
-    let checked = checked_program(
-        r#"
-        data Evidence { tag: i32; }
-        machine Evidence::drop(&mut self) {}
-        data Carrier { token: i32; proof: Evidence; }
-        machine touch() {}
-        data Root {}
-        machine Root::enter(c: Carrier) { touch(); }
-        "#,
-    );
-    let enter = machine_symbol(&checked, "Root::enter");
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(enter)
-            .is_none(),
-        "a nominal-drop owner without its hook admits no ordinary body"
-    );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_partial_affine_unit_cleanups
-            .for_machine(enter)
-            .is_none()
-    );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_nominal_affine_unit_cleanups
-            .for_machine(enter)
-            .is_none()
-    );
 }

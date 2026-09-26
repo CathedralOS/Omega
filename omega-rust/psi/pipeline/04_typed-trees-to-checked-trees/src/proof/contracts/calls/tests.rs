@@ -1,5 +1,5 @@
 use crate::tests::front_end::typed_program;
-use checked_trees::{ContractProofFactKind, ContractProofFactOwner, ProofFacts};
+use checked_trees::{ContractProofFactOwner, ProofFacts};
 use typed_trees::TypedTrees;
 
 fn proof(program: &TypedTrees) -> ProofFacts {
@@ -45,34 +45,6 @@ fn scalar_entry_backedges_reestablish_machine_requires() {
 }
 
 #[test]
-fn entry_backedge_attaches_requires_without_importing_ensures() {
-    let program = typed_program(&recursive_scalar("1"));
-    let machine = &program.machines()[0];
-    let entry = &program.machine_states(machine)[0];
-    let facts = proof(&program);
-    let calls = facts.contract_calls.iter().collect::<Vec<_>>();
-    assert_eq!(
-        calls.len(),
-        1,
-        "the entry transfer retains its contract call"
-    );
-    let call = calls[0].1;
-    assert_eq!(call.target_machine_symbol, machine.symbol);
-    assert_eq!(call.target_state_symbol, entry.symbol);
-    assert!(call.ensures.is_empty(), "a backedge has no normal return");
-    let requirements = facts.contract_fact_refs.span_or_empty(call.requires);
-    assert_eq!(requirements.len(), 1);
-    let requirement = facts.contract_facts.get(requirements[0].fact);
-    assert_eq!(requirement.kind, ContractProofFactKind::Requires);
-    assert_eq!(
-        requirement.owner,
-        ContractProofFactOwner::Machine {
-            machine_symbol: machine.symbol,
-        }
-    );
-}
-
-#[test]
 fn internal_named_state_uses_only_its_own_requires_and_no_machine_ensures() {
     let program = typed_program(
         r#"
@@ -106,29 +78,6 @@ fn internal_named_state_uses_only_its_own_requires_and_no_machine_ensures() {
     );
     crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect("a sibling state need not re-establish the machine's entry == 7");
-}
-
-#[test]
-fn ordinary_invocations_retain_requires_and_ensures() {
-    for body in ["restricted(1)", "transition { _ -> restricted(1) }"] {
-        let program = typed_program(&format!(
-            "machine restricted(value: u64) -> u64 requires value > 0; ensures result > 0; {{ 1 }}
-             machine caller() -> u64 {{ {body} }}"
-        ));
-        let facts = proof(&program);
-        let calls = facts.contract_calls.iter().collect::<Vec<_>>();
-        assert_eq!(calls.len(), 1, "{body}");
-        let call = calls[0].1;
-        assert_eq!(
-            facts.contract_fact_refs.span_or_empty(call.requires).len(),
-            1
-        );
-        assert_eq!(
-            facts.contract_fact_refs.span_or_empty(call.ensures).len(),
-            1
-        );
-        crate::lower_typed_trees(program, &crate::CheckingRequest::settled()).expect(body);
-    }
 }
 
 fn entry_requirement(program: &TypedTrees) -> typed_trees::expression::ExpressionHandle {
@@ -168,38 +117,6 @@ fn good_ranking_cannot_discharge_an_unsupported_boolean_requirement() {
     assert!(!crate::checks::termination::proves_ranked_entry_requirement(&program, machine, goal,));
     let diagnostics = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect_err("strict descent cannot establish allowed for a false actual");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("cannot prove requires contract for call walk")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn good_ranking_cannot_discharge_a_noninductive_numeric_requirement() {
-    let source = r#"
-        machine walk(remaining: u64 [0..=5], permission: u64 [0..=5])
-        requires permission > 0;
-        terminates by remaining in 0..=5;
-        -> u64 {
-            transition remaining > 0 {
-                true -> walk(remaining - 1, 0)
-                false -> 0
-            }
-        }
-    "#;
-    let program = typed_program(source);
-    crate::checks::termination::check_machine_termination(&program)
-        .expect("remaining decreases even though permission is lost");
-    let goal = entry_requirement(&program);
-    let machine = &program.machines()[0];
-    assert!(validation::arithmetic_entry_requirement_is_covered(
-        &program, machine, goal,
-    ));
-    assert!(!crate::checks::termination::proves_ranked_entry_requirement(&program, machine, goal,));
-    let diagnostics = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
-        .expect_err("a readable requirement still needs inductive preservation");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

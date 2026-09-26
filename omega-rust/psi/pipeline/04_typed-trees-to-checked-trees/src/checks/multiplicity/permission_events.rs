@@ -24,17 +24,6 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
-#[cfg(test)]
-pub(crate) fn record_permission_events(program: &typed_trees::TypedTrees, facts: &mut CheckFacts) {
-    let call_frames = validation::CallFrameResolver::new(program);
-    let incoming_guards = crate::checks::ranges::incoming_guards::IncomingGuardIndex::build(
-        program,
-        call_frames.as_ref(),
-    );
-    record_permission_events_with_incoming_guards(program, facts, &incoming_guards)
-        .expect("fixture permission production");
-}
-
 pub(crate) fn record_permission_events_with_incoming_guards(
     program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,

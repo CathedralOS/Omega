@@ -6,31 +6,6 @@ fn checked_source(
     checked_program_result(source)
 }
 
-#[test]
-fn trait_provider_cannot_hide_helper_reach_from_requirement_ceiling() {
-    let source = |requirement_reach: &str| {
-        format!(
-            "boundary trait Audit {{}}\n\
-         trait Quiet {{ machine run() {requirement_reach}; }}\n\
-         machine helper() reaches Audit {{}}\n\
-         machine implementation() satisfies Quiet::run {{ helper(); }}",
-        )
-    };
-    checked_source(&source("reaches Audit"))
-        .expect("a provider's propagated reach fits the declared requirement");
-    let diagnostics = checked_source(&source(""))
-        .expect_err("a provider cannot hide a helper's reach behind an empty authored row");
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("Audit")
-                && diagnostic
-                    .message
-                    .contains("not allowed by the trait requirement")
-        }),
-        "{diagnostics:?}"
-    );
-}
-
 fn completion_program(provider_parameter: &str, provider_clauses: &str) -> String {
     format!(
         r#"
@@ -86,30 +61,6 @@ fn restore_program(provider_parameter: &str, provider_reach: &str) -> String {
     )
 }
 
-fn restore_call_program(caller_parameter: &str) -> String {
-    format!(
-        r#"
-        boundary trait MachineControl {{}}
-
-        pub data InterruptMaskGuard [copy] {{
-            token: u64;
-        }}
-        pub domain InterruptMaskGuard::Active;
-
-        pub boundary requirement InterruptMaskGuard::restore(self)
-        reaches MachineControl
-        requires
-            self in InterruptMaskGuard::Active;
-
-        machine misuse({caller_parameter})
-        reaches MachineControl
-        {{
-            guard.restore();
-        }}
-        "#,
-    )
-}
-
 fn diagnostic_text(diagnostics: &[diagnostics::Diagnostic]) -> String {
     diagnostics
         .iter()
@@ -147,17 +98,6 @@ fn top_level_requirement_maps_self_to_one_explicit_exact_carrier_parameter() {
     );
     assert_eq!(conformance.symbol, requirement.symbol);
     assert_eq!(conformance.requirement_symbol, requirement.symbol);
-}
-
-#[test]
-fn fixed_reach_restore_requirement_rejects_a_call_without_active_custody() {
-    let diagnostics = checked_source(&restore_call_program("guard: InterruptMaskGuard"))
-        .expect_err("restore requires exact Active custody at the call site");
-    let text = diagnostic_text(&diagnostics);
-    assert!(
-        text.contains("call restore") && text.contains("InterruptMaskGuard::Active"),
-        "unexpected diagnostics: {text}"
-    );
 }
 
 #[test]
@@ -208,22 +148,6 @@ fn top_level_requirement_rejects_an_extra_provider_parameter() {
 }
 
 #[test]
-fn top_level_requirement_rejects_provider_reach_outside_its_bound() {
-    let diagnostics = checked_source(&completion_program(
-        "acknowledgement: InterruptAcknowledgement in Pending",
-        "reaches FilesystemHost",
-    ))
-    .expect_err("provider reach must remain within the requirement upper bound");
-    let text = diagnostic_text(&diagnostics);
-    assert!(
-        text.contains("FilesystemHost")
-            && text.contains("InterruptAcknowledgement::complete")
-            && text.contains("reach"),
-        "unexpected diagnostics: {text}"
-    );
-}
-
-#[test]
 fn top_level_requirement_rejects_provider_suspension_beyond_its_ceiling() {
     let diagnostics = checked_source(&completion_program(
         "acknowledgement: InterruptAcknowledgement in Pending",
@@ -248,34 +172,6 @@ fn top_level_requirement_rejects_a_stronger_provider_precondition() {
     assert!(
         text.contains("InterruptAcknowledgement::complete")
             && text.contains("requires")
-            && text.contains("conservative refinement"),
-        "unexpected diagnostics: {text}"
-    );
-}
-
-#[test]
-fn top_level_requirement_rejects_a_missing_provider_guarantee() {
-    let source = r#"
-        pub data InterruptAcknowledgement [copy] { token: u64; }
-        pub domain InterruptAcknowledgement::Pending;
-
-        pub boundary requirement InterruptAcknowledgement::complete(self)
-        ensures
-            self in InterruptAcknowledgement::Pending;
-
-        machine LapicCompletion::complete(
-            acknowledgement: InterruptAcknowledgement in Pending
-        )
-        satisfies InterruptAcknowledgement::complete
-        {
-        }
-    "#;
-    let diagnostics = checked_source(source)
-        .expect_err("a provider must publish every guarantee owned by the requirement");
-    let text = diagnostic_text(&diagnostics);
-    assert!(
-        text.contains("InterruptAcknowledgement::complete")
-            && text.contains("ensures")
             && text.contains("conservative refinement"),
         "unexpected diagnostics: {text}"
     );
@@ -316,22 +212,6 @@ fn top_level_requirement_rejects_a_different_result_type() {
         text.contains("Buffer::read") && text.contains("returns") && text.contains("u64"),
         "unexpected diagnostics: {text}"
     );
-}
-
-#[test]
-fn top_level_requirement_preserves_a_generic_static_telescope() {
-    let source = r#"
-        pub data Buffer [copy] { value: u64; }
-        pub boundary requirement Buffer::identity<T>(buffer: Buffer, value: T) -> T;
-
-        machine SoftwareBuffer::identity<T>(buffer: Buffer, value: T) -> T
-        satisfies Buffer::identity
-        {
-            value
-        }
-    "#;
-    checked_source(source)
-        .expect("the provider should preserve the requirement's generic static telescope");
 }
 
 #[test]

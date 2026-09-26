@@ -67,7 +67,7 @@ pub(crate) use ranges::enter_root_currency_scope;
 pub(crate) use ranges::incoming_guards::IncomingGuardIndexCache;
 
 #[cfg(test)]
-pub(crate) use multiplicity::{record_permission_events, validate_linear_permission_events};
+pub(crate) use multiplicity::validate_linear_permission_events;
 
 #[cfg(test)]
 pub(crate) fn check_checked_facts(

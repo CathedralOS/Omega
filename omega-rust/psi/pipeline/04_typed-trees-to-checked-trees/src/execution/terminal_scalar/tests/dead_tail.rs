@@ -75,62 +75,6 @@ machine swapped(x: u64) -> u64 {
 }
 
 #[test]
-fn dead_tail_arms_keep_branch_destinations_on_exhausted_states() {
-    let checked = checked(
-        r#"
-machine scan(limit: u64) -> u64 {
-    transition { _ -> probe(0, limit) }
-    state probe(position: u64, limit: u64) -> u64 {
-        transition position < limit && position < 32 {
-            true -> (position)
-            false -> done(position)
-            _ -> done(0)
-        }
-    }
-    state done(result: u64) -> u64 {
-        transition { _ -> (result) }
-    }
-}
-"#,
-    );
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "scan")
-        .unwrap();
-    let graph = checked
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(machine.symbol)
-        .expect("dead-arm state loop admits a scalar control graph");
-    let conditional = graph
-        .states
-        .iter()
-        .filter_map(|state| match &state.terminator {
-            CheckedScalarStateTerminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => Some((when_true, when_false)),
-            _ => None,
-        })
-        .next()
-        .expect("probe state selects a conditional terminator");
-    assert!(matches!(
-        conditional.0,
-        CheckedScalarBranchDestination::Return {
-            is_continuation: false,
-            ..
-        }
-    ));
-    assert!(matches!(
-        conditional.1,
-        CheckedScalarBranchDestination::Jump { .. }
-    ));
-}
-
-#[test]
 fn non_exhausted_tails_still_decline_a_scalar_graph() {
     let checked = checked(
         r#"

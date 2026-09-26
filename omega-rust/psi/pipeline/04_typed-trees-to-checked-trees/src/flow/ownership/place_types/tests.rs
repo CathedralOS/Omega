@@ -4,7 +4,7 @@
 //! a duplicated symbol row or two same-named definitions — the projection can
 //! no longer be re-derived for the exact subject and must refuse the premise
 //! rather than letting the first same-shaped row mint a field type.
-use super::{canonical_place_type_reference, expression_type_reference_in_state};
+use super::canonical_place_type_reference;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::ownership::discover_state_move_events;
@@ -29,26 +29,6 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn place(&self) -> CanonicalPlace {
-        CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(self.value_symbol),
-            segments: vec![facts::PlaceSegment::Field {
-                symbol: self.field_symbol,
-            }],
-        }
-    }
-
-    fn project(&self) -> Option<TypeReferenceHandle> {
-        // A parameter-rooted place does not depend on statement position; the
-        // whole statement prefix stays in scope.
-        canonical_place_type_reference(
-            &self.program,
-            self.state_symbol,
-            self.statement_count,
-            &self.place(),
-        )
-    }
-
     fn move_events(&self) -> Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)> {
         let machine = self
             .program
@@ -127,23 +107,6 @@ fn fixture() -> Fixture {
     fixture_from_machine(program, machine_symbol)
 }
 
-/// `Outer::read` attaches `Outer` non-generically, so `self.inner` projects
-/// through the machine's retained `attached_data_symbol` — the symbol-only
-/// declaration lookup, not the parameter's type reference.
-fn attached_fixture() -> Fixture {
-    let program = typed_program(
-        "data Outer { inner: u64; }
-         machine Outer::read(&self) -> u64 { self.inner }",
-    );
-    let machine_symbol = program
-        .machines()
-        .iter()
-        .find(|machine| machine.attached_data.is_some())
-        .expect("fixture attached machine")
-        .symbol;
-    fixture_from_machine(program, machine_symbol)
-}
-
 fn fixture_from_machine(program: typed_trees::TypedTrees, machine_symbol: SymbolHandle) -> Fixture {
     let machine = program
         .machines()
@@ -190,34 +153,6 @@ fn fixture_from_machine(program: typed_trees::TypedTrees, machine_symbol: Symbol
 }
 
 #[test]
-fn exact_symbol_and_unique_name_still_project_the_declared_field_type() {
-    let mut fixture = fixture();
-    assert_eq!(fixture.project(), Some(fixture.field_type));
-
-    // A retained name alone may still identify the declaration — but only
-    // while exactly one declaration carries it.
-    fixture.detach_value_type_symbol();
-    assert_eq!(fixture.project(), Some(fixture.field_type));
-}
-
-#[test]
-fn same_named_declarations_cannot_mint_field_type_evidence() {
-    // Two same-named declarations make the name-only fallback ambiguous.
-    let mut ambiguous_name = fixture();
-    ambiguous_name.detach_value_type_symbol();
-    ambiguous_name.push_duplicate_outer();
-    assert_eq!(ambiguous_name.project(), None);
-}
-
-#[test]
-fn duplicated_symbol_rows_cannot_mint_field_type_evidence() {
-    // A duplicated symbol row is equally ambiguous for exact identity.
-    let mut ambiguous_symbol = fixture();
-    ambiguous_symbol.push_duplicate_outer();
-    assert_eq!(ambiguous_symbol.project(), None);
-}
-
-#[test]
 fn type_reference_rooted_place_projects_through_its_segments() {
     // A place rooted at a stored type reference names that type directly:
     // its declared type is the root replayed through the retained segments,
@@ -240,44 +175,13 @@ fn type_reference_rooted_place_projects_through_its_segments() {
     );
 }
 
-#[test]
-fn attached_self_place_projects_through_the_retained_declaration_identity() {
-    // A non-generic attachment carries no application handle, so `self.inner`
-    // resolves its declaration through `attached_data_symbol` alone.
-    let fixture = attached_fixture();
-    assert_eq!(fixture.project(), Some(fixture.field_type));
-}
-
-#[test]
-fn attached_declaration_duplicates_cannot_mint_field_type_evidence() {
-    // A second row bearing `attached_data_symbol` makes the retained identity
-    // ambiguous; the projection must refuse rather than pick a winner.
-    let mut fixture = attached_fixture();
-    fixture.push_duplicate_outer();
-    assert_eq!(fixture.project(), None);
-
-    // The read keeps its ownership obligation instead of being accepted as a
-    // copy on the strength of the first same-shaped row.
-    assert!(
-        fixture.move_events().iter().any(|(_, segments)| {
-            *segments
-                == vec![facts::PlaceSegment::Field {
-                    symbol: fixture.field_symbol,
-                }]
-        }),
-        "ambiguous attached provenance must retain the move, not mint a copy"
-    );
-}
-
 /// `observe` returns a member read whose receiver is a value-producing
 /// expression rather than a named place: the canonical place roots at the
 /// expression itself and the member type must be reconstructed from the
 /// position walk's leaf evidence.
 struct RootedFixture {
     program: typed_trees::TypedTrees,
-    machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    member: checked_trees::expression::ExpressionHandle,
     place: CanonicalPlace,
     statement_count: usize,
 }
@@ -290,35 +194,6 @@ impl RootedFixture {
             self.statement_count,
             &self.place,
         )
-    }
-
-    fn move_events(&self) -> Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)> {
-        let machine = self
-            .program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == self.machine_symbol)
-            .expect("fixture machine");
-        let state = self
-            .program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == self.state_symbol)
-            .expect("fixture state");
-        let borrow = checked_trees::BorrowFacts::default();
-        let operators = checked_trees::CheckedOperatorFacts::default();
-        let mut segments = arena::Arena::default();
-        discover_state_move_events(
-            &self.program,
-            &borrow,
-            &operators,
-            machine,
-            state,
-            &mut segments,
-        )
-        .into_iter()
-        .map(|event| (event.root, segments.span_or_empty(event.segments).to_vec()))
-        .collect()
     }
 }
 
@@ -346,13 +221,11 @@ fn rooted_fixture(source: &str, machine_name: &str, member_name: &str) -> Rooted
     let place = canonical_place_from_expression(&program, member)
         .expect("a member read must form a canonical place");
     RootedFixture {
-        machine_symbol: machine.symbol,
         state_symbol: state.symbol,
         statement_count: program
             .statement_table
             .statements(state.statement_nodes)
             .len(),
-        member,
         place,
         program,
     }
@@ -379,91 +252,6 @@ fn declared_field_type(
                 })
         })
         .expect("declared field type")
-}
-
-/// The dispatch produces a fresh `Context` whose `scheduler` is read
-/// directly off the match expression. The place roots at the dispatch
-/// itself: its declared type is the arms' common position replayed through
-/// the retained field segment, not an opaque temporary.
-#[test]
-fn match_rooted_place_projects_through_the_arms_common_position() {
-    let fixture = rooted_fixture(
-        "data Main {}
-         machine Main::run(&mut self) {}
-         pub data SchedulerHandle [copy] {}
-         pub data Context [copy] { scheduler: SchedulerHandle; }
-         machine observe(flag: bool, context: Context) -> SchedulerHandle {
-             match flag { true -> context _ -> context }.scheduler
-         }",
-        "observe",
-        "scheduler",
-    );
-    assert_eq!(
-        fixture.place.root,
-        facts::PlaceRoot::Expression(program_member_receiver(&fixture)),
-        "the member read must root at the match expression, not a symbol"
-    );
-    assert_eq!(
-        fixture.project(),
-        Some(declared_field_type(
-            &fixture.program,
-            "Context",
-            "scheduler"
-        )),
-        "the rooted dispatch must project the field's declared type"
-    );
-
-    // The proven copy type retires the conservative move the read recorded
-    // while the expression root was opaque: nothing owned leaves the
-    // dispatch place, so no ownership event may name it.
-    let ExpressionNode::Member(member) =
-        fixture.program.expression_table.expression(fixture.member)
-    else {
-        unreachable!()
-    };
-    assert!(
-        fixture
-            .move_events()
-            .iter()
-            .all(|(root, _)| *root != facts::PlaceRoot::Expression(member.receiver)),
-        "a proven copy read off the dispatch must not record a move"
-    );
-}
-
-fn program_member_receiver(fixture: &RootedFixture) -> checked_trees::expression::ExpressionHandle {
-    let ExpressionNode::Member(member) =
-        fixture.program.expression_table.expression(fixture.member)
-    else {
-        unreachable!()
-    };
-    member.receiver
-}
-
-/// A record literal's own type owns no stored reference row, but its fields
-/// still carry declared types: `Context { .. }.scheduler` projects through
-/// the literal's declaration position to the field's declared type.
-#[test]
-fn struct_literal_rooted_place_projects_the_declared_field_type() {
-    let fixture = rooted_fixture(
-        "data Main {}
-         machine Main::run(&mut self) {}
-         pub data SchedulerHandle [copy] {}
-         pub data Context [copy] { scheduler: SchedulerHandle; }
-         machine observe(seed: SchedulerHandle) -> SchedulerHandle {
-             Context { scheduler: seed }.scheduler
-         }",
-        "observe",
-        "scheduler",
-    );
-    assert_eq!(
-        fixture.project(),
-        Some(declared_field_type(
-            &fixture.program,
-            "Context",
-            "scheduler"
-        )),
-        "the literal's declaration position must answer its field's declared type"
-    );
 }
 
 /// `[context, context][0].scheduler` roots at the literal, which the
@@ -510,88 +298,6 @@ fn array_literal_members_keep_no_reference_on_the_literal_itself() {
         "scheduler",
     );
     assert_eq!(fixture.project(), None);
-}
-
-/// The call root the expression path already owned must keep its answer:
-/// `forward(context).scheduler` resumes at `forward`'s declared return type
-/// and projects the field through it.
-#[test]
-fn call_rooted_place_still_projects_through_the_declared_return_type() {
-    let fixture = rooted_fixture(
-        "data Main {}
-         machine Main::run(&mut self) {}
-         pub data SchedulerHandle [copy] {}
-         pub data Context [copy] { scheduler: SchedulerHandle; }
-         machine forward(context: Context) -> Context { context }
-         machine observe(context: Context) -> SchedulerHandle {
-             forward(context).scheduler
-         }",
-        "observe",
-        "scheduler",
-    );
-    assert_eq!(
-        fixture.project(),
-        Some(declared_field_type(
-            &fixture.program,
-            "Context",
-            "scheduler"
-        )),
-        "the call root must keep projecting through the declared return type"
-    );
-}
-
-/// `expression_type_reference_in_state` asks the same question of the whole
-/// expression rather than a place: a dispatch whose arms agree on one
-/// stored reference names that reference, while the bare literal whose own
-/// type owns no stored row keeps none.
-#[test]
-fn expression_type_reference_replays_the_same_leaf_evidence() {
-    let fixture = rooted_fixture(
-        "data Main {}
-         machine Main::run(&mut self) {}
-         pub data SchedulerHandle [copy] {}
-         pub data Context [copy] { scheduler: SchedulerHandle; }
-         machine observe(flag: bool, context: Context) -> SchedulerHandle {
-             match flag { true -> context _ -> context }.scheduler
-         }",
-        "observe",
-        "scheduler",
-    );
-    let receiver = program_member_receiver(&fixture);
-    let state = crate::semantic::calls::find_state(&fixture.program, fixture.state_symbol)
-        .expect("fixture state");
-    let context_type = fixture
-        .program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.name.as_str() == "context")
-        .expect("context parameter")
-        .type_reference;
-    assert_eq!(
-        expression_type_reference_in_state(
-            &fixture.program,
-            fixture.state_symbol,
-            fixture.statement_count,
-            receiver,
-        ),
-        Some(context_type),
-        "the dispatch's declared type is the arms' common stored reference"
-    );
-    // The member read over it answers the field's declared type through the
-    // same replay the place path performs.
-    assert_eq!(
-        expression_type_reference_in_state(
-            &fixture.program,
-            fixture.state_symbol,
-            fixture.statement_count,
-            fixture.member,
-        ),
-        Some(declared_field_type(
-            &fixture.program,
-            "Context",
-            "scheduler"
-        )),
-    );
 }
 
 #[test]

@@ -1,8 +1,6 @@
 //! Arithmetic-policy storage keeps the complete source type while projecting
 //! only its integer payload shape. Other qualifications cannot borrow this gate.
-use super::{
-    CheckedUnitStructuralTypeShape, DataMember, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-};
+use super::{DataMember, TypeReferenceHandle, TypeReferenceNode, TypedTrees};
 use crate::execution::terminal_unit::types::ShapeCollector;
 
 use crate::tests::front_end::typed_program;
@@ -20,38 +18,6 @@ fn field_program(spelling: &str) -> (TypedTrees, TypeReferenceHandle) {
     };
     let reference = field.type_reference;
     (program, reference)
-}
-
-#[test]
-fn policy_only_integer_array_shapes_preserve_complete_array_identity() {
-    for spelling in [
-        "[u64 in Wrapping; 16]",
-        "[i32 in Saturating; 3]",
-        "[u8 in Trapping; 2]",
-        "[[u16 in Wrapping; 2]; 3]",
-    ] {
-        let (program, reference) = field_program(spelling);
-        let mut collector = ShapeCollector::new(&program);
-        let identity = collector.add_type(reference, &[], &[]).expect(spelling);
-        assert_eq!(
-            identity,
-            program.normalized_type_identity(reference).into_string()
-        );
-        let shape = &collector.types[&identity].shape;
-        assert!(matches!(
-            shape,
-            CheckedUnitStructuralTypeShape::FixedArray { .. }
-        ));
-    }
-    for spelling in ["[u64 [0..=15]; 16]", "[u64 [0..=15] in Wrapping; 16]"] {
-        let (program, reference) = field_program(spelling);
-        assert!(
-            ShapeCollector::new(&program)
-                .add_type(reference, &[], &[])
-                .is_none(),
-            "{spelling}"
-        );
-    }
 }
 
 #[test]

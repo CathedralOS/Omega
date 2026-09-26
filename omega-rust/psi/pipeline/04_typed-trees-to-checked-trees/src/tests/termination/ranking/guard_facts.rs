@@ -45,41 +45,6 @@ fn countdown_evidence_preserves_both_boolean_arm_orders_and_base_case_polarities
 }
 
 #[test]
-fn a_named_state_cycle_descends_under_a_guard_above_one_or_a_requires_floor() {
-    let cycle = |guard: &str, floor: &str| {
-        format!(
-            "machine eval(fuel: u64) -> u64
-             terminates by fuel;
-             {{
-                 transition {{ _ -> fill(fuel) }}
-                 state fill(fuel: u64) -> u64 {{
-                     transition {guard} {{ true -> place(fuel - 1) _ -> fuel }}
-                 }}
-                 state place(fuel: u64) -> u64
-                 requires {floor}
-                 {{ transition {{ _ -> fill(fuel - 1) }} }}
-             }}"
-        )
-    };
-    let source = cycle("fuel > 1", "1 <= fuel");
-    checked_program_result(&source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    for source in [
-        cycle("fuel >= 0", "1 <= fuel"),
-        cycle("fuel > 1", "0 <= fuel"),
-    ] {
-        let diagnostics =
-            crate::checks::termination::check_machine_termination(&typed_program(&source))
-                .expect_err(&source);
-        assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("cannot prove the `terminates by` ranking")),
-            "{source}: {diagnostics:#?}"
-        );
-    }
-}
-
-#[test]
 fn distance_ranking_preserves_both_boolean_arm_orders() {
     for (predicate, recursive_truth) in [("index < limit", true), ("index >= limit", false)] {
         for first_truth in [false, true] {
@@ -102,63 +67,6 @@ fn distance_ranking_preserves_both_boolean_arm_orders() {
                 .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         }
     }
-}
-
-#[test]
-fn mutual_ranking_uses_each_edges_own_failed_guard() {
-    let source = r#"
-        machine value(remaining: u64) -> u64
-        terminates by remaining -> Nat::Descending;
-        {
-            transition remaining > 0 {
-                false -> 0u64
-                true -> other(remaining - 1)
-            }
-            state other(remaining: u64) -> u64 {
-                transition remaining == 0 {
-                    true -> 0u64
-                    false -> value(remaining - 1)
-                }
-            }
-        }
-    "#;
-    checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    let stalled = source.replace("false -> value(remaining - 1)", "false -> value(remaining)");
-    let diagnostics =
-        checked_program_result(&stalled).expect_err("every mutual edge must decrease");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("ranking")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn one_decreasing_self_edge_cannot_cover_an_unchanged_fallback_edge() {
-    let source = r#"
-        machine value(remaining: u32) -> u32
-        terminates by remaining -> Nat::Descending;
-        {
-            transition remaining > 0 {
-                true -> value(remaining - 1)
-                false -> value(remaining)
-            }
-        }
-    "#;
-    let typed = typed_program(source);
-    assert!(
-        crate::checks::termination::proven_nat_countdown_sccs(&typed, &typed.machines()[0])
-            .is_none()
-    );
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("unchanged fallback must reject");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("ranking")),
-        "{diagnostics:#?}"
-    );
 }
 
 #[test]

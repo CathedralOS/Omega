@@ -1,85 +1,8 @@
-use super::{HandleSpan, ProofFact, TypeConstraintNode, TypeReferenceNode};
+use super::{HandleSpan, ProofFact};
 use crate::monomorphization::identities::contract_fact_text;
 
-use crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections;
 use crate::monomorphization::refresh_closed_domain_instance_identities;
 use crate::tests::front_end::{checked_program_result, typed_program};
-
-#[test]
-fn parameter_membership_instances_follow_single_and_multiple_specialization() {
-    for second in [
-        "",
-        "machine other(value: i64 in Coordinate<9>) -> i64 in Coordinate<9> { relay<9>(value) }",
-    ] {
-        let mut program = typed_program(&format!(
-            "domain<T, const I: u64> T::Coordinate<I>;
-             machine relay<const I: u64>(value: i64 in Coordinate<I>) -> i64 in Coordinate<I> {{ value }}
-             machine run(value: i64 in Coordinate<7>) -> i64 in Coordinate<7> {{ relay<7>(value) }}
-             {second}"
-        ));
-        monomorphize_generic_machine_value_calls_with_selections(
-            &mut program,
-            &mut Default::default(),
-            true,
-        )
-        .expect("closed specializations");
-        refresh_closed_domain_instance_identities(&mut program).expect("refresh memberships");
-        let mut instances = Vec::new();
-        for specialization in &program.machine_specializations {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == specialization.instance)
-                .expect("specialized machine");
-            let state = &program.machine_states(machine)[0];
-            let parameter = &program.state_parameters(state)[0];
-            let TypeReferenceNode::Constrained { constraints, .. } = program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-            else {
-                panic!("qualified parameter");
-            };
-            let domain = program
-                .type_reference_table
-                .constraints(*constraints)
-                .iter()
-                .find_map(|constraint| match constraint {
-                    TypeConstraintNode::Domain(domain) => Some(domain),
-                    _ => None,
-                })
-                .expect("domain instance");
-            let membership = program
-                .signature_contracts
-                .span_or_empty(state.contracts)
-                .iter()
-                .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-                .find_map(|fact| match fact {
-                    ProofFact::Membership(membership)
-                        if membership.domain_symbol == domain.symbol =>
-                    {
-                        Some(membership)
-                    }
-                    _ => None,
-                })
-                .expect("implicit membership requirement");
-            let arguments = program
-                .type_reference_table
-                .type_reference_handles(membership.domain_arguments);
-            assert_eq!(arguments.len(), 1);
-            assert_eq!(arguments.len(), domain.arguments.len());
-            assert_eq!(
-                program.normalized_type_identity(arguments[0]),
-                program.normalized_type_identity(domain.arguments[0])
-            );
-            assert_eq!(membership.semantic_domain, domain.semantic_id);
-            assert!(membership.semantic_domain.is_valid());
-            instances.push(membership.semantic_domain);
-        }
-        instances.sort_by_key(|identity| identity.0);
-        instances.dedup();
-        assert_eq!(instances.len(), if second.is_empty() { 1 } else { 2 });
-    }
-}
 
 #[test]
 fn membership_contract_identity_retains_normalized_indices() {

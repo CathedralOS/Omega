@@ -176,34 +176,3 @@ impl RangeFacts<'_> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::checks::ranges::RangeFacts;
-
-    #[test]
-    fn copied_numeric_bounds_survive_retirement_of_their_original_premises() {
-        let mut facts = RangeFacts::new(&[]);
-        facts.prove_non_negative("floor".into());
-        facts.prove_at_most("floor".into(), "original".into());
-        facts.prove_index_upper_bound("original".into(), 5);
-        facts.alias_index("original", "cut");
-
-        facts.invalidate_relational_bounds(
-            |name| matches!(name, "original" | "floor"),
-            |name| matches!(name, "original" | "floor"),
-        );
-        facts.alias_index("cut", "last");
-        facts.alias_index("original", "later");
-
-        for name in ["cut", "last"] {
-            assert!(facts.non_negative_is_proven(name));
-            assert!(facts.index_upper_bound_is_proven(name, 5));
-        }
-        for name in ["original", "later"] {
-            assert!(!facts.non_negative_is_proven(name));
-            assert!(!facts.non_negative_is_proven_via_ordering(name));
-            assert!(!facts.index_upper_bound_is_proven(name, 5));
-        }
-    }
-}

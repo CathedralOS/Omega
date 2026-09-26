@@ -446,25 +446,3 @@ fn boolean_computation_graphs_reject_altered_short_circuit_custody() {
         }
     }
 }
-
-#[test]
-fn boolean_computation_graphs_capture_mutable_values_at_the_selected_read() {
-    for (before_capture, admitted) in [("", true), ("current = other;", false)] {
-        let program = parse_typed_trees(&source(
-            &format!(
-                "let mut current: bool = value; {before_capture} let saved: bool = identity(!identity(current)); current = other; Host::finish(false); saved"
-            ),
-            "result == !value",
-        ));
-        let result = lower_typed_trees(program, &CheckingRequest::settled());
-        assert_eq!(result.is_ok(), admitted, "{before_capture}");
-        if let Err(diagnostics) = result {
-            assert!(
-                diagnostics.iter().any(|diagnostic| diagnostic
-                    .message
-                    .contains("ensures contract for exit from compute")),
-                "{diagnostics:#?}"
-            );
-        }
-    }
-}

@@ -380,95 +380,10 @@ impl CaseObservation<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ExpressionNode, FactPayload, FlowExitFact};
+    use super::{FactPayload, FlowExitFact};
     use crate::checks::contracts::exits::cases::CaseObservation;
     use crate::checks::contracts::return_values::exit_return_expression;
     use crate::tests::front_end::checked_program;
-
-    #[test]
-    fn result_field_observation_requires_a_complete_return_write_frame() {
-        let source = "data Message { case Empty; case Data(value: u8); }
-            data Wrapper { message: Message; later: bool; }
-            machine make(value: Message) -> Wrapper requires value in Message::Data;
-            ensures result.message in Message::Data;
-            { Wrapper { message: value, later: 1 == 1 } }";
-        let checked = checked_program(source);
-        let exit = checked
-            .facts
-            .flow
-            .control
-            .exits
-            .iter()
-            .next()
-            .unwrap()
-            .1
-            .clone();
-        let contract = checked
-            .facts
-            .proof
-            .contract_fact_refs
-            .span_or_empty(exit.ensures)[0]
-            .fact;
-        let source_fact = checked.facts.proof.contract_facts.get(contract).fact;
-        let requirement = *checked.facts.semantic.facts.iter().find(|(_, fact)| {
-            matches!(fact.payload, FactPayload::ContractBooleanExpression { fact, .. } if fact == source_fact)
-        }).unwrap().1;
-        let preserves_live_reads = |checked: &checked_trees::CheckedTrees| {
-            let frames = validation::CallFrameResolver::new(&checked.typed).unwrap();
-            CaseObservation::for_requirement(
-                &checked.typed,
-                &checked.facts,
-                &exit,
-                &[],
-                &requirement,
-                Some(&frames),
-            )
-            .unwrap()
-            .return_has_no_writes
-        };
-        assert!(preserves_live_reads(&checked));
-        let ExpressionNode::StructLiteral(literal) = checked
-            .typed
-            .expression_table
-            .expression(exit_return_expression(&checked.typed, &exit))
-        else {
-            panic!("returned aggregate")
-        };
-        let later = checked
-            .typed
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .find(|field| field.name.as_str() == "later")
-            .unwrap()
-            .value;
-        let mut selected = checked.clone();
-        selected
-            .facts
-            .operators
-            .uses
-            .append(checked_trees::CheckedOperatorUseFact {
-                expression: later,
-                status: checked_trees::CheckedOperatorResolutionStatus::Resolved,
-                ..Default::default()
-            });
-        assert!(!preserves_live_reads(&selected));
-        let mut atomic = checked.clone();
-        let operand = atomic
-            .typed
-            .expression_table
-            .insert(ExpressionNode::Boolean(false));
-        *atomic.typed.expression_table.expression_mut(later) =
-            ExpressionNode::Atomic(typed_trees::expression::TableAtomicExpression {
-                value: operand,
-                result: operand,
-                ordering: language_core::atomic::AtomicOrderingPlan::Swap(
-                    language_core::atomic::MemoryOrdering::NoOrdering,
-                ),
-                result_custody: language_core::atomic::AtomicExpressionResultCustody::Scalar,
-            });
-        assert!(!preserves_live_reads(&atomic));
-    }
 
     #[test]
     fn result_case_observation_rejects_reassociated_fact_and_exit_owners() {

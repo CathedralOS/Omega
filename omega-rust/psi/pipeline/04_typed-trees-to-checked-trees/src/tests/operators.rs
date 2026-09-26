@@ -57,17 +57,6 @@ fn indexed_selection_fixture(
     (program, facts)
 }
 
-fn has_selected_domain_add(checked: &checked_trees::CheckedTrees) -> bool {
-    checked.facts.operators.resolved_uses().any(|operator_use| {
-        operator_use.spelling == OperatorSpelling::Add
-            && checked
-                .facts
-                .operators
-                .selected_candidate(operator_use)
-                .is_some_and(|candidate| candidate.is_domain_owned())
-    })
-}
-
 fn checked_values_for(
     expressions: impl IntoIterator<Item = typed_trees::expression::ExpressionHandle>,
 ) -> checked_trees::CheckedValueFacts {

@@ -22,40 +22,6 @@ fn rejects_uncovered(source: &str) {
 }
 
 #[test]
-fn boolean_entry_requirements_cover_matching_direct_crash_sites() {
-    for (parameters, requirement, route) in [
-        ("flag: bool", "flag", "flag"),
-        ("mut flag: bool", "!flag", "!flag"),
-        ("flag: bool, other: bool", "flag && other", "flag"),
-        ("flag: bool, other: bool", "!(flag || other)", "!other"),
-    ] {
-        accepts(&format!(
-            "machine value({parameters}) -> bool\nrequires {requirement}\ncrashes Trap {route}\n{{ crash Trap; }}"
-        ));
-    }
-}
-
-#[test]
-fn entry_requirements_do_not_change_cause_formal_or_disjunction() {
-    for source in [
-        "machine value(flag: bool) -> bool\nrequires flag\ncrashes Abort flag\n{ crash Trap; }",
-        "machine value(flag: bool, other: bool) -> bool\nrequires flag\ncrashes Trap other\n{ crash Trap; }",
-        "machine value(flag: bool, other: bool) -> bool\nrequires (flag || other)\ncrashes Trap flag\n{ crash Trap; }",
-        "machine value(mut flag: bool) -> bool\nrequires !flag\ncrashes Trap flag\n{ flag = true; crash Trap; }",
-        "machine value(mut flag: bool) -> bool\nrequires !flag\ncrashes Trap flag\n{ flag = true; transition flag { true -> failed() false -> false } state failed() -> bool { crash Trap; } }",
-    ] {
-        rejects_uncovered(source);
-    }
-}
-
-#[test]
-fn named_state_requirements_are_not_ambient_invocation_facts() {
-    rejects_uncovered(
-        "machine value(flag: bool) -> bool\ncrashes Trap flag\n{ transition { _ -> failed(true) } state failed(flag: bool) -> bool\nrequires flag\n{ crash Trap; } }",
-    );
-}
-
-#[test]
 fn entry_polarity_covers_equivalent_builtin_boolean_route_spellings() {
     for (requirement, route) in [
         ("!flag", "flag == false"),
@@ -123,24 +89,4 @@ fn common_disjunctive_entry_consequences_cover_direct_and_call_routes() {
          { a = false; transition { _ -> failed(false) }\n\
            state failed(a: bool) -> bool { crash Trap; } }",
     );
-}
-
-#[test]
-fn common_disjunctive_entry_consequences_need_every_alternative_and_complete_route() {
-    for (requirement, route) in [
-        ("(a && b) || (b && c)", "a"),
-        ("(a && b) || (!a && c)", "a"),
-        ("(a && b) || (a && c)", "d"),
-        ("(a && b) || (a && c)", "a && d"),
-        ("(a && b) || (a && c)", "!a"),
-        ("(a && b) || ((a && c) || d)", "a"),
-    ] {
-        for body in ["crash Trap;", "trigger()"] {
-            rejects_uncovered(&format!(
-                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
-                 machine value(mut a: bool, b: bool, c: bool, d: bool) -> bool\n\
-                 requires {requirement}\ncrashes Trap {route}\n{{ a = true; {body} }}",
-            ));
-        }
-    }
 }

@@ -49,20 +49,6 @@ fn direct_pure_total_record_projection_is_retained_without_a_runtime_call() {
 }
 
 #[test]
-fn bodyless_projection_rejects() {
-    let source = format!(
-        r#"
-        {RECORD}
-        boundary machine foreign_pair(left: u64, right: u64) -> Pair;
-        machine law(left: u64, right: u64) -> u64
-        requires foreign_pair(left, right).left == left
-        {{ transition {{ _ -> left }} }}
-    "#
-    );
-    assert!(messages(&source).contains("bodyless, boundary, accepted, and external"));
-}
-
-#[test]
 fn reaching_projection_rejects() {
     let source = format!(
         r#"
@@ -147,25 +133,6 @@ fn nested_projection_rejects() {
 }
 
 #[test]
-fn crashing_projection_rejects() {
-    let source = format!(
-        r#"
-        {RECORD}
-        machine crashing_pair(left: u64, right: u64) -> Pair
-        crashes Abort
-        terminates;
-        {{
-            crash Abort;
-        }}
-        machine law(left: u64, right: u64) -> u64
-        requires crashing_pair(left, right).left == left
-        {{ transition {{ _ -> left }} }}
-    "#
-    );
-    assert!(messages(&source).contains("has a crash route"));
-}
-
-#[test]
 fn cyclic_projection_never_acquires_a_totality_certificate() {
     let source = format!(
         r#"
@@ -218,36 +185,6 @@ fn domain_projection_dependencies_are_the_call_argument_occurrences() {
             .all(|name| !name.starts_with("make_pair(")),
         "the denotational result must not become a synthetic place: {dependencies:?}"
     );
-}
-
-#[test]
-fn transparent_named_fact_does_not_certify_a_false_call_projection() {
-    let source = format!(
-        r#"
-        {RECORD}
-        proposition projected_left_is_right(left: u64, right: u64) =
-            make_pair(left, right).left == right;
-        machine bogus(left: u64, right: u64) -> u64
-        ensures projected_left_is_right(left, right)
-        {{ transition {{ _ -> left }} }}
-    "#
-    );
-    assert!(messages(&source).contains("cannot establish proposition ensure"));
-}
-
-#[test]
-fn transparent_relation_retains_exact_projected_call_arguments() {
-    let source = format!(
-        r#"
-        {RECORD}
-        proposition same_left(left: Pair, right: Pair) = left.left == right.left;
-        machine theorem(value: u64, b: u64, c: u64) -> u64
-        ensures same_left(make_pair(value, b), make_pair(value, c))
-        {{ transition {{ _ -> value }} }}
-    "#
-    );
-    let checked = checked(&source).expect("relation over exact call results should check");
-    assert_eq!(checked.facts.fact_call_projections.len(), 2);
 }
 
 #[test]

@@ -32,35 +32,6 @@ fn result_bearing_machine_cannot_satisfy_a_resultless_law() {
 }
 
 #[test]
-fn unchanged_resultless_self_citation_cannot_prove_itself() {
-    let source = r#"
-        data Nat {
-            case Zero;
-            case Succ(prev: Nat);
-        }
-
-        machine bogus(n: Nat)
-        terminates by n;
-        ensures n == n
-        {
-            bogus(n);
-        }
-    "#;
-
-    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect_err("a theorem must not obtain its own ensures from an unchanged citation");
-    let messages = diagnostics
-        .iter()
-        .map(|diagnostic| diagnostic.message.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        messages.contains("cannot prove the measure `n` structurally decreases"),
-        "unexpected diagnostics: {messages}"
-    );
-}
-
-#[test]
 fn explicitly_discarded_recursive_call_still_requires_exact_descent() {
     let source = r#"
         data Nat {

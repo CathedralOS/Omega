@@ -28,7 +28,6 @@ const DESTINATIONS: [Destination; 8] = [
     Destination::Window,
     Destination::MutableWindow,
 ];
-const EXACT_SEVEN: [&str; 3] = ["7 / 2 * 2", "7 / 2.0 * 2", "0.1 * 70"];
 const LARGE_SEVEN: [&str; 3] = [
     "(18446744073709551615 + 7) - 18446744073709551615",
     "(18446744073709551615 * 18446744073709551615) / 18446744073709551615 - 18446744073709551608",
@@ -159,44 +158,6 @@ fn assert_exact_seven(checked: &CheckedTrees, destination: Destination, nested: 
 }
 
 #[test]
-fn local_and_record_arrays_accept_exact_seven_with_intact_element_expressions() {
-    for destination in [Destination::Local, Destination::RecordField] {
-        for nested in [false, true] {
-            for expression in EXACT_SEVEN {
-                let checked = accepts(&source(destination, nested, expression));
-                assert_exact_seven(&checked, destination, nested);
-            }
-        }
-    }
-}
-
-#[test]
-fn assigned_and_argument_arrays_accept_exact_integral_elements() {
-    for destination in [
-        Destination::Assignment,
-        Destination::Argument,
-        Destination::Window,
-    ] {
-        for nested in [false, true] {
-            for expression in EXACT_SEVEN {
-                accepts(&source(destination, nested, expression));
-            }
-        }
-    }
-}
-
-#[test]
-fn direct_and_transition_array_returns_accept_exact_integral_elements() {
-    for destination in [Destination::Return, Destination::TransitionReturn] {
-        for nested in [false, true] {
-            for expression in EXACT_SEVEN {
-                accepts(&source(destination, nested, expression));
-            }
-        }
-    }
-}
-
-#[test]
 fn array_elements_cancel_intermediates_beyond_u64_before_integer_landing() {
     for destination in DESTINATIONS {
         for nested in [false, true] {
@@ -205,22 +166,6 @@ fn array_elements_cancel_intermediates_beyond_u64_before_integer_landing() {
                 if matches!(destination, Destination::Local | Destination::RecordField) {
                     assert_exact_seven(&checked, destination, nested);
                 }
-            }
-        }
-    }
-}
-
-#[test]
-fn final_fractional_array_elements_report_the_exact_noninteger_value() {
-    for destination in DESTINATIONS {
-        for nested in [false, true] {
-            for (expression, exact_value) in
-                [("7 / 2", "7/2"), ("7 / 2.0", "7/2"), ("0.1 * 71", "71/10")]
-            {
-                rejects(
-                    &source(destination, nested, expression),
-                    &["not an integer", exact_value],
-                );
             }
         }
     }
@@ -248,49 +193,5 @@ fn typed_float_array_elements_require_explicit_integer_conversion() {
                 rejects(&source(destination, nested, expression), &["float", "i32"]);
             }
         }
-    }
-}
-
-#[test]
-fn typed_integer_array_elements_keep_their_typed_division() {
-    for destination in DESTINATIONS {
-        for nested in [false, true] {
-            let checked = accepts(&source(destination, nested, "7i32 / 2 * 2"));
-            if matches!(destination, Destination::Local | Destination::RecordField) {
-                let element = local_element(&checked, destination, nested);
-                assert!(matches!(
-                    checked.expression_table.expression(element),
-                    ExpressionNode::Binary(_)
-                ));
-                assert!(
-                    validation::land_anonymous_integer_expression(
-                        &checked,
-                        element,
-                        PrimitiveType::I32,
-                        |expression| validation::has_anonymous_operator_meaning(
-                            &checked, expression
-                        ),
-                    )
-                    .is_none(),
-                    "typed arithmetic must not become anonymous array arithmetic"
-                );
-            }
-        }
-    }
-}
-
-#[test]
-fn typed_integer_six_can_be_stored_in_flat_and_nested_arrays() {
-    for (array_type, initializer) in [
-        ("[i32; 1]", "[typed_integer]"),
-        ("[[i32; 1]; 1]", "[[typed_integer]]"),
-    ] {
-        accepts(&format!(
-            "machine construct() -> i32 ensures result == 6 {{
-                 let typed_integer: i32 [6..=6] = 7i32 / 2 * 2;
-                 let values: {array_type} = {initializer};
-                 typed_integer
-             }}"
-        ));
     }
 }

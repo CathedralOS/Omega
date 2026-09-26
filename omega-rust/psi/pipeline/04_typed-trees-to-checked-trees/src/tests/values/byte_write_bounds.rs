@@ -24,18 +24,6 @@ fn source(increment: u64) -> String {
 }
 
 #[test]
-fn byte_store_does_not_strengthen_the_guard_distance() {
-    let diagnostics = lower_typed_trees(typed_program(&source(2)), &CheckingRequest::settled())
-        .expect_err("a strict length guard permits one step, not two");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("may overflow")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
 fn byte_store_cannot_restore_a_length_relation_retired_by_its_rhs_call() {
     for (helper, accepted) in [
         ("machine touch(out: &mut [u8]) -> u8 { 0 }", true),

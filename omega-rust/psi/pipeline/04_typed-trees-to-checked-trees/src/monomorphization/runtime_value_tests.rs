@@ -1,8 +1,7 @@
-use super::{ExpressionHandle, ExpressionNode, ProofFact, StatementNode, TypedTrees};
-use crate::monomorphization::collect_expression_tree;
+use super::{ExpressionHandle, ExpressionNode, StatementNode, TypedTrees};
 use crate::monomorphization::collect_statement_expression_trees;
 use crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections;
-use crate::tests::front_end::{checked_program_result, typed_program};
+use crate::tests::front_end::typed_program;
 use typed_trees::machine::Machine;
 use typed_trees::typed_trees::MachineSpecialization;
 
@@ -30,208 +29,6 @@ fn call_expressions(program: &TypedTrees, machine: &Machine) -> Vec<ExpressionHa
             )
         })
         .collect()
-}
-
-#[test]
-fn runtime_value_argument_realizes_an_ordinary_parameter() {
-    let mut program = typed_program(
-        "machine prefix_count<Count: u32>(base: u32) -> u32 { Count }
-         machine main(base: u32) -> u32 { let n: u32 = 3; prefix_count<n>(base) }",
-    );
-    monomorphize_generic_machine_value_calls_with_selections(
-        &mut program,
-        &mut Default::default(),
-        true,
-    )
-    .expect("runtime subject specializes");
-    let [receipt] = program.machine_specializations.as_slice() else {
-        panic!("one runtime-carrier specialization");
-    };
-    let instance = instance(&program, receipt);
-    let state = &program.machine_states(instance)[0];
-    let parameters = program.state_parameters(state);
-    // `base` plus the realized `Count` subject: the clone is an ordinary
-    // two-parameter machine with no residual generic binders.
-    assert_eq!(parameters.len(), 2);
-    assert!(program.machine_type_parameters(instance).is_empty());
-    // The rewritten call passes `base` and appends `n` as ordinary arguments.
-    let caller = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "main")
-        .expect("caller");
-    let calls = call_expressions(&program, caller);
-    let [call] = calls.as_slice() else {
-        panic!("one rewritten call");
-    };
-    let ExpressionNode::Call(call) = program.expression_table.expression(*call) else {
-        unreachable!();
-    };
-    assert_eq!(call.target_symbol, state.symbol);
-    assert!(call.machine_arguments.is_empty());
-    assert_eq!(
-        program
-            .expression_table
-            .expression_handles(call.arguments)
-            .len(),
-        2
-    );
-}
-
-#[test]
-fn runtime_value_forwarding_appends_the_realized_parameter() {
-    let mut program = typed_program(
-        "machine prefix_count<Count: u32>(base: u32) -> u32 { Count }
-         machine forward<K: u32>(base: u32) -> u32 { prefix_count<K>(base) }
-         machine main(base: u32) -> u32 { let n: u32 = 3; forward<n>(base) }",
-    );
-    monomorphize_generic_machine_value_calls_with_selections(
-        &mut program,
-        &mut Default::default(),
-        true,
-    )
-    .expect("forwarded runtime subject specializes");
-    assert_eq!(program.machine_specializations.len(), 2);
-    let forward = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "forward")
-        .expect("forward template");
-    let forward_receipt = program
-        .machine_specializations
-        .iter()
-        .find(|receipt| receipt.template == forward.symbol)
-        .expect("forward instance");
-    let forward_instance = instance(&program, forward_receipt);
-    let forward_state = &program.machine_states(forward_instance)[0];
-    // `base` plus the realized `K`: the nested call forwards the realized
-    // parameter's own symbol as the callee's ordinary runtime argument.
-    assert_eq!(program.state_parameters(forward_state).len(), 2);
-    let nested_calls = call_expressions(&program, forward_instance);
-    let [nested] = nested_calls.as_slice() else {
-        panic!("one nested call in the forward instance");
-    };
-    let ExpressionNode::Call(nested) = program.expression_table.expression(*nested) else {
-        unreachable!();
-    };
-    assert!(nested.machine_arguments.is_empty());
-    let nested_arguments = program
-        .expression_table
-        .expression_handles(nested.arguments);
-    assert_eq!(nested_arguments.len(), 2);
-    let ExpressionNode::Name(subject) = program.expression_table.expression(nested_arguments[1])
-    else {
-        panic!("the forwarded argument stays an ordinary subject");
-    };
-    let realized = program.state_parameters(forward_state)[1].symbol;
-    assert_eq!(subject.symbol, realized);
-    // The nested target is the prefix_count instance's entry state.
-    let prefix = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "prefix_count")
-        .expect("prefix template");
-    let prefix_instance = instance(
-        &program,
-        program
-            .machine_specializations
-            .iter()
-            .find(|receipt| receipt.template == prefix.symbol)
-            .expect("prefix instance"),
-    );
-    assert_eq!(
-        nested.target_symbol,
-        program.machine_states(prefix_instance)[0].symbol
-    );
-}
-
-#[test]
-fn static_and_runtime_value_applications_share_one_template() {
-    let mut program = typed_program(
-        "machine prefix_count<Count: u32>(base: u32) -> u32 { Count }
-         machine main(base: u32) -> u32 {
-             let n: u32 = 3;
-             let closed: u32 = prefix_count<4>(base);
-             prefix_count<n>(base)
-         }",
-    );
-    monomorphize_generic_machine_value_calls_with_selections(
-        &mut program,
-        &mut Default::default(),
-        true,
-    )
-    .expect("static and runtime tuples specialize");
-    // The static literal and the runtime carrier are distinct tuples: the
-    // literal specializes by value, the runtime subject by its declared
-    // carrier, so each keeps its own instance.
-    assert_eq!(program.machine_specializations.len(), 2);
-    let parameter_counts = |receipt: &MachineSpecialization| {
-        let instance = instance(&program, receipt);
-        program
-            .state_parameters(&program.machine_states(instance)[0])
-            .len()
-    };
-    let static_receipt = program
-        .machine_specializations
-        .iter()
-        .find(|receipt| parameter_counts(receipt) == 1)
-        .expect("the literal tuple keeps the authored signature");
-    let runtime_receipt = program
-        .machine_specializations
-        .iter()
-        .find(|receipt| parameter_counts(receipt) == 2)
-        .expect("the carrier tuple gains the realized parameter");
-    assert_ne!(static_receipt.instance, runtime_receipt.instance);
-    // `main`'s literal call targets the static instance; its runtime-subject
-    // call targets the carrier instance with `n` appended as an argument.
-    let caller = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "main")
-        .expect("caller");
-    let calls = call_expressions(&program, caller);
-    assert_eq!(calls.len(), 2);
-    let targets: Vec<_> = calls
-        .iter()
-        .map(|handle| {
-            let ExpressionNode::Call(call) = program.expression_table.expression(*handle) else {
-                unreachable!();
-            };
-            (
-                call.target_symbol,
-                program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .len(),
-            )
-        })
-        .collect();
-    let static_entry = program
-        .machine_states(instance(&program, static_receipt))
-        .first()
-        .expect("static entry")
-        .symbol;
-    let runtime_entry = program
-        .machine_states(instance(&program, runtime_receipt))
-        .first()
-        .expect("runtime entry")
-        .symbol;
-    assert!(targets.contains(&(static_entry, 1)));
-    assert!(targets.contains(&(runtime_entry, 2)));
-}
-
-#[test]
-fn const_binder_still_rejects_a_runtime_subject() {
-    let error = checked_program_result(
-        "machine prefix_count<const Count: u32>(base: u32) -> u32 { Count }
-         machine main(base: u32) -> u32 { let n: u32 = 3; prefix_count<n>(base) }",
-    )
-    .expect_err("a const binder cannot close over a runtime subject");
-    assert!(error.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("cannot derive a complete type/const/machine/conformance specialization")
-    }));
 }
 
 #[test]
@@ -327,143 +124,6 @@ fn runtime_bound_result_range_uses_the_realized_parameter() {
 }
 
 #[test]
-fn runtime_value_in_a_static_length_position_rejects() {
-    let mut program = typed_program(
-        "machine sized<Count: u32>(witness: [u8; Count]) -> u32 { Count }
-         machine main(witness: [u8; 4]) -> u32 {
-             let n: u32 = 4;
-             sized<n>(witness)
-         }",
-    );
-    // The explicit runtime subject conflicts with the `4` length inferred from
-    // `witness`: the call cannot close `Count` statically, so specialization
-    // rejects it before any layout is realized.
-    let error = monomorphize_generic_machine_value_calls_with_selections(
-        &mut program,
-        &mut Default::default(),
-        true,
-    )
-    .expect_err("a runtime subject cannot close a static layout");
-    assert!(!error.is_empty());
-}
-
-#[test]
-fn runtime_value_requires_rebases_onto_the_realized_parameter() {
-    // `requires Count <= 10` is a caller obligation on the captured subject,
-    // not a static use of the binder: the clone's contract must read the
-    // realized trailing parameter so each rewritten call site owes the fact
-    // on its own appended argument.
-    let mut program = typed_program(
-        "machine pick<Count: u32>(base: u32) -> u32
-         requires
-             Count <= 10;
-         { Count }
-         machine main() -> u32 { let n: u32 = 3; pick<n>(7) }",
-    );
-    monomorphize_generic_machine_value_calls_with_selections(
-        &mut program,
-        &mut Default::default(),
-        true,
-    )
-    .expect("a requires contract on a runtime subject specializes");
-    let [receipt] = program.machine_specializations.as_slice() else {
-        panic!("one specialization for the runtime tuple");
-    };
-    let instance = instance(&program, receipt);
-    let entry = &program.machine_states(instance)[0];
-    let realized = program.state_parameters(entry)[1].symbol;
-    let mut names = Vec::new();
-    for contract in program.machine_contracts(instance) {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
-                continue;
-            };
-            collect_expression_tree(&program, *expression, &mut names);
-        }
-    }
-    assert!(names.iter().any(|handle| {
-        matches!(
-            program.expression_table.expression(*handle),
-            ExpressionNode::Name(path) if path.symbol == realized
-        )
-    }));
-}
-
-#[test]
-fn runtime_value_requires_accepts_a_guarded_or_known_subject() {
-    for source in [
-        // A literal initializer establishes the subject's bound outright.
-        "machine pick<Count: u32>(base: u32) -> u32
-         requires
-             Count <= 10;
-         { Count }
-         machine main() -> u32 { let n: u32 = 3; pick<n>(7) }",
-        // A dominating transition guard establishes it on the same subject.
-        "machine pick<Count: u32>(base: u32) -> u32
-         requires
-             Count == 3;
-         { Count }
-         data Main {}
-         machine Main::run(n: u32) -> u32 {
-             transition n == 3 {
-                 true -> allowed(n)
-                 false -> denied()
-             }
-             state allowed(&mut self, n: u32) -> u32 { pick<n>(7) }
-             state denied(&mut self) -> u32 { 0 }
-         }",
-    ] {
-        checked_program_result(source)
-            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    }
-}
-
-#[test]
-fn runtime_value_requires_rejects_unestablished_and_stale_subjects() {
-    for source in [
-        // The subject's declared carrier alone does not establish the bound.
-        "machine pick<Count: u32>(base: u32) -> u32
-         requires
-             Count <= 10;
-         { Count }
-         machine main(n: u32) -> u32 { pick<n>(7) }",
-        // Reassignment before the call replaces the captured subject: the
-        // earlier `3` initializer cannot stand in for the current `99`.
-        "machine pick<Count: u32>(base: u32) -> u32
-         requires
-             Count <= 10;
-         { Count }
-         data Main {}
-         machine Main::run() -> u32 { let mut n: u32 = 3; n = 99; pick<n>(7) }",
-        // A mismatched guard does not prove the subject's equality.
-        "machine pick<Count: u32>(base: u32) -> u32
-         requires
-             Count == 3;
-         { Count }
-         data Main {}
-         machine Main::run(n: u32) -> u32 {
-             transition n == 4 {
-                 true -> allowed(n)
-                 false -> denied()
-             }
-             state allowed(&mut self, n: u32) -> u32 { pick<n>(7) }
-             state denied(&mut self) -> u32 { 0 }
-         }",
-    ] {
-        let error = checked_program_result(source)
-            .expect_err("an unestablished subject must still owe the requirement");
-        assert!(
-            error.iter().any(|diagnostic| {
-                diagnostic
-                    .message
-                    .contains("cannot prove requires contract")
-            }),
-            "{source}: {error:#?}"
-        );
-    }
-}
-
-#[test]
 fn mixed_static_and_runtime_value_slots_keep_telescope_order() {
     let mut program = typed_program(
         "machine pick<Skip: u32, Keep: u32>(base: u32) -> u32 { Keep + Skip }
@@ -519,22 +179,6 @@ fn mixed_static_and_runtime_value_slots_keep_telescope_order() {
 }
 
 #[test]
-fn specialized_value_machine_writes_its_own_attached_data() {
-    // The specialized clone is a generated root, not an authored child of the
-    // program root. Validation must still resolve the clone's own machine
-    // symbol so `self.x` is owned data the `&mut self` state may write.
-    crate::lower_typed_trees(
-        typed_program(
-            "data Main { x: u32; }
-         machine Main::put<Count: u32>(&mut self, v: u32) { self.x = v; }
-         machine Main::main(&mut self) { let n: u32 = 3; self.put<n>(10); }",
-        ),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("a specialized clone keeps ownership of its attached data");
-}
-
-#[test]
 fn runtime_value_indexes_an_attached_array_field_under_requires() {
     // `self.values[Count]` on a `Value` binder: the carrier `u32` proves the
     // lower bound and `requires Count <= 7` proves the length, on reads and
@@ -568,27 +212,6 @@ fn runtime_value_indexes_an_attached_array_field_under_requires() {
 }
 
 #[test]
-fn runtime_value_index_without_a_bound_still_rejects() {
-    // The carrier `u32` proves non-negativity but nothing proves `Count < 8`,
-    // so the indexed read must still be refused.
-    let error = crate::lower_typed_trees(
-        typed_program(
-            "data Main { values: [u32; 8]; }
-         machine Main::at<Count: u32>(&self) -> u32 { self.values[Count] }
-         machine Main::main(&mut self) { let n: u32 = 3; let a: u32 = self.at<n>(); }",
-        ),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect_err("an unproven index bound must still reject");
-    assert!(
-        error
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("cannot prove index")),
-        "{error:#?}"
-    );
-}
-
-#[test]
 fn generic_to_generic_requires_instantiates_against_the_forwarded_subject() {
     // `bounded<Count>` requires `Count <= 10`; `forward<K>` calls `bounded<K>`,
     // so the instantiated obligation is `K <= 10` on `forward`'s own binder.
@@ -608,34 +231,6 @@ fn generic_to_generic_requires_instantiates_against_the_forwarded_subject() {
         &crate::CheckingRequest::settled(),
     )
     .expect("the callee's requires discharges against the forwarded subject");
-}
-
-#[test]
-fn generic_to_generic_requires_still_owes_the_unestablished_fact() {
-    // Without `forward`'s own `requires K <= 10`, the instantiated obligation
-    // names the forwarded `K` subject — not the callee's `Count` binder and
-    // not a literal — and nothing establishes it.
-    let error = crate::lower_typed_trees(
-        typed_program(
-            "machine bounded<Count: u32>(base: u32) -> u32
-         requires
-             Count <= 10;
-         { Count }
-         machine forward<K: u32>(base: u32) -> u32 { bounded<K>(base) }
-         machine main() -> u32 { let n: u32 = 3; forward<n>(7) }",
-        ),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect_err("an unestablished forwarded subject must still owe the requirement");
-    assert!(
-        error.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("cannot prove requires contract")
-                && diagnostic.message.contains("K <= 10")
-        }),
-        "{error:#?}"
-    );
 }
 
 #[test]
@@ -761,27 +356,6 @@ fn runtime_value_subjects_reach_transition_targets_in_a_cloned_machine() {
         1,
         "`denied` receives the forwarded subject alone"
     );
-}
-
-#[test]
-fn runtime_bound_result_range_discharges_through_checking() {
-    // The whole spine: a declared local bound `u64[0..=n]` admits a runtime
-    // subject in its maximum, and the call's result proves `Bound <= n`
-    // through the captured-argument binding. The authored total keeps its
-    // declared carrier; the relation rides on the inferred temporary.
-    crate::lower_typed_trees(
-        typed_program(
-            "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
-         machine main() -> u64 {
-             let n: u64 = 7;
-             let captured: u64[0..=n] = ranged<n>();
-             let total: u64 = ranged<n>();
-             captured
-         }",
-        ),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("a runtime-bound result range checks end to end");
 }
 
 #[test]

@@ -110,8 +110,6 @@
 
 use crate::execution::terminal_unit::calls::free_structural_scalar_signature;
 use crate::execution::terminal_unit::cleanup::build_nominal_affine_unit_cleanup_machine;
-#[cfg(test)]
-use crate::execution::terminal_unit::composed_control::build_checked_composed_unit_control_machines;
 use crate::execution::terminal_unit::composed_control::build_checked_composed_unit_control_machines_traced;
 use crate::execution::terminal_unit::control::{
     LocalConstructionTrace, build_boundary_machine, build_checked_machine_traced,

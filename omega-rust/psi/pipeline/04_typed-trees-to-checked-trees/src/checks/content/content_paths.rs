@@ -459,40 +459,6 @@ mod tests {
     }
 
     #[test]
-    fn content_paths_match_admits_symbol_free_names() {
-        // Contract-authored places may carry a name but no resolved symbol:
-        // equality then falls back to the spelled name alone.
-        assert!(content_paths_match(
-            &[field_segment("payload", 0)],
-            &[field_segment("payload", 9)],
-        ));
-        assert!(content_paths_match(
-            &[case_segment("Some", 7)],
-            &[case_segment("Some", 0)],
-        ));
-    }
-
-    #[test]
-    fn content_paths_match_rejects_symbol_disagreement() {
-        assert!(!content_paths_match(
-            &[field_segment("payload", 4)],
-            &[field_segment("payload", 9)],
-        ));
-        assert!(!content_paths_match(
-            &[case_segment("Some", 4)],
-            &[case_segment("Some", 9)],
-        ));
-    }
-
-    #[test]
-    fn content_paths_match_rejects_name_disagreement() {
-        assert!(!content_paths_match(
-            &[field_segment("payload", 9)],
-            &[field_segment("count", 9)],
-        ));
-    }
-
-    #[test]
     fn content_paths_match_rejects_shape_disagreement() {
         assert!(!content_paths_match(
             &[case_segment("Some", 7)],

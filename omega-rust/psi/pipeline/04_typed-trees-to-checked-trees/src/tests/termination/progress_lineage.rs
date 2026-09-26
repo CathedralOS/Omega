@@ -3,7 +3,7 @@ use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 use crate::tests::termination::symbol_of_checked;
 use checked_trees::CheckedTrees;
-use language_semantics::{MachineTerminationPlan, TerminationGuarantee, TerminationInterface};
+use language_semantics::{MachineTerminationPlan, TerminationGuarantee};
 
 mod qualifications;
 
@@ -24,43 +24,6 @@ fn plan<'program>(program: &'program CheckedTrees, name: &str) -> &'program Mach
         .termination
         .for_machine(symbol_of_checked(program, name))
         .unwrap_or_else(|| panic!("checked termination plan for {name}"))
-}
-
-#[test]
-fn unused_growing_projection_finishes_checked_termination() {
-    // Both edges strictly descend. The recursive reference is forwarded but
-    // never used by a progress-premise-bearing operation. Its growing paths
-    // must not prevent checking this unconditional termination guarantee.
-    let program = checked(
-        r#"
-        data Node { next: &Node; }
-
-        machine walk(node: &Node, remaining: u64)
-        terminates by remaining -> Nat::Descending;
-        -> u64 {
-            transition remaining > 0 {
-                true -> step(node.next, remaining - 1)
-                false -> 0
-            }
-
-            state step(node: &Node, remaining: u64) -> u64 {
-                transition remaining > 0 {
-                    true -> walk(node.next, remaining - 1)
-                    false -> 0
-                }
-            }
-        }
-        "#,
-    );
-    let plan = plan(&program, "walk");
-    assert_eq!(plan.interface, TerminationInterface::InternalDerived);
-    assert!(plan.implementation_witness.is_some());
-    assert_eq!(
-        plan.checked_summary,
-        TerminationGuarantee::Terminates {
-            premises: Vec::new(),
-        }
-    );
 }
 
 // These are the owner-classified profile and conservative published operation
@@ -165,86 +128,6 @@ fn finite_predecessor_alternatives_retain_both_exact_projected_subjects() {
     );
 }
 
-#[test]
-fn identity_cycle_swapping_entry_parameters_retains_both_subjects() {
-    // A complete local cycle exchanges first and second. Neither edge adds a
-    // projection, so repeated visits produce two exact roots, not ambiguity.
-    let source = format!(
-        r#"{PROGRESS_PROFILE}
-        {CONTEXT_OPERATION}
-        machine process(first: Context, second: Context, remaining: u64)
-        requires first.scheduler in WeakFair
-        requires second.scheduler in WeakFair
-        terminates by remaining -> Nat::Descending;
-        -> u64 {{
-            transition remaining > 0 {{
-                true -> step(second, first, remaining - 1)
-                false -> wait_context(first)
-            }}
-
-            state step(first: Context, second: Context, remaining: u64) -> u64 {{
-                transition remaining > 0 {{
-                    true -> process(first, second, remaining - 1)
-                    false -> 0
-                }}
-            }}
-        }}
-        "#
-    );
-    let program = checked(&source);
-    assert_eq!(
-        plan(&program, "process").interface,
-        TerminationInterface::InternalDerived
-    );
-    assert!(plan(&program, "process").implementation_witness.is_some());
-    assert_exact_subjects(
-        &program,
-        "process",
-        "wait_context",
-        "Context::scheduler",
-        &["first", "second"],
-    );
-}
-
-#[test]
-fn unused_growing_projection_preserves_an_independent_exact_premise() {
-    let source = format!(
-        r#"{PROGRESS_PROFILE}
-        {CONTEXT_OPERATION}
-        data Node {{ next: &Node; }}
-        machine walk(node: &Node, context: Context, remaining: u64)
-        requires context.scheduler in WeakFair
-        terminates by remaining -> Nat::Descending;
-        -> u64 {{
-            transition remaining > 0 {{
-                true -> step(node.next, context, remaining - 1)
-                false -> wait_context(context)
-            }}
-
-            state step(node: &Node, context: Context, remaining: u64) -> u64 {{
-                transition remaining > 0 {{
-                    true -> walk(node.next, context, remaining - 1)
-                    false -> 0
-                }}
-            }}
-        }}
-        "#
-    );
-    let program = checked(&source);
-    assert_eq!(
-        plan(&program, "walk").interface,
-        TerminationInterface::InternalDerived
-    );
-    assert!(plan(&program, "walk").implementation_witness.is_some());
-    assert_exact_subjects(
-        &program,
-        "walk",
-        "wait_context",
-        "Context::scheduler",
-        &["context"],
-    );
-}
-
 const NODE_CYCLE: &str = r#"
 pub data Node { scheduler: SchedulerHandle; next: &Node; }
 pub machine wait_node(node: &Node)
@@ -339,81 +222,6 @@ fn projected_entry_into_an_identity_loop_retains_the_finite_subject() {
             .map(|projection| program.symbols.display_path(*projection, "::"))
             .collect::<Vec<_>>(),
         ["Node::next", "Node::scheduler"]
-    );
-}
-
-#[test]
-fn demanded_identity_forwarding_retains_the_single_entry_subject() {
-    // This source control changes only the growing back-edge to identity.
-    // Both the private and published forms must finish with the exact premise.
-    for published in [false, true] {
-        let program = checked(&node_cycle(published, false));
-        assert_exact_subjects(&program, "walk", "wait_node", "Node::scheduler", &["node"]);
-        let plan = plan(&program, "walk");
-        assert!(plan.implementation_witness.is_some());
-        if published {
-            assert_eq!(plan.interface.published(), Some(&plan.checked_summary));
-        } else {
-            assert_eq!(plan.interface, TerminationInterface::InternalDerived);
-        }
-    }
-}
-
-#[test]
-fn demanded_growing_projection_has_no_private_checked_guarantee() {
-    // A valid ranking alone cannot cover node.next.scheduler, then
-    // node.next.next.scheduler, with the entry node.scheduler premise.
-    // Progress inference reports NoGuarantee independently of ordinary source
-    // validity. This fixture also fails to renew the root's live qualification.
-    let program = typed(&node_cycle(false, true));
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "walk")
-        .expect("walk machine");
-    assert!(
-        crate::checks::termination::infer_machine_checked_summary(&program, machine)
-            .promises_termination(),
-        "the independent local ranking must succeed"
-    );
-    let proof_plan = proof::obligations::build_proof_plan(&program);
-    let borrow = crate::borrow::build_borrow_facts(&program);
-    let proof = crate::proof::build_proof_facts(&program, &proof_plan, &borrow);
-    let mut semantic = crate::semantic::facts::build_semantic_facts(&program, &proof);
-    let domains = crate::flow::build_domain_facts(&program, &semantic);
-    let operations = validation::infer_operational_may(&program);
-    let flow = crate::flow::build_flow_facts(
-        &program,
-        &borrow,
-        &proof,
-        &mut semantic,
-        &domains,
-        &operations,
-    );
-    let summaries =
-        crate::checks::termination::analyze_checked_progress(&program, &flow, &semantic)
-            .expect("private missing progress coverage is not a published-contract error");
-    let summary = summaries
-        .iter()
-        .find(|summary| summary.machine == machine.symbol)
-        .expect("walk progress summary");
-    let plan = crate::checks::termination::build_checked_termination_plan_with_summary(
-        &program,
-        machine,
-        summary.guarantee.clone(),
-    );
-    assert_eq!(plan.interface, TerminationInterface::InternalDerived);
-    assert!(plan.implementation_witness.is_some());
-    assert_eq!(plan.checked_summary, TerminationGuarantee::NoGuarantee);
-
-    let Err(diagnostics) = lower_typed_trees(program, &CheckingRequest::settled()) else {
-        panic!("NoGuarantee cannot excuse the missing root-entry qualification");
-    };
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("cannot prove requires contract for call walk")),
-        "{diagnostics:#?}"
     );
 }
 

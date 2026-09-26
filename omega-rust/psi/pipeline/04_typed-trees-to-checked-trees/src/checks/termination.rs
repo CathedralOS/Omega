@@ -199,22 +199,6 @@ pub(crate) fn check_machine_termination_with_call_frames(
     }
 }
 
-/// Complete one machine's normalized termination plan from the same pure
-/// resolution and proof functions used by the checker. The authored interface
-/// is preserved, while the checked summary and any pending canonical witness
-/// view are implementation-only evidence.
-#[cfg(test)]
-pub(crate) fn build_checked_termination_plan(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> language_semantics::MachineTerminationPlan {
-    build_checked_termination_plan_with_summary(
-        program,
-        machine,
-        infer_machine_checked_summary(program, machine),
-    )
-}
-
 pub(crate) fn build_checked_termination_plan_with_summary(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -228,8 +212,6 @@ pub(crate) fn build_checked_termination_plan_with_summary(
     plan
 }
 
-#[cfg(test)]
-pub(crate) use progress::analyze_checked_progress;
 pub(crate) use progress::analyze_checked_progress_with_call_frames;
 
 /// Derive the same body-local termination summary retained in checked facts.

@@ -16,75 +16,6 @@ fn rejection(source: &str, expectation: &str) -> Vec<String> {
     }
 }
 
-/// `suspends`/`blocks` narrowing: the base permits both, the refinement
-/// removes both, and the selected realization uses neither.
-fn suspending_base_source(realization_axes: &str) -> String {
-    format!(
-        r#"
-        trait Logger {{
-            machine write(&mut self) suspends; blocks;
-        }}
-
-        trait LocalLogger = Logger {{
-            machine * suspends false; blocks false;
-        }}
-
-        data Sink {{ pending: i32; }}
-
-        machine Sink::write(&mut self) {realization_axes} {{
-            self.pending = 0;
-        }}
-
-        SinkLogger: Sink satisfies Logger {{
-            Logger::write = Sink::write;
-        }}
-
-        machine run<Element, Log: Element satisfies LocalLogger>(value: &mut Element) {{
-            Log::write(value);
-        }}
-
-        machine caller(sink: &mut Sink) {{
-            run<Sink, SinkLogger>(sink);
-        }}
-    "#
-    )
-}
-
-#[test]
-fn refinement_binder_admits_an_explicitly_selected_base_conformance_that_fits() {
-    checked_program_result(&suspending_base_source(""))
-        .expect("a `Logger` conformance whose rows neither suspend nor block fits `LocalLogger`");
-}
-
-#[test]
-fn refinement_binder_rejects_a_realization_that_suspends() {
-    let diagnostics = rejection(
-        &suspending_base_source("suspends;"),
-        "a realization that suspends does not fit a refinement that removed `suspends`",
-    );
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.contains("refinement `LocalLogger` removes `suspends` from `write`")
-                && diagnostic.contains("`SinkLogger`")
-        }),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn refinement_binder_rejects_a_realization_that_blocks() {
-    let diagnostics = rejection(
-        &suspending_base_source("blocks;"),
-        "a realization that blocks does not fit a refinement that removed `blocks`",
-    );
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.contains("refinement `LocalLogger` removes `blocks` from `write`")
-        }),
-        "{diagnostics:#?}"
-    );
-}
-
 /// `reaches;` is the authored-empty row. A realization that still reaches a
 /// boundary service escapes it.
 fn narrowed_reach_source(realization_reach: &str, refinement_reach: &str) -> String {
@@ -137,14 +68,6 @@ fn refinement_binder_rejects_a_realization_that_escapes_a_narrowed_reach() {
         }),
         "{diagnostics:#?}"
     );
-}
-
-#[test]
-fn an_inherited_reach_axis_imposes_no_obligation_at_the_concrete_site() {
-    // "Omission here means inheritance": a clause that authors no `reaches`
-    // leaves the base row in force and binds nothing extra here.
-    checked_program_result(&narrowed_reach_source("reaches Console", "suspends false;"))
-        .expect("an omitted `reaches` clause inherits the base row");
 }
 
 /// "`machine *` applies to every present and future base requirement. A

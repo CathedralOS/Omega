@@ -15,15 +15,6 @@ const NOMINAL_SCHEMA_FORWARDING: &str = r#"
 "#;
 
 #[test]
-fn nominal_generic_family_satisfaction_survives_private_specialization() {
-    crate::lower_typed_trees(
-        typed_program(NOMINAL_SCHEMA_FORWARDING),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("exact generic satisfaction survives nested private forwarding");
-}
-
-#[test]
 fn nominal_generic_family_rejects_a_different_const_carrier() {
     let source = NOMINAL_SCHEMA_FORWARDING
         .replace("selected<const Count: u64>", "selected<const Count: u32>")

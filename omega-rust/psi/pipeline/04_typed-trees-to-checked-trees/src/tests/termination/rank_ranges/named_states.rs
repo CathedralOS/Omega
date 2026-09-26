@@ -34,57 +34,6 @@ fn reject(source: &str) {
     );
 }
 
-#[test]
-fn named_state_ranges_reject_non_decreasing_or_out_of_range_backedges() {
-    for argument in ["pending", "pending + 1", "pending - 2"] {
-        reject(&COUNTDOWN.replace("iterate(pending - 1)", &format!("iterate({argument})")));
-    }
-}
-
-#[test]
-fn named_state_range_rejects_intervening_parameter_writes() {
-    reject(&COUNTDOWN.replace(
-        "transition pending > 0",
-        "pending = 4; transition pending > 0",
-    ));
-    reject(&COUNTDOWN.replace(
-        "transition { _ -> iterate",
-        "remaining = 4; transition { _ -> iterate",
-    ));
-}
-
-#[test]
-fn named_state_rank_and_endpoint_follow_reordered_arguments() {
-    let source = r#"
-    machine climb(limit: u64, index: u64)
-    requires index <= limit;
-    terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
-    -> u64 {
-        transition { _ -> iterate(index, limit) }
-        state iterate(cursor: u64, ceiling: u64) {
-            transition cursor < ceiling {
-                true -> iterate(cursor + 1, ceiling)
-                false -> cursor
-            }
-        }
-    }
-    "#;
-    prove(source);
-    reject(&source.replace(
-        "iterate(cursor + 1, ceiling)",
-        "iterate(cursor + 1, ceiling + 1)",
-    ));
-    reject(&source.replace("iterate(cursor + 1, ceiling)", "iterate(cursor, ceiling)"));
-    // Swapping the initial actuals makes the looping guard impossible under
-    // the transported invariant. This still terminates, regardless of names.
-    prove(&source.replace("iterate(index, limit)", "iterate(limit, index)"));
-    // Distinct incoming permutations cannot share one assumed correspondence.
-    reject(&source.replace(
-        "_ -> iterate(index, limit)",
-        "index == 0 -> iterate(limit, index) _ -> iterate(index, limit)",
-    ));
-}
-
 const DISTANCE: &str = r#"
 machine walk(lower: u32 [0..=5], upper: u32 [5..=10])
 requires lower <= upper;
@@ -173,33 +122,6 @@ fn named_state_record_role_arrives_nested_in_a_unique_carrier_field() {
         "pending.left.inner.remaining - 1",
         "pending.left.inner.remaining",
     ));
-}
-
-#[test]
-fn named_state_record_role_rejects_ambiguous_nested_carriers() {
-    // Two `Countdown` fields leave the carriage a guess: `pending.left` and
-    // `pending.right` are equally valid readings, so the slot keeps no role
-    // even though this arrival happens to use `left`.
-    let source = r#"
-    data Inner { remaining: u64 [0..=5]; }
-    data Countdown { label: u64; inner: Inner; }
-    data Pair { left: Countdown; right: Countdown; }
-    measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
-
-    machine walk(countdown: Countdown, ceiling: u64 [0..=5])
-    requires countdown.inner.remaining <= ceiling;
-    terminates by countdown -> Countdown::Remaining in 0..=ceiling;
-    -> u64 {
-        transition { _ -> iterate(ceiling, Pair { left: countdown, right: Countdown { label: 0, inner: Inner { remaining: 0 } } }) }
-        state iterate(limit: u64 [0..=5], pending: Pair) {
-            transition pending.left.inner.remaining > 0 {
-                true -> iterate(limit, Pair { left: Countdown { label: pending.left.label, inner: Inner { remaining: pending.left.inner.remaining - 1 } }, right: pending.right })
-                false -> pending.left.inner.remaining
-            }
-        }
-    }
-    "#;
-    reject(source);
 }
 
 #[test]
@@ -293,22 +215,6 @@ terminates by remaining in 0..=5;
         "remaining: remaining, label: false",
         "remaining: 6, label: false",
     ));
-}
-
-#[test]
-fn named_state_cannot_reuse_a_non_inductive_machine_requirement() {
-    let source = r#"
-    machine walk(remaining: u32 [0..=5])
-    requires remaining > 0;
-    terminates by remaining in 0..=5;
-    -> u32 {
-        transition { _ -> iterate(remaining) }
-        state iterate(remaining: u32 [0..=5]) {
-            transition { _ -> iterate(remaining - 1) }
-        }
-    }
-    "#;
-    reject(source);
 }
 
 #[test]

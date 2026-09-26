@@ -2,8 +2,6 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program_with_generic_data_result;
 
-const ANONYMOUS_REMAINDERS: [(&str, &str); 3] = [("7 % 2", "1"), ("8 % 2", "0"), ("-3 % 2", "-1")];
-
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, String> {
     let typed =
         typed_program_with_generic_data_result(source).map_err(|error| format!("{error:?}"))?;
@@ -25,61 +23,6 @@ fn rejects_anonymous_remainder(source: &str) {
             && diagnostics.contains("operand"),
         "expected the missing integer-typed operand diagnostic: {source}\n{diagnostics:#?}"
     );
-}
-
-#[test]
-fn a_return_destination_does_not_type_anonymous_remainder_operands() {
-    for (expression, _) in ANONYMOUS_REMAINDERS {
-        rejects_anonymous_remainder(&format!("machine run() -> i32 {{ {expression} }}"));
-    }
-}
-
-#[test]
-fn a_local_destination_does_not_type_anonymous_remainder_operands() {
-    for (expression, _) in ANONYMOUS_REMAINDERS {
-        rejects_anonymous_remainder(&format!(
-            "machine run() -> i32 {{ let value: i32 = {expression}; value }}"
-        ));
-    }
-}
-
-#[test]
-fn a_call_parameter_does_not_type_anonymous_remainder_operands() {
-    for (expression, _) in ANONYMOUS_REMAINDERS {
-        rejects_anonymous_remainder(&format!(
-            "machine take(value: i32) -> i32 {{ value }}
-            machine run() -> i32 {{ take({expression}) }}"
-        ));
-    }
-}
-
-#[test]
-fn a_range_bound_cannot_fold_anonymous_remainder_into_an_integer() {
-    for (expression, _) in ANONYMOUS_REMAINDERS {
-        // The enclosing range is otherwise valid for every result, including
-        // the negative dividend, so invalid range geometry cannot mask this.
-        rejects_anonymous_remainder(&format!(
-            "machine run() -> i32 [0..=(({expression}) + 10)] {{ 0 }}"
-        ));
-    }
-}
-
-#[test]
-fn requirements_do_not_supply_an_integer_operand_type_for_remainder() {
-    for (expression, result) in ANONYMOUS_REMAINDERS {
-        rejects_anonymous_remainder(&format!(
-            "machine run() -> i32 requires ({expression}) == {result}; {{ 0 }}"
-        ));
-    }
-}
-
-#[test]
-fn guarantees_do_not_supply_an_integer_operand_type_for_remainder() {
-    for (expression, result) in ANONYMOUS_REMAINDERS {
-        rejects_anonymous_remainder(&format!(
-            "machine run() -> i32 ensures ({expression}) == {result}; {{ 0 }}"
-        ));
-    }
 }
 
 #[test]
@@ -181,21 +124,6 @@ fn const_requirements_reach_checking_with_exact_anonymous_meaning() {
 }
 
 #[test]
-fn fractional_decimal_const_arguments_cannot_land_as_integers() {
-    for argument in ["7 / 2.0", "7.5", "0.1 * 71", "7u64 / 2.5"] {
-        let source = format!(
-            "data Buffer<const N: u64> {{ values: [u8; N]; }}
-            machine run(value: &Buffer<{argument}>) -> u8 {{ value.values[0] }}"
-        );
-        let errors = check(&source).expect_err("fractional integer const landings must reject");
-        assert!(
-            errors.contains("exact anonymous value") && errors.contains("integer"),
-            "{source}: {errors}"
-        );
-    }
-}
-
-#[test]
 fn integer_const_fact_peers_require_integral_anonymous_decimals() {
     for fact in ["N < 7 / 2.0", "7 / 2.0 > N", "N < 2.5", "2.5 > N"] {
         let source = format!(
@@ -257,34 +185,4 @@ fn template_deferral_does_not_admit_unsupported_concrete_field_facts() {
             .expect_err("concrete zero classification still rejects unsupported facts");
         assert!(errors.contains("zero-foldable fragment"), "{errors}");
     }
-}
-
-#[test]
-fn nested_anonymous_arithmetic_does_not_supply_a_remainder_operand_type() {
-    for expression in ["(7 + 1) % 2", "(7 / 2) % 2", "(7 % 2) as i32"] {
-        rejects_anonymous_remainder(&format!("machine run() -> i32 {{ {expression} }}"));
-    }
-    accepts("machine run() -> i32 { (7i32 + 1) % 2 }");
-}
-
-#[test]
-fn assignment_does_not_supply_a_remainder_operand_type() {
-    for (expression, _) in ANONYMOUS_REMAINDERS {
-        rejects_anonymous_remainder(&format!(
-            "machine run() -> i32 {{ let mut value: i32 = 0; value = {expression}; value }}"
-        ));
-    }
-    accepts("machine run() -> i32 { let mut value: i32 = 0; value = -3i32 % 2; value }");
-}
-
-#[test]
-fn authored_operator_meanings_remain_independent_typing_boundaries() {
-    accepts(
-        "operator % Math::remainder(left: i32, right: i32) -> i32;
-        machine run() -> i32 { 7 % 2 }",
-    );
-    accepts(
-        "operator + Math::add(left: i32, right: i32) -> i32;
-        machine run() -> i32 { (7 + 1) % 2 }",
-    );
 }

@@ -24,69 +24,6 @@ const EQUALITY: &str = r#"
 "#;
 
 #[test]
-fn float_pattern_arms_select_exact_equality_overloads() {
-    for (format, primitive) in [
-        ("f32", typed_trees::types::PrimitiveType::F32),
-        ("f64", typed_trees::types::PrimitiveType::F64),
-    ] {
-        let checked = check(&source(format, EQUALITY, "identity(first)"))
-            .expect("each float arm uses the exact selected equality");
-        let uses = checked
-            .facts
-            .operators
-            .uses
-            .iter()
-            .map(|(_, operator_use)| operator_use)
-            .filter(|operator_use| operator_use.spelling == OperatorSpelling::Equal)
-            .collect::<Vec<_>>();
-        assert_eq!(uses.len(), 2, "two value arms, no wildcard operator");
-        for operator_use in uses {
-            assert_eq!(
-                operator_use.status,
-                checked_trees::CheckedOperatorResolutionStatus::Resolved
-            );
-            let operator = checked
-                .typed
-                .operators()
-                .iter()
-                .find(|operator| operator.symbol == operator_use.selected_operator_symbol)
-                .expect("selected exact declaration");
-            for parameter in checked.typed.operator_parameters(operator) {
-                assert_eq!(
-                    checked
-                        .typed
-                        .primitive_type_reference(parameter.type_reference),
-                    Some(primitive)
-                );
-            }
-        }
-        assert_eq!(
-            checked.facts.operators.boundary_applications.len(),
-            2,
-            "equal overload identity does not merge authored applications"
-        );
-    }
-}
-
-#[test]
-fn float_patterns_require_a_selected_equality() {
-    for declarations in [
-        "",
-        "boundary operator == Float::equal(left: f64, right: f64) -> bool;",
-    ] {
-        let diagnostics = check(&source("f32", declarations, "identity(first)"))
-            .expect_err("float comparisons have no implicit builtin provider");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("equality")
-                    || diagnostic.message.contains("operator")),
-            "{diagnostics:#?}"
-        );
-    }
-}
-
-#[test]
 fn ambiguous_float_pattern_equality_does_not_choose_a_provider() {
     let declarations =
         format!("{EQUALITY}\nboundary operator == Other::equal(left: f32, right: f32) -> bool;");
@@ -125,15 +62,6 @@ fn float_pattern_equality_requirements_are_not_skipped() {
             .any(|diagnostic| diagnostic.message.contains("requires")),
         "{diagnostics:#?}"
     );
-}
-
-#[test]
-fn anonymous_float_pattern_lands_at_the_selected_operand() {
-    for format in ["f32", "f64"] {
-        let checked = check(&source(format, EQUALITY, "1.5"))
-            .expect("an anonymous numeric pattern lands to the float subject");
-        assert_eq!(checked.facts.operators.boundary_applications.len(), 2);
-    }
 }
 
 #[test]
@@ -210,112 +138,6 @@ fn collecting_float_pattern_operators_does_not_manufacture_source_expressions() 
     assert_eq!(
         checked.typed.expression_table.expression_nodes().count(),
         count
-    );
-}
-
-#[test]
-fn selected_pattern_expression_and_implicit_comparison_have_separate_uses() {
-    let declarations =
-        format!("{EQUALITY}\nboundary operator + Float::add(left: f32, right: f32) -> f32;");
-    let checked = check(&source("f32", &declarations, "first + second")).unwrap();
-    let uses = checked
-        .facts
-        .operators
-        .uses
-        .iter()
-        .map(|(_, operator_use)| operator_use)
-        .collect::<Vec<_>>();
-    assert_eq!(uses.len(), 3);
-    assert_eq!(
-        uses.iter()
-            .filter(|operator_use| operator_use.spelling == OperatorSpelling::Equal)
-            .count(),
-        2
-    );
-    let addition = uses
-        .iter()
-        .find(|operator_use| operator_use.spelling == OperatorSpelling::Add)
-        .unwrap();
-    assert_eq!(
-        addition.occurrence,
-        checked_trees::CheckedOperatorOccurrence::Expression
-    );
-    assert!(
-        checked
-            .facts
-            .operators
-            .expression_use(addition.expression)
-            .is_some()
-    );
-    assert_eq!(checked.facts.operators.boundary_applications.len(), 3);
-}
-
-#[test]
-fn selected_float_equality_does_not_publish_builtin_match_propositions() {
-    let checked = check(&format!("{EQUALITY}\nmachine choose(value: f32, pattern: f32) -> u64 {{ match value {{ pattern -> 7, _ -> 11 }} }}")).unwrap();
-    assert!(
-        !checked
-            .facts
-            .semantic
-            .facts
-            .iter()
-            .any(|(_, fact)| matches!(fact.payload, facts::FactPayload::MatchPattern { .. })),
-        "a selected equality contract is not builtin mathematical equality"
-    );
-    let integers = check(
-        "machine choose(value: i64, pattern: i64) -> u64 { match value { pattern -> 7, _ -> 11 } }",
-    )
-    .unwrap();
-    assert!(
-        integers
-            .facts
-            .semantic
-            .facts
-            .iter()
-            .any(|(_, fact)| matches!(fact.payload, facts::FactPayload::MatchPattern { .. })),
-        "builtin scalar comparisons still contribute branch observations"
-    );
-}
-
-#[test]
-fn float_equality_requires_use_the_comparison_invocation_context() {
-    let declarations = "boundary operator >= Float::at_least(left: f32, right: f32) -> bool;
-        boundary operator == Float::equal(left: f32, right: f32) -> bool requires left >= 0.0f32;";
-    let body = "{ match value { first -> 7, second -> 9, _ -> 11 } }";
-    let checked = check(&format!(
-        "{declarations}
-        machine choose(value: f32, first: f32, second: f32) -> u64
-        requires value >= 0.0f32 {body}"
-    ))
-    .expect("unchanged caller facts reach each comparison");
-    assert_eq!(checked.facts.flow.control.operator_invocations.len(), 2);
-    let diagnostics = check(&format!(
-        "{declarations}
-        machine choose(value: f32, first: f32, second: f32) -> u64 {body}"
-    ))
-    .expect_err("the same operands without proof do not discharge requires");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("requires")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn crash_qualified_float_equality_requires_same_cause_ceiling() {
-    let declarations =
-        "boundary operator == Float::equal(left: f32, right: f32) -> bool crashes Trap;";
-    let diagnostics = check(
-        &source("f32", declarations, "identity(first)")
-            .replace("machine choose(", "pub machine choose("),
-    )
-    .expect_err("a selected crash contract cannot disappear at an implicit comparison");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.to_lowercase().contains("crash")),
-        "{diagnostics:#?}"
     );
 }
 

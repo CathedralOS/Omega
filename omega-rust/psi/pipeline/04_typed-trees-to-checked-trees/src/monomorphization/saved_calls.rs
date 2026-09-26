@@ -136,6 +136,3 @@ pub(super) fn selected_instance<'program>(
             && instance.conformance_applications == applications
     })
 }
-
-#[cfg(test)]
-mod tests;

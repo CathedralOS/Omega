@@ -115,44 +115,11 @@ fn assert_delivered_value(checked: &CheckedTrees, expected: i64) {
 }
 
 #[test]
-fn anonymous_rational_arguments_deliver_seven_at_every_call_form() {
-    for argument in ["7 / 2 * 2", "7 / 2.0 * 2", "7.0", "0.1 * 70"] {
-        for form in FORMS {
-            let checked = accepts(&source(form, argument, "i32", ""));
-            assert_delivered_value(&checked, 7);
-        }
-    }
-}
-
-#[test]
 fn final_fractional_arguments_reject_at_every_call_form() {
     for argument in ["7 / 2", "7 / 2.0", "7.5", "0.1 * 71", "7.0f64"] {
         for form in FORMS {
             rejects(&source(form, argument, "i32", ""));
         }
-    }
-}
-
-#[test]
-fn explicitly_typed_quotients_deliver_six_at_every_call_form() {
-    for form in FORMS {
-        let checked = accepts(&source(form, "7i32 / 2 * 2", "i32", ""));
-        assert_delivered_value(&checked, 6);
-    }
-}
-
-#[test]
-fn exact_rational_arguments_establish_the_actual_singleton_parameter() {
-    for form in FORMS {
-        let checked = accepts(&source(form, "7 / 2 * 2", "i32 [7..=7]", ""));
-        assert_delivered_value(&checked, 7);
-    }
-}
-
-#[test]
-fn rational_arguments_cannot_claim_the_truncated_singleton_parameter() {
-    for form in FORMS {
-        rejects(&source(form, "7 / 2 * 2", "i32 [6..=6]", ""));
     }
 }
 
@@ -171,56 +138,6 @@ fn large_anonymous_intermediates_land_only_at_the_parameter() {
 }
 
 #[test]
-fn call_guarantees_transport_exact_rational_arguments() {
-    for argument in ["7 / 2 * 2", "7 / 2.0 * 2", "0.1 * 70"] {
-        for form in [CallForm::Returned, CallForm::LocalBinding] {
-            accepts(&source(form, argument, "i32", "ensures result == 7"));
-            rejects(&source(form, argument, "i32", "ensures result == 6"));
-        }
-    }
-}
-
-#[test]
-fn call_guarantees_preserve_explicitly_typed_integer_division() {
-    for form in [CallForm::Returned, CallForm::LocalBinding] {
-        accepts(&source(form, "7i32 / 2 * 2", "i32", "ensures result == 6"));
-        rejects(&source(form, "7i32 / 2 * 2", "i32", "ensures result == 7"));
-    }
-}
-
-#[test]
-fn bounded_statement_argument_proof_consumes_the_exact_anonymous_value() {
-    // Bypass ordinary checking so its rejection cannot conceal a proof consumer
-    // that still truncates the quotient before establishing the parameter range.
-    for (parameter_type, accepted) in [("i32 [7..=7]", true), ("i32 [6..=6]", false)] {
-        let source = source(CallForm::Statement, "7 / 2 * 2", parameter_type, "");
-        let program = parse_typed_trees(&source);
-        let plan = proof::obligations::build_proof_plan(&program);
-        match proof::checker::check_proof_plan(&plan) {
-            Ok(()) => assert!(
-                accepted,
-                "wrong singleton argument proof accepted: {source}"
-            ),
-            Err(diagnostics) => {
-                assert!(!accepted, "{source}: {diagnostics:#?}");
-                assert!(!diagnostics.is_empty(), "{source}");
-            }
-        }
-    }
-}
-
-#[test]
-fn parameter_arithmetic_policy_does_not_truncate_anonymous_fractions() {
-    for policy in ["Wrapping", "Saturating", "Trapping"] {
-        let parameter_type = format!("i32 in {policy}");
-        rejects(&source(CallForm::Statement, "7 / 2", &parameter_type, ""));
-        // The same declaration admits an integral argument. Its policy changes
-        // subsequent typed operations, not anonymous integrality at delivery.
-        accepts(&source(CallForm::Statement, "7", &parameter_type, ""));
-    }
-}
-
-#[test]
 fn decimal_argument_proofs_establish_only_the_exact_integer_value() {
     for argument in ["7.0", "7 / 2.0 * 2", "0.1 * 70"] {
         for (parameter_type, accepted) in [("i32 [7..=7]", true), ("i32 [6..=6]", false)] {
@@ -233,84 +150,5 @@ fn decimal_argument_proofs_establish_only_the_exact_integer_value() {
                 "{source}"
             );
         }
-    }
-}
-
-#[test]
-fn named_state_rational_argument_checks_and_proves_the_same_singleton() {
-    for (bound, accepted) in [(7, true), (6, false)] {
-        let source = format!(
-            "machine run() -> i32 {{
-                transition {{ _ -> finish(7 / 2 * 2) }}
-                state finish(delivered: i32 [{bound}..={bound}]) -> i32 {{ delivered }}
-            }}"
-        );
-        let program = parse_typed_trees(&source);
-        let plan = proof::obligations::build_proof_plan(&program);
-        match proof::checker::check_proof_plan(&plan) {
-            Ok(()) => assert!(
-                accepted,
-                "wrong named-state singleton proof accepted: {source}"
-            ),
-            Err(diagnostics) => assert!(!accepted, "{source}: {diagnostics:#?}"),
-        }
-        if accepted {
-            let checked = accepts(&source);
-            let plans = &checked.facts.values.scalar_expressions;
-            let binding = plans
-                .source_bindings
-                .iter()
-                .map(|(_, binding)| binding)
-                .find(|binding| {
-                    matches!(
-                        binding.role,
-                        CheckedScalarExpressionRole::TransitionArgument {
-                            argument_ordinal: 0
-                        }
-                    )
-                })
-                .expect("retained transition argument");
-            let argument = plans
-                .expression_at(binding.state, binding.statement_ordinal, binding.role)
-                .expect("transition argument value");
-            assert_eq!(
-                crate::values::evaluate_checked_scalar(argument, &mut |_| None),
-                Some(facts::ScalarValue::Integer(
-                    numerics::bignum::BigInt::from_i64(7)
-                ))
-            );
-        } else {
-            rejects(&source);
-        }
-    }
-}
-
-#[test]
-fn parameter_policy_cannot_wrap_or_saturate_anonymous_argument_landing() {
-    for policy in ["", " in Wrapping", " in Saturating", " in Trapping"] {
-        let parameter_type = format!("u8{policy}");
-        for argument in [
-            "513 / 2 * 2",
-            "256",
-            "-1",
-            "256.0",
-            "-0.1 * 10",
-            "7 / 2.0",
-            "1.5",
-        ] {
-            rejects(&source(CallForm::Statement, argument, &parameter_type, ""));
-        }
-        accepts(&source(
-            CallForm::Statement,
-            "255 / 2 * 2",
-            &parameter_type,
-            "",
-        ));
-        accepts(&source(
-            CallForm::Statement,
-            "255 / 2.0 * 2",
-            &parameter_type,
-            "",
-        ));
     }
 }

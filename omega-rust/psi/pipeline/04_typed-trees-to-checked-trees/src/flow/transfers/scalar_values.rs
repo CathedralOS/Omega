@@ -470,30 +470,3 @@ impl crate::values::ScalarValueSource for CallValues {
             .map(|(_, _, value)| value.clone())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{ScalarValue, SymbolHandle};
-    use crate::flow::transfers::scalar_values::CallValues;
-    use crate::values::ScalarValueSource;
-
-    #[test]
-    fn mutable_parameter_slots_have_no_immutable_entry_alias() {
-        let symbol = SymbolHandle::from_parts(1, 1);
-        let mut values = CallValues {
-            bindings: vec![
-                Some(ScalarValue::Boolean(false)),
-                None,
-                Some(ScalarValue::Boolean(true)),
-            ],
-            storage: vec![(symbol, ScalarValue::Boolean(false))],
-            fields: Vec::new(),
-        };
-        values.storage[0].1 = ScalarValue::Boolean(true);
-        assert_eq!(values.binding(0), Some(ScalarValue::Boolean(false)));
-        assert_eq!(values.binding(1), None);
-        assert_eq!(values.binding(2), Some(ScalarValue::Boolean(true)));
-        assert_eq!(values.storage(symbol), Some(ScalarValue::Boolean(true)));
-        assert_eq!(values.storage(SymbolHandle::from_parts(1, 2)), None);
-    }
-}

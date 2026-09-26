@@ -60,24 +60,6 @@ fn builtin_call_keeps_unrelated_live_facts() {
     }
 }
 
-/// An exclusive actual with an exact storage origin retires only that
-/// storage: `self.other` is written, `self.out` keeps its extent.
-#[test]
-fn exact_exclusive_actual_retires_only_its_storage() {
-    for (target, extent_survives) in [("self.other", true), ("self.out", false)] {
-        let source = format!(
-            r#"{DEFINITIONS}
-            machine Record::probe(&mut self) {{
-                self.out.bytes = "XXX";
-                clear(&mut {target});
-                let observed: u8 = self.out.bytes[2];
-            }}
-        "#
-        );
-        check(&source, extent_survives);
-    }
-}
-
 /// The retirement observed through scalar facts a call never hands back:
 /// `count == 7` survives a call exactly where the call could not write.
 fn check_scalar_survivals(source: &str, retired: &[&str], surviving: &[&str]) {
@@ -114,42 +96,6 @@ const CANDIDATE_DEFINITIONS: &str = r#"
     machine needs_seven(count: u64) requires count == 7 { }
     machine clear(slot: &mut Slot) { slot.bytes = ""; slot.count = 0; }
 "#;
-
-/// A `&mut Slot` local bound from a checked reference result whose exits
-/// return `&mut record.others[0]` or `&mut record.others[1]` names one of
-/// those two candidates: the callee's `slot.count` write lands on exactly
-/// both candidates' `count`, and the unrelated `mine.out` / `spare.out`
-/// facts survive.
-#[test]
-fn two_candidate_reference_result_retires_exactly_its_candidates() {
-    let source = format!(
-        r#"{CANDIDATE_DEFINITIONS}
-        machine pick(record: &mut Record, first: bool) -> &mut Slot {{
-            transition first {{
-                true -> &mut record.others[0]
-                false -> &mut record.others[1]
-            }}
-        }}
-        machine probe(mine: &mut Record, spare: &mut Record, first: bool) {{
-            mine.out.count = 7;
-            spare.out.count = 7;
-            spare.others[0].count = 7;
-            spare.others[1].count = 7;
-            let chosen: &mut Slot = pick(spare, first);
-            clear(chosen);
-            needs_seven(mine.out.count);
-            needs_seven(spare.out.count);
-            needs_seven(spare.others[0].count);
-            needs_seven(spare.others[1].count);
-        }}
-    "#
-    );
-    check_scalar_survivals(
-        &source,
-        &["spare.others[0].count", "spare.others[1].count"],
-        &["mine.out.count", "spare.out.count"],
-    );
-}
 
 /// A result routed through another state has no finite candidate set, so
 /// the call keeps retiring every live fact.

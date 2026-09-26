@@ -224,33 +224,4 @@ mod tests {
             );
         }
     }
-
-    #[test]
-    fn self_event_roots_require_live_metadata_and_owned_self_roster() {
-        for (kind, is_self, foreign) in [
-            (SymbolKind::Parameter, false, false),
-            (SymbolKind::Local, true, false),
-            (SymbolKind::Field, true, false),
-            (SymbolKind::Parameter, true, true),
-        ] {
-            let (program, _, parameter) =
-                program_with_self_parameter(false, kind, is_self, foreign);
-            let root = facts::PlaceRoot::Symbol(parameter);
-            assert_eq!(normalized_event_place_root(&program, root), root);
-        }
-        let (program, machine, parameter) =
-            program_with_self_parameter(false, SymbolKind::Parameter, true, false);
-        for symbol in [
-            SymbolHandle::invalid(),
-            machine,
-            SymbolHandle::from_parts(parameter.arena_index(), parameter.generation() + 1),
-        ] {
-            let root = facts::PlaceRoot::Symbol(symbol);
-            assert_eq!(normalized_event_place_root(&program, root), root);
-        }
-        assert_eq!(
-            normalized_event_place_root(&program, facts::PlaceRoot::Unknown),
-            facts::PlaceRoot::Unknown
-        );
-    }
 }

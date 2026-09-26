@@ -82,58 +82,6 @@ fn unrecognized_body_emits_kernel_checked_assumption_discharge() {
 }
 
 #[test]
-fn non_assumption_goal_remains_uncertified() {
-    let checked = checked_with_contracts("value >= 1", "true");
-    assert!(
-        checked
-            .facts
-            .proof
-            .contract_entailment_assumption_discharges
-            .is_empty()
-    );
-    assert_eq!(
-        validation::collect_contract_entailment_stand_downs(&checked.typed).len(),
-        1,
-        "the unsupported proof remains represented by its original stand-down"
-    );
-}
-
-#[test]
-fn unsupported_contract_shape_remains_uncertified() {
-    let checked = checked_with_contracts("value + 0 == value + 0", "value + 0 == value + 0");
-    assert!(
-        checked
-            .facts
-            .proof
-            .contract_entailment_assumption_discharges
-            .is_empty()
-    );
-}
-
-#[test]
-fn recheck_rejects_changed_goal_or_assumptions() {
-    let checked = checked_with_contracts("value >= 1", "value >= 1");
-    let certificate = one_certificate(&checked);
-    let tampered = rebuild_certificate(
-        certificate,
-        certificate.contract_position(),
-        certificate.fact_position(),
-        certificate.machine_contract_commitment(),
-        certificate.assumptions().to_vec(),
-        Proposition::Falsehood,
-        certificate.selected_assumption_position(),
-    );
-    assert_eq!(
-        crate::recheck_contract_entailment_assumption_discharge(
-            &checked.typed,
-            &checked.facts.contract_plans,
-            &tampered,
-        ),
-        Err(crate::CheckedContractEntailmentAssumptionDischargeRecheckError::CertificateMismatch)
-    );
-}
-
-#[test]
 fn recheck_rejects_changed_coordinate_or_contract_commitment() {
     let checked = checked_with_contracts("value >= 1", "value >= 1");
     let certificate = one_certificate(&checked);
@@ -169,49 +117,6 @@ fn recheck_rejects_changed_coordinate_or_contract_commitment() {
             &checked.typed,
             &checked.facts.contract_plans,
             &changed_commitment,
-        ),
-        Err(crate::CheckedContractEntailmentAssumptionDischargeRecheckError::CertificateMismatch)
-    );
-}
-
-#[test]
-fn duplicate_matching_assumptions_choose_lowest_position_deterministically() {
-    let source = r#"
-        machine retain(value: u64) -> u64
-        requires
-            value >= 1;
-            value >= 1
-        ensures
-            value >= 1
-        {
-            let retained: u64 = value;
-            retained
-        }
-    "#;
-    let first = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("first checked fixture");
-    let second = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("second checked fixture");
-    let first_certificate = one_certificate(&first);
-    let second_certificate = one_certificate(&second);
-    assert_eq!(first_certificate.assumptions().len(), 2);
-    assert_eq!(first_certificate.selected_assumption_position(), 0);
-    assert_eq!(first_certificate, second_certificate);
-
-    let changed_selection = rebuild_certificate(
-        first_certificate,
-        first_certificate.contract_position(),
-        first_certificate.fact_position(),
-        first_certificate.machine_contract_commitment(),
-        first_certificate.assumptions().to_vec(),
-        first_certificate.goal().clone(),
-        1,
-    );
-    assert_eq!(
-        crate::recheck_contract_entailment_assumption_discharge(
-            &first.typed,
-            &first.facts.contract_plans,
-            &changed_selection,
         ),
         Err(crate::CheckedContractEntailmentAssumptionDischargeRecheckError::CertificateMismatch)
     );

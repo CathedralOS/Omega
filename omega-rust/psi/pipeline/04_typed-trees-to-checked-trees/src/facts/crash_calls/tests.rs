@@ -12,9 +12,7 @@ use crate::facts::crash_calls::summary_predicates::SummaryCrashPredicate;
 use crate::facts::crash_calls::summary_predicates::SummaryCrashRouteGuard;
 use crate::facts::crash_calls::summary_predicates::normalize_summary_guards;
 use crate::facts::crash_calls::summary_predicates::summary_boolean_value;
-use crate::facts::crash_calls::{
-    SummaryCrashBucket, crash_predicate_from_expression, normalize_summary_buckets,
-};
+use crate::facts::crash_calls::{SummaryCrashBucket, normalize_summary_buckets};
 use crate::tests::front_end::{checked_program_result, typed_program};
 
 #[test]
@@ -198,35 +196,6 @@ fn boundary_token_calls_discharge_only_preserved_entry_premises() {
 }
 
 #[test]
-fn source_crash_routes_fixture_checks() {
-    checked_program_result(include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../tests/omega/pass/operators/crash_routes/main.omg"
-    )))
-    .expect("the existing crash-route source fixture checks without dropping its contracts");
-}
-
-#[test]
-fn ordinary_crash_premise_does_not_survive_an_argument_write() {
-    let source = "data Comparison {}
-        boundary machine == Comparison::equal(left: i32, right: i32) -> bool
-        crashes Trap !(right >= 0);
-        machine overwrite(value: &mut i32) -> i32 { value = -1; 0 }
-        pub machine safe(mut value: i32) -> bool
-        requires value >= 0 {
-            Comparison::equal(overwrite(&mut value), value)
-        }";
-    let errors = checked_program_result(source)
-        .expect_err("a sibling argument invalidates the entry premise before the guarded read");
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("uncovered Trap crash route")),
-        "{errors:#?}"
-    );
-}
-
-#[test]
 fn widened_integer_guards_preserve_identity_and_fold_only_closed_literals() {
     use checked_trees::CrashPredicateIdentity;
     use numerics::arithmetic::ArithmeticDomain;
@@ -397,99 +366,6 @@ fn forwarded_numeric_guards_discharge_without_scalar_annotations() {
 }
 
 #[test]
-fn summary_normalization_cannot_launder_builtin_meaning() {
-    use typed_trees::expression::BinaryOperator;
-    let identity = CrashPredicateExpression::Binary {
-        operator: BinaryOperator::Equal as u8,
-        left: Box::new(CrashPredicateExpression::Parameter(0)),
-        right: Box::new(CrashPredicateExpression::Integer("0".into())),
-    };
-    for meanings in [[true, false], [false, true]] {
-        let mut guards = meanings
-            .into_iter()
-            .map(|builtin_meaning| {
-                SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
-                    identity: identity.clone(),
-                    builtin_meaning,
-                    scalar: None,
-                })
-            })
-            .collect::<Vec<_>>();
-        normalize_summary_guards(&mut guards);
-        assert_eq!(guards.len(), 2);
-        let bucket = SummaryCrashBucket {
-            cause: checked_trees::CrashCause::Trap,
-            alternative_guards: guards,
-        };
-        let substituted = bucket.substitute(&identity_substitution(vec![Some(
-            CrashPredicateExpression::Integer("2".into()),
-        )]));
-        let [SummaryCrashRouteGuard::Predicate(survivor)] =
-            substituted.alternative_guards.as_slice()
-        else {
-            panic!("unknown selected meaning must retain its route");
-        };
-        assert!(!survivor.builtin_meaning);
-    }
-}
-
-#[test]
-fn authored_integer_comparison_does_not_supply_summary_builtin_meaning() {
-    for custom in [false, true] {
-        let declaration = if custom {
-            "boundary operator == Meaning::equal(left: u16, right: u16) -> bool;"
-        } else {
-            ""
-        };
-        let source = format!(
-            "{declaration} machine value(input: u16) -> u16 crashes Trap input == 0u16 {{ input }}"
-        );
-        let program = typed_program(&source);
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "value")
-            .unwrap();
-        let expression = program
-            .machine_contracts(machine)
-            .iter()
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-            .find_map(|fact| {
-                if let typed_trees::domain::ProofFact::Expression(expression) = fact {
-                    Some(*expression)
-                } else {
-                    None
-                }
-            })
-            .unwrap();
-        let builtin_meaning = validation::has_builtin_bound_expression_meaning(
-            &program,
-            machine,
-            program.machine_states(machine).first(),
-            expression,
-        );
-        assert_eq!(builtin_meaning, !custom);
-        let identity =
-            crash_predicate_from_expression(&program, expression, &["input".into()], None);
-        let bucket = SummaryCrashBucket {
-            cause: checked_trees::CrashCause::Trap,
-            alternative_guards: vec![SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
-                identity,
-                builtin_meaning,
-                scalar: None,
-            })],
-        };
-        let concrete = bucket.substitute(&identity_substitution(vec![Some(
-            CrashPredicateExpression::Integer("2".into()),
-        )]));
-        assert_eq!(
-            !normalize_summary_buckets(vec![concrete]).is_empty(),
-            custom
-        );
-    }
-}
-
-#[test]
 fn concrete_call_summary_preserves_authored_comparison_meaning() {
     for custom in [false, true] {
         let declaration = if custom {
@@ -573,103 +449,6 @@ fn identity_substitution(
         values: vec![None; identity.len()],
         identity,
     }
-}
-
-#[test]
-fn arithmetic_actual_guards_discharge_through_checked_scalar_evidence() {
-    use checked_trees::{
-        CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-        CheckedScalarExpression,
-    };
-    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
-    use typed_trees::expression::BinaryOperator;
-    use typed_trees::types::PrimitiveType;
-
-    let literal = |text: &str| CheckedScalarExpression::IntegerLiteral {
-        literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, text)
-            .unwrap()
-            .with_landing(IntegerLanding {
-                landed_type: LandedIntegerType::U64,
-                domain: numerics::arithmetic::ArithmeticDomain::Exact,
-            }),
-    };
-    // `divide(value - 1)` inside a forwarding body: the published guard
-    // `value == 0` retains the arithmetic actual over the caller's entry.
-    let identity = CrashPredicateExpression::Binary {
-        operator: BinaryOperator::Equal as u8,
-        left: Box::new(CrashPredicateExpression::Binary {
-            operator: BinaryOperator::Subtract as u8,
-            left: Box::new(CrashPredicateExpression::Parameter(0)),
-            right: Box::new(CrashPredicateExpression::Integer("1".into())),
-        }),
-        right: Box::new(CrashPredicateExpression::Integer("0".into())),
-    };
-    let scalar = CheckedBooleanExpression::IntegerComparison {
-        kind: CheckedIntegerComparisonKind::Equal,
-        left: Box::new(CheckedScalarExpression::IntegerBinary {
-            kind: CheckedIntegerBinaryKind::ExactSubtract,
-            primitive_type: PrimitiveType::U64,
-            left: Box::new(CheckedScalarExpression::Parameter {
-                position: 0,
-                primitive_type: PrimitiveType::U64,
-            }),
-            right: Box::new(literal("1")),
-        }),
-        right: Box::new(literal("0")),
-    };
-    let bucket = SummaryCrashBucket {
-        cause: checked_trees::CrashCause::Trap,
-        alternative_guards: vec![SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
-            identity,
-            builtin_meaning: true,
-            scalar: Some(scalar),
-        })],
-    };
-    let substitute = |actual: &str| {
-        let mut substitution =
-            identity_substitution(vec![Some(CrashPredicateExpression::Integer(actual.into()))]);
-        substitution.scalar = vec![Some(literal(actual))];
-        normalize_summary_buckets(vec![bucket.substitute(&substitution)])
-    };
-    // `3 - 1 == 0` is decided false: the guarded Trap discharges.
-    assert!(substitute("3").is_empty());
-    // `1 - 1 == 0` is decided true: the route is unconditional.
-    assert_eq!(
-        substitute("1"),
-        vec![SummaryCrashBucket::unconditional(
-            checked_trees::CrashCause::Trap
-        )],
-    );
-    // `0 - 1` cannot produce a u64 under the exact domain, so the guard
-    // stays undecidable and the route survives as a predicate.
-    let surviving_buckets = substitute("0");
-    let [surviving] = surviving_buckets.as_slice() else {
-        panic!("the undecidable arithmetic guard retains its route")
-    };
-    let [SummaryCrashRouteGuard::Predicate(_)] = surviving.alternative_guards.as_slice() else {
-        panic!("exact-domain underflow keeps the guarded route")
-    };
-    // The identity alone cannot fold arithmetic: without the annotation
-    // the same substitution only retains.
-    let mut without_scalar = bucket.clone();
-    without_scalar.alternative_guards =
-        vec![SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
-            scalar: None,
-            ..match &without_scalar.alternative_guards[0] {
-                SummaryCrashRouteGuard::Predicate(predicate) => predicate.clone(),
-                _ => unreachable!(),
-            }
-        })];
-    let mut substitution =
-        identity_substitution(vec![Some(CrashPredicateExpression::Integer("3".into()))]);
-    substitution.scalar = vec![Some(literal("3"))];
-    let [SummaryCrashRouteGuard::Predicate(_)] = without_scalar
-        .substitute(&substitution)
-        .alternative_guards
-        .as_slice()
-    else {
-        panic!("an arithmetic identity alone cannot decide the guard")
-    };
 }
 
 #[test]
@@ -780,22 +559,6 @@ fn unsubstituted_identity_still_discharges_through_scalar_evidence() {
         vec![SummaryCrashBucket::unconditional(
             checked_trees::CrashCause::Trap
         )],
-    );
-}
-
-#[test]
-fn unreferenced_unknown_actual_does_not_erase_exact_guard_substitution() {
-    let route = SummaryCrashBucket {
-        cause: checked_trees::CrashCause::Trap,
-        alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(1))],
-    };
-    let substituted = route.substitute(&identity_substitution(vec![
-        None,
-        Some(CrashPredicateExpression::Parameter(2)),
-    ]));
-    assert_eq!(
-        substituted.alternative_guards,
-        vec![predicate(CrashPredicateExpression::Parameter(2))]
     );
 }
 
@@ -922,49 +685,6 @@ fn private_summary_fixed_point_closes_recursive_components() {
     }
 }
 
-#[test]
-fn private_summary_preserves_acyclic_guard_substitution() {
-    let leaf = SymbolHandle::from_arena_index(1);
-    let wrapper = SymbolHandle::from_arena_index(2);
-    let route = SummaryCrashBucket {
-        cause: checked_trees::CrashCause::Trap,
-        alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(0))],
-    };
-    let equations = vec![
-        PrivateSummaryEquation {
-            machine: leaf,
-            direct: Vec::new(),
-            private_dependencies: Vec::new(),
-            published_dependencies: vec![route],
-        },
-        PrivateSummaryEquation {
-            machine: wrapper,
-            direct: Vec::new(),
-            private_dependencies: vec![PrivateSummaryDependency {
-                machine: leaf,
-                substitution: identity_substitution(vec![Some(
-                    CrashPredicateExpression::Parameter(1),
-                )]),
-                recursive: false,
-            }],
-            published_dependencies: Vec::new(),
-        },
-    ];
-
-    let summaries = solve_private_summary_fixed_point(&equations);
-    let [bucket] = summaries
-        .iter()
-        .find_map(|(machine, buckets)| (*machine == wrapper).then_some(buckets.as_slice()))
-        .expect("wrapper summary")
-    else {
-        panic!("wrapper should retain one guarded bucket")
-    };
-    assert_eq!(
-        bucket.alternative_guards,
-        vec![predicate(CrashPredicateExpression::Parameter(1))]
-    );
-}
-
 fn call_site_buckets(
     source: &str,
     caller: &str,
@@ -1011,25 +731,6 @@ fn single_surviving_bucket(
 }
 
 #[test]
-fn pristine_mutable_actual_keeps_entry_operand_identity() {
-    // A pristine `mut` parameter is still an entry snapshot: the retained
-    // route names the caller's own entry operand, not current storage.
-    let buckets = call_site_buckets(
-        "machine inner(input: bool) -> bool crashes Trap input { input }
-         machine outer(mut flag: bool) -> bool crashes Trap flag { inner(flag) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the pristine actual retains its guarded entry operand: {buckets:?}")
-    };
-    assert_eq!(
-        identity.expression(),
-        Some(&CrashPredicateExpression::Parameter(0))
-    );
-}
-
-#[test]
 fn written_mutable_actual_uses_live_storage_value_not_entry_identity() {
     // `flag = false` ends entry provenance for `inner(flag)`. The call's own
     // entry contexts still prove the actual false, so the guarded route
@@ -1054,23 +755,6 @@ fn written_mutable_actual_uses_live_storage_value_not_entry_identity() {
         single_surviving_bucket(&buckets),
         &checked_trees::CrashRouteGuard::Truth,
         "a proven-true actual keeps the cause without inventing entry identity"
-    );
-}
-
-#[test]
-fn unknown_written_mutable_actual_stays_conservative() {
-    // `flag = !flag` overwrites the storage with a value the call's entry
-    // contexts cannot prove. Neither channel may manufacture evidence, so the
-    // cause widens to its unconditional bucket rather than discharging.
-    let buckets = call_site_buckets(
-        "machine inner(input: bool) -> bool crashes Trap input { input }
-         machine outer(mut flag: bool) -> bool crashes Trap { flag = !flag; inner(flag) }",
-        "outer",
-    );
-    assert_eq!(
-        single_surviving_bucket(&buckets),
-        &checked_trees::CrashRouteGuard::Truth,
-        "an unproven mutable actual must not silently discharge the route"
     );
 }
 
@@ -1148,96 +832,6 @@ fn sibling_written_mutable_actual_keeps_the_read_fields_entry_identity() {
 }
 
 #[test]
-fn read_field_rewritten_mutable_actual_widens_to_truth() {
-    // `rec.count = -1` reaches the exact projection the guard reads, so no
-    // per-field entry identity survives and the cause stays unconditional.
-    let buckets = call_site_buckets(
-        "data Rec { count: i32; other: i32; }
-         machine inner(cell: &Rec) -> bool crashes Trap !(cell.count >= 0) { true }
-         machine outer(mut rec: Rec) -> bool crashes Trap { rec.count = -1; inner(&rec) }",
-        "outer",
-    );
-    assert_eq!(
-        single_surviving_bucket(&buckets),
-        &checked_trees::CrashRouteGuard::Truth,
-        "a rewritten read projection keeps the unconditional route: {buckets:?}"
-    );
-}
-
-#[test]
-fn mutable_scalar_storage_feeds_arithmetic_actuals() {
-    // A mutable local in the prefix is outside the immutable scalar-prefix
-    // namespace, but the literal arithmetic actual still lowers and
-    // evaluates: `3 - 1 == 0` discharges the guarded route.
-    assert!(
-        call_site_buckets(
-            "machine inner(input: u64) -> u64 crashes Trap input == 0u64 { input }
-             machine outer() -> u64 { let mut seen: bool = false; inner(3u64 - 1u64) }",
-            "outer",
-        )
-        .is_empty(),
-        "a proven arithmetic actual discharges under the selected meaning"
-    );
-    // Storage read inside the actual: `n = 1u64; inner(n - 1u64)` proves
-    // `0 == 0`, so the cause survives unconditionally.
-    let buckets = call_site_buckets(
-        "machine inner(input: u64) -> u64 crashes Trap input == 0u64 { input }
-         machine outer() -> u64 crashes Trap { let mut n: u64 = 0u64; n = 1u64; inner(n - 1u64) }",
-        "outer",
-    );
-    assert_eq!(
-        single_surviving_bucket(&buckets),
-        &checked_trees::CrashRouteGuard::Truth,
-        "a mutable storage read may prove the arithmetic guard true"
-    );
-}
-
-#[test]
-fn a_case_payload_actual_keeps_its_qualified_entry_identity() {
-    // `Outcome::Second { c }` binds the payload through a synthesized member
-    // that retains no field symbol — only the `Second` qualification. The
-    // `work` arrival replays it into `value.Second::c`, so the surviving
-    // route names `value.Second::c.item` exactly: not a bare `c` member that
-    // could collide with `First`'s payload, and not a `Truth` widening.
-    let buckets = call_site_buckets(
-        "data Cell { item: i32; }
-         data Outcome { case First(c: Cell); case Second(c: Cell); }
-         machine inner(cell: Cell) -> bool crashes Trap !(cell.item >= 0) { true }
-         machine outer(value: Outcome) -> bool crashes Trap {
-             transition value {
-                 Outcome::Second { c } -> work(c)
-                 Outcome::First { c } -> done()
-             }
-             state work(cell: Cell) -> bool { inner(cell) }
-             state done() -> bool { true }
-         }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the case-qualified actual keeps its guarded entry operand: {buckets:?}")
-    };
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
-    assert_eq!(
-        identity.expression(),
-        Some(&CrashPredicateExpression::Unary {
-            operator: UnaryOperator::LogicalNot as u8,
-            operand: Box::new(CrashPredicateExpression::Binary {
-                operator: BinaryOperator::GreaterOrEqual as u8,
-                left: Box::new(CrashPredicateExpression::Member {
-                    receiver: Box::new(CrashPredicateExpression::Member {
-                        receiver: Box::new(CrashPredicateExpression::Parameter(0)),
-                        member: "Second::c".to_owned(),
-                    }),
-                    member: "item".to_owned(),
-                }),
-                right: Box::new(CrashPredicateExpression::Integer("0".to_owned())),
-            }),
-        }),
-    );
-}
-
-#[test]
 fn a_case_payload_actual_below_rewritten_storage_widens_to_truth() {
     // Rebinding `held` before the transition ends its bound-snapshot
     // provenance, so the destructure cannot claim the invocation actual's
@@ -1262,96 +856,6 @@ fn a_case_payload_actual_below_rewritten_storage_widens_to_truth() {
         single_surviving_bucket(&buckets),
         &checked_trees::CrashRouteGuard::Truth,
         "a rebound scrutinee keeps the unconditional route: {buckets:?}"
-    );
-}
-
-/// A `collection[index]` guard leaf keeps both children structured: each may
-/// carry a formal, so extraction produces `Indexed` rather than hiding them
-/// inside a flattened `Opaque` display. The identity's canonical bytes match
-/// the source-route encoder exactly — the same equality
-/// `build_published_crash_plan`'s `debug_assert_eq!` replays.
-#[test]
-fn indexed_guard_leaves_extract_both_children() {
-    use typed_trees::expression::BinaryOperator;
-    let source = "machine value(items: [i32; 4]) -> bool crashes Trap items[0u64] == 0 { true }";
-    let program = typed_program(source);
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "value")
-        .unwrap();
-    let fact = program
-        .machine_contracts(machine)
-        .iter()
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .next()
-        .expect("one contract fact");
-    let typed_trees::domain::ProofFact::Expression(expression) = fact else {
-        panic!("the crash route is an expression fact")
-    };
-    let predicate = crash_predicate_from_expression(&program, *expression, &["items".into()], None);
-    let expected = CrashPredicateExpression::Binary {
-        operator: BinaryOperator::Equal as u8,
-        left: Box::new(CrashPredicateExpression::Indexed {
-            collection: Box::new(CrashPredicateExpression::Parameter(0)),
-            index: Box::new(CrashPredicateExpression::Integer("0".into())),
-        }),
-        right: Box::new(CrashPredicateExpression::Integer("0".into())),
-    };
-    assert_eq!(predicate, expected);
-    // `0x0b` is the indexed tag: [fact-expr, binary, ==, 0x0b, param, ...].
-    let mut route = Vec::new();
-    crate::facts::canonical_encoding::encode_contract_fact_canonical(
-        &program,
-        fact,
-        &["items".into()],
-        &[],
-        false,
-        &mut route,
-    );
-    assert_eq!(
-        checked_trees::CrashPredicateIdentity::from_expression(predicate.clone()).canonical_bytes(),
-        route.as_slice(),
-        "typed and checked canonical encoders agree on the indexed tag"
-    );
-    assert!(route.contains(&0x0b));
-    // An indexed read is not a closed proof literal: the domain-free reducer
-    // cannot fold it, so it never invents builtin `[]` meaning.
-    assert_eq!(summary_boolean_value(&predicate), None);
-}
-
-/// The private-summary path substitutes both `Indexed` children: `items` and
-/// `index` bind the caller's `items`/`position` entry parameters, so the
-/// surviving route keeps `items[position] == 0` in caller coordinates.
-#[test]
-fn an_indexed_actual_guard_substitutes_both_children() {
-    let buckets = call_site_buckets(
-        "machine inner(items: &[i32], index: u64) -> bool
-         requires index < items.len
-         crashes Trap !(items[index] == 0) { true }
-         machine outer(items: &[i32], position: u64) -> bool
-         requires position < items.len
-         crashes Trap { inner(items, position) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the indexed guard keeps its guarded route: {buckets:?}")
-    };
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
-    assert_eq!(
-        identity.expression(),
-        Some(&CrashPredicateExpression::Unary {
-            operator: UnaryOperator::LogicalNot as u8,
-            operand: Box::new(CrashPredicateExpression::Binary {
-                operator: BinaryOperator::Equal as u8,
-                left: Box::new(CrashPredicateExpression::Indexed {
-                    collection: Box::new(CrashPredicateExpression::Parameter(0)),
-                    index: Box::new(CrashPredicateExpression::Parameter(1)),
-                }),
-                right: Box::new(CrashPredicateExpression::Integer("0".into())),
-            }),
-        }),
     );
 }
 
@@ -1407,86 +911,6 @@ fn indexed_predicates_substitute_through_summary_buckets() {
         SummaryCrashBucket::unconditional(checked_trees::CrashCause::Trap),
         "an opaque index child still widens instead of leaking a callee display",
     );
-}
-
-/// A `collection[start..end]` guard leaf keeps both range bounds structured:
-/// either may carry a formal, so extraction produces `Range` rather than
-/// hiding the bounds inside a flattened `Opaque` display. The inclusivity
-/// flag is part of the identity — `..` and `..=` cannot share bytes.
-#[test]
-fn range_index_guard_leaves_extract_both_bounds() {
-    use typed_trees::expression::BinaryOperator;
-    let predicate_for = |source: &str| {
-        let program = typed_program(source);
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "value")
-            .unwrap();
-        let fact = program
-            .machine_contracts(machine)
-            .iter()
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-            .next()
-            .expect("one contract fact");
-        let typed_trees::domain::ProofFact::Expression(expression) = fact else {
-            panic!("the crash route is an expression fact")
-        };
-        let mut route = Vec::new();
-        crate::facts::canonical_encoding::encode_contract_fact_canonical(
-            &program,
-            fact,
-            &["text".into(), "start".into(), "end".into()],
-            &[],
-            false,
-            &mut route,
-        );
-        (
-            crash_predicate_from_expression(
-                &program,
-                *expression,
-                &["text".into(), "start".into(), "end".into()],
-                None,
-            ),
-            route,
-        )
-    };
-    let (predicate, route) = predicate_for(
-        "machine value(text: String, start: u64, end: u64) -> bool
-         crashes Trap text[start..end] == \"x\" { true }",
-    );
-    let range = |start, end| CrashPredicateExpression::Range {
-        start: Box::new(start),
-        end: Box::new(end),
-        end_inclusive: false,
-    };
-    let expected = CrashPredicateExpression::Binary {
-        operator: BinaryOperator::Equal as u8,
-        left: Box::new(CrashPredicateExpression::Indexed {
-            collection: Box::new(CrashPredicateExpression::Parameter(0)),
-            index: Box::new(range(
-                CrashPredicateExpression::Parameter(1),
-                CrashPredicateExpression::Parameter(2),
-            )),
-        }),
-        right: Box::new(CrashPredicateExpression::Opaque("\"x\"".into())),
-    };
-    assert_eq!(predicate, expected);
-    // `0x0d` is the range tag: the typed and checked encoders agree on it.
-    assert_eq!(
-        checked_trees::CrashPredicateIdentity::from_expression(predicate.clone()).canonical_bytes(),
-        route.as_slice(),
-        "typed and checked canonical encoders agree on the range tag",
-    );
-    assert!(route.contains(&0x0d));
-    assert_eq!(summary_boolean_value(&predicate), None);
-    // `..=` is a different interval: inclusivity is part of the identity.
-    let (inclusive, inclusive_route) = predicate_for(
-        "machine value(text: String, start: u64, end: u64) -> bool
-         crashes Trap text[start..=end] == \"x\" { true }",
-    );
-    assert_ne!(predicate, inclusive);
-    assert_ne!(route, inclusive_route);
 }
 
 /// The private-summary path substitutes inside a range index's bounds:
@@ -1565,60 +989,6 @@ fn range_predicates_substitute_through_summary_buckets() {
             },
         ))],
     );
-}
-
-/// A float-field guard's checked scalar annotation crosses the call: each
-/// `IeeeFloatComparison` leaf re-roots to the caller parameter the actual
-/// reads, so `inner(a, b)` under `left.narrow == right.narrow` retains
-/// `a.narrow == b.narrow` as structured evidence instead of dropping to the
-/// bare identity. The retained annotation is what later structural lowering
-/// replays as the atomic proposition.
-#[test]
-fn float_field_guards_keep_their_scalar_evidence_through_calls() {
-    use checked_trees::{
-        CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedStructuralParameterField,
-        CheckedStructuralPredicatePathSegment,
-    };
-    use typed_trees::expression::BinaryOperator;
-    use typed_trees::types::PrimitiveType;
-
-    let field = |position: u32| CheckedStructuralParameterField {
-        parameter_position: position,
-        path: vec![CheckedStructuralPredicatePathSegment::Field(
-            "narrow".to_owned(),
-        )],
-    };
-    let expected_scalar = CheckedBooleanExpression::IeeeFloatComparison {
-        kind: CheckedIeeeFloatComparisonKind::Equal,
-        primitive_type: PrimitiveType::F32,
-        left: field(0),
-        right: field(1),
-    };
-    let expected_identity = CrashPredicateExpression::Binary {
-        operator: BinaryOperator::Equal as u8,
-        left: Box::new(CrashPredicateExpression::Member {
-            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
-            member: "narrow".to_owned(),
-        }),
-        right: Box::new(CrashPredicateExpression::Member {
-            receiver: Box::new(CrashPredicateExpression::Parameter(1)),
-            member: "narrow".to_owned(),
-        }),
-    };
-
-    let buckets = call_site_buckets(
-        "data Pair { narrow: f32; }
-         machine inner(left: Pair, right: Pair) -> bool
-         crashes Trap left.narrow == right.narrow { true }
-         machine outer(a: Pair, b: Pair) -> bool crashes Trap { inner(a, b) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the float-field guard keeps its guarded route: {buckets:?}")
-    };
-    assert_eq!(identity.expression(), Some(&expected_identity));
-    assert_eq!(identity.scalar_expression(), Some(&expected_scalar));
 }
 
 /// The actual's own member spine prepends below the caller root: binding
@@ -1730,46 +1100,6 @@ fn payloadless_sum_guards_keep_their_scalar_evidence_through_calls() {
     assert_eq!(identity.scalar_expression(), Some(&expected_scalar));
 }
 
-/// The actual's own member spine prepends below the caller root for sum
-/// subjects too: binding `pair.left`/`pair.right` re-roots the equality to
-/// `pair.left == pair.right` under the same caller parameter rather than
-/// leaving callee positions behind.
-#[test]
-fn payloadless_sum_guards_substitute_through_member_projections() {
-    use checked_trees::{
-        CheckedBooleanExpression, CheckedStructuralParameterField,
-        CheckedStructuralPredicatePathSegment,
-    };
-
-    let subject = |root: &str| CheckedStructuralParameterField {
-        parameter_position: 0,
-        path: vec![CheckedStructuralPredicatePathSegment::Field(
-            root.to_owned(),
-        )],
-    };
-
-    let buckets = call_site_buckets(
-        "data Mode { case Off; case On; }
-         data Both { left: Mode; right: Mode; }
-         machine inner(left: Mode, right: Mode) -> bool
-         crashes Trap left == right { true }
-         machine outer(pair: Both) -> bool crashes Trap { inner(pair.left, pair.right) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the projected actuals keep the sum-equality guard: {buckets:?}")
-    };
-    assert_eq!(
-        identity.scalar_expression(),
-        Some(&CheckedBooleanExpression::PayloadlessSumEqual {
-            left: subject("left"),
-            right: subject("right"),
-            cases: vec!["Off".to_owned(), "On".to_owned()],
-        }),
-    );
-}
-
 /// A mutable caller root cannot promise the entry snapshot the contract
 /// namespace names, so the annotation stays empty rather than describing
 /// stale storage — the route still keeps its substituted identity.
@@ -1843,48 +1173,6 @@ fn byte_sequence_guards_keep_their_scalar_evidence_through_calls() {
     assert_eq!(identity.scalar_expression(), Some(&expected_scalar));
 }
 
-/// The actual's own member spine prepends below the caller root for
-/// byte-sequence subjects too: binding `pair.left`/`pair.right` re-roots
-/// the equality to `pair.left.text == pair.right.text` under the same
-/// caller parameter rather than leaving callee positions behind.
-#[test]
-fn byte_sequence_guards_substitute_through_member_projections() {
-    use checked_trees::{
-        CheckedBooleanExpression, CheckedStructuralParameterField,
-        CheckedStructuralPredicatePathSegment,
-    };
-
-    let subject = |root: &str| CheckedStructuralParameterField {
-        parameter_position: 0,
-        path: vec![
-            CheckedStructuralPredicatePathSegment::Field(root.to_owned()),
-            CheckedStructuralPredicatePathSegment::Field("text".to_owned()),
-        ],
-    };
-
-    let buckets = call_site_buckets(
-        "trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
-         data Blob { text: &[u8]; }
-         BlobEquatable: Blob satisfies Equatable;
-         data Both { left: Blob; right: Blob; }
-         machine inner(left: Blob, right: Blob) -> bool
-         crashes Trap left == right { true }
-         machine outer(pair: Both) -> bool crashes Trap { inner(pair.left, pair.right) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the projected actuals keep the byte-sequence guard: {buckets:?}")
-    };
-    assert_eq!(
-        identity.scalar_expression(),
-        Some(&CheckedBooleanExpression::ByteSequenceEqual {
-            left: subject("left"),
-            right: subject("right"),
-        }),
-    );
-}
-
 /// A mutable caller root cannot promise the entry snapshot the contract
 /// namespace names, so the annotation stays empty rather than describing
 /// stale storage — the route still keeps its substituted identity.
@@ -1954,43 +1242,6 @@ fn case_membership_guards_keep_their_scalar_evidence_through_calls() {
     assert_eq!(identity.scalar_expression(), Some(&expected_scalar));
 }
 
-/// The actual's own member spine prepends below the caller root for case
-/// membership too: binding `pair.left` re-roots the subject to `pair.left`
-/// under the same caller parameter rather than leaving the callee position
-/// behind.
-#[test]
-fn case_membership_guards_substitute_through_member_projections() {
-    use checked_trees::{
-        CheckedBooleanExpression, CheckedStructuralParameterField,
-        CheckedStructuralPredicatePathSegment,
-    };
-
-    let buckets = call_site_buckets(
-        "data Mode { case Off; case On; }
-         data Both { left: Mode; right: Mode; }
-         machine inner(left: Mode) -> bool
-         crashes Trap left in Mode::On { true }
-         machine outer(pair: Both) -> bool crashes Trap { inner(pair.left) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the projected actual keeps the membership guard: {buckets:?}")
-    };
-    assert_eq!(
-        identity.scalar_expression(),
-        Some(&CheckedBooleanExpression::StructuralCaseMembership {
-            subject: CheckedStructuralParameterField {
-                parameter_position: 0,
-                path: vec![CheckedStructuralPredicatePathSegment::Field(
-                    "left".to_owned(),
-                )],
-            },
-            case: "On".to_owned(),
-        }),
-    );
-}
-
 /// A mutable caller root cannot promise the entry snapshot the contract
 /// namespace names, so the annotation stays empty rather than describing
 /// stale storage — the route still keeps its substituted identity.
@@ -2012,43 +1263,6 @@ fn case_membership_guards_drop_scalar_evidence_below_mutable_roots() {
         identity.scalar_expression().is_none(),
         "a mutable root keeps no entry-snapshot annotation: {buckets:?}"
     );
-}
-
-/// A bare Boolean-field guard's checked scalar annotation crosses the call
-/// the same way the atomic structural leaves do: the leaf re-roots to the
-/// caller parameter the actual reads, so `inner(pair)` under `left.flag`
-/// retains `pair.flag` as structured evidence instead of dropping to the
-/// bare identity. The lowering rechecks the re-rooted path ends at a
-/// retained Boolean field before emitting the scalar term, so a redirected
-/// leaf stays fail-closed downstream.
-#[test]
-fn field_guards_keep_their_scalar_evidence_through_calls() {
-    use checked_trees::{CheckedBooleanExpression, CheckedStructuralPredicatePathSegment};
-
-    let expected_scalar = CheckedBooleanExpression::StructuralParameterField {
-        parameter_position: 0,
-        path: vec![CheckedStructuralPredicatePathSegment::Field(
-            "flag".to_owned(),
-        )],
-    };
-    let expected_identity = CrashPredicateExpression::Member {
-        receiver: Box::new(CrashPredicateExpression::Parameter(0)),
-        member: "flag".to_owned(),
-    };
-
-    let buckets = call_site_buckets(
-        "data Pair { flag: bool; }
-         machine inner(left: Pair) -> bool
-         crashes Trap left.flag { true }
-         machine outer(pair: Pair) -> bool crashes Trap { inner(pair) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the field guard keeps its guarded route: {buckets:?}")
-    };
-    assert_eq!(identity.expression(), Some(&expected_identity));
-    assert_eq!(identity.scalar_expression(), Some(&expected_scalar));
 }
 
 /// The actual's own member spine prepends below the caller root for a
@@ -2106,67 +1320,6 @@ fn field_guards_drop_scalar_evidence_below_mutable_roots() {
     );
 }
 
-/// An integer-field comparison guard's checked scalar annotation crosses the
-/// call the same way the standalone Boolean leaf does: the scalar
-/// `StructuralParameterField` leaf re-roots to the caller parameter the
-/// actual reads, so `inner(pair)` under `left.count == 0` retains
-/// `pair.count == 0` as structured evidence instead of dropping the
-/// annotation to the bare identity. The structural lowering rechecks the
-/// re-rooted path ends at a retained integer field of the declared type
-/// before emitting the scalar term, so a redirected leaf stays fail-closed
-/// downstream.
-#[test]
-fn integer_field_guards_keep_their_scalar_evidence_through_calls() {
-    use checked_trees::{
-        CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
-        CheckedStructuralPredicatePathSegment,
-    };
-    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
-    use typed_trees::expression::BinaryOperator;
-    use typed_trees::types::PrimitiveType;
-
-    let expected_scalar = CheckedBooleanExpression::IntegerComparison {
-        kind: CheckedIntegerComparisonKind::Equal,
-        left: Box::new(CheckedScalarExpression::StructuralParameterField {
-            parameter_position: 0,
-            path: vec![CheckedStructuralPredicatePathSegment::Field(
-                "count".to_owned(),
-            )],
-            primitive_type: PrimitiveType::U64,
-        }),
-        right: Box::new(CheckedScalarExpression::IntegerLiteral {
-            literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
-                .unwrap()
-                .with_landing(IntegerLanding {
-                    landed_type: LandedIntegerType::U64,
-                    domain: numerics::arithmetic::ArithmeticDomain::Exact,
-                }),
-        }),
-    };
-    let expected_identity = CrashPredicateExpression::Binary {
-        operator: BinaryOperator::Equal as u8,
-        left: Box::new(CrashPredicateExpression::Member {
-            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
-            member: "count".to_owned(),
-        }),
-        right: Box::new(CrashPredicateExpression::Integer("0".into())),
-    };
-
-    let buckets = call_site_buckets(
-        "data Pair { count: u64; }
-         machine inner(left: Pair) -> bool
-         crashes Trap left.count == 0 { true }
-         machine outer(pair: Pair) -> bool crashes Trap { inner(pair) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the integer-field guard keeps its guarded route: {buckets:?}")
-    };
-    assert_eq!(identity.expression(), Some(&expected_identity));
-    assert_eq!(identity.scalar_expression(), Some(&expected_scalar));
-}
-
 /// The actual's own member spine prepends below the caller root for a
 /// scalar field leaf too: binding `pair.left` re-roots the comparison to
 /// `pair.left.count` under the same caller parameter rather than leaving
@@ -2208,207 +1361,6 @@ fn integer_field_guards_substitute_through_member_projections() {
     );
 }
 
-/// A mutable caller root cannot promise the entry snapshot the contract
-/// namespace names, so the annotation stays empty rather than describing
-/// stale storage — the route still keeps its substituted identity.
-#[test]
-fn integer_field_guards_drop_scalar_evidence_below_mutable_roots() {
-    let buckets = call_site_buckets(
-        "data Pair { count: u64; }
-         data Both { left: Pair; right: Pair; }
-         machine inner(left: Pair) -> bool
-         crashes Trap left.count == 0 { true }
-         machine outer(mut pair: Both) -> bool crashes Trap { inner(pair.left) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the mutable root still keeps the guarded route: {buckets:?}")
-    };
-    assert!(
-        identity.scalar_expression().is_none(),
-        "a mutable root keeps no entry-snapshot annotation: {buckets:?}"
-    );
-}
-
-/// A primitive actual under a structurally parameterized caller still keeps
-/// its checked scalar annotation: the dense scalar namespace binds `k` at
-/// position 0 even though `cell` holds authored position 0, so `inner(k)`
-/// under `x == 0` retains `k == 0` as structured evidence instead of dropping
-/// to the bare authored identity. The state lowering cannot speak for this
-/// caller — its all-primitive parameter gate fails on `cell` — so the
-/// dense-unit lowering owns this channel exactly as it already does for the
-/// call's value channel.
-#[test]
-fn scalar_actuals_keep_their_evidence_under_structural_callers() {
-    use checked_trees::{
-        CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
-    };
-    use numerics::arithmetic::ArithmeticDomain;
-    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
-    use typed_trees::expression::BinaryOperator;
-    use typed_trees::types::PrimitiveType;
-
-    let buckets = call_site_buckets(
-        "data Pair { count: u64; }
-         machine inner(x: u64) -> bool crashes Trap x == 0 { true }
-         machine outer(cell: Pair, k: u64) -> bool crashes Trap { inner(k) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the scalar actual keeps its guarded route: {buckets:?}")
-    };
-    assert_eq!(
-        identity.expression(),
-        Some(&CrashPredicateExpression::Binary {
-            operator: BinaryOperator::Equal as u8,
-            left: Box::new(CrashPredicateExpression::Parameter(1)),
-            right: Box::new(CrashPredicateExpression::Integer("0".into())),
-        }),
-    );
-    assert_eq!(
-        identity.scalar_expression(),
-        Some(&CheckedBooleanExpression::IntegerComparison {
-            kind: CheckedIntegerComparisonKind::Equal,
-            left: Box::new(CheckedScalarExpression::Parameter {
-                position: 0,
-                primitive_type: PrimitiveType::U64,
-            }),
-            right: Box::new(CheckedScalarExpression::IntegerLiteral {
-                literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
-                    .unwrap()
-                    .with_landing(IntegerLanding {
-                        landed_type: LandedIntegerType::U64,
-                        domain: ArithmeticDomain::Exact,
-                    }),
-            }),
-        }),
-    );
-}
-
-/// The same scalar annotation survives composition through a private summary:
-/// `mid` binds `j` at its own dense position 0, so `inner(j)` under `x == 0`
-/// lands `j == 0` in mid's retained summary, and `outer`'s `mid(cell, k)`
-/// re-roots it to `k`'s dense position — the annotation transports across
-/// both boundaries rather than stalling at the structural caller's gate.
-#[test]
-fn scalar_actuals_substitute_through_private_summary_hops() {
-    use checked_trees::{
-        CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
-    };
-    use typed_trees::expression::BinaryOperator;
-    use typed_trees::types::PrimitiveType;
-
-    let buckets = call_site_buckets(
-        "data Pair { count: u64; }
-         machine inner(x: u64) -> bool crashes Trap x == 0 { true }
-         machine mid(pair: Pair, j: u64) -> bool { inner(j) }
-         machine outer(cell: Pair, k: u64) -> bool crashes Trap { mid(cell, k) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the two-hop scalar actual keeps its guarded route: {buckets:?}")
-    };
-    assert_eq!(
-        identity.expression(),
-        Some(&CrashPredicateExpression::Binary {
-            operator: BinaryOperator::Equal as u8,
-            left: Box::new(CrashPredicateExpression::Parameter(1)),
-            right: Box::new(CrashPredicateExpression::Integer("0".into())),
-        }),
-    );
-    let Some(CheckedBooleanExpression::IntegerComparison { kind, left, .. }) =
-        identity.scalar_expression()
-    else {
-        panic!("the comparison keeps its checked scalar form: {buckets:?}")
-    };
-    assert_eq!(*kind, CheckedIntegerComparisonKind::Equal);
-    assert_eq!(
-        left.as_ref(),
-        &CheckedScalarExpression::Parameter {
-            position: 0,
-            primitive_type: PrimitiveType::U64,
-        },
-    );
-}
-
-/// An indexed actual keeps its crash identity across the call — the route
-/// still names `cell.data[k] == 0` — but its scalar annotation stays empty:
-/// a byte observation resolves structural storage no crash-route lane
-/// lowers, so inserting one would turn the route's conservative widening
-/// into a downstream rejection. The produced `IndexedRead` stays uninserted
-/// rather than pinning a term the lanes refuse.
-#[test]
-fn indexed_actuals_keep_identity_but_drop_scalar_evidence() {
-    use typed_trees::expression::BinaryOperator;
-
-    let buckets = call_site_buckets(
-        "data Pair { data: [u8; 4]; }
-         machine inner(x: u8) -> bool crashes Trap x == 0 { true }
-         machine outer(cell: Pair, k: u64 [0..=3]) -> bool crashes Trap { inner(cell.data[k]) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the indexed actual keeps its guarded route: {buckets:?}")
-    };
-    assert_eq!(
-        identity.expression(),
-        Some(&CrashPredicateExpression::Binary {
-            operator: BinaryOperator::Equal as u8,
-            left: Box::new(CrashPredicateExpression::Indexed {
-                collection: Box::new(CrashPredicateExpression::Member {
-                    receiver: Box::new(CrashPredicateExpression::Parameter(0)),
-                    member: "data".into(),
-                }),
-                index: Box::new(CrashPredicateExpression::Parameter(1)),
-            }),
-            right: Box::new(CrashPredicateExpression::Integer("0".into())),
-        }),
-    );
-    assert!(
-        identity.scalar_expression().is_none(),
-        "a byte observation keeps no crash-lane scalar annotation: {buckets:?}"
-    );
-}
-
-/// A projected callee leaf over an indexed actual keeps the guarded route:
-/// `inner`'s `cell.count == 0` binds `outer`'s `cells[k]`, so the surviving
-/// predicate names `cells[k].count` in caller coordinates rather than
-/// widening to `Truth`. The operand's index step carries `k`'s own entry
-/// operand and the collection owes its whole-storage bound snapshot.
-#[test]
-fn an_indexed_actual_below_a_projected_leaf_keeps_the_guarded_route() {
-    use typed_trees::expression::BinaryOperator;
-
-    let buckets = call_site_buckets(
-        "data Cell { count: u8; }
-         machine inner(cell: Cell) -> bool crashes Trap cell.count == 0 { true }
-         machine outer(cells: [Cell; 4], k: u64 [0..=3]) -> bool crashes Trap { inner(cells[k]) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the projected leaf over an indexed actual keeps its guarded route: {buckets:?}")
-    };
-    assert_eq!(
-        identity.expression(),
-        Some(&CrashPredicateExpression::Binary {
-            operator: BinaryOperator::Equal as u8,
-            left: Box::new(CrashPredicateExpression::Member {
-                receiver: Box::new(CrashPredicateExpression::Indexed {
-                    collection: Box::new(CrashPredicateExpression::Parameter(0)),
-                    index: Box::new(CrashPredicateExpression::Parameter(1)),
-                }),
-                member: "count".into(),
-            }),
-            right: Box::new(CrashPredicateExpression::Integer("0".into())),
-        }),
-    );
-}
-
 /// The same projected leaf over an indexed actual widens once the collection
 /// can no longer prove its bound snapshot: an element write anywhere inside
 /// `cells` retires the whole-storage provenance the operand stands on.
@@ -2428,45 +1380,6 @@ fn an_indexed_actual_below_rewritten_collection_widens_the_route() {
         single_surviving_bucket(&buckets),
         &checked_trees::CrashRouteGuard::Truth,
         "an element write retires the whole collection's entry snapshot: {buckets:?}"
-    );
-}
-
-/// The indexed identity still composes through a private summary — `mid`
-/// binds the whole structural actual, and `outer`'s `mid(cell, k)` re-roots
-/// the collection spine while `k` binds the index — and the scalar channel
-/// stays empty at both boundaries for the same fail-closed reason.
-#[test]
-fn indexed_actuals_substitute_identity_through_private_summary_hops() {
-    use typed_trees::expression::BinaryOperator;
-
-    let buckets = call_site_buckets(
-        "data Pair { data: [u8; 4]; }
-         machine inner(x: u8) -> bool crashes Trap x == 0 { true }
-         machine mid(pair: Pair, i: u64 [0..=3]) -> bool { inner(pair.data[i]) }
-         machine outer(cell: Pair, k: u64 [0..=3]) -> bool crashes Trap { mid(cell, k) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the two-hop indexed actual keeps its guarded route: {buckets:?}")
-    };
-    assert_eq!(
-        identity.expression(),
-        Some(&CrashPredicateExpression::Binary {
-            operator: BinaryOperator::Equal as u8,
-            left: Box::new(CrashPredicateExpression::Indexed {
-                collection: Box::new(CrashPredicateExpression::Member {
-                    receiver: Box::new(CrashPredicateExpression::Parameter(0)),
-                    member: "data".into(),
-                }),
-                index: Box::new(CrashPredicateExpression::Parameter(1)),
-            }),
-            right: Box::new(CrashPredicateExpression::Integer("0".into())),
-        }),
-    );
-    assert!(
-        identity.scalar_expression().is_none(),
-        "a byte observation keeps no crash-lane scalar annotation: {buckets:?}"
     );
 }
 
@@ -2496,76 +1409,5 @@ fn byte_length_actuals_keep_their_entry_identity() {
             }),
             right: Box::new(CrashPredicateExpression::Integer("0".into())),
         }),
-    );
-}
-
-/// A builtin `.len` actual resolves no member symbol, but its operand's entry
-/// observation is still exact: the collection's bound snapshot supplies the
-/// extent. The guarded route retains the caller's own `items.len` operand
-/// instead of widening to `Truth`, and a rebinding write still ends that
-/// provenance.
-#[test]
-fn byte_length_actuals_keep_their_entry_operand_identity() {
-    use typed_trees::expression::BinaryOperator;
-    let buckets = call_site_buckets(
-        "machine inner(bytes: &[u8], k: u64) -> bool crashes Trap bytes.len <= k { true }
-         machine outer(items: &[u8]) -> bool crashes Trap { inner(items, items.len) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the `.len` actual retains its guarded entry operand: {buckets:?}")
-    };
-    let items_len = CrashPredicateExpression::Member {
-        receiver: Box::new(CrashPredicateExpression::Parameter(0)),
-        member: "len".into(),
-    };
-    assert_eq!(
-        identity.expression(),
-        Some(&CrashPredicateExpression::Binary {
-            operator: BinaryOperator::LessOrEqual as u8,
-            left: Box::new(items_len.clone()),
-            right: Box::new(items_len),
-        }),
-    );
-
-    // A saved local holding the same observation transports it the same way:
-    // the initializer replay reaches the parameter's entry operand.
-    let buckets = call_site_buckets(
-        "machine inner(bytes: &[u8], k: u64) -> bool crashes Trap bytes.len <= k { true }
-         machine outer(items: &[u8]) -> bool crashes Trap { let n: u64 = items.len; inner(items, n) }",
-        "outer",
-    );
-    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
-    else {
-        panic!("the saved `.len` local retains its guarded entry operand: {buckets:?}")
-    };
-    assert_eq!(
-        identity.expression(),
-        Some(&CrashPredicateExpression::Binary {
-            operator: BinaryOperator::LessOrEqual as u8,
-            left: Box::new(CrashPredicateExpression::Member {
-                receiver: Box::new(CrashPredicateExpression::Parameter(0)),
-                member: "len".into(),
-            }),
-            right: Box::new(CrashPredicateExpression::Member {
-                receiver: Box::new(CrashPredicateExpression::Parameter(0)),
-                member: "len".into(),
-            }),
-        }),
-    );
-
-    // A rebinding write ends the collection's entry provenance: the route
-    // widens to the unconditional cause rather than claiming the incoming
-    // extent for later storage.
-    let buckets = call_site_buckets(
-        "machine inner(bytes: &[u8], k: u64) -> bool crashes Trap bytes.len <= k { true }
-         machine outer(mut items: &[u8], spare: &[u8]) -> bool crashes Trap { items = spare; inner(items, items.len) }",
-        "outer",
-    );
-    assert_eq!(
-        single_surviving_bucket(&buckets),
-        &checked_trees::CrashRouteGuard::Truth,
-        "a rebound collection keeps no entry extent observation: {buckets:?}"
     );
 }

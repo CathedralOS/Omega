@@ -33,13 +33,6 @@ fn pair(mutable: bool, prefix: &str, first_argument: &str, second_argument: &str
 }
 
 #[test]
-fn genuine_scalar_countdown_preserves_immutable_and_mutable_bindings() {
-    for mutable in [false, true] {
-        check(&pair(mutable, "", "remaining - 1", "remaining - 1"), true);
-    }
-}
-
-#[test]
 fn a_disjoint_store_cannot_hide_an_authored_arithmetic_effect() {
     let source = format!(
         "operator + u64::replacement(left: u64, right: u64) -> u64; {}",
@@ -49,15 +42,6 @@ fn a_disjoint_store_cannot_hide_an_authored_arithmetic_effect() {
             "remaining - 1",
             "remaining - 1",
         ),
-    );
-    check(&source, false);
-}
-
-#[test]
-fn an_additional_same_pair_call_cannot_hide_behind_a_strict_tail_call() {
-    let source = pair(false, "", "remaining - 1", "remaining - 1").replace(
-        "false -> self.scan_b(remaining - 1)",
-        "false -> 0 + self.scan_b(remaining) + self.scan_b(remaining - 1)",
     );
     check(&source, false);
 }

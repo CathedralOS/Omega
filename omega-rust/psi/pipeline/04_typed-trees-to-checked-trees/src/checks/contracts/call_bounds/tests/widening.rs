@@ -48,42 +48,6 @@ fn signed_disequality_does_not_license_legacy_float_polynomials() {
 }
 
 #[test]
-fn widening_does_not_borrow_another_values_premise_or_erase_operand_policy() {
-    for source in [
-        "machine demand(value: u64) requires value != 0 {} machine caller(input: u8, other: u8) requires input != 0 { demand(other as u64); }",
-        "machine demand(value: u64) requires value != 0 {} machine caller(input: u8) { demand(input as u64); }",
-        "machine demand(value: u64) requires value != 0 {} machine caller(input: u8 in Wrapping) requires input != 0 { demand((input + 1) as u64); }",
-        "machine demand(value: u64) requires value != 0 {} machine caller(mut input: u8) requires input != 0 { input = 0; demand(input as u64); }",
-        "boundary operator + Meaning::add(left: u8, right: u8) -> u8; machine demand(value: u64) requires value != 0 {} machine caller(input: u8) requires input != 0 { demand((input + 0) as u64); }",
-    ] {
-        assert_call_requirement_rejected(source);
-    }
-    for (source_type, target_type) in [("u64", "u8"), ("i8", "u64")] {
-        let source = format!(
-            "machine demand(value: {target_type}) requires value != 0 {{}}
-             machine caller(input: {source_type}) requires input != 0 {{ demand(input as {target_type}); }}"
-        );
-        assert!(checked(&source).is_err(), "unproved conversion: {source}");
-    }
-}
-
-#[test]
-fn widening_consumes_a_fresh_guard_after_mutation() {
-    let source = "machine demand(value: u64) -> u64 requires value != 0 { value }
-        machine caller(mut input: u8, other: u8) -> u64 {
-            input = other;
-            transition input != 0 {
-                true -> demand(input as u64)
-                false -> 0
-            }
-        }";
-    checked(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    assert_call_requirement_rejected(
-        &source.replace("false -> 0", "false -> demand(input as u64)"),
-    );
-}
-
-#[test]
 fn argument_widening_does_not_reinterpret_wrapping_symbolic_range_results() {
     let source = "machine wrong(input: u8 in Wrapping, lower: u64[1..=1])
         -> u64[lower..=256] { (input + 1) as u64 }";

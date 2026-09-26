@@ -11,25 +11,6 @@ use crate::execution::terminal_unit::control;
 use checked_trees::CheckedUnitPlanOmissionStage;
 use std::collections::BTreeMap;
 
-/// Test convenience: the traced assembly without a trace map.
-#[cfg(test)]
-pub(in crate::execution::terminal_unit) fn build_all(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
-    shapes: &mut ShapeCollector<'_>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Vec<CheckedComposedUnitControlMachinePlan> {
-    build_all_traced(
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        call_frames,
-        &mut BTreeMap::new(),
-    )
-}
-
 /// Records where state-graph construction stopped for each declined machine.
 pub(in crate::execution::terminal_unit) fn build_all_traced(
     program: &TypedTrees,

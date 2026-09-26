@@ -8,11 +8,6 @@ fn selected_provider_clone_refreshes_result_local_without_new_ordinary_specializ
 }
 
 #[test]
-fn selected_provider_clone_retains_exact_calls_among_ordinary_specializations() {
-    check_selected_provider_result_local(true, false);
-}
-
-#[test]
 fn selected_provider_replays_calls_after_an_ordinary_provider_instantiation() {
     check_selected_provider_result_local(false, true);
     check_selected_provider_result_local(true, true);

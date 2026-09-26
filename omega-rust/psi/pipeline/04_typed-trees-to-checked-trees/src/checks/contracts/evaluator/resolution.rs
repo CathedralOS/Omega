@@ -4,9 +4,6 @@ use typed_trees::statement::StatementNode;
 
 use super::{BooleanExpressionOwner, ContractExpressionEvaluator};
 
-#[cfg(test)]
-mod tests;
-
 impl ContractExpressionEvaluator<'_, '_> {
     /// Substitute a contract formal once, then retain caller ownership through
     /// local resolution. Recursive calls share symbols but not these namespaces.

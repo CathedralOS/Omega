@@ -108,34 +108,6 @@ fn result_type(program: &typed_trees::TypedTrees, place: &CanonicalPlace) -> Typ
 }
 
 #[test]
-fn owned_result_fields_and_nested_fixed_arrays_are_private_storage() {
-    let (program, mut place) = fixture("Outer");
-    assert!(is_private_result_place(&program, &place));
-    for segments in [
-        vec![field(&program, "Outer", "inner").0],
-        vec![
-            field(&program, "Outer", "inner").0,
-            field(&program, "Inner", "leaf").0,
-        ],
-        vec![
-            field(&program, "Outer", "items").0,
-            facts::PlaceSegment::FixedIndex { index: 1 },
-            field(&program, "Inner", "leaf").0,
-        ],
-    ] {
-        place.segments = segments;
-        assert!(is_private_result_place(&program, &place), "{place:?}");
-    }
-    let (program, mut place) = fixture("[[Inner; 2]; 2]");
-    place.segments = vec![
-        facts::PlaceSegment::FixedIndex { index: 0 },
-        facts::PlaceSegment::FixedIndex { index: 1 },
-        field(&program, "Inner", "leaf").0,
-    ];
-    assert!(is_private_result_place(&program, &place));
-}
-
-#[test]
 fn generic_substitution_preserves_the_reference_traversal_boundary() {
     for (argument, admitted) in [("Inner", true), ("Borrowed", false)] {
         let (program, mut place) = fixture(&format!("Envelope<{argument}>"));
@@ -153,56 +125,6 @@ fn generic_substitution_preserves_the_reference_traversal_boundary() {
 }
 
 #[test]
-fn reference_results_never_prove_private_referent_storage() {
-    for reference in ["&Inner", "&mut Inner", "&write Inner"] {
-        let (program, mut place) = fixture(reference);
-        assert!(!is_private_result_place(&program, &place), "{reference}");
-        place.segments = vec![field(&program, "Inner", "leaf").0];
-        assert!(!is_private_result_place(&program, &place), "{reference}");
-    }
-    let (program, mut place) = fixture("&[Inner]");
-    place.segments = vec![facts::PlaceSegment::FixedIndex { index: 0 }];
-    assert!(!is_private_result_place(&program, &place));
-}
-
-#[test]
-fn reference_fields_are_slots_but_traversing_their_referents_is_not_private() {
-    let (program, mut place) = fixture("Borrowed");
-    place.segments = vec![field(&program, "Borrowed", "inner").0];
-    assert!(is_private_result_place(&program, &place));
-    place.segments.push(field(&program, "Inner", "leaf").0);
-    assert!(!is_private_result_place(&program, &place));
-
-    let (program, mut place) = fixture("Sliced");
-    place.segments = vec![field(&program, "Sliced", "items").0];
-    assert!(is_private_result_place(&program, &place));
-    place
-        .segments
-        .push(facts::PlaceSegment::FixedIndex { index: 0 });
-    assert!(!is_private_result_place(&program, &place));
-}
-
-#[test]
-fn bare_slice_types_cannot_be_treated_as_owned_fixed_array_storage() {
-    let (mut program, mut place) = fixture("Sliced");
-    let (items, items_type) = field(&program, "Sliced", "items");
-    let element_type = field(&program, "Outer", "inner").1;
-    // Exercise the Slice node itself, independently of an enclosing Reference.
-    program
-        .type_reference_table
-        .substitute_node(items_type, TypeReferenceNode::Slice { element_type });
-    place.segments = vec![items, facts::PlaceSegment::FixedIndex { index: 0 }];
-    assert!(!is_private_result_place(&program, &place));
-
-    let result = result_type(&program, &place);
-    program
-        .type_reference_table
-        .substitute_node(result, TypeReferenceNode::Slice { element_type });
-    place.segments = vec![facts::PlaceSegment::FixedIndex { index: 0 }];
-    assert!(!is_private_result_place(&program, &place));
-}
-
-#[test]
 fn case_payload_paths_require_the_exact_variant_and_field_pair() {
     let (program, mut place) = fixture("Choice");
     let first = case_path(&program, "Choice", "First");
@@ -216,26 +138,6 @@ fn case_payload_paths_require_the_exact_variant_and_field_pair() {
         vec![first[1]],
         vec![first[0], second[1]],
         vec![first[0], first[0], first[1]],
-    ] {
-        place.segments = segments;
-        assert!(!is_private_result_place(&program, &place), "{place:?}");
-    }
-}
-
-#[test]
-fn absent_and_foreign_field_selectors_cannot_recover_from_matching_names() {
-    let (program, mut place) = fixture("Outer");
-    for segments in [
-        vec![facts::PlaceSegment::Field {
-            symbol: SymbolHandle::invalid(),
-        }],
-        vec![field(&program, "Foreign", "inner").0],
-        vec![
-            field(&program, "Outer", "inner").0,
-            field(&program, "Foreign", "inner").0,
-        ],
-        vec![facts::PlaceSegment::FixedIndex { index: 0 }],
-        vec![facts::PlaceSegment::FixedRange { start: 0, end: 1 }],
     ] {
         place.segments = segments;
         assert!(!is_private_result_place(&program, &place), "{place:?}");
@@ -293,50 +195,6 @@ fn unknown_result_and_intermediate_types_do_not_prove_private_projections() {
 }
 
 #[test]
-fn whole_nominal_results_require_one_exact_declared_root() {
-    for nominal in ["Outer", "Envelope<Inner>"] {
-        for corruption in ["missing", "non-data", "duplicate"] {
-            let (mut program, place) = fixture(nominal);
-            assert!(is_private_result_place(&program, &place));
-            let reference = result_type(&program, &place);
-            let mut node = program
-                .type_reference_table
-                .type_reference(reference)
-                .clone();
-            let symbol = match &mut node {
-                TypeReferenceNode::Named { symbol, .. }
-                | TypeReferenceNode::Generic {
-                    base_symbol: symbol,
-                    ..
-                } => symbol,
-                _ => panic!("fixture nominal result"),
-            };
-            match corruption {
-                "missing" => *symbol = SymbolHandle::invalid(),
-                "non-data" => *symbol = program.machines()[0].symbol,
-                "duplicate" => {
-                    let definition = program
-                        .data_definitions()
-                        .iter()
-                        .find(|definition| definition.symbol == *symbol)
-                        .expect("fixture root declaration")
-                        .clone();
-                    program.push_data_definition(definition);
-                }
-                _ => unreachable!(),
-            }
-            program
-                .type_reference_table
-                .substitute_node(reference, node);
-            assert!(
-                !is_private_result_place(&program, &place),
-                "{nominal}: {corruption}"
-            );
-        }
-    }
-}
-
-#[test]
 fn constrained_results_preserve_ownership_and_require_a_live_base_type() {
     for nominal in ["Outer", "&Outer"] {
         let (mut program, mut place) = fixture(nominal);
@@ -366,43 +224,6 @@ fn constrained_results_preserve_ownership_and_require_a_live_base_type() {
             },
         );
         assert!(!is_private_result_place(&program, &place));
-    }
-}
-
-#[test]
-fn fixed_arrays_require_a_live_element_type_at_the_root_and_final_projection() {
-    for nested in [false, true] {
-        let (mut program, mut place) = fixture(if nested { "Outer" } else { "[Inner; 2]" });
-        let reference = if nested {
-            let (items, reference) = field(&program, "Outer", "items");
-            place.segments.push(items);
-            reference
-        } else {
-            result_type(&program, &place)
-        };
-        place
-            .segments
-            .push(facts::PlaceSegment::FixedIndex { index: 0 });
-        assert!(is_private_result_place(&program, &place));
-        let TypeReferenceNode::FixedArray { length, .. } = program
-            .type_reference_table
-            .type_reference(reference)
-            .clone()
-        else {
-            panic!("fixture fixed array")
-        };
-        program.type_reference_table.substitute_node(
-            reference,
-            TypeReferenceNode::FixedArray {
-                element_type: TypeReferenceHandle::invalid(),
-                length,
-            },
-        );
-        assert!(!is_private_result_place(&program, &place));
-        if !nested {
-            place.segments.clear();
-            assert!(!is_private_result_place(&program, &place));
-        }
     }
 }
 

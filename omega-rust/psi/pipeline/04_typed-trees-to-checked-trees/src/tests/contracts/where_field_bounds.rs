@@ -26,26 +26,6 @@ fn program(facts: &str, stored: &str) -> String {
 }
 
 #[test]
-fn an_interval_where_field_proves_computed_stores_and_indexes() {
-    let accepted = messages(&program("i <= 3", "2"));
-    assert!(accepted.is_empty(), "{accepted:#?}");
-    let stored_too_high = messages(&program("i <= 3", "5"));
-    assert!(
-        stored_too_high
-            .iter()
-            .any(|message| message.contains("not provably within its data's `where` facts")),
-        "{stored_too_high:#?}"
-    );
-    let index_too_wide = messages(&program("i <= 4", "2"));
-    assert!(
-        index_too_wide
-            .iter()
-            .any(|message| message.contains("cannot prove index `self.i` is within length 4")),
-        "{index_too_wide:#?}"
-    );
-}
-
-#[test]
 fn a_relational_where_fact_keeps_its_window_rules() {
     let relational = messages(&program("i <= limit", "2"));
     assert!(

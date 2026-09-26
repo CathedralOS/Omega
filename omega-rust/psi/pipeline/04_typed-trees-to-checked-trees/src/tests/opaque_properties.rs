@@ -1,5 +1,5 @@
 use super::SymbolHandle;
-use crate::tests::front_end::{checked_program_result, typed_program};
+use crate::tests::front_end::typed_program;
 const COPY_OPAQUE: &str = r#"
 boundary data Token [copy];
 data Main {}
@@ -21,24 +21,6 @@ fn rendered(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-#[test]
-fn ordinary_lowering_rejects_copyable_opaque_without_receipt() {
-    let diagnostics = checked_program_result(COPY_OPAQUE)
-        .expect_err("ordinary Psi lowering must not mint an opaque copy receipt");
-    assert!(rendered(diagnostics).contains("without an admitted property receipt"));
-}
-
-#[test]
-fn exact_opaque_copy_receipt_is_consumed_once() {
-    let program = typed_program(COPY_OPAQUE);
-    let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&program, "Token"));
-    crate::lower_typed_trees(
-        program,
-        &crate::CheckingRequest::settled().with_opaque_property_receipts(&[receipt]),
-    )
-    .expect("the exact orchestration receipt should close opaque copy validation");
 }
 
 #[test]

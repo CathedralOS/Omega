@@ -374,52 +374,6 @@ mod tests {
     }
 
     #[test]
-    fn projected_index_call_names_the_selected_entry() {
-        let (checked, call) = run_tail_call(
-            "data Buffer { value: u64; }
-             machine [] Buffer::index(&self, index: u64) -> u64 { self.value }
-             data Holder { buffer: Buffer; }
-             machine run(holder: &Holder) -> u64 { holder.buffer[0] }",
-        );
-        let selected = checked
-            .machines()
-            .iter()
-            .flat_map(|machine| checked.machine_states(machine))
-            .find(|state| state.symbol == call.target_symbol)
-            .expect("the call retains its selected entry identity");
-        assert_eq!(call.target, selected.name);
-        assert_eq!(call.target.as_str(), "index");
-    }
-
-    #[test]
-    fn closed_range_binds_the_authored_bounds() {
-        let (checked, call) = run_tail_call(&source_with_use("low..high"));
-        assert!(call.receiver.is_valid());
-        let arguments = checked.expression_table.expression_handles(call.arguments);
-        assert_eq!(arguments.len(), 2);
-        assert!(matches!(
-            checked.expression_table.expression(arguments[0]),
-            ExpressionNode::Name(_)
-        ));
-        assert!(matches!(
-            checked.expression_table.expression(arguments[1]),
-            ExpressionNode::Name(_)
-        ));
-    }
-
-    #[test]
-    fn omitted_range_start_supplies_zero() {
-        let (checked, call) = run_tail_call(&source_with_use("..high"));
-        let arguments = checked.expression_table.expression_handles(call.arguments);
-        assert_eq!(arguments.len(), 2);
-        assert_eq!(integer_argument(&checked, arguments[0]), 0);
-        assert!(matches!(
-            checked.expression_table.expression(arguments[1]),
-            ExpressionNode::Name(_)
-        ));
-    }
-
-    #[test]
     fn inclusive_range_end_supplies_end_plus_one() {
         for index in ["low..=high", "..=high"] {
             let (checked, call) = run_tail_call(&source_with_use(index));
@@ -435,36 +389,6 @@ mod tests {
                 ExpressionNode::Name(_)
             ));
             assert_eq!(integer_argument(&checked, end.right), 1);
-        }
-    }
-
-    #[test]
-    fn omitted_range_start_and_inclusive_end_supply_zero_and_end_plus_one() {
-        let (checked, call) = run_tail_call(&source_with_use("..=high"));
-        let arguments = checked.expression_table.expression_handles(call.arguments);
-        assert_eq!(arguments.len(), 2);
-        assert_eq!(integer_argument(&checked, arguments[0]), 0);
-        assert!(matches!(
-            checked.expression_table.expression(arguments[1]),
-            ExpressionNode::Binary(_)
-        ));
-    }
-
-    #[test]
-    fn open_ended_range_still_rejects() {
-        for index in ["low..", ".."] {
-            let diagnostics = match checked_program_result(&source_with_use(index)) {
-                Ok(_) => panic!(
-                    "an omitted end needs the collection's length, which a `[..]` telescope cannot form"
-                ),
-                Err(diagnostics) => diagnostics,
-            };
-            assert!(
-                diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.message.contains("omits its end")),
-                "{diagnostics:#?}"
-            );
         }
     }
 

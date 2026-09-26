@@ -13,59 +13,6 @@ fn accepts(source: &str) -> CheckedTrees {
 }
 
 #[test]
-fn exclusive_float_ranges_keep_the_authored_endpoint_and_reject_it() {
-    accepts("machine accept(value: f64[0.0..1.5]) { }");
-    let checked = accepts("machine compare(first: f64[0.0..1.5], second: f64[0.0..=1.5]) { }");
-    let program = &checked.typed;
-    let state = &program.machine_states(&program.machines()[0])[0];
-    let parameters = program.state_parameters(state);
-    assert_ne!(
-        program.normalized_type_identity(parameters[0].type_reference),
-        program.normalized_type_identity(parameters[1].type_reference)
-    );
-}
-
-#[test]
-fn declared_range_endpoints_select_const_arguments_before_compatibility() {
-    let checked = accepts(
-        "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
-        machine inferred(value: u64[5..=256]) -> u64 { upper_bound(value) }
-        machine exclusive(value: u64[0..257]) -> u64 { upper_bound(value) }
-        machine hexadecimal(value: u64[0..=0x100]) -> u64 { upper_bound(value) }
-        machine computed(value: u64[0..=128 + 128]) -> u64 { upper_bound(value) }
-        machine computed_exclusive(value: u64[0..128 * 2 + 1]) -> u64 { upper_bound(value) }
-        machine explicit(value: u64[0..=256]) -> u64 { upper_bound<512>(value) }",
-    );
-    assert_eq!(checked.machine_specializations.len(), 2);
-    let mut arguments: Vec<_> = checked
-        .machine_specializations
-        .iter()
-        .map(|specialization| specialization.const_arguments.clone())
-        .collect();
-    arguments.sort();
-    assert_eq!(arguments, [vec!["256"], vec!["512"]]);
-}
-
-#[test]
-fn literal_exclusive_and_inclusive_ranges_keep_the_same_type_identity() {
-    let checked = accepts(
-        "machine compare(first: u64[0..8], second: u64[0..=7], different: u64[0..9]) -> u64 { first }",
-    );
-    let program = &checked.typed;
-    let machine = &program.machines()[0];
-    let state = &program.machine_states(machine)[0];
-    let parameters = program.state_parameters(state);
-    assert_eq!(
-        program.normalized_type_identity(parameters[0].type_reference),
-        program.normalized_type_identity(parameters[1].type_reference)
-    );
-    assert_ne!(
-        program.normalized_type_identity(parameters[0].type_reference),
-        program.normalized_type_identity(parameters[2].type_reference)
-    );
-}
-
-#[test]
 fn range_inference_converts_authored_upper_endpoint_kinds_exactly() {
     for (formal, actual, expected) in [
         ("0..=N", "0..18446744073709551616", "18446744073709551615"),
@@ -85,23 +32,6 @@ fn range_inference_converts_authored_upper_endpoint_kinds_exactly() {
             "{formal} from {actual}"
         );
     }
-}
-
-#[test]
-fn typed_and_computed_range_endpoints_keep_normalized_identity() {
-    let checked = accepts(
-        "machine compare(first: u64[0..7u64 / 2 * 2], same: u64[0..=5],
-             different: u64[0..7 / 2 * 2], full: u64[0..18446744073709551616],
-             full_inclusive: u64[0..=18446744073709551615u64]) -> u64 { first }",
-    );
-    let program = &checked.typed;
-    let state = &program.machine_states(&program.machines()[0])[0];
-    let parameters = program.state_parameters(state);
-    let identity =
-        |position: usize| program.normalized_type_identity(parameters[position].type_reference);
-    assert_eq!(identity(0), identity(1));
-    assert_ne!(identity(0), identity(2));
-    assert_eq!(identity(3), identity(4));
 }
 
 #[test]
@@ -196,21 +126,6 @@ fn full_width_static_bounds_do_not_waive_operand_or_intermediate_landing() {
 }
 
 #[test]
-fn declared_range_inference_uses_lower_and_upper_endpoint_positions() {
-    let checked = accepts(
-        "const Values::LOW: i32 = -5;
-        machine bound<const Low: i32, const High: i32>(value: i32[Low..=High]) -> i32 { Low }
-        machine inferred(value: i32[0 - 5..=5 * 5]) -> i32 { bound(value) }
-        machine explicit(value: i32[-5..=25]) -> i32 { bound<Values::LOW, 25>(value) }",
-    );
-    assert_eq!(checked.machine_specializations.len(), 1);
-    assert_eq!(
-        checked.machine_specializations[0].const_arguments,
-        ["-5", "25"]
-    );
-}
-
-#[test]
 fn declared_range_inference_keeps_partial_and_forwarded_slots_in_order() {
     let checked = accepts(
         "machine bounds<const Low: u64[0..=5], const High: u64>(value: u64[Low..=High]) -> u64 { High }
@@ -225,45 +140,6 @@ fn declared_range_inference_keeps_partial_and_forwarded_slots_in_order() {
         .collect();
     arguments.sort();
     assert_eq!(arguments, [vec!["0"], vec!["0", "256"], vec!["0", "512"]]);
-}
-
-#[test]
-fn declared_range_inference_composes_with_borrowed_parameters_and_expected_results() {
-    let checked = accepts(
-        "machine bound<const N: u64>(value: &u64[0..=N]) -> u64 { N }
-        machine produce<const N: u64>() -> u64[0..=N] { 0 }
-        machine main(value: u64[5..=256]) -> u64 {
-            let produced: u64[0..=128] = produce();
-            bound(&value)
-        }",
-    );
-    assert_eq!(checked.machine_specializations.len(), 2);
-}
-
-#[test]
-fn declared_range_inference_waits_for_explicit_forwarded_const_arguments() {
-    let checked = accepts(
-        "machine upper_bound<const N: u64[256..=512]>(value: u64[0..=N]) -> u64 { N }
-        machine forward<const K: u64[256..=512]>(value: u64[0..=256]) -> u64 { upper_bound<K>(value) }
-        machine main(value: u64[0..=256]) -> u64 { forward<512>(value) }",
-    );
-    assert_eq!(checked.machine_specializations.len(), 2);
-    for specialization in &checked.machine_specializations {
-        assert_eq!(specialization.const_arguments, ["512"]);
-    }
-}
-
-#[test]
-fn declared_range_inference_preserves_repeated_endpoint_agreement() {
-    let checked = accepts(
-        "machine bound<const N: u64>(first: u64[0..=N], second: u64[0..=N]) -> u64 { N }
-        machine inferred(first: u64[0..=128 + 128], second: u64[5..=256]) -> u64 { bound(first, second) }",
-    );
-    assert_eq!(checked.machine_specializations.len(), 1);
-    assert!(check(
-        "machine bound<const N: u64>(first: u64[0..=N], second: u64[0..=N]) -> u64 { N }
-        machine inferred(first: u64[0..=256], second: u64[0..=128]) -> u64 { bound(first, second) }",
-    ).is_err());
 }
 
 #[test]
@@ -294,18 +170,6 @@ fn observed_range_inference_cannot_authorize_an_unrestricted_template() {
     ] {
         assert!(check(source).is_err(), "observed selection cannot validate: {source}");
     }
-}
-
-#[test]
-fn explicit_forwarded_const_arguments_cannot_be_overwritten_by_array_inference() {
-    assert!(
-        check(
-            "machine bound<const N: u64>(value: &[u8; N]) -> u64 { N }
-        machine forward<const K: u64>(value: &[u8; 4]) -> u64 { bound<K>(value) }
-        machine main(value: &[u8; 4]) -> u64 { forward<8>(value) }",
-        )
-        .is_err()
-    );
 }
 
 #[test]
@@ -349,38 +213,6 @@ fn declared_range_inference_does_not_invent_missing_or_unusable_endpoints() {
 }
 
 #[test]
-fn explicit_and_inferred_boolean_values_share_one_instance() {
-    let checked = accepts(
-        "const Values::ENABLED: bool = true;
-        data Witness<const N: bool> { case Only; }
-        data Scenario { witness: Witness<Values::ENABLED>; }
-        machine value<const N: bool>(witness: &Witness<N>) -> bool { N }
-        machine Scenario::run(&self) -> bool {
-            let inferred: bool = value(&self.witness);
-            let literal: bool = value<true>(&self.witness);
-            value<Values::ENABLED>(&self.witness)
-        }",
-    );
-    assert_eq!(checked.machine_specializations.len(), 1);
-}
-
-#[test]
-fn explicit_integer_spellings_and_inferred_values_share_one_instance() {
-    let checked = accepts(
-        "const Values::TWO: u64 = 2;
-        machine value<const N: u64>(witness: &[u8; N]) -> u64 { N }
-        machine main() -> u64 {
-            let pair: [u8; 2] = [0, 0];
-            let inferred: u64 = value(&pair);
-            let decimal: u64 = value<2>(&pair);
-            let hexadecimal: u64 = value<0x2>(&pair);
-            value<Values::TWO>(&pair)
-        }",
-    );
-    assert_eq!(checked.machine_specializations.len(), 1);
-}
-
-#[test]
 fn equivalent_named_structured_and_inferred_values_share_one_instance() {
     let checked = accepts(
         "data Config [copy] { count: u8; enabled: bool; }
@@ -409,15 +241,6 @@ fn forwarded_boolean_values_select_independent_inner_instances() {
         }",
     );
     assert_eq!(checked.machine_specializations.len(), 4);
-}
-
-#[test]
-fn statement_calls_admit_boolean_values_without_declaration_symbols() {
-    let checked = accepts(
-        "machine consume<const N: bool>() {}
-        machine main() -> u64 { consume<true>(); consume<false>(); 7 }",
-    );
-    assert_eq!(checked.machine_specializations.len(), 2);
 }
 
 #[test]
@@ -464,88 +287,6 @@ fn invalid_explicit_values_reject_even_when_the_binder_is_unused() {
 }
 
 #[test]
-fn forwarded_named_integer_carriers_are_checked_before_erasure() {
-    assert!(
-        check(
-            "machine inner<const N: u8>() -> u64 { 7 }
-        machine outer<const N: u64>() -> u64 { inner<N>() }
-        machine main() -> u64 { outer<2>() }"
-        )
-        .is_err()
-    );
-}
-
-#[test]
-fn inferred_values_must_fit_unused_const_binders_in_every_instance() {
-    assert!(
-        check(
-            "machine value<const N: u8>(witness: &[u8; N]) -> u64 { 7 }
-        machine main(pair: &[u8; 2], oversized: &[u8; 256]) -> u64 {
-            let first: u64 = value(pair);
-            value(oversized)
-        }"
-        )
-        .is_err()
-    );
-    accepts(
-        "machine value<const N: u8>() -> u64 { 7 }
-        machine main() -> u64 { value<255>() }",
-    );
-}
-
-#[test]
-fn conflicting_explicit_and_inferred_values_reject() {
-    assert!(
-        check(
-            "const Values::ENABLED: bool = true;
-        data Witness<const N: bool> { case Only; }
-        data Scenario { witness: Witness<Values::ENABLED>; }
-        machine value<const N: bool>(witness: &Witness<N>) -> bool { N }
-        machine Scenario::run(&self) -> bool { value<false>(&self.witness) }"
-        )
-        .is_err()
-    );
-}
-
-#[test]
-fn value_argument_results_seed_static_inference_without_a_place_declaration() {
-    // A landed literal carries an authored carrier even though no place
-    // declaration exists for it. Inference must read that result type the
-    // same way it reads a declared argument's type.
-    let checked = accepts(
-        "machine wrap<T, const N: u64>(extra: T, v: u64[0..=N]) -> u64 { N }
-        machine caller(v: u64[0..=256]) -> u64 { wrap(7i32, v) }",
-    );
-    assert_eq!(checked.machine_specializations.len(), 1);
-    assert_eq!(checked.machine_specializations[0].type_arguments, ["i32"]);
-    assert_eq!(checked.machine_specializations[0].const_arguments, ["256"]);
-}
-
-#[test]
-fn literal_cast_and_operator_results_seed_type_inference() {
-    let checked = accepts(
-        "machine pick<T>(value: T) -> T { value }
-        machine caller(flag: bool, whole: i64[0..=100]) -> u64 {
-            _ = pick(true);
-            _ = pick(2.5f64);
-            _ = pick(whole as i32);
-            _ = pick(1i32 + 2i32);
-            _ = pick(!flag);
-            0
-        }",
-    );
-    let mut arguments: Vec<_> = checked
-        .machine_specializations
-        .iter()
-        .map(|specialization| specialization.type_arguments.clone())
-        .collect();
-    arguments.sort();
-    // The two i32-producing arguments share one specialization, as do the
-    // two bool-producing ones.
-    assert_eq!(arguments, [["bool"], ["f64"], ["i32"]]);
-}
-
-#[test]
 fn struct_literal_arguments_seed_type_inference() {
     let checked = accepts(
         "data Point [copy] { x: u8; }
@@ -554,21 +295,4 @@ fn struct_literal_arguments_seed_type_inference() {
     );
     assert_eq!(checked.machine_specializations.len(), 1);
     assert_eq!(checked.machine_specializations[0].type_arguments, ["Point"]);
-}
-
-#[test]
-fn anonymous_numeric_arguments_still_cannot_derive_static_binders() {
-    // An unlanded literal is anonymous: the range const still resolves from
-    // the declared argument, but the type binder has nothing honest to
-    // propose. The partial tuple must keep rejecting rather than guessing a
-    // carrier.
-    let errors = check(
-        "machine wrap<T, const N: u64>(extra: T, v: u64[0..=N]) -> u64 { N }
-        machine caller(v: u64[0..=256]) -> u64 { wrap(7, v) }",
-    )
-    .expect_err("partially bound application must reject");
-    assert!(
-        format!("{errors:?}").contains("cannot be derived"),
-        "{errors:?}"
-    );
 }

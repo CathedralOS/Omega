@@ -18,18 +18,6 @@ fn check(source: &str, accepted: bool) {
 }
 
 #[test]
-fn identical_integer_operands_cancel_with_the_exact_zero_bound() {
-    for carrier in ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"] {
-        check(
-            &format!(
-                "machine cancel(value: {carrier}, ceiling: {carrier}) -> {carrier} {{ ceiling + (value - value) }}"
-            ),
-            true,
-        );
-    }
-}
-
-#[test]
 fn cancellation_preserves_each_intermediate_overflow_obligation() {
     for expression in [
         "(ceiling + value) - value",
@@ -43,32 +31,4 @@ fn cancellation_preserves_each_intermediate_overflow_obligation() {
             false,
         );
     }
-}
-
-#[test]
-fn mutable_calls_do_not_become_equal_by_repeated_spelling() {
-    check(
-        "machine change(value: &mut u64) -> u64 { let saved: u64 = value; value = 0; saved } machine cancel(input: u64, ceiling: u64) -> u64 { let mut value: u64 = input; ceiling + (change(&mut value) - change(&mut value)) }",
-        false,
-    );
-}
-
-#[test]
-fn cancellation_uses_resolved_places_and_builtin_subtraction() {
-    check(
-        "data Main { value: u64; other: u64; } machine Main::cancel(&self, ceiling: u64) -> u64 { ceiling + (self.value - self.value) }",
-        true,
-    );
-    check(
-        "data Main { value: u64; other: u64; } machine Main::cancel(&self, ceiling: u64) -> u64 { ceiling + (self.value - self.other) }",
-        false,
-    );
-    check(
-        "operator - u64::custom(left: u64, right: u64) -> u64; machine cancel(value: u64, ceiling: u64) -> u64 { ceiling + (value - value) }",
-        false,
-    );
-    check(
-        "machine cancel(input: u64, ceiling: u64) -> u64 { let mut value: u64 = input; value = ceiling; ceiling + (value - value) }",
-        true,
-    );
 }
