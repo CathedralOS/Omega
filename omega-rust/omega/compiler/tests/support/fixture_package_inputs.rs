@@ -916,12 +916,26 @@ fn cached_dangerous_service_bindings(
     if !required.any() {
         return Some(Vec::new());
     }
-    let memo = dangerous_service_binding_memo().lock().ok()?;
-    memo.get(&(
+    let key = (
         target_name.unwrap_or_default().to_owned(),
         dangerous_service_flags(required),
-    ))
-    .cloned()
+    );
+    if let Some(bindings) = dangerous_service_binding_memo()
+        .lock()
+        .ok()
+        .and_then(|memo| memo.get(&key).cloned())
+    {
+        return Some(bindings);
+    }
+    // A fresh process derives these rows from one fixture's preliminary
+    // compile per (target, verdict); the rows depend only on those and the
+    // library, so a file keyed by the library's digest carries them across
+    // runs.
+    let bindings = read_cached_bindings(&bindings_cache_path(target_name, required)?)?;
+    if let Ok(mut memo) = dangerous_service_binding_memo().lock() {
+        memo.insert(key, bindings.clone());
+    }
+    Some(bindings)
 }
 
 fn remember_dangerous_service_bindings(
@@ -938,6 +952,181 @@ fn remember_dangerous_service_bindings(
             bindings.to_vec(),
         );
     }
+    if let Some(path) = bindings_cache_path(target_name, required) {
+        write_cached_bindings(&path, bindings);
+    }
+}
+
+fn bindings_cache_path(
+    target_name: Option<&str>,
+    required: &dangerous_service_acceptance::RequiredDangerousServices,
+) -> Option<PathBuf> {
+    use std::hash::{Hash, Hasher};
+    if std::env::var_os("OMEGA_FIXTURE_REVIEW_CACHE").is_some_and(|value| value == "off") {
+        return None;
+    }
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    "fixture-review-bindings-v1".hash(&mut hasher);
+    target_name.hash(&mut hasher);
+    bundled_library_sources_hash()?.hash(&mut hasher);
+    dangerous_service_flags(required).hash(&mut hasher);
+    Some(
+        repo_root()
+            .join("target")
+            .join("fixture-review-cache")
+            .join(format!("bindings-{:016x}.txt", hasher.finish())),
+    )
+}
+
+/// One line per field: `role`, `package`, `path`, `schema`, `plan`, then one
+/// `permission <schema> <class tags> <requirement>` line per row, and `end`.
+/// Only the four dangerous-service roles occur here; anything else is not
+/// cached, and a written file must decode back to exactly the rows it
+/// encodes.
+fn encode_bindings(bindings: &[AcceptedSemanticBinding]) -> Option<String> {
+    let mut text = String::new();
+    for binding in bindings {
+        let role = match binding.role() {
+            AcceptedSemanticBindingRole::FilesystemHostService => "filesystem",
+            AcceptedSemanticBindingRole::TimeHostService => "time",
+            AcceptedSemanticBindingRole::ConsoleExitProcessI32 => "console-exit",
+            AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => "process-exit",
+            _ => return None,
+        };
+        if binding.declaration_path().contains('\n') {
+            return None;
+        }
+        text.push_str(&format!("role {role}\n"));
+        text.push_str(&format!("package {}\n", hex(&binding.package().digest())));
+        text.push_str(&format!("path {}\n", binding.declaration_path()));
+        text.push_str(&format!(
+            "schema {}\n",
+            hex(binding.normalized_schema_digest().as_bytes())
+        ));
+        match binding.selected_provider_plan_digest() {
+            Some(plan) => text.push_str(&format!("plan {}\n", hex(plan.as_bytes()))),
+            None => text.push_str("plan none\n"),
+        }
+        for permission in binding.terminal_authority_permissions() {
+            let tags = permission
+                .permitted()
+                .classes()
+                .iter()
+                .map(|class| class.canonical_tag().to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            let requirement = permission.requirement_identity();
+            if requirement.contains('\n') {
+                return None;
+            }
+            text.push_str(&format!(
+                "permission {} {} {requirement}\n",
+                hex(permission.service_schema().as_bytes()),
+                if tags.is_empty() { "-" } else { &tags },
+            ));
+        }
+        text.push_str("end\n");
+    }
+    Some(text)
+}
+
+fn decode_bindings(text: &str) -> Option<Vec<AcceptedSemanticBinding>> {
+    let mut bindings = Vec::new();
+    let mut lines = text.lines();
+    while let Some(line) = lines.next() {
+        let role = match line.strip_prefix("role ")? {
+            "filesystem" => AcceptedSemanticBindingRole::FilesystemHostService,
+            "time" => AcceptedSemanticBindingRole::TimeHostService,
+            "console-exit" => AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+            "process-exit" => AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+            _ => return None,
+        };
+        let package =
+            PackageKeyIdentity::from_digest(unhex(lines.next()?.strip_prefix("package ")?)?)?;
+        let path = lines.next()?.strip_prefix("path ")?;
+        let schema = effects::provider_plan::ServiceSchemaDigest::from_digest(unhex(
+            lines.next()?.strip_prefix("schema ")?,
+        )?);
+        let binding = match lines.next()?.strip_prefix("plan ")? {
+            "none" => AcceptedSemanticBinding::new_service(role, package, path, schema).ok()?,
+            plan => AcceptedSemanticBinding::new(
+                role,
+                package,
+                path,
+                schema,
+                effects::provider_plan::ProviderPlanDigest::from_digest(unhex(plan)?),
+            )
+            .ok()?,
+        };
+        let mut permissions = Vec::new();
+        loop {
+            let line = lines.next()?;
+            if line == "end" {
+                break;
+            }
+            let mut fields = line.strip_prefix("permission ")?.splitn(3, ' ');
+            let permission_schema =
+                effects::provider_plan::ServiceSchemaDigest::from_digest(unhex(fields.next()?)?);
+            let tags = fields.next()?;
+            let classes = if tags == "-" {
+                Vec::new()
+            } else {
+                tags.split(',')
+                    .map(|tag| {
+                        let tag = tag.parse::<u8>().ok()?;
+                        effects::TerminalAuthorityClass::ALL
+                            .into_iter()
+                            .find(|class| class.canonical_tag() == tag)
+                    })
+                    .collect::<Option<Vec<_>>>()?
+            };
+            let disposition =
+                effects::TerminalAuthorityDisposition::try_from_canonical_classes(classes).ok()?;
+            permissions.push(effects::ServiceTerminalAuthorityPermission::new(
+                permission_schema,
+                fields.next()?,
+                disposition,
+            ));
+        }
+        bindings.push(
+            binding
+                .with_terminal_authority_permissions(permissions)
+                .ok()?,
+        );
+    }
+    Some(bindings)
+}
+
+fn read_cached_bindings(path: &Path) -> Option<Vec<AcceptedSemanticBinding>> {
+    decode_bindings(&fs::read_to_string(path).ok()?)
+}
+
+fn write_cached_bindings(path: &Path, bindings: &[AcceptedSemanticBinding]) {
+    let Some(text) = encode_bindings(bindings) else {
+        return;
+    };
+    if decode_bindings(&text).as_deref() != Some(bindings) {
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::write(path, text);
+}
+
+fn hex(bytes: &[u8; 32]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn unhex(text: &str) -> Option<[u8; 32]> {
+    if text.len() != 64 {
+        return None;
+    }
+    let mut bytes = [0; 32];
+    for (index, byte) in bytes.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(text.get(index * 2..index * 2 + 2)?, 16).ok()?;
+    }
+    Some(bytes)
 }
 
 /// Every `.omg` file under `root`, in path order, hashed by relative path and
