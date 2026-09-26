@@ -884,7 +884,7 @@ _run_natively_with_zero_extent_nonconsumption` was the coverage claimed here,
 
 - **CHECK-CLOSURE-ONCE.** (new-scope) `omega --check` of a std-importing
   sample is dominated by checking the bundled library twice. Reproduced on
-  macOS arm64 at `587697f037` with the release binary on
+  macOS arm64 at `587697f037 (revision not on main)` with the release binary on
   `samples/cli/basics/print_squares`: 41.2 s total, of which `--timings` names
   only 4.3 s (Stage 05 TypedTrees -> CheckedTrees 2.1 s, build step 1.1 s,
   settle step 1.1 s). `OMEGA_REVIEW_TIMINGS=1` now attributes the rest per
@@ -1728,7 +1728,7 @@ syntax and other terminal services are not prerequisites.
   existing `ArtifactSections`, codec, optimization and verified-native-input
   boundary rather than rebuilding admission.
 
-  A probe on `swarm/macw4-plan-laid-views` (`670843530b`) reports an earlier
+  A probe on `swarm/macw4-plan-laid-views` (`670843530b (revision absent from the repository)`) reports an earlier
   admission gap: synthesized
   `PlacedField` accessor boundary machines attach as
   `DataSupplyMode::BoundaryOpaque` (`record_synthesis.rs`), which the
@@ -2545,7 +2545,7 @@ syntax and other terminal services are not prerequisites.
   Remaining `src/tests/borrow/receiver_access.rs` pins cover local-rooted
   indexed receivers and runtime-indexed parameter receivers/explicit shared
   arguments. An unverified candidate for explicit shared dynamic-indexed arguments
-  is `ecfdedb34b` on `swarm/linw4-structural-borrow-identity`; rebase and run
+  is `ecfdedb34b (revision absent from the repository)` on `swarm/linw4-structural-borrow-identity`; rebase and run
   focused borrow checks before adopting it. Coordinate bracketed-range migration with
   CANONICALIZE-SCALAR-RANGE-CONTRACTS. Owned-root and construction-local admission
   remain separate obligations; reuse `terminal-semantics::static_path`.
@@ -3271,7 +3271,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   already threaded there. Carry the filtered names into that pass, match calls
   whose `target_symbol` is invalid against them, and reject naming both.
 
-  There is no separable Psi half. Measured on a1dcb8dc48: an undeclared name
+  There is no separable Psi half. Measured on a1dcb8dc48 (revision not on main): an undeclared name
   already rejects by name in both call positions before any authored-selection
   check runs -- `missing_helper()` as a value call reports "does not resolve to
   a state of this machine, an attached sibling machine, or a free machine", and
@@ -3707,7 +3707,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     discarded-result probe with observed distinct tuple results and the actual
     rebound selected instance. Test-constructed tuple rows do not close this.
     Unverified candidates: `swarm/macw5-finite-dispatch` and
-    `swarm/macw6-finite-dispatch` (`54a1609a64`) contain roster-membership and
+    `swarm/macw6-finite-dispatch` (`54a1609a64 (revision absent from the repository)`) contain roster-membership and
     forwarded-call work. Reconcile both with the existing checked dynamic plan's
     binding kind and result shape before adopting either.
 
@@ -3742,7 +3742,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   evidence to its exact invocation result. Establish a source-produced qualified
   boundary-result roundtrip too; manually assembled Terminal fixtures do not
   establish source admission. Review the unverified candidate
-  `swarm/macw7-domain-issuer-routes` (`b38ff7561a`) before duplicating that work.
+  `swarm/macw7-domain-issuer-routes` (`b38ff7561a (revision absent from the repository)`) before duplicating that work.
 
   Acceptance: source examples serialize, reload without source and independently
   validate requirement, exact-machine and boundary establishment, including
@@ -3785,8 +3785,8 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   per-arity syscall constraint rows, `DirectSyscallRealization`, and
   `AdmittedBoundaryExecution::ToolchainSettled` through lowering and
   provider-plan evidence binding. Resume branch:
-  `swarm/macw9-terminal-authority` at `5728d45a2f` (supersedes
-  `7f856f6d43`): the macw9 leg carried the blueprint into a full
+  `swarm/macw9-terminal-authority` at `5728d45a2f (revision absent from the repository)` (supersedes
+  `7f856f6d43 (revision absent from the repository)`): the macw9 leg carried the blueprint into a full
   `direct_syscall` instruction family — selected-instruction identity,
   legalization replay, scalar-graph selection, row encoding, aarch64 and
   x86-64 form encoding, ABI call machinery across 176 files (+2913/−213),
@@ -3932,7 +3932,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   recover their actual replacement input. Remaining gaps are additional reference
   boundaries lacking independent load evidence, unresolved control-flow result
   routes, generic/dispatched callees and dynamic/unresolved projections.
-  Both finite-alternative gaps are read (237329e986, a2ea77c29c, 245a41fe2e).
+  Both finite-alternative gaps are read (237329e986, a2ea77c29c (revision not on main), 245a41fe2e).
   A guarded callee body offers one route per arm, and a dynamic selector over a
   closed array literal offers one place per element; in each, one alternative
   the trace cannot name leaves the whole demand unproven. Where the
@@ -5027,7 +5027,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
      none of these, and this is where the design work is.
 
   Stages 2 and 3 are each a few lines and provably inert on the corpus
-  (measured 751741736c: widening both gates to `SymbolKind::Operator`, with an
+  (measured 751741736c (revision not on main): widening both gates to `SymbolKind::Operator`, with an
   operator contributing a dependency and nothing to walk, leaves
   `tools/corpus_gate.py --baseline` clean on 3303 fixtures). Stage 1 is NOT a
   few lines, and stage 4 needs the route decided.
