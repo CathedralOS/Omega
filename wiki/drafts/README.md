@@ -17,6 +17,10 @@ Drafts are grouped by kind. A draft belongs to exactly one folder, and
 
 Cross-cutting notes that outlive any single rung.
 
+- [Floating-point realization](reference/float_realization.md): selected float
+  plans, x86 FMA admission, IEEE comparison custody and control-register
+  envelopes as the Rust backend realizes them; delete once each boundary has a
+  permanent owner.
 - [Bootstrap cost investigation](reference/bootstrap_cost_review.md): bounded Delta/P1
   feasibility evidence and its recorded decisions; delete when both sections
   are absorbed or superseded.

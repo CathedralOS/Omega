@@ -2609,7 +2609,7 @@ syntax and other terminal services are not prerequisites.
   Owners: native proposal construction, `native-realization`'s
   `retained_native_product` and `callback_thunks`, selected-call ABI transport,
   and image private-function/relocation replay. See
-  [receiving custody limits](omega-rust/omega/compiler/native_realization.md#callback-custody-boundaries).
+  [receiving custody limits](omega-rust/omega/compiler/README.md#callback-custody-boundaries).
   Acceptance: the direct witness and
   `source/library/std/tests/callback_materialization_closure.omg` two-slot
   registrar produce native images binding exact function, symbol, relocation,
@@ -3326,7 +3326,7 @@ syntax and other terminal services are not prerequisites.
 
   Acceptance: close the `checked-trees-to-lowered-psi --test suite value_dispatch`
   gaps and native `scalar_case_results` /
-  [float Match customers](omega-rust/omega/compiler/float_realization.md#operation-and-control-custody).
+  [float Match customers](wiki/drafts/reference/float_realization.md#operation-and-control-custody).
   Preserve effects, skipped trapping arms, overlapping patterns, full coverage,
   and independent replay. Retain `match_anonymous_result_landing`,
   `numeric_operand_destinations`, and `dutch_flag`'s native exit-70 oracle with

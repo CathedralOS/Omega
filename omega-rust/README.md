@@ -42,7 +42,7 @@ implies deletion.
   syntax, typing, checking, and portable publication.
 - [Compiler coordination](omega/compiler/README.md): product boundaries,
   optional reports, and multi-target source reuse.
-- [Native realization](omega/compiler/native_realization.md): source-free
+- [Native realization](omega/compiler/README.md#native-realization): source-free
   lowering with separately supplied authority.
 - [Native representations](omega/representations/README.md) and
   [optimization](optimization.md): current data, exact rewrites, and replay.
