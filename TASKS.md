@@ -659,11 +659,13 @@ the complete product bar; focused successes below do not establish that baseline
   are the acceptance customers of executable features.
   **CONSERVATION-CONTRACT**'s `core/content_conservation_contract` and
   `core/content_retained_custody_round_trip` declare the contract and never
-  invoke it, and **QUOTIENT-RUNTIME-REALIZATION**'s
-  `proofs/quotient_define_managed_compile` and
-  `quotient_lift_managed_compile` never call the machine holding the
-  operation. Those items cannot be judged against their own customers until
-  an entry performs the work, whatever their compilers do.
+  invoke it. **QUOTIENT-RUNTIME-REALIZATION**'s
+  `proofs/quotient_*_managed_compile` never call the machine holding the
+  operation either, but that pair is deliberately proof-only and says so in
+  its header, which is the distinction to draw: an empty entry may be an
+  honest compile canary or a missing customer, and only the fixture's own
+  stated subject separates them. Either way an executable item needs an
+  invoking customer that the corpus may not contain.
 
   `corpus_runner`'s pass route requests the Check product targetless and
   establishes no program entry, so a `_exit` fixture whose unit plan is
@@ -4968,13 +4970,16 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `quotient_lift_managed_compile`, pass checking, produce a Terminal module,
   and stop there at exactly that refusal. Nothing in checked contracts,
   ranges or termination refuses them first. But neither demonstrates an
-  executable route, because neither executes: each ends in `machine
-  Main::main(&mut self) {}` and never calls the `admitted`/`lifted` machine
-  that performs the operation. They pin the retained-table refusal, not a
-  quotient call, so the refusal cannot be judged against a real invocation
-  until an entry calls one. Author that invocation before deciding which
-  exclusion to license; the corpus has no other authored quotient -- 17
-  `data X = Carrier % relation` declarations in all, 14 of them in `fail`. Replace those exclusions only
+  executable route, and that is deliberate: each ends in `machine
+  Main::main(&mut self) {}`, and `quotient_define_managed_compile` says in
+  its own header that "the retained correspondence is never an executable
+  callee". They are honest compile canaries for the admission shape, not
+  executable customers to be repaired by giving them entries. What the corpus
+  lacks is a separate invoking customer -- there are 17
+  `data X = Carrier % relation` declarations in all, 14 of them in `fail`,
+  and none calls a quotient operation from a program entry. Author that
+  customer before deciding which exclusion to license, and leave these two
+  canaries proof-only. Replace those exclusions only
   where a checked representation/operation judgment licenses the ordinary
   representative call. Retaining a mathematical correspondence row alone
   does not establish all executable custody.
