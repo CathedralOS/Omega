@@ -12,9 +12,8 @@ use std::collections::BTreeSet;
 
 use crate::{CompositionMode, SelectedProviderPlanWithProvenance};
 use crate::{
-    ProviderBinding, ProviderPlanDerivation, TypedTrees, derive_satisfies_plans,
-    select_derived_provider_plans, selected_provider_plan_facts,
-    selected_provider_plan_facts_with_independent_components,
+    ProviderPlanDerivation, derive_satisfies_plans, select_derived_provider_plans,
+    selected_provider_plan_facts, selected_provider_plan_facts_with_independent_components,
 };
 use component_description::{
     AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescriptionFacts,
@@ -22,7 +21,7 @@ use component_description::{
     encode_component_description, verify_component,
 };
 use effects::SelectedProviderPlanFacts;
-use effects::provider_plan::ProviderPlan;
+use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
     StructuralTypeId,
@@ -34,6 +33,7 @@ use terminal_psi::{
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
 };
+use typed_trees::TypedTrees;
 
 /// The consumer side of one independent selection: the typed program, its
 /// evaluated bindings, and the one checked provider plan selected with

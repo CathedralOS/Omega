@@ -3,13 +3,17 @@ use super::{
     bind_selected_provider_plan_facts_for_test, boundary_trait, checked_invocation_fixture,
     push_boundary_requirement, selected_plan_names, selection_plan, set_exact_requirement,
 };
+use crate::provider_planning::exact_checked_adapter_invocations;
 use crate::{
-    Arc, ProviderBinding, ProviderGrantSelectorKind, TypedTrees, bind_selected_provider_plan_facts,
-    exact_checked_adapter_invocations, resolve_selected_provider_grants, select_provider_plans,
+    bind_selected_provider_plan_facts, select_provider_plans,
     validate_selected_synchronous_invocation_cycles,
 };
 #[cfg(feature = "installed-writer")]
 use crate::{selected_external_root_provider_plan, selected_external_root_provider_plan_id};
+use effects::provider_plan::ProviderBinding;
+use std::sync::Arc;
+use trust_model::{ProviderGrantSelectorKind, resolve_selected_provider_grants};
+use typed_trees::TypedTrees;
 
 #[test]
 fn selected_provider_provenance_retains_owner_controlled_composition_mode() {
