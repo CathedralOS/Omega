@@ -1,4 +1,4 @@
-//! Propose authored guarantees and literal arrival ranges at acyclic scalar joins.
+//! Propose guarantee/operation demands and literal ranges at acyclic scalar joins.
 //!
 //! Reconstruction deliberately intersects ordinary path facts. A lost join
 //! equation needs checked arrivals, not unioned branch facts. Work backwards
@@ -7,6 +7,9 @@
 //! resulting predicate is separately proved on every actual arrival, and the
 //! original guarantee remains an independent final obligation. No call body is
 //! inspected and no source shape selects a compiler path.
+//! Operation and call demands use the same arrival proofs as authored guarantees.
+//! Mathematical exact-add questions propose scalar operand bounds; the original
+//! arithmetic question is still proved separately after retaining those bounds.
 //!
 //! Downstream arrivals supply conditional demands for upstream joins. Preserve
 //! their established Boolean polarities through call/copy equations; ordinary
@@ -34,7 +37,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use proof_admission::{check_predicate_denotations, check_value_equality_denotation};
 use semantic_vocabulary::{
-    IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+    IntegerMathTerm, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 use terminal_psi::{
     OperationKind, OperationResult, ScalarBlockInvariant, TerminalMachine, TerminalModule,
@@ -171,6 +174,10 @@ pub(super) fn candidates(
                     ReconstructedTerminalObligationOwner::ContractEnsures {
                         machine: owner,
                         ..
+                    }
+                    | ReconstructedTerminalObligationOwner::Operation { machine: owner, .. }
+                    | ReconstructedTerminalObligationOwner::CallRequires {
+                        machine: owner, ..
                     } => owner == machine.id,
                     ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
                         machine: owner,
@@ -209,6 +216,8 @@ pub(super) fn candidates(
                 if matches!(
                     site.owner,
                     ReconstructedTerminalObligationOwner::ScalarBlockInvariant { .. }
+                        | ReconstructedTerminalObligationOwner::Operation { .. }
+                        | ReconstructedTerminalObligationOwner::CallRequires { .. }
                 ) {
                     let mut guards = site
                         .semantic_axioms
@@ -396,16 +405,166 @@ pub(super) fn scoped_goal(
     // A narrow final context then rejects any unresolved body-local identity.
     // An arrival already in scope needs no equations, but still passes through
     // the same bounded denotation/normalization rather than an unchecked clone.
-    let predicate = if equations.is_empty() {
+    let mut predicate = if equations.is_empty() {
         check_predicate_denotations(context, goal, &[], &[])
             .ok()?
             .goal()
             .clone()
     } else {
-        check_value_equality_denotation(context, goal, equations).ok()?
+        check_value_equality_denotation(context, goal, equations.iter().copied()).ok()?
     };
+    transport_math_leaves(&mut predicate, &equations, remaining)?;
+    scalar_math_demands(&mut predicate, remaining)?;
     scope.validate(&predicate).ok()?;
     Some(predicate)
+}
+
+/// Join invariants admit scalar predicates, not mathematical syntax. Pull an
+/// exact-add demand back to a bound on its nonliteral operand. Saturation asks
+/// for the carrier endpoint when the mathematical bound is outside the carrier;
+/// this is only a proposal, never evidence for the original operation.
+fn scalar_math_demands(predicate: &mut Proposition, remaining: &mut usize) -> Option<()> {
+    let mut pending = vec![predicate];
+    while let Some(predicate) = pending.pop() {
+        *remaining = remaining.checked_sub(1)?;
+        match predicate {
+            Proposition::Conjunction(members) | Proposition::Disjunction(members) => {
+                pending.extend(members);
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                pending.extend([premise.as_mut(), conclusion.as_mut()]);
+            }
+            Proposition::IntegerMathLessOrEqual(left, right) => {
+                if let Some(scalar) = crate::proofs::contract_predicates::scalar_relation_for_math(
+                    &Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
+                ) {
+                    *predicate = scalar;
+                    continue;
+                }
+                let (sum, endpoint, lower) = match (&*left, &*right) {
+                    (sum @ IntegerMathTerm::Add(..), IntegerMathTerm::IntegerLiteral(endpoint)) => {
+                        (sum, endpoint, false)
+                    }
+                    (IntegerMathTerm::IntegerLiteral(endpoint), sum @ IntegerMathTerm::Add(..)) => {
+                        (sum, endpoint, true)
+                    }
+                    _ => return None,
+                };
+                let IntegerMathTerm::Add(left, right) = sum else {
+                    return None;
+                };
+                let (source_type, value, literal) = match (left.as_ref(), right.as_ref()) {
+                    (
+                        IntegerMathTerm::MathValue { source_type, value },
+                        IntegerMathTerm::IntegerLiteral(literal),
+                    )
+                    | (
+                        IntegerMathTerm::IntegerLiteral(literal),
+                        IntegerMathTerm::MathValue { source_type, value },
+                    ) => (*source_type, *value, literal),
+                    _ => return None,
+                };
+                let bound = source_type.saturating_sub(
+                    endpoint.as_integer_value(source_type)?,
+                    literal.as_integer_value(source_type)?,
+                )?;
+                let subject = ScalarTerm::value(value, ScalarType::Integer(source_type));
+                let bound = ScalarTerm::integer(source_type, bound).ok()?;
+                *predicate = if lower {
+                    Proposition::LessOrEqual(bound, subject)
+                } else {
+                    Proposition::LessOrEqual(subject, bound)
+                };
+            }
+            Proposition::IntegerMathEqual(..) | Proposition::IntegerMathLessThan(..) => {
+                *predicate =
+                    crate::proofs::contract_predicates::scalar_relation_for_math(predicate)?;
+            }
+            _ => {}
+        }
+    }
+    Some(())
+}
+
+/// Scalar denotation transport deliberately leaves mathematical terms alone.
+/// For a proposed join demand, same-carrier aliases and literals can also name
+/// their mathematical values. Do not interpret machine arithmetic as unbounded
+/// arithmetic here. This is candidate discovery only: every arrival and the
+/// original operation obligation still require independent certificates.
+fn transport_math_leaves(
+    predicate: &mut Proposition,
+    equations: &[&Proposition],
+    remaining: &mut usize,
+) -> Option<()> {
+    let mut propositions = vec![predicate];
+    while let Some(predicate) = propositions.pop() {
+        *remaining = remaining.checked_sub(1)?;
+        match predicate {
+            Proposition::Conjunction(members) | Proposition::Disjunction(members) => {
+                propositions.extend(members);
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                propositions.extend([premise.as_mut(), conclusion.as_mut()]);
+            }
+            Proposition::IntegerMathEqual(left, right)
+            | Proposition::IntegerMathLessThan(left, right)
+            | Proposition::IntegerMathLessOrEqual(left, right) => {
+                let mut terms = vec![left, right];
+                while let Some(term) = terms.pop() {
+                    *remaining = remaining.checked_sub(1)?;
+                    match term {
+                        IntegerMathTerm::MathValue { source_type, value } => {
+                            while let Some(definition) =
+                                equations.iter().find_map(|equation| match equation {
+                                    Proposition::Equal(ScalarTerm::Value { id, .. }, right)
+                                        if id == value =>
+                                    {
+                                        Some(right)
+                                    }
+                                    _ => None,
+                                })
+                            {
+                                // Alias cycles exhaust this shared search budget.
+                                *remaining = remaining.checked_sub(1)?;
+                                match definition {
+                                    ScalarTerm::Value { id, scalar_type }
+                                        if *scalar_type == ScalarType::Integer(*source_type) =>
+                                    {
+                                        *value = *id;
+                                    }
+                                    ScalarTerm::Integer {
+                                        scalar_type,
+                                        value: literal,
+                                    } if scalar_type == source_type => {
+                                        *term = IntegerMathTerm::literal(*literal);
+                                        break;
+                                    }
+                                    _ => return None,
+                                }
+                            }
+                        }
+                        IntegerMathTerm::Add(left, right)
+                        | IntegerMathTerm::Subtract(left, right)
+                        | IntegerMathTerm::Multiply(left, right) => {
+                            terms.extend([left.as_mut(), right.as_mut()]);
+                        }
+                        IntegerMathTerm::ShiftLeft { value, count } => {
+                            terms.extend([value.as_mut(), count.as_mut()]);
+                        }
+                        IntegerMathTerm::IntegerLiteral(_) => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Some(())
 }
 
 /// The goal and its path guards share one arrival's defining equations. Build
