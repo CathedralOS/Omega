@@ -1,5 +1,6 @@
-//! Result comparisons use the exact exit expression's immutable bounds. The
-//! shared bounds owner checks arithmetic; no initializer or mutable read is replayed.
+//! Postconditions compare immutable return bounds or live exit-storage snapshots.
+//! The shared bounds owner checks selected arithmetic, including overflow policy;
+//! no initializer or stale mutable read is replayed to reconstruct a value.
 
 use super::{ExitScalars, exit_return_expression, has_builtin_operators, is_result_reference};
 use language_core::OperatorSpelling;
@@ -11,7 +12,7 @@ use typed_trees::{
 };
 
 impl ExitScalars<'_, '_> {
-    pub(super) fn proves_result_bounds(&self, expression: ExpressionHandle) -> bool {
+    pub(super) fn proves_bounds(&self, expression: ExpressionHandle) -> bool {
         has_builtin_operators(self.program, &self.facts.operators, expression)
             && validation::has_builtin_bound_expression_meaning(
                 self.program,
@@ -19,7 +20,92 @@ impl ExitScalars<'_, '_> {
                 self.program.machine_states(self.machine).first(),
                 expression,
             )
-            && self.result_bounds_comparison(expression) == Some(true)
+            && (self.result_bounds_comparison(expression) == Some(true)
+                || self.current_bounds_comparison(expression) == Some(true))
+    }
+
+    /// Current storage snapshots can bound a postcondition without identifying
+    /// one exact scalar value. Retain the selected arithmetic policy, including
+    /// wrapping, rather than interpreting its syntax as unbounded arithmetic.
+    fn current_bounds_comparison(&self, expression: ExpressionHandle) -> Option<bool> {
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if !matches!(
+            binary.operator,
+            BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual
+        ) {
+            return None;
+        }
+        let entry = self.program.machine_states(self.machine).first()?;
+        let parameters = self.program.state_parameters(entry);
+        // This reader uses the declaration's parameter namespace. Rebound
+        // state parameters and mutable owned inputs need their invocation
+        // origin transport; an exit storage snapshot is not that evidence.
+        if parameters
+            .iter()
+            .any(|parameter| !parameter.is_self && (parameter.is_mutable || parameter.is_const))
+            || self
+                .facts
+                .flow
+                .control
+                .exit_parameter_origins
+                .span_or_empty(self.exit.parameter_origins)
+                .iter()
+                .any(|origin| {
+                    origin.contract == self.contract
+                        && (!origin.state_parameter.is_valid()
+                            || origin.entry_parameter != origin.state_parameter)
+                })
+        {
+            return None;
+        }
+        let primitive = [binary.left, binary.right]
+            .into_iter()
+            .find_map(|operand| {
+                validation::expression_result_type_reference(
+                    self.program,
+                    self.machine,
+                    entry,
+                    operand,
+                )
+                .and_then(|reference| self.program.primitive_type_reference(reference))
+                .filter(|primitive| crate::values::bounds::primitive_range(*primitive).is_some())
+            })?;
+        let lower = |operand| {
+            crate::values::lower_unit_scalar_argument(
+                self.program,
+                &self.facts.operators,
+                entry,
+                0,
+                operand,
+                primitive,
+            )
+        };
+        let left = lower(binary.left)?;
+        let right = lower(binary.right)?;
+        let symbols = parameters
+            .iter()
+            .filter(|parameter| crate::values::occupies_scalar_position(self.program, parameter))
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
+        let mut values = crate::values::bounds::PlaceIntegerBounds {
+            program: self.program,
+            semantic: &self.facts.semantic,
+            contexts: self.contexts,
+            parameters,
+            symbols: &symbols,
+            state: entry.symbol,
+        };
+        let left = crate::values::bounds::evaluate(&left, &mut values)?;
+        let right = crate::values::bounds::evaluate(&right, &mut values)?;
+        interval_comparison(binary.operator, &left, &right)
     }
 
     // None means overlapping intervals or unsupported evidence, never false.
@@ -125,24 +211,17 @@ impl ExitScalars<'_, '_> {
         ) {
             return None;
         }
-        let equal_points = left.0 == left.1 && right.0 == right.1 && left.0 == right.0;
-        let disjoint = left.1 < right.0 || right.1 < left.0;
-        let (proved, refuted) = match binary.operator {
-            BinaryOperator::Equal => (equal_points, disjoint),
-            BinaryOperator::NotEqual => (disjoint, equal_points),
-            BinaryOperator::Less => (left.1 < right.0, left.0 >= right.1),
-            BinaryOperator::LessOrEqual => (left.1 <= right.0, left.0 > right.1),
-            BinaryOperator::Greater => (left.0 > right.1, left.1 <= right.0),
-            BinaryOperator::GreaterOrEqual => (left.0 >= right.1, left.1 < right.0),
-            _ => return None,
-        };
-        if proved {
-            Some(true)
-        } else if refuted {
-            Some(false)
-        } else {
-            None
-        }
+        interval_comparison(
+            binary.operator,
+            &facts::IntegerRange {
+                minimum: BigInt::from_i64(left.0),
+                maximum: BigInt::from_i64(left.1),
+            },
+            &facts::IntegerRange {
+                minimum: BigInt::from_i64(right.0),
+                maximum: BigInt::from_i64(right.1),
+            },
+        )
     }
 
     /// The expression and declared type whose immutable bounds a result
@@ -166,6 +245,40 @@ impl ExitScalars<'_, '_> {
         }
         let place = validation::reserved_result_place(self.program, expression)?;
         Some((selected, place.type_reference))
+    }
+}
+
+fn interval_comparison(
+    operator: BinaryOperator,
+    left: &facts::IntegerRange,
+    right: &facts::IntegerRange,
+) -> Option<bool> {
+    if left.minimum > left.maximum || right.minimum > right.maximum {
+        return None;
+    }
+    let equal_points = left.minimum == left.maximum
+        && right.minimum == right.maximum
+        && left.minimum == right.minimum;
+    let disjoint = left.maximum < right.minimum || right.maximum < left.minimum;
+    let (proved, refuted) = match operator {
+        BinaryOperator::Equal => (equal_points, disjoint),
+        BinaryOperator::NotEqual => (disjoint, equal_points),
+        BinaryOperator::Less => (left.maximum < right.minimum, left.minimum >= right.maximum),
+        BinaryOperator::LessOrEqual => {
+            (left.maximum <= right.minimum, left.minimum > right.maximum)
+        }
+        BinaryOperator::Greater => (left.minimum > right.maximum, left.maximum <= right.minimum),
+        BinaryOperator::GreaterOrEqual => {
+            (left.minimum >= right.maximum, left.maximum < right.minimum)
+        }
+        _ => return None,
+    };
+    if proved {
+        Some(true)
+    } else if refuted {
+        Some(false)
+    } else {
+        None
     }
 }
 

@@ -6,6 +6,103 @@ use crate::semantic::facts::build_semantic_facts;
 use crate::tests::contracts::parse_typed_trees;
 
 #[test]
+fn assigned_self_field_proves_scalar_postconditions() {
+    let mut failures = Vec::new();
+    for contract in [
+        "self.length == 0",
+        "self.length < 4",
+        "self.length < self.items.len",
+    ] {
+        let source = format!(
+            "data Buffer {{ items: [i32; 4]; length: u64 in Wrapping; }}
+             machine Buffer::clear(&mut self) ensures {contract} {{ self.length = 0; }}"
+        );
+        if let Err(diagnostics) =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        {
+            failures.push((contract, diagnostics));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
+fn bounded_self_increment_proves_scalar_postconditions() {
+    let mut failures = Vec::new();
+    for capacity in ["4", "self.items.len"] {
+        let source = format!(
+            "data Buffer {{ items: [i32; 4]; length: u64 in Wrapping; }}
+             machine Buffer::push(&mut self)
+             requires self.length < {capacity}
+             ensures self.length > 0; self.length - 1 < {capacity}
+             {{ self.length = self.length + 1; }}"
+        );
+        if let Err(diagnostics) =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        {
+            failures.push((capacity, diagnostics));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
+fn postcondition_bounds_do_not_survive_wrapping_or_overwriting() {
+    for (requirement, body) in [
+        ("true", "self.length = self.length + 1;"),
+        ("self.other < 4", "self.length = self.length + 1;"),
+        ("self.length == 255", "self.length = self.length + 1;"),
+        (
+            "self.length < 4",
+            "self.length = self.length + 1; self.length = 0;",
+        ),
+    ] {
+        let source = format!(
+            "data Counter {{ length: u8 in Wrapping; other: u8 in Wrapping; }}
+             machine Counter::bump(&mut self)
+             requires {requirement}
+             ensures self.length > 0
+             {{ {body} }}"
+        );
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).expect_err(
+                "the postcondition describes current storage under wrapping arithmetic",
+            );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
+            "{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn machine_entry_bounds_are_not_reintroduced_after_a_state_transition() {
+    let source = r#"
+        data Counter { length: u8 in Wrapping; }
+        machine Counter::bump(&mut self)
+        requires self.length < 4
+        ensures self.length > 0
+        {
+            self.length = 255;
+            transition { _ -> finish() }
+            state finish(&mut self) {
+                self.length = self.length + 1;
+            }
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect_err("the entry bound cannot replace the later state's incoming value");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn implicit_unit_exit_cannot_claim_an_unestablished_output_domain() {
     for body in ["", "let untouched: i32 = 1;", "touch();"] {
         let source = format!(
