@@ -10,6 +10,6 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.maximum = 340282346638528859811704183484516925440.0;
     self.two = 2.0;
-    self.result = self.maximum * self.two;
+    self.result = (self.maximum * self.two) as f32 in Trapping;
     self.console.exit_process(70);
 }

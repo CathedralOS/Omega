@@ -101,5 +101,5 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state good(&mut self) { self.console.exit_process(70); }
-    state fail(&mut self, code: u64) { self.console.exit_process(code); }
+    state fail(&mut self, code: i32) { self.console.exit_process(code); }
 }

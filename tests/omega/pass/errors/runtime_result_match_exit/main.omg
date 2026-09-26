@@ -17,8 +17,8 @@ data DivResult {
 
 data Main {
     console: Binding<Console>;
-    aa: [i32; 3] in Wrapping;
-    bb: [i32; 3] in Wrapping;
+    aa: [i32; 3];
+    bb: [i32; 3];
     result: DivResult;
     i: i32 in Wrapping;
     a: i32 in Wrapping;
@@ -40,8 +40,8 @@ machine Main::main(&mut self) reaches Console {
         transition self.i >= 0 && self.i < 3 { true -> load() _ -> verify() }
     }
     state load(&mut self) {
-        self.a = self.aa[self.i];
-        self.b = self.bb[self.i];
+        self.a = self.aa[self.i] as i32 in Wrapping;
+        self.b = self.bb[self.i] as i32 in Wrapping;
         // produce a Result: Ok(a/b) when the divisor is nonzero, else Err
         transition self.b != 0 { true -> comp_ok() _ -> comp_err() }
     }

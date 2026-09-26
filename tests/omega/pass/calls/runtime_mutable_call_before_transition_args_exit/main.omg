@@ -62,8 +62,8 @@ machine Loader::run(&mut self) reaches Console {
     state loaded_input(&mut self) {
         self.tags[1] = self.line[0];
         self.firsts[1] = self.line[1];
-        self.starts[1] = self.line[2] as u64;
-        self.ends[1] = self.line[3] as u64;
+        self.starts[1] = self.line[2] as u64 in Wrapping;
+        self.ends[1] = self.line[3] as u64 in Wrapping;
         self.cursor = 1;
         self.fill();
         transition { _ -> loaded(
