@@ -4,10 +4,51 @@ use super::super::{
     ExpressionHandle, ExpressionNode, HandleSpan, HashSet, Identifier, Item, StatementNode,
     SyntaxTrees,
 };
+/// Marks expressions reached by a collection walk; `mark` reports whether
+/// the expression was new, so a shared subtree is walked once.
+pub(in crate::preparation::generic_data) trait ExpressionMarks {
+    fn mark(&mut self, expression: ExpressionHandle) -> bool;
+}
+
+impl ExpressionMarks for HashSet<ExpressionHandle> {
+    fn mark(&mut self, expression: ExpressionHandle) -> bool {
+        self.insert(expression)
+    }
+}
+
+/// Every expression reachable from a concrete machine body, by arena
+/// position. The walk covers most of the expression arena and every caller
+/// then tests each arena entry, so positions index a dense table instead of
+/// a hash set.
+#[derive(Default)]
+pub(in crate::preparation::generic_data) struct ConcreteExpressions(Vec<bool>);
+
+impl ConcreteExpressions {
+    pub(in crate::preparation::generic_data) fn contains(
+        &self,
+        expression: ExpressionHandle,
+    ) -> bool {
+        self.0
+            .get(expression.arena_index() as usize)
+            .copied()
+            .unwrap_or(false)
+    }
+}
+
+impl ExpressionMarks for ConcreteExpressions {
+    fn mark(&mut self, expression: ExpressionHandle) -> bool {
+        let position = expression.arena_index() as usize;
+        if position >= self.0.len() {
+            self.0.resize(position + 1, false);
+        }
+        !std::mem::replace(&mut self.0[position], true)
+    }
+}
+
 pub(in crate::preparation::generic_data) fn concrete_machine_expression_handles(
     syntax: &SyntaxTrees,
-) -> HashSet<u32> {
-    let mut handles = HashSet::new();
+) -> ConcreteExpressions {
+    let mut handles = ConcreteExpressions::default();
     for state in concrete_machine_state_handles(syntax) {
         let state = syntax.items.state(state);
         for statement in syntax.items.statements(state.statements) {
@@ -15,9 +56,6 @@ pub(in crate::preparation::generic_data) fn concrete_machine_expression_handles(
         }
     }
     handles
-        .into_iter()
-        .map(|handle| handle.arena_index())
-        .collect()
 }
 
 pub(in crate::preparation::generic_data) fn concrete_machine_state_handles(
@@ -56,7 +94,7 @@ pub(in crate::preparation::generic_data) fn concrete_machine_state_handles(
 pub(in crate::preparation::generic_data) fn collect_statement_expression_handles(
     syntax: &SyntaxTrees,
     statement: syntax_trees::statement::StatementHandle,
-    handles: &mut HashSet<ExpressionHandle>,
+    handles: &mut impl ExpressionMarks,
 ) {
     use syntax_trees::statement::{TransitionGuardNode, TransitionTargetNode};
     match syntax.tables.statements.statement(statement) {
@@ -114,9 +152,9 @@ pub(in crate::preparation::generic_data) fn collect_statement_expression_handles
 pub(in crate::preparation::generic_data) fn collect_expression_handles(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
-    handles: &mut HashSet<ExpressionHandle>,
+    handles: &mut impl ExpressionMarks,
 ) {
-    if !expression.is_valid() || !handles.insert(expression) {
+    if !expression.is_valid() || !handles.mark(expression) {
         return;
     }
     match syntax.expressions.expression(expression) {

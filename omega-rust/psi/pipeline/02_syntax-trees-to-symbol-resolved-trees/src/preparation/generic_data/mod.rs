@@ -219,7 +219,7 @@ fn collect_closed_const_arguments(
     if include_machine_casts {
         let concrete = concrete_machine_expression_handles(syntax);
         for (handle, expression) in syntax.expressions.iter_expressions() {
-            if !concrete.contains(&handle.arena_index()) {
+            if !concrete.contains(handle) {
                 continue;
             }
             let ExpressionNode::Cast(cast) = expression else {
