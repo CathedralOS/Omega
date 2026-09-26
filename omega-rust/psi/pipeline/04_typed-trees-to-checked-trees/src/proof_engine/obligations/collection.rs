@@ -1027,8 +1027,10 @@ fn display_name_path(path: &[Identifier]) -> Identifier {
     Identifier::generated(display)
 }
 
+/// The stored state `symbol` names, through the checking stage's indexed
+/// machine lookup rather than a scan of every machine per transition.
 fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State> {
-    program.state_by_symbol(symbol)
+    crate::semantic::calls::find_state_with_machine(program, symbol).map(|(_, state)| state)
 }
 
 fn incoming_state_guard(
