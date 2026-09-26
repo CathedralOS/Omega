@@ -834,7 +834,8 @@ fn reject_inert_sibling_callers(
 #[cfg(test)]
 mod tests {
     use super::{
-        SelectedTargetMachineDeclarations, filter_target_machines, filter_target_machines_by_scope,
+        Diagnostic, NativeTarget, SelectedTargetMachineDeclarations, filter_target_machines,
+        filter_target_machines_by_scope,
     };
     use std::collections::HashSet;
 
@@ -903,6 +904,74 @@ mod tests {
                 source::SourceId(7)
             )]
         );
+    }
+
+    /// A build for one target keeps a family declared only for another as an
+    /// inert sibling, and the call into it still resolves. A caller that
+    /// survives the selection must not be left calling a body nothing
+    /// realizes.
+    fn inert_sibling_selection(text: &str) -> Result<(), Vec<Diagnostic>> {
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add(std::path::PathBuf::from("sibling.omg"), text.to_owned())
+            .source_id;
+        let mut syntax = syntax(source_id.0, text);
+        let mut selected = filter_target_machines_by_scope(
+            &mut syntax,
+            Some("macos_arm64"),
+            Some("macos_arm64"),
+            &HashSet::new(),
+        )
+        .expect("target machines select");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .expect("resolve sibling fixture");
+        let mut typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type sibling fixture");
+        selected.select_product_target(&mut typed, NativeTarget::macos_arm64())
+    }
+
+    #[test]
+    fn an_unscoped_caller_of_a_foreign_only_machine_rejects() {
+        let diagnostics = inert_sibling_selection(
+            "data Legs { count: i32 in Wrapping; }\n\
+             linux_x86_64 machine Legs::bump(&mut self) { self.count = self.count + 1; }\n\
+             data Rack { legs: Legs; }\n\
+             machine Rack::run(&mut self) { self.legs.bump(); }",
+        )
+        .expect_err("a surviving caller of an unrealized body must reject");
+        let rendered = diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+        for expected in ["Legs::bump", "linux_x86_64", "macos_arm64", "Rack::run"] {
+            assert!(
+                rendered.contains(expected),
+                "refusal should name {expected}: {rendered}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_caller_scoped_to_the_same_foreign_target_goes_inert_with_it() {
+        // The filter's own rule: a name implemented by one foreign target is
+        // that target's internal and is filtered with its callers. A caller
+        // scoped to the same target is one of those callers, so it is not a
+        // survivor and must not be reported.
+        inert_sibling_selection(
+            "data Legs { count: i32 in Wrapping; }\n\
+             linux_x86_64 machine Legs::bump(&mut self) { self.count = self.count + 1; }\n\
+             data Rack { legs: Legs; }\n\
+             linux_x86_64 machine Rack::run(&mut self) { self.legs.bump(); }",
+        )
+        .expect("a caller scoped to the callee's own target is inert with it");
     }
 
     #[test]
