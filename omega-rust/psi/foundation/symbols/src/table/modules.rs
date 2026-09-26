@@ -728,14 +728,12 @@ impl SymbolTable {
                                 SourceSpan::new(binding.declaration_source, span.span),
                             )
                         })
-                {
-                    if name
+                    && name
                         .strip_prefix(scope.package_prefix.as_str())
                         .and_then(|suffix| suffix.strip_prefix("::"))
                         == candidate_path.as_deref()
-                    {
-                        return true;
-                    }
+                {
+                    return true;
                 }
                 if !self.import_owner_matches(binding, candidate) {
                     return false;
