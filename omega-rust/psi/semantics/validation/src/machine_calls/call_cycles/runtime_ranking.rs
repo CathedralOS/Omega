@@ -974,13 +974,17 @@ fn target_machine(program: &TypedTrees, symbol: SymbolHandle) -> Option<usize> {
     if !symbol.is_valid() {
         return None;
     }
-    program.machines().iter().position(|machine| {
-        machine.symbol == symbol
-            || program
-                .machine_states(machine)
+    program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == symbol)
+        .or_else(|| {
+            let holder = program.machine_holding_state(symbol)?;
+            program
+                .machines()
                 .iter()
-                .any(|state| state.symbol == symbol)
-    })
+                .position(|machine| machine.symbol == holder.symbol)
+        })
 }
 
 fn expression_is_inert(
