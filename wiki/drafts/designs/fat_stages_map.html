@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>fat stages — maximal fold</title>
+<style>
+  body{background:#0d1117;color:#e6edf3;font:15px/1.5 system-ui,sans-serif;max-width:1040px;margin:36px auto;padding:0 24px}
+  h1{font-size:24px}
+  .d{color:#8b949e}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:20px}
+  .box{border-radius:8px;padding:12px 16px;margin:7px 0;font:14px "Cascadia Code",monospace}
+  .src{background:#161b22;border:1px solid #30363d}
+  .src small{display:block;color:#8b949e;font-size:11.5px}
+  .dead{border-color:#f8514955;background:#3d1f1a}
+  .dead small{color:#f0a89a}
+  .dead b{color:#f85149}
+  .dst{background:#0d2818;border:1px solid #2ea04366;font-weight:600}
+  .dst small{display:block;color:#7ee0b8;font-weight:400;font-size:11.5px;margin-top:2px}
+  .bin{background:#1c1a2e;border:1px solid #a371f766}
+  .bin small{color:#c4b0f0}
+  .open{border-style:dashed;border-color:#d2992266;background:#221d10}
+  .open small{color:#d8b356}
+  .hdr{font-weight:700;color:#8b949e;background:none}
+  ul{list-style:none;padding-left:6px;font-size:12.5px;color:#8b949e}
+  li{margin:3px 0}
+  .big{font-size:30px;font-weight:800}
+  .rule{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 14px;margin-top:18px;font-size:13.5px}
+  .rule code{color:#7ee0b8}
+</style></head>
+<body>
+
+<h1>Maximal fold — 3 things</h1>
+<p class="d"><b>Rule:</b> a stage owns its produced IR, its machinery, and its checker module. Outside <code>pipeline/</code> only universal substrate and the binary survive. Still stages 0–9 — just fat.</p>
+
+<div class="cols">
+  <div>
+    <div class="box hdr">NOW — 15 dirs</div>
+    <div class="box src">pipeline/ <small>18 stages · 818k</small></div>
+    <div class="box src dead">representations/ <small>28 IRs · 180k — <b>DIES</b> · each IR inside its producing stage — except terminal-psi</small></div>
+    <div class="box src dead">semantics/ <small>12 · 436k — <b>DIES</b> · judges become stage-internal checker modules; artifact verifier/codec/interpreter → binary</small></div>
+    <div class="box src">foundation/ <small>12 · 46k</small></div>
+    <div class="box src dead">backend/ <small>21 · 263k — <b>DIES</b> · ISA→stages 02–05, emission→08–09, custody→binary</small></div>
+    <div class="box src dead">compiler/ · psi/compiler/ <small>29k — <b>DIE</b> · stages drive each other; terminal-production→07</small></div>
+    <div class="box src dead">build/ + packages/ + tooling/ <small>18 · 214k — <b>DIE AS DIRS</b> → binary modules</small></div>
+  </div>
+
+  <div>
+    <div class="box hdr">AFTER — 3 dirs + 1 contract</div>
+    <div class="box dst"><span class="big">pipeline/</span> — 18 stage crates · ~1.5M (~75%)
+      <ul>
+        <li>each stage = <b>IR out</b> + <b>machinery</b> + <b>checker module</b></li>
+        <li>substeps are modules, never crates</li>
+        <li>every tail module gets a typed <b>in → out</b> boundary → promote to a numbered stage later for free if a seam earns it</li>
+      </ul>
+    </div>
+    <div class="box open">emission tail = <b>reduce + move</b>, not a lift:
+      <ul>
+        <li><b>~60k deleted</b> — legacy lane (ObjectPlan→FinalImage→pe/elf/macho) dies when the clean lane wins</li>
+        <li><b>~127k → stage 09</b> — surviving ObjectArtifact→image_output→install-record lane</li>
+        <li><b>~90k → binary</b> — custody ladder (executable-installation, external-roots, component-*) isn't compile work</li>
+      </ul>
+    </div>
+    <div class="box dst"><span class="big">foundation/</span> — ~8 crates · ~35k
+      <ul><li>only true universal substrate: arena (31 users), symbols (35), diagnostics (35), semantic-vocabulary (65), language-*, numerics, source</li>
+      <li>strays fold to consumers: extents, layout-plans, access-plans, mutation-matrix</li></ul>
+    </div>
+    <div class="box bin"><span class="big">omega</span> — the binary · ~350k
+      <ul><li>thin compile entry + build/packages/tooling modules</li>
+      <li>artifact verification (terminal-verifier, codec) lives here — it's what a consumer runs</li>
+      <li>interpreters / run paths</li></ul>
+    </div>
+    <div class="box dst">terminal-psi — the lone survivor <small>8k · stays standalone: it's the published contract — codec, verifier, installer, tests all consume the type without importing stage 07's machinery. The one representation that's a product, not plumbing.</small></div>
+  </div>
+</div>
+
+<div class="rule">
+<b>Migration order — leaf-up, green at every step:</b>
+① foundation strays → consumers ② ISA encoders → stages 02–05 ③ terminal-production → 07
+④ emission tail → 08–09 internals ⑤ engines (build-eval, interpreter, fuel) → stages 04–05 / binary
+⑥ compiler/ → stage-to-stage driving ⑦ IRs → producing stages (one per stage, leaves published boundary last)
+⑧ validators → checker modules inside their stage; verifier/codec → binary
+⑨ build/packages/tooling → binary modules ⑩ rewrite placement rule in pipeline.md
+</div>
+
+<p class="d" style="margin-top:14px">The check-independence stays real: it's the <i>pass</i> being separate, not the folder. A stage's checker module still walks its own output independently; artifact verification moves to the consumer side (binary).</p>
+
+</body></html>
