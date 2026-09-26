@@ -257,7 +257,7 @@ fn validate_type_parameter_instantiation_bounds(
 mod tests {
     #[test]
     fn symbolic_requirement_calls_do_not_authorize_concrete_or_bodyless_execution() {
-        let mut program = crate::tests::front_end::typed_program(
+        let mut program = crate::front_end::typed_program(
             r#"
             data Ops {}
             boundary machine - Ops::identity<Element>(value: Element) -> Element;
