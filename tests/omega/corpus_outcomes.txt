@@ -152,7 +152,6 @@ fail/build/static_machine_parameter_contract_mismatch rejected 5ms expected
 	machine argument `wrong_width` for `apply` does not refine `F`: expected return `u16`, got `u32`
 fail/build/uefi_program_entry_missing_storage_roots checked 72ms
 fail/build/uefi_program_entry_wrong_calling_policy checked 737ms
-fail/calls/ambiguous_spliced_second_receiver_rejected checked 76ms
 fail/calls/discarded_call_result rejected 1ms expected
 	call to `roll` discards its non-unit `bool` result; consume the value or discard it explicitly with `_ = roll(...);`
 fail/calls/duplicate_named_machine_overload_rejected rejected 0ms expected
@@ -997,6 +996,7 @@ pass/calls/runtime_dispatch_float_terminal_exit checked 4970ms
 pass/calls/runtime_dispatch_machine_array_slice_arg_exit checked 162ms
 pass/calls/runtime_dispatch_result_enum_case_exit checked 184ms
 pass/calls/runtime_dispatch_slice_element_terminal_exit checked 178ms
+pass/calls/runtime_distinct_receiver_value_calls_exit checked 1205ms
 pass/calls/runtime_enum_self_method_exit checked 206ms
 pass/calls/runtime_explicit_discard_executes_exit checked 382ms
 pass/calls/runtime_guard_call_vs_call_exit checked 184ms
