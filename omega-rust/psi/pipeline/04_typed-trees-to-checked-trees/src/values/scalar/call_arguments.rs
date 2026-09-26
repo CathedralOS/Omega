@@ -1,5 +1,4 @@
 //! Nested structural operands retain captured call coordinates and source scope.
-use crate::values::call_array_constructions;
 use crate::values::scalar::call_lowering::lower_call_arguments;
 use crate::values::scalar::call_lowering::retain_call_arguments;
 use crate::values::scalar::expression_plans::ScalarLocal;
@@ -61,6 +60,8 @@ pub(crate) fn retain_nested_structural_call_arguments(
                 .collect::<Option<Vec<_>>>()
                 .expect("filtered scalar parameters retain primitive carriers");
             let mut locals = Vec::new();
+            let captured =
+                crate::values::scalar::array_constructions::unique_state_flow(flow, machine, state);
             for (statement_index, statement) in program
                 .statement_table
                 .statements(state.statement_nodes)
@@ -70,8 +71,18 @@ pub(crate) fn retain_nested_structural_call_arguments(
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };
-                for construction in
-                    call_array_constructions(program, flow, machine, state, statement_index)
+                for construction in captured
+                    .map(|captured| {
+                        crate::values::scalar::array_constructions::call_array_constructions_in(
+                            program,
+                            flow,
+                            captured,
+                            machine,
+                            state,
+                            statement_index,
+                        )
+                    })
+                    .unwrap_or_default()
                 {
                     let Some(array) = validation::scalar_array_elements(
                         program,
@@ -129,8 +140,17 @@ pub(crate) fn retain_nested_structural_call_arguments(
                         });
                     }
                 }
-                for (call_ordinal, site) in
-                    nested_structural_call_sites(program, flow, machine, state, statement_index)
+                for (call_ordinal, site) in captured
+                    .map(|captured| {
+                        nested_structural_call_sites(
+                            program,
+                            flow,
+                            captured,
+                            machine,
+                            statement_index,
+                        )
+                    })
+                    .unwrap_or_default()
                 {
                     if let Some(arguments) = lower_call_arguments(
                         program,
@@ -179,23 +199,15 @@ pub(crate) fn retain_nested_structural_call_arguments(
 
 /// Read captured occurrences directly. In particular, skipped syntax does not
 /// acquire a flow call, and execution order never becomes occurrence identity.
+/// `source` is the state's unique flow fact, which the caller resolves once
+/// per state.
 pub(super) fn nested_structural_call_sites<'program>(
     program: &'program TypedTrees,
     flow: &FlowFacts,
+    source: &checked_trees::FlowStateFact,
     machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
     statement_index: usize,
 ) -> Vec<(usize, crate::semantic::calls::CallSite<'program>)> {
-    let mut states = flow.control.states.iter().filter_map(|(_, candidate)| {
-        (candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol)
-            .then_some(candidate)
-    });
-    let Some(source) = states.next() else {
-        return Vec::new();
-    };
-    if states.next().is_some() {
-        return Vec::new();
-    }
     let Some(calls) = flow.control.calls.span(source.calls) else {
         return Vec::new();
     };

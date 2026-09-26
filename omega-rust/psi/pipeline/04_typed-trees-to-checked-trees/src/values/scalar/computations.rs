@@ -5,7 +5,6 @@
 //! graph, including calls whose result becomes known only at a later selection.
 //! Keep exact source occurrences on retained applications and selections so
 //! folding an enclosing guard does not change their operand custody.
-use crate::values::call_array_constructions;
 use crate::values::operator_is_builtin;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::expression_plans::ScalarLocal;
@@ -108,6 +107,8 @@ pub(crate) fn build_checked_value_computation_plans(
                 continue;
             };
             let mut locals = Vec::new();
+            let captured =
+                crate::values::scalar::array_constructions::unique_state_flow(flow, machine, state);
             let statements = program.statement_table.statements(state.statement_nodes);
             for (statement_index, statement) in statements.iter().enumerate() {
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
@@ -244,8 +245,18 @@ pub(crate) fn build_checked_value_computation_plans(
                         );
                     }
                 }
-                for construction in
-                    call_array_constructions(program, flow, machine, state, statement_index)
+                for construction in captured
+                    .map(|captured| {
+                        crate::values::scalar::array_constructions::call_array_constructions_in(
+                            program,
+                            flow,
+                            captured,
+                            machine,
+                            state,
+                            statement_index,
+                        )
+                    })
+                    .unwrap_or_default()
                 {
                     let Some(array) = validation::scalar_array_elements(
                         program,
@@ -273,13 +284,18 @@ pub(crate) fn build_checked_value_computation_plans(
                         );
                     }
                 }
-                for (call_ordinal, site) in super::call_arguments::nested_structural_call_sites(
-                    program,
-                    flow,
-                    machine,
-                    state,
-                    statement_index,
-                ) {
+                for (call_ordinal, site) in captured
+                    .map(|captured| {
+                        super::call_arguments::nested_structural_call_sites(
+                            program,
+                            flow,
+                            captured,
+                            machine,
+                            statement_index,
+                        )
+                    })
+                    .unwrap_or_default()
+                {
                     let crate::semantic::calls::CallSite::Expression { call, .. } = site else {
                         continue;
                     };
