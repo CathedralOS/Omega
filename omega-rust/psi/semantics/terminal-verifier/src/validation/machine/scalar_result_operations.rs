@@ -116,6 +116,7 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishScalarArray { .. }
+        | OperationKind::EstablishZeroedStructural { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::ElementViewSubslice { .. }
         | OperationKind::EstablishRecord { .. }

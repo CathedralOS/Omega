@@ -52,6 +52,11 @@ pub(crate) fn validate_unit_operation_static(
         OperationKind::EstablishScalarArray { .. } => {
             crate::validation::scalar::array::shape(module, machine, operation)?;
         }
+        OperationKind::EstablishZeroedStructural { .. } => {
+            local_establishments::validate_establish_zeroed_structural(
+                module, machine, operation,
+            )?;
+        }
         OperationKind::WriteOnlyPrimitiveStore {
             destination, path, ..
         } => {

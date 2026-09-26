@@ -341,6 +341,7 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishScalarArray { .. }
+        | OperationKind::EstablishZeroedStructural { .. }
         | OperationKind::BoundaryCall { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }

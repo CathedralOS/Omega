@@ -465,6 +465,100 @@ impl TerminalExecution {
         Ok(OperationFlow::Advance)
     }
 
+    /// Materialize a zeroed establishment: every scalar leaf the admission
+    /// walk enumerated registers its zero under the fresh value's identity.
+    pub(crate) fn execute_establish_zeroed_structural(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let OperationKind::EstablishZeroedStructural {} = operation.kind else {
+            unreachable!("dispatched execute_establish_zeroed_structural")
+        };
+        let result = operation.result.structural().ok_or_else(invalid)?;
+        if result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || self.structural_values.contains_key(&result.place)
+            || self.scalar_case_values.contains_key(&result.place)
+            || self.scalar_array_values.contains_key(&result.place)
+            || self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(result.place))
+        {
+            return Err(invalid());
+        }
+        let leaves = terminal_semantics::zeroed_structural_leaves(
+            self.structural_types.values(),
+            result.structural_type,
+        )
+        .ok_or_else(invalid)?;
+        let value = TerminalStructuralValue {
+            opaque_identity: self.local_structural_identities.allocate()?,
+            structural_type: result.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        };
+        let zero = |scalar_type: ScalarType| -> Option<TerminalScalarValue> {
+            match scalar_type {
+                ScalarType::Boolean => Some(TerminalScalarValue::Boolean(false)),
+                ScalarType::Integer(integer_type) => Some(TerminalScalarValue::Integer {
+                    scalar_type: integer_type,
+                    value: match integer_type.sign() {
+                        semantic_vocabulary::IntegerSign::Signed => IntegerValue::Signed(0),
+                        semantic_vocabulary::IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+                    },
+                }),
+                ScalarType::IeeeFloat(format) => {
+                    Some(TerminalScalarValue::IeeeFloat(match format {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                            semantic_vocabulary::IeeeFloatValue::Binary32(0)
+                        }
+                        semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                            semantic_vocabulary::IeeeFloatValue::Binary64(0)
+                        }
+                    }))
+                }
+            }
+        };
+        for leaf in &leaves {
+            match leaf {
+                terminal_semantics::ZeroedStructuralLeaf::RecordField {
+                    path,
+                    field,
+                    scalar_type,
+                } => {
+                    self.structural_scalar_fields.insert(
+                        StructuralScalarRuntimeField {
+                            parent: StructuralRuntimePlace {
+                                opaque_identity: value.opaque_identity,
+                                path: path.clone(),
+                            },
+                            field: *field,
+                        },
+                        zero(*scalar_type).ok_or_else(invalid)?,
+                    );
+                }
+                terminal_semantics::ZeroedStructuralLeaf::ArrayScalar {
+                    path,
+                    scalar_type,
+                } => {
+                    self.structural_primitive_storage.insert(
+                        StructuralRuntimePlace {
+                            opaque_identity: value.opaque_identity,
+                            path: path.clone(),
+                        },
+                        zero(*scalar_type).ok_or_else(invalid)?,
+                    );
+                }
+            }
+        }
+        self.structural_values.insert(result.place, value);
+        Ok(OperationFlow::Advance)
+    }
+
     pub(crate) fn execute_establish_trivial_affine_local(
         &mut self,
         operation: &terminal_psi::Operation,

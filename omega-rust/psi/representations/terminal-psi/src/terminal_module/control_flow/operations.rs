@@ -164,6 +164,13 @@ pub enum OperationKind {
     EstablishScalarArray {
         elements: Vec<ValueId>,
     },
+    /// Atomically establish an owned, unrestricted structural place whose every
+    /// runtime leaf begins zero. No operands: the result type names the whole
+    /// type to zero — admitted only for shapes whose zero value needs no
+    /// authored content (recursively all-scalar-leaf records and their fixed
+    /// arrays), so no element roster exists to spell. This is a semantic
+    /// ownership event over zeroed storage, not a composed value.
+    EstablishZeroedStructural {},
     /// Establish initialized, unrestricted primitive storage as this operation's
     /// structural result. Later borrows name this place, not a copied SSA value.
     EstablishPrimitiveLocal {
@@ -945,6 +952,7 @@ impl OperationKind {
             | Self::IntegerConstant { .. }
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }
+            | Self::EstablishZeroedStructural { .. }
             | Self::BooleanStructuralField { .. }
             | Self::IntegerStructuralField { .. } => {}
         }
