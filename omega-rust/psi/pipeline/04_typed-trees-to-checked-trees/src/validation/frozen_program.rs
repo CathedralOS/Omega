@@ -8,6 +8,7 @@
 
 use crate::validation::declarations::symbols::CallerSiteCaches;
 use crate::validation::machine_calls::calls::CallFrameCaches;
+use crate::validation::machine_calls::effect_inference::plan_scope::DataDefinitionIndex;
 use crate::validation::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
 };
@@ -35,6 +36,7 @@ pub(crate) struct FrozenProgramMemos {
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
     pub(crate) content_conservation: OnceLock<Arc<Vec<ContentConservationSourcePlan>>>,
+    pub(crate) data_definitions: OnceLock<Arc<DataDefinitionIndex>>,
 }
 
 /// Restores the enclosing scope, if any, when dropped.
