@@ -3508,9 +3508,18 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   each inert machine's states beside its own symbol, since a call names the
   callee's entry state rather than its machine.
 
-  What remains is the dependency-scope half, if it still exists: re-measure
-  the `UefiOsHandoffCycle::acquire` witness, whose no-call-row shape product
-  scope no longer produces.
+  The dependency-scope half has no witness left. `UefiOsHandoffLegs::acquire`
+  is now `boundary machine UefiOsHandoffLegs::acquire(&mut self)` in
+  `std/targets/uefi_x86_64/handoff.omg` -- a module machine with no target
+  scope, exactly what the library commit this item cites changed it into. The
+  check is scope-independent in any case: it indexes every target-scoped
+  machine in `typed.machines()`, which includes the dependency's, and std's
+  own `windows_x86_64` rows appear in that index when building for macOS.
+
+  What is owed is a corpus fail canary; `tests/omega` has been under a live
+  claim. The witness is `linux_x86_64 machine Legs::bump` called from an
+  unscoped `Main::main`, which rejects, against the same source with
+  `macos_arm64`, which compiles and exits 70.
 
   Acceptance: a statement call whose callee no declaration in the selected
   program supplies rejects, naming the callee and the selected target, and the

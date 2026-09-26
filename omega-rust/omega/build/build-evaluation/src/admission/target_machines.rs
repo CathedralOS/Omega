@@ -776,6 +776,25 @@ fn reject_inert_sibling_callers(
     if inert.is_empty() {
         return Ok(());
     }
+    // `NativeTarget` is a profile, not a name, and more than one spelling can
+    // share it; name every spelling this build realizes rather than guess one.
+    // The conversion is the fallible one: `alpha_bootstrap` has no native
+    // target at all and panics if asked for one directly.
+    let realized = target::TargetProfile::ALL
+        .into_iter()
+        .filter(|profile| {
+            // `cross_platform_cli` and `local_unchecked` resolve to whatever
+            // the host is rather than naming a target of their own, so they
+            // would list the host profile twice more under other names.
+            !matches!(
+                profile,
+                target::TargetProfile::CrossPlatformCli | target::TargetProfile::LocalUnchecked
+            ) && NativeTarget::from_omega_target_name(Some(profile.target_name()))
+                .is_ok_and(|profile| profile == target)
+        })
+        .map(|profile| format!("`{}`", profile.target_name()))
+        .collect::<Vec<_>>()
+        .join(" or ");
     let mut diagnostics = Vec::new();
     for machine in typed.machines() {
         let caller_target = machine.target.as_ref().map(|target| target.as_str());
@@ -795,8 +814,8 @@ fn reject_inert_sibling_callers(
                 }
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{}` calls `{callee}`, which is declared only for \
-                     target `{callee_target}`. This build realizes another target, so that \
-                     body is an inert sibling and the call has no implementation; scope the \
+                     target `{callee_target}`. This build realizes {realized}, so that body \
+                     is an inert sibling and the call has no implementation; scope the \
                      caller to `{callee_target}` as well, or declare `{callee}` for the \
                      target being built.",
                     machine.name.as_str(),
