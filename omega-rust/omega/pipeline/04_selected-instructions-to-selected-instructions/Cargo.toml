@@ -28,3 +28,6 @@ target-operations = { path = "../../representations/target-operations" }
 task-plans = { path = "../../representations/task-plans" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 sha2 = "0.10.9"
+
+[dev-dependencies]
+mimalloc = { version = "0.1", default-features = false }

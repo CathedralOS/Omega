@@ -27,6 +27,7 @@ validation = { path = "../../semantics/validation" }
 sha2 = "0.10"
 
 [dev-dependencies]
+mimalloc = { version = "0.1", default-features = false }
 source-files-to-tokens = { path = "../00_source-files-to-tokens" }
 symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
