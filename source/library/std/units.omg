@@ -177,6 +177,9 @@ machine kilometers_per_hour_to_meters_per_second_f64(
 ) -> f64 in Quantity<Units::METER_PER_SECOND> {
     // 1 km/h = 5/18 m/s. The arithmetic stays visible and uses the same
     // normalized scale ratio published by the named destination constants.
-    let scaled: f64 = (value as f64) * 5.0 / 18.0;
+    // The two operations bind separately: a value-call argument may not be
+    // another machine call, and each float operator is a boundary call.
+    let numerator: f64 = (value as f64) * 5.0;
+    let scaled: f64 = numerator / 18.0;
     scaled as f64 in Quantity<Units::METER_PER_SECOND>
 }
