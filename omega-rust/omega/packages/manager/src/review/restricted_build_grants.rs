@@ -241,10 +241,13 @@ impl compiler::RestrictedBuildGrants for CheckpointRestrictedBuildGrants {
         &mut self,
         request: &build_evaluation::RestrictedBuildRequest,
     ) -> Result<(), Vec<Diagnostic>> {
+        // The Build evaluates without a realized target; this checkpoint's
+        // checked context names the target whose acceptance rows apply.
+        let request = request.clone().for_target(Some(self.context.target()));
         let meaning = package_evidence::encoding::restricted_build_request_acceptance_text(
             self.package,
             self.context.target(),
-            request,
+            &request,
         )
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
         if self.granted.contains(&meaning) {

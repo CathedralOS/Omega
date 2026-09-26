@@ -21,10 +21,8 @@ pub(super) fn evaluate_admitted_machine(
     mode: BuildMachineExecutionMode,
     sponsor: Option<&BuildEvaluationSponsor>,
     machine_name: &str,
-    selected_profile: Option<target::TargetProfile>,
 ) -> Result<MeasuredBuildMachine, Vec<Diagnostic>> {
-    let product_entry_compatibility =
-        crate::admission::selection::ProductEntryQueryCompatibility { selected_profile };
+    let product_entry_compatibility = crate::admission::selection::ProductEntryQueryCompatibility;
     build_time_evaluation::evaluate_build_machine_measured(
         prepared,
         BuildMachineInvocation {

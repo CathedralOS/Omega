@@ -106,7 +106,10 @@ pub(crate) fn check_selected_execution(
             package_inputs,
         )?;
     let opaque_representation_selections = build_config.opaque_representation_selections.clone();
-    let x86_scalar_fma_provider = build_config.x86_scalar_fma_provider;
+    let x86_scalar_fma_provider = build_config
+        .x86_deployment_claim
+        .admit_for(selected_target_profile)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let subsystem = build_config.subsystem;
     let application_intent = build_config.application_intent;
     let application_identifier = build_config.application_identifier.clone();
@@ -335,7 +338,12 @@ pub(crate) fn check_selected_execution(
         behavior_exclusions: build_config.behavior_exclusions,
         build_evaluation_usage,
         build_observation_summary,
-        restricted_build_requests,
+        // The Build evaluated once for every target; this target's
+        // compilation records the requests as its own.
+        restricted_build_requests: restricted_build_requests
+            .into_iter()
+            .map(|request| request.for_target(selected_target_profile))
+            .collect(),
         independent_component_descriptions: package_inputs
             .map(|inputs| {
                 inputs

@@ -53,13 +53,6 @@ impl BuildObservationSummary {
             }
         }
         digest.update([declaration_role_tag(activation.root_role())]);
-        match activation.selected_target_profile() {
-            None => digest.update([0]),
-            Some(profile) => {
-                digest.update([1]);
-                hash_bytes(&mut digest, profile.target_name().as_bytes());
-            }
-        }
         match activation.build_execution_profile() {
             None => digest.update([0]),
             Some(profile) => {
@@ -318,11 +311,11 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0xa0, 0x8e, 0x28, 0xf4, 0xed, 0x09, 0x79, 0xe6, 0xc8, 0xe6, 0xb5, 0xa7, 0x7f, 0xa3,
-                0x33, 0x67, 0x72, 0xdc, 0xac, 0xe0, 0xcf, 0x70, 0x95, 0xd1, 0xb2, 0xc8, 0xa6, 0xf4,
-                0x44, 0xa6, 0x18, 0xa0,
+                0xb5, 0x6d, 0x43, 0xbe, 0xe4, 0x2e, 0x36, 0x48, 0xdf, 0x02, 0x44, 0xe2, 0x26, 0xd0,
+                0x4c, 0x33, 0xb6, 0xc5, 0x4d, 0x98, 0xc6, 0x54, 0xdb, 0xb5, 0xc5, 0xbd, 0xf9, 0x98,
+                0x80, 0xe6, 0x30, 0xbd
             ],
-            "single-execution observation schema 81 with operation schema 20 has stable canonical bytes",
+            "single-execution observation schema 82 with operation schema 20 has stable canonical bytes",
         );
     }
 
@@ -360,22 +353,10 @@ mod tests {
 
         let mut changed = empty_summary();
         changed.activation = BuildActivation {
-            selected_target_profile: Some(target::TargetProfile::LinuxX64),
-            ..BuildActivation::default()
-        };
-        let selected_target_only = changed.identity();
-        assert_ne!(baseline, selected_target_only);
-
-        // The execution profile is its own activation member: binding the
-        // same profile there as the selected target still changes the digest.
-        let mut changed = empty_summary();
-        changed.activation = BuildActivation {
-            selected_target_profile: Some(target::TargetProfile::LinuxX64),
             build_execution_profile: Some(target::TargetProfile::LinuxX64),
             ..BuildActivation::default()
         };
         assert_ne!(baseline, changed.identity());
-        assert_ne!(selected_target_only, changed.identity());
 
         let mut changed = empty_summary();
         changed.build_log = b"compiler-owned build log\n".to_vec();

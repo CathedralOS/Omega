@@ -14,7 +14,7 @@ fn admitted_no_build_checkpoint_preserves_default_configuration_and_evidence() {
         PathBuf::from("build"),
         None,
     );
-    let admitted = admit_build_program(&typed, None, &scope, None, None, false)
+    let admitted = admit_build_program(&typed, None, &scope, None, false)
         .expect("the empty program has an explicit no-build disposition");
 
     assert_eq!(

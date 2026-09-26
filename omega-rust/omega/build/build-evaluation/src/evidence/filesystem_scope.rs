@@ -459,16 +459,12 @@ impl BuildMachineFilesystemScope {
     }
 
     /// The activation this scope describes: the bound package occurrence
-    /// members and admitted execution profile plus the selected target the
-    /// requesting compilation asked for.
-    pub(crate) fn activation(
-        &self,
-        selected_target_profile: Option<target::TargetProfile>,
-    ) -> BuildActivation {
+    /// members and admitted execution profile. The Build observes no realized
+    /// target.
+    pub(crate) fn activation(&self) -> BuildActivation {
         BuildActivation {
             root_package_identity: self.root_package_identity,
             root_role: self.root_role,
-            selected_target_profile,
             build_execution_profile: self.build_execution_profile,
         }
     }

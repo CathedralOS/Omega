@@ -71,11 +71,10 @@ pub struct BuildConfig {
     /// Exact root-build optimization selections. Empty is the ordinary
     /// compiler path and constructs no optimizer machinery.
     pub optimizations: OptimizationSelections,
-    /// Explicit x86 deployment-feature opt-in admitted for the exact selected
-    /// profile. `None` is the generic SSE2 baseline and grants no FMA route.
-    /// This carrier retains the canonical semantic cancellation-vector
-    /// admission only; it is not a native differential execution receipt.
-    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    /// The authored x86 deployment-feature claim. It is one Build value for
+    /// every target; each realized x86 profile admits it separately
+    /// (`X86DeploymentClaim::admit_for`).
+    pub x86_deployment_claim: X86DeploymentClaim,
     /// CH10 ROOT GRANTS (GR3): the symbol paths the final build accepted
     /// via `b.accept_boundary<pkg::symbol>();` -- harvested STATICALLY
     /// from the build machine's marker calls (grants are declarations,
@@ -175,7 +174,7 @@ impl Default for BuildConfig {
             subsystem: 3, // IMAGE_SUBSYSTEM_WINDOWS_CUI -- the Console case's meaning
             freestanding: false,
             optimizations: OptimizationSelections::default(),
-            x86_scalar_fma_provider: None,
+            x86_deployment_claim: X86DeploymentClaim::Baseline,
             grants: Vec::new(),
             provider_selections: Vec::new(),
             opaque_representation_selections: Vec::new(),
@@ -189,10 +188,45 @@ impl Default for BuildConfig {
     }
 }
 
+/// The authored `Build.x86_deployment_features` claim.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum X86DeploymentClaim {
+    #[default]
+    Baseline,
+    AvxFma3,
+}
+
+impl X86DeploymentClaim {
+    /// Admit the claim for one realized profile. `None` is the generic SSE2
+    /// baseline and grants no FMA route; the admitted carrier retains the
+    /// canonical semantic cancellation-vector admission only, not a native
+    /// differential execution receipt.
+    pub fn admit_for(
+        self,
+        profile: Option<target::TargetProfile>,
+    ) -> Result<Option<target::AdmittedX86ScalarFmaProvider>, String> {
+        match (self, profile) {
+            (Self::Baseline, _) | (Self::AvxFma3, None) => Ok(None),
+            (Self::AvxFma3, Some(profile)) => {
+                target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
+                    profile,
+                    &target::X86_SCALAR_FMA_REQUIRED_FEATURES,
+                )
+                .map(Some)
+                .map_err(|error| {
+                    format!(
+                        "Build.x86_deployment_features cannot admit AVX+FMA3 for exact profile `{}`: {error:?}",
+                        profile.target_name()
+                    )
+                })
+            }
+        }
+    }
+}
+
 pub(crate) fn extract_build_config(
     build: &BuildTimeValue,
     optimization_admission: optimization::BuildOptimizationAdmission,
-    selected_target_profile: Option<target::TargetProfile>,
     has_activation_vocabulary: bool,
 ) -> Result<(BuildConfig, optimization_core::OptimizationReportRequest), String> {
     let BuildTimeValue::Struct { fields, .. } = build else {
@@ -207,9 +241,8 @@ pub(crate) fn extract_build_config(
     };
 
     // The x86 deployment claim is one Build value; it becomes an admitted
-    // provider only for the x86 profile a realization selects. A targetless
-    // check validates the claim's spelling and admits nothing.
-    let x86_scalar_fma_provider = if has_activation_vocabulary {
+    // provider only for an x86 profile a realization selects.
+    let x86_deployment_claim = if has_activation_vocabulary {
         let BuildTimeValue::Case { variant, payload } = field("x86_deployment_features")? else {
             return Err(
                 "Build.x86_deployment_features is not an X86DeploymentFeatures case".to_owned(),
@@ -221,22 +254,8 @@ pub(crate) fn extract_build_config(
             ));
         }
         match variant.rsplit("::").next().unwrap_or(variant) {
-            "Baseline" => None,
-            "AvxFma3" => match selected_target_profile {
-                Some(profile) => Some(
-                    target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
-                        profile,
-                        &target::X86_SCALAR_FMA_REQUIRED_FEATURES,
-                    )
-                    .map_err(|error| {
-                        format!(
-                            "Build.x86_deployment_features cannot admit AVX+FMA3 for exact profile `{}`: {error:?}",
-                            profile.target_name()
-                        )
-                    })?,
-                ),
-                None => None,
-            },
+            "Baseline" => X86DeploymentClaim::Baseline,
+            "AvxFma3" => X86DeploymentClaim::AvxFma3,
             other => {
                 return Err(format!(
                     "Build.x86_deployment_features has unknown X86DeploymentFeatures case `{other}`"
@@ -244,7 +263,7 @@ pub(crate) fn extract_build_config(
             }
         }
     } else {
-        None
+        X86DeploymentClaim::Baseline
     };
 
     let (application_intent, subsystem) = match field("subsystem")? {
@@ -362,7 +381,7 @@ pub(crate) fn extract_build_config(
             subsystem,
             freestanding,
             optimizations,
-            x86_scalar_fma_provider,
+            x86_deployment_claim,
             grants: Vec::new(),
             provider_selections: Vec::new(),
             opaque_representation_selections: Vec::new(),
@@ -405,7 +424,6 @@ mod tests {
             super::extract_build_config(
                 &build,
                 super::optimization::BuildOptimizationAdmission::admit(&typed).unwrap(),
-                None,
                 false,
             )
             .unwrap()
@@ -477,7 +495,6 @@ mod tests {
                     fields,
                 },
                 super::optimization::BuildOptimizationAdmission::admit(&typed).unwrap(),
-                None,
                 false,
             )
         };
@@ -555,7 +572,6 @@ mod tests {
                     fields,
                 },
                 super::optimization::BuildOptimizationAdmission::admit(&typed).unwrap(),
-                None,
                 false,
             )
         };
