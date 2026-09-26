@@ -744,6 +744,24 @@ impl SymbolTable {
         self.sources.iter().flat_map(|sources| sources.files())
     }
 
+    /// The authored symbol a generated symbol derives from, or `symbol`
+    /// itself when it was authored. Specialization mints machine symbols whose
+    /// names carry a selection fingerprint, and that spelling belongs to the
+    /// compiler, not to a reader: a diagnostic about a specialized callee names
+    /// the declaration its author wrote. The walk is the same derivation chain
+    /// `provenance_source_span` follows, and a generated symbol always records
+    /// one origin that precedes it, so it terminates.
+    pub fn authored_origin(&self, mut symbol: SymbolHandle) -> SymbolHandle {
+        while symbol.is_valid() {
+            let generated_from = self.get(symbol).generated_from;
+            if !generated_from.is_valid() || generated_from.arena_index() >= symbol.arena_index() {
+                return symbol;
+            }
+            symbol = generated_from;
+        }
+        symbol
+    }
+
     fn provenance_source_span(&self, mut symbol: SymbolHandle) -> Option<SourceSpan> {
         while symbol.is_valid() {
             let data = self.get(symbol);

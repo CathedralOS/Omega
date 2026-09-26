@@ -40,12 +40,37 @@ fn a_provable_custom_index_requires_is_discharged_at_the_use() {
 
 #[test]
 fn an_unprovable_custom_index_requires_still_rejects_by_name() {
+    // The use reaches the selected operator as a value call into the
+    // specialization `Count == 4` selected, so the rejection is the value-call
+    // discharge rather than the spelled-operator one. Both name the clause its
+    // author wrote: a reader given only the substituted `4 == 0` cannot find
+    // the `requires` it came from, and the specialization's own minted name is
+    // the compiler's spelling, never a reader's.
     let errors = checked_program_result(&program("Count == 0"))
         .expect_err("an unprovable requires on a custom collection must not disappear");
+    let named = errors
+        .iter()
+        .any(|error| error.to_string().contains("`Count == 0`"));
+    assert!(named, "{errors:#?}");
     assert!(
         errors
             .iter()
-            .any(|error| error.to_string().contains("cannot prove `Count == 0`")),
+            .all(|error| !error.to_string().contains("$specialized$")),
+        "{errors:#?}"
+    );
+}
+
+#[test]
+fn an_unprovable_custom_index_requires_no_substitution_refutes_names_its_clause() {
+    // `4 > 100` is unproved rather than structurally false, so the fail-closed
+    // obligation rung answers instead of the refutation one. It must reject
+    // too: a `requires` a caller cannot discharge never becomes silence.
+    let errors = checked_program_result(&program("Count > 100"))
+        .expect_err("an undischarged requires on a custom collection must not disappear");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.to_string().contains("cannot prove requires contract")),
         "{errors:#?}"
     );
 }

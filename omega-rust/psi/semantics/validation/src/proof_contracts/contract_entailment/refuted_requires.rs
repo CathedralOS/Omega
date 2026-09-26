@@ -77,38 +77,110 @@ pub(crate) fn reject_refuted_value_call_requires(
         return;
     }
 
-    for contract in program
-        .machine_contracts(callee_machine)
-        .iter()
-        .chain(program.state_contracts(callee_state))
+    let callee_name = authored_callee_name(program, callee_machine);
+    let authored = authored_requires_spellings(program, callee_machine, callee_state);
+    for (position, expression) in requires_expressions(program, callee_machine, callee_state)
+        .into_iter()
+        .enumerate()
     {
-        if contract.kind != SignatureContractKind::Requires {
+        if !matches!(
+            instantiated_fact_judgment(
+                program,
+                &judge,
+                program.state_parameters(callee_state),
+                expression,
+                &map,
+            ),
+            StructuralJudgment::Refuted
+        ) {
             continue;
         }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
-                continue;
-            };
-            if matches!(
-                instantiated_fact_judgment(
-                    program,
-                    &judge,
-                    program.state_parameters(callee_state),
-                    *expression,
-                    &map,
-                ),
-                StructuralJudgment::Refuted
-            ) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` value call to `{}` violates required fact `{}`: the instantiated fact is structurally false",
-                    caller_machine.name,
-                    caller_state.name,
-                    callee_machine.name,
-                    program.expression_table.display_name(*expression),
-                )));
-            }
-        }
+        let instantiated = program.expression_table.display_name(expression);
+        let clause = authored
+            .as_ref()
+            .and_then(|spellings| spellings.get(position))
+            .filter(|authored| **authored != instantiated)
+            .map(|authored| {
+                format!(
+                    "`{authored}`: the fact instantiates here as `{instantiated}`, which is \
+                     structurally false"
+                )
+            })
+            .unwrap_or_else(|| {
+                format!("`{instantiated}`: the instantiated fact is structurally false")
+            });
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` value call to `{callee_name}` violates required fact {clause}",
+            caller_machine.name, caller_state.name,
+        )));
     }
+}
+
+/// The callee's `requires` expression facts in declaration order: machine
+/// contracts before state contracts, each contract's facts in place. Order is
+/// the only thing that pairs a specialized copy's clause with the one its
+/// author wrote, so every reader of that pairing walks the chain this way.
+fn requires_expressions(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+) -> Vec<ExpressionHandle> {
+    program
+        .machine_contracts(machine)
+        .iter()
+        .chain(program.state_contracts(state))
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .filter_map(|fact| match fact {
+            ProofFact::Expression(expression) => Some(*expression),
+            ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
+        })
+        .collect()
+}
+
+/// The name the callee's author wrote. Specialization mints a machine whose
+/// name carries its selection fingerprint -- `Indexing::index$specialized$…`
+/// -- and that spelling is the compiler's, not a reader's.
+fn authored_callee_name(program: &TypedTrees, callee_machine: &Machine) -> String {
+    let authored = program.symbols.authored_origin(callee_machine.symbol);
+    if authored == callee_machine.symbol {
+        return callee_machine.name.as_str().to_owned();
+    }
+    program.symbols.name(authored).to_owned()
+}
+
+/// The authored spelling of each `requires` fact the callee carries, or
+/// `None` when the callee is not a specialization or its source declaration
+/// is no longer reachable. Specialization substitutes const arguments into
+/// the cloned contract, so `Count == 0` reaches a reader as `4 == 0` and
+/// names no clause they can find. The clone preserves contract and fact
+/// order; a differing count means that assumption does not hold here, and the
+/// instantiated fact stands alone rather than risk naming the wrong clause.
+fn authored_requires_spellings(
+    program: &TypedTrees,
+    callee_machine: &Machine,
+    callee_state: &typed_trees::state::State,
+) -> Option<Vec<String>> {
+    let machine_symbol = program.symbols.authored_origin(callee_machine.symbol);
+    if machine_symbol == callee_machine.symbol {
+        return None;
+    }
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    // A cloned state's derivation origin is the machine that owns it, not the
+    // state it copies, so the state pairs by the name the clone preserves.
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.name == callee_state.name)?;
+    let spellings: Vec<String> = requires_expressions(program, machine, state)
+        .into_iter()
+        .map(|expression| program.expression_table.display_name(expression))
+        .collect();
+    (spellings.len() == requires_expressions(program, callee_machine, callee_state).len())
+        .then_some(spellings)
 }
 
 pub(super) fn instantiated_fact_judgment(
