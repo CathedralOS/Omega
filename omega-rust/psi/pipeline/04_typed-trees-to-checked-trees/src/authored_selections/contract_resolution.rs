@@ -25,7 +25,7 @@ pub(super) fn checked_operator_resolution(
     owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> Option<CheckedContractOperatorResolution> {
     if checked_float_meaning_equality(program, facts, expression, node, owner_index)
-        || checked_resultless_law_equality(program, facts, expression, node)
+        || checked_resultless_law_equality(program, facts, expression, node, owner_index)
     {
         return Some(CheckedContractOperatorResolution::Builtin);
     }
@@ -215,6 +215,7 @@ fn checked_resultless_law_equality(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
+    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> bool {
     if !matches!(
         node,
@@ -224,11 +225,21 @@ fn checked_resultless_law_equality(
         return false;
     }
 
+    let containing = match owner_index {
+        Some(owner_index) => owner_index.containing_contract_facts(program, facts, expression),
+        None => facts
+            .proof
+            .contract_facts
+            .iter()
+            .filter(|(_, contract)| {
+                contract_contains_expression(program, contract.fact, expression)
+            })
+            .map(|(handle, _)| handle)
+            .collect(),
+    };
     let mut found = false;
-    for (_, contract) in facts.proof.contract_facts.iter() {
-        if !contract_contains_expression(program, contract.fact, expression) {
-            continue;
-        }
+    for handle in containing {
+        let contract = facts.proof.contract_facts.get(handle);
         let resultless = match contract.owner {
             ContractProofFactOwner::StateSignature {
                 owner_symbol,
