@@ -284,11 +284,20 @@ pub(crate) fn atom(tag: &str, value: &str) -> String {
     let mut output = String::with_capacity(tag.len() + value.len() + 2);
     output.push_str(tag);
     output.push('(');
-    for character in value.chars() {
-        if matches!(character, '\\' | '(' | ')' | ',') {
-            output.push('\\');
+    // The escaped characters are ASCII, so a value without any of them is
+    // copied whole; almost every identity segment is such a value.
+    if value
+        .bytes()
+        .any(|byte| matches!(byte, b'\\' | b'(' | b')' | b','))
+    {
+        for character in value.chars() {
+            if matches!(character, '\\' | '(' | ')' | ',') {
+                output.push('\\');
+            }
+            output.push(character);
         }
-        output.push(character);
+    } else {
+        output.push_str(value);
     }
     output.push(')');
     output

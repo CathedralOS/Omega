@@ -941,6 +941,10 @@ pub(crate) fn type_references_match(
     if !actual.is_valid() || !required.is_valid() {
         return actual.is_valid() == required.is_valid();
     }
+    // One handle renders one identity.
+    if actual == required {
+        return true;
+    }
 
     program.normalized_type_identity(actual) == program.normalized_type_identity(required)
 }

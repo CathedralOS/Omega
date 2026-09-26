@@ -196,6 +196,10 @@ fn type_identities_match(
     if !actual.is_valid() || !expected.is_valid() {
         return actual.is_valid() == expected.is_valid();
     }
+    // One handle renders one identity.
+    if actual == expected {
+        return true;
+    }
     identities
         .entry(actual)
         .or_insert_with(|| program.normalized_type_identity(actual));
