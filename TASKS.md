@@ -2597,10 +2597,27 @@ syntax and other terminal services are not prerequisites.
   custody through those consumers and emission; do not substitute an owned
   aggregate's indirect placement for a semantic borrow.
 
-  Acceptance: convert
+  Both oracles this acceptance named are gone with the `compiler --test`
+  targets: neither
   `source_evaluated_native_realization::record_native_arguments::mixed_scalar_and_record_arguments_stop_at_legalization_custody`
-  from its current rejection pin to a source-to-C execution oracle on a matching
-  host. Preserve the existing `scalar_native_arguments` oracle and test exact
+  nor `scalar_native_arguments` resolves anywhere. What survives is
+  `03_target-operations-to-selected-instructions/src/tests/legalization/normalized_foreign.rs`,
+  whose six pins all pass, including
+  `mixed_arguments_preserve_authored_order_through_selection_and_replay` and
+  `flat_record_lane_projects_source_rooted_borrow_and_replays`. Mixed scalar
+  and record arguments therefore already legalize, select and replay -- through
+  the borrowed field-projection lane those pins exercise, on constructed plans,
+  not through a source-to-native execution oracle.
+
+  The restriction itself is unchanged and is what to remove.
+  `structural_argument_at` rejects unless the path is non-empty and every
+  segment is a `Field`, the access is one of the three borrow kinds, and the
+  destination is a single pointer-sized register or stack word. An owned
+  whole-place aggregate has an empty path and `Owned` access, so it cannot
+  reach the lane at all.
+
+  Acceptance: an owned whole-place aggregate argument executes source-to-C on
+  a matching host, with a new oracle since the named ones are gone. Test exact
   argument/result values, stack/register placement, formal order, and rejection
   of substituted plans, placements and provider bindings. Each stage must
   independently reconstruct the ABI; Terminal Psi retains no target placement.
