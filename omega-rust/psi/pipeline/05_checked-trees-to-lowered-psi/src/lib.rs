@@ -89,3 +89,11 @@ pub use proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_p
 mod front_end;
 #[cfg(test)]
 mod tests;
+
+// The integer prover runs scoped worker threads that allocate heavily; the
+// macOS system allocator serializes them on its zone locks, and mimalloc's
+// per-thread heaps do not. Test-only: the compiler binaries keep the system
+// allocator.
+#[cfg(test)]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;

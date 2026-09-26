@@ -2,6 +2,12 @@
 //! shared support modules are declared once, and `cargo nextest run -p <crate> --test suite`
 //! runs them all. A new `tests/<topic>.rs` joins by one `mod` line below.
 
+// The integer prover runs scoped worker threads that allocate heavily; the
+// macOS system allocator serializes them on its zone locks, and mimalloc's
+// per-thread heaps do not. Test-only: the compiler binaries keep the system
+// allocator.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 // The front-end pipeline these tests run, shared with the crate's unit tests
 // through `src/lib.rs`; see its module documentation.
 #[path = "support/front_end.rs"]
