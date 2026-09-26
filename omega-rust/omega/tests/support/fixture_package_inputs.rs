@@ -31,6 +31,7 @@
 // its fixtures need.
 #![allow(dead_code)]
 
+use abstract_operations_to_target_operations::effects;
 use diagnostics::Diagnostic;
 use omega::build_declarations::{
     BuildDeclaration, BuildDeclarationKind, DependencyPurpose, extract_build_declaration,

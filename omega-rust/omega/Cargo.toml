@@ -54,6 +54,7 @@ tokens-to-syntax-trees = { path = "../psi/pipeline/01_tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../psi/pipeline/04_typed-trees-to-checked-trees" }
 
 [dev-dependencies]
+mimalloc = { version = "0.1", default-features = false }
     terminal-interpreter = { path = "../psi/terminal-interpreter" }
 abstract-operations-to-target-operations = { path = "pipeline/02_abstract-operations-to-target-operations" }
 arena = { path = "../psi/foundation/arena" }
