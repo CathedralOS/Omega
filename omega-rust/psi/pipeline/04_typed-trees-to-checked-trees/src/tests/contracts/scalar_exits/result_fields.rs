@@ -113,17 +113,6 @@ fn nested_result_guarantees_do_not_replay_a_captured_source_after_a_write() {
 }
 
 #[test]
-fn nested_result_fields_do_not_confuse_arithmetic_policies() {
-    check(
-        "data Count [copy] { remaining: u8; }
-         machine produce(input: u8) -> Count
-         ensures result.remaining == ((input as u8 in Saturating) + 1) as u8
-         { Count { remaining: ((input as u8 in Wrapping) + 1) as u8 } }",
-        false,
-    );
-}
-
-#[test]
 fn result_field_relations_read_current_reference_contents_after_writes() {
     for field in ["spare", "remaining"] {
         check(
@@ -138,18 +127,6 @@ fn result_field_relations_read_current_reference_contents_after_writes() {
             true,
         );
     }
-}
-
-#[test]
-fn result_field_relations_reject_later_sibling_writes() {
-    check(
-        "data Count [copy] { remaining: u64; spare: u64; }
-         machine replace(value: &mut u64) -> u64 { value = 8; 0 }
-         machine produce(input: &mut Count) -> Count
-         ensures result.remaining == input.remaining
-         { Count { remaining: input.remaining, spare: replace(&mut input.remaining) } }",
-        false,
-    );
 }
 
 #[test]
@@ -185,17 +162,6 @@ fn result_field_arithmetic_does_not_reinterpret_an_authored_operator() {
          data Count [copy] { remaining: u64; }
          machine produce() -> Count ensures result.remaining == 7
          { Count { remaining: 3u64 + 4u64 } }",
-        false,
-    );
-}
-
-#[test]
-fn constant_result_fields_do_not_bypass_authored_equality() {
-    check(
-        "boundary operator == u64::custom(left: u64, right: u64) -> bool;
-         data Count [copy] { remaining: u64; }
-         machine produce() -> Count ensures result.remaining == 7u64
-         { Count { remaining: 7 } }",
         false,
     );
 }

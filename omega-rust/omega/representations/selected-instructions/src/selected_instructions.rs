@@ -63,9 +63,9 @@ pub use effects::{
     validate_machine_effect_catalog,
 };
 pub use identity::{
-    AddressFoldIdentity, CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
-    PressureRematerializationIdentity, RedundantExtensionIdentity, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
+    AddressFoldIdentity, ConstantBooleanIdentity, CopyRemovalIdentity, FixedViewCopyIdentity,
+    LiteralFoldIdentity, PressureRematerializationIdentity, RedundantExtensionIdentity,
+    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 pub use instructions::{SelectedInstruction, SelectedInstructionKind};
 pub use legalized_operations::{

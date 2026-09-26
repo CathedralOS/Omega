@@ -2,62 +2,12 @@
 //! builtin, and callback-thunk settlements, the request itself, and the
 //! requested or settled artifact results.
 
-use crate::native::entry_settlement::NativeProgramEntrySettlement;
-use installation_evidence::ProviderExecutionEvidence;
-use native_artifact::{DynamicElfNativeArtifact, NativeArtifact};
-use target_operations::BoundaryRealization;
-
-#[derive(Debug, Clone, Copy)]
-pub enum NativeBoundaryRealization<'execution> {
-    Builtin(BoundaryRealization),
-    NormalizedForeignCall(&'execution task_plans::AdmittedSameStackContribution),
-}
-
-impl<'execution> From<BoundaryRealization> for NativeBoundaryRealization<'execution> {
-    fn from(realization: BoundaryRealization) -> Self {
-        Self::Builtin(realization)
-    }
-}
-
-macro_rules! builtin_native_realization_conversion {
-    ($realization:ty) => {
-        impl<'execution> From<$realization> for NativeBoundaryRealization<'execution> {
-            fn from(realization: $realization) -> Self {
-                Self::Builtin(realization.into())
-            }
-        }
-    };
-}
-
-builtin_native_realization_conversion!(target_operations::MetadataOnlyPortRealization);
-builtin_native_realization_conversion!(target_operations::DirectPortReadU8Realization);
-builtin_native_realization_conversion!(target_operations::LinuxWriteLineRealization);
-builtin_native_realization_conversion!(target_operations::HostedExitProcessI32Realization);
-builtin_native_realization_conversion!(target_operations::HostedReadByteRealization);
-builtin_native_realization_conversion!(target_operations::ClaimCompletionOnlyRealization);
-
+use terminal_psi_to_abstract_operations::NativeProgramEntrySettlement;
+pub use abstract_operations_to_target_operations::provider_admission::{
+    NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
+};
 pub(crate) use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
-
-/// Provider-supplied realization input for one Terminal boundary. The exact
-/// requirement comes from admitted execution evidence rather than a caller-
-/// authored numeric boundary ID.
-#[derive(Debug, Clone, Copy)]
-pub struct NativeProviderSettlement<'execution> {
-    pub provider_execution: &'execution dyn ProviderExecutionEvidence,
-    /// Complete selected-plan evidence. The compact report identity remains a
-    /// report coordinate and cannot select or authorize a plan by itself.
-    pub provider_plan: &'execution effects::provider_plan::ProviderPlan,
-    pub realization: NativeBoundaryRealization<'execution>,
-}
-
-/// Target-constrained compiler-builtin proposal consumed by the local native
-/// lowerer. This carries no provider execution or installation receipt.
-#[derive(Debug, Clone, Copy)]
-pub struct NativeCompilerBuiltinSettlement<'execution> {
-    pub requirement_identity: &'execution str,
-    pub provider_plan: &'execution effects::provider_plan::ProviderPlan,
-    pub execution: target_operations::CompilerBuiltinExecution,
-}
+use native_artifact::{DynamicElfNativeArtifact, NativeArtifact};
 
 /// Borrowed source-free body and placement join for one compiler-private
 /// callback thunk. The ordinary callback-argument carrier remains separate so
@@ -88,7 +38,7 @@ pub struct NativeRealizationRequest<'request> {
     pub profile: &'request proof_admission::AdmissionProfile,
     /// Receiving target policy used to classify every demanded compiler
     /// intrinsic before native settlement.
-    pub terminal_authority_policy: crate::native::native_realization::TerminalAuthorityPolicy,
+    pub terminal_authority_policy: abstract_operations_to_target_operations::provider_admission::TerminalAuthorityPolicy,
     /// Independently accepted exact service-schema/requirement permissions.
     /// Physical classification cannot manufacture or widen these rows.
     ///
@@ -99,7 +49,7 @@ pub struct NativeRealizationRequest<'request> {
     /// is not deny-all, allow-all, or a policy fabricated from accepted
     /// package rows; `Some` with zero rows remains an explicit empty policy.
     pub terminal_authority_permission_policy:
-        Option<crate::native::native_realization::TerminalAuthorityPermissionPolicy>,
+        Option<abstract_operations_to_target_operations::provider_admission::TerminalAuthorityPermissionPolicy>,
     pub program_entry: NativeProgramEntrySettlement<'request>,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,

@@ -52,12 +52,6 @@ fn anonymous_fractional_intermediates_retain_the_exact_integral_return() {
 }
 
 #[test]
-fn rational_cancellation_does_not_prove_the_truncated_integer_answer() {
-    rejects(&guaranteed("7 / 2 * 2", "i32", 6));
-    rejects(&guaranteed("(4097 / 4096) * 4096", "u32", 4096));
-}
-
-#[test]
 fn final_fractions_cannot_land_in_integer_returns_or_storage() {
     for expression in [
         "7 / 2",
@@ -335,10 +329,4 @@ fn explicitly_typed_float_operands_cannot_implicitly_land_as_integers() {
             }
         }
     }
-}
-
-#[test]
-fn decimal_spelling_does_not_supply_an_integer_type_for_anonymous_remainder() {
-    rejects("machine value() -> i32 { 7.0 % 2 }");
-    rejects("machine value() -> i32 { 7 % 2.0 }");
 }

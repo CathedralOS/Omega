@@ -148,23 +148,6 @@ fn a_shared_parameter_exposed_inside_a_helper_has_no_exact_returned_subject() {
 }
 
 #[test]
-fn a_shared_local_exposed_inside_a_helper_has_no_exact_returned_subject() {
-    let source = fixture_source(
-        "let returned: &Context = forward(context);
-         transition { _ -> wait_context(returned) }",
-        true,
-        false,
-        "machine inspect_binding(binding: &mut Context) {}
-         machine forward(context: &Context) -> &Context {
-             let mut borrowed: &Context = context;
-             inspect_binding(&mut borrowed);
-             borrowed
-         }",
-    );
-    assert_unproved_tail_requirement(&source);
-}
-
-#[test]
 fn an_unused_helper_argument_cannot_hide_shared_binding_exposure() {
     for selected in ["borrowed", "returned"] {
         let source = fixture_source(

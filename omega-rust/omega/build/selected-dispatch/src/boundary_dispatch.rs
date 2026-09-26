@@ -153,20 +153,21 @@ fn selected_service_plan_matches_requirement(
     typed: &TypedTrees,
     selected_plans: &effects::SelectedProviderPlanFacts,
     requirement: symbols::SymbolHandle,
-    provider_plan_digest: &[u8; 32],
 ) -> bool {
-    let Some(plan) = selected_plans
-        .plans()
+    let Some(schema) = typed
+        .traits()
         .iter()
-        .find(|plan| plan.identity_digest().as_bytes() == provider_plan_digest)
+        .find(|definition| definition.symbol == requirement)
+        .and_then(|definition| provider_planning::service_schema::from_typed(typed, definition))
     else {
         return false;
     };
-    typed.traits().iter().any(|definition| {
-        definition.symbol == requirement
-            && provider_planning::service_schema::from_typed(typed, definition)
-                .is_some_and(|schema| schema == plan.schema)
-    })
+    selected_plans
+        .plans()
+        .iter()
+        .filter(|plan| plan.schema == schema)
+        .count()
+        == 1
 }
 
 fn plan_selected_boundary_adapter_dispatch(
@@ -241,15 +242,10 @@ fn plan_selected_boundary_adapter_dispatch(
             let symbol = if let Some(requirement) =
                 typed_trees::service::exact_bound_service_requirement(typed, field.type_reference)
             {
-                let Some(authorization) = typed.fused_service_erasure(requirement) else {
+                if typed.fused_service_erasure(requirement).is_none() {
                     continue;
-                };
-                if !selected_service_plan_matches_requirement(
-                    typed,
-                    selected_plans,
-                    requirement,
-                    &authorization.provider_plan_digest,
-                ) {
+                }
+                if !selected_service_plan_matches_requirement(typed, selected_plans, requirement) {
                     diagnostics.push(Diagnostic::error(format!(
                         "routed service field `{}::{}` has no exact Fused selected-provider-plan join",
                         data.name, field.name,
@@ -656,12 +652,8 @@ fn plan_selected_boundary_adapter_dispatch(
             let Some(receipt) = &parameter.fused_service_erasure else {
                 continue;
             };
-            if !selected_service_plan_matches_requirement(
-                typed,
-                selected_plans,
-                receipt.requirement,
-                &receipt.provider_plan_digest,
-            ) {
+            if !selected_service_plan_matches_requirement(typed, selected_plans, receipt.requirement)
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "routed service parameter {:?} has no exact Fused selected-provider-plan join",
                     receipt.source_parameter,
@@ -829,8 +821,8 @@ fn reject_unselected_direct_requirement_calls(
         }
         reported.push(target_symbol);
         // A selected compiler-intrinsic plan is executed by the named-float
-        // intrinsic bridge (the requirement use is stamped with the plan and
-        // rewritten at execution settlement); an evaluated import or syscall
+        // intrinsic bridge (the requirement use joins the plan by requirement
+        // identity and is rewritten at execution settlement); an evaluated import or syscall
         // binding keeps the call on the requirement's retained boundary seam,
         // which native realization joins to the normalized external-binding
         // row by requirement identity — the `via` leaf executes through that

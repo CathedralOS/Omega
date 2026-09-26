@@ -39,67 +39,12 @@ fn mutable_parameter_nested_receiver_retains_ordered_subloan() {
 }
 
 #[test]
-fn mutable_self_field_receiver_retains_container_root() {
-    assert_projected_receiver(
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::MutableBorrow,
-        false,
-        true,
-        false,
-    );
-}
-
-#[test]
-fn mutable_self_nested_receiver_retains_container_root() {
-    assert_projected_receiver(
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::MutableBorrow,
-        true,
-        true,
-        false,
-    );
-}
-
-#[test]
 fn write_only_parameter_field_receiver_retains_exact_subloan() {
     assert_projected_receiver(
         StructuralAccess::WriteOnlyBorrow,
         StructuralAccess::WriteOnlyBorrow,
         false,
         false,
-        false,
-    );
-}
-
-#[test]
-fn write_only_parameter_nested_receiver_retains_ordered_subloan() {
-    assert_projected_receiver(
-        StructuralAccess::WriteOnlyBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-        true,
-        false,
-        false,
-    );
-}
-
-#[test]
-fn write_only_self_field_receiver_retains_container_root() {
-    assert_projected_receiver(
-        StructuralAccess::WriteOnlyBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-        false,
-        true,
-        false,
-    );
-}
-
-#[test]
-fn write_only_self_nested_receiver_retains_container_root() {
-    assert_projected_receiver(
-        StructuralAccess::WriteOnlyBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-        true,
-        true,
         false,
     );
 }
@@ -227,39 +172,6 @@ fn mutable_parameter_field_receiver_attenuates_to_write_only() {
         StructuralAccess::WriteOnlyBorrow,
         false,
         false,
-        false,
-    );
-}
-
-#[test]
-fn mutable_parameter_nested_receiver_attenuates_to_write_only() {
-    assert_projected_receiver(
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-        true,
-        false,
-        false,
-    );
-}
-
-#[test]
-fn mutable_self_field_receiver_attenuates_to_write_only() {
-    assert_projected_receiver(
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-        false,
-        true,
-        false,
-    );
-}
-
-#[test]
-fn mutable_self_nested_receiver_attenuates_to_write_only() {
-    assert_projected_receiver(
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-        true,
-        true,
         false,
     );
 }

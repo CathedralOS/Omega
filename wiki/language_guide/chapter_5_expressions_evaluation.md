@@ -531,7 +531,7 @@ Trapping checks results rather than unmasking hardware exceptions.
 Foreign bindings must preserve or restore semantic controls, and callbacks
 establish Omega controls before checked code and restore foreign controls on
 return. Sticky status flags are outside this invariant. The
-[realization note](../../omega-rust/omega/compiler/float_realization.md)
+[realization note](../drafts/reference/float_realization.md)
 separates current provider support, image replay and native execution evidence.
 
 ## Temporaries

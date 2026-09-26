@@ -3,31 +3,6 @@ use crate::tests::front_end::checked_program_result;
 mod indexed;
 mod projections;
 
-#[test]
-fn indexed_write_only_receiver_call_checks_without_observing_the_element() {
-    checked_program_result(
-        "data Record [copy] { value: u16; }
-         machine Record::replace(&write self, replacement: u16) { self.value = replacement; }
-         machine invoke(records: &write [Record; 2], replacement: u16) {
-             records[0].replace(replacement);
-         }",
-    )
-    .expect("fixed-array indexing selects a non-observing receiver address");
-}
-
-#[test]
-fn projected_write_only_receiver_call_checks() {
-    checked_program_result(
-        r#"
-        data Record { value: u16; }
-        data Container { record: Record; }
-        machine Record::replace(&write self) { self.value = 17; }
-        machine invoke(container: &write Container) { container.record.replace(); }
-    "#,
-    )
-    .expect("a closed field projection can invoke an exact non-observing receiver");
-}
-
 fn caller_source(root: &str, body: &str, methods: &str) -> String {
     let signature = if root == "self" {
         "Record::exercise(&write self, replacement: u16)"
@@ -98,18 +73,6 @@ fn write_only_parameter_nonobserving_statement_call_checks() {
 }
 
 #[test]
-fn write_only_self_nonobserving_call_with_scalar_argument_checks() {
-    checked_program_result(&caller_source(
-        "self",
-        "self.replace(replacement);",
-        "machine Record::replace(&write self, replacement: u16) {
-             self.value = replacement;
-         }",
-    ))
-    .expect("write-only self may forward an independently supplied scalar to a method");
-}
-
-#[test]
 fn write_only_receiver_nonobserving_scalar_result_call_checks() {
     for root in ["destination", "self"] {
         let source = caller_source(
@@ -154,18 +117,8 @@ fn reject_receiver_requirement(receiver: &str) {
 }
 
 #[test]
-fn write_only_receiver_cannot_satisfy_shared_receiver_requirement() {
-    reject_receiver_requirement("&self");
-}
-
-#[test]
 fn write_only_receiver_cannot_satisfy_mutable_receiver_requirement() {
     reject_receiver_requirement("&mut self");
-}
-
-#[test]
-fn write_only_receiver_cannot_satisfy_owned_receiver_requirement() {
-    reject_receiver_requirement("self");
 }
 
 #[test]

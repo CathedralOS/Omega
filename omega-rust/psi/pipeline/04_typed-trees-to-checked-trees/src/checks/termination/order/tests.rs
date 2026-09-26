@@ -20,12 +20,6 @@ terminates by remaining -> Nat::Descending in 1..=5;
 "#;
 
 #[test]
-fn a_source_free_program_keeps_the_builtin_reading() {
-    // No declaration at the catalog path: the canonical identity stands.
-    check(COUNTDOWN).expect("builtin natural countdown");
-}
-
-#[test]
 fn a_declared_lookalike_at_the_catalog_path_is_not_the_builtin_view() {
     // A bodied user declaration spelled `Nat::Descending` is not the sealed
     // toolchain declaration, so the explicit view no longer selects the

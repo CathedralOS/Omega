@@ -22,6 +22,12 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
+task-plans = { path = "../../representations/task-plans" }
+proof-admission = { path = "../../../psi/semantics/proof-admission" }
+symbols = { path = "../../../psi/foundation/symbols" }
+numerics = { path = "../../../psi/foundation/numerics" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+sha2 = "0.10.9"
 
 [dev-dependencies]
 task-plans = { path = "../../representations/task-plans" }

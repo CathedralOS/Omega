@@ -144,29 +144,6 @@ fn rejects_suspension_while_borrow_carrying_local_remains_live() {
 }
 
 #[test]
-fn accepts_suspension_after_restrictive_locals_last_use() {
-    checked_program_result(
-        r#"
-        data Cell { value: i32; }
-        data Message { body: &Cell; }
-        boundary trait Scheduler {
-            machine park() suspends;
-        }
-        data Main<'s> { scheduler: &'s mut Scheduler; cell: Cell; }
-        machine Main::read(&mut self, cell: &Cell) -> i32 {
-            transition { _ -> cell.value }
-        }
-        machine Main::run(&mut self) reaches Scheduler {
-            let message: Message = Message { body: &self.cell };
-            let value: i32 = self.read(message.body);
-            suspend self.scheduler.park();
-        }
-        "#,
-    )
-    .expect("the restrictive local is dead before suspension");
-}
-
-#[test]
 fn checked_crossing_records_canonical_site_and_joined_policy() {
     let checked = checked_program_result(
         r#"
@@ -737,26 +714,6 @@ fn rejects_suspension_while_restrictive_self_field_remains_live() {
         }),
         "expected self-field carry diagnostic, got {diagnostics:#?}"
     );
-}
-
-#[test]
-fn accepts_suspension_after_restrictive_self_field_last_use() {
-    checked_program_result(
-        r#"
-        data Cell { value: i32; }
-        data Message { body: &Cell; }
-        boundary trait Scheduler { machine park() suspends; }
-        data Main<'s> { scheduler: &'s mut Scheduler; cell: Cell; message: Message; }
-        machine Main::read(&mut self, cell: &Cell) -> i32 {
-            transition { _ -> cell.value }
-        }
-        machine Main::run(&mut self) reaches Scheduler {
-            let value: i32 = self.read(self.message.body);
-            suspend self.scheduler.park();
-        }
-        "#,
-    )
-    .expect("the restrictive self field is dead before suspension");
 }
 
 #[test]

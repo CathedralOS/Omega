@@ -1,0 +1,68 @@
+{
+  "wave": "win-w3",
+  "max_acu_limit": 10,
+  "resumable": true,
+  "bypass_approval": true,
+  "tags": [
+    "omega-swarm",
+    "win-w3"
+  ],
+  "owner_label_prefix": "Jarod / win-w3",
+  "exclusions": [],
+  "sessions": [
+    {
+      "name": "native-ops",
+      "board": "TASKS.md",
+      "item": "PLACED-ACCESS-NATIVE-OPS",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/representations/scalar-graphs",
+        "omega-rust/omega/representations/target-operations",
+        "omega-rust/omega/representations/target-operations-runtime",
+        "omega-rust/omega/representations/abstract-operations",
+        "omega-rust/omega/representations/legalized-operations",
+        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations",
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
+        "omega-rust/omega/backend/images/image-emission",
+        "omega-rust/omega/backend/artifacts/component-description",
+        "omega-rust/omega/compiler/native-realization",
+        "omega-rust/omega/tooling/realization-runner",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/emission"
+      ],
+      "suggested_first_slice": "Takeover of suspended session arch-self-ri-backend (claim released; owner never resumes). Pushed reference work on stale leaf lanes \u00e2\u20ac\u201d port the omega-side intent onto fresh main rather than literal cherry-picks (crate dirs were renumbered since they branched): leaf/indexed-primitive-read-realization, leaf/transition-arm-runtime-index-reads, leaf/mixed-owned-carrier-home, leaf/call-structural-crash-roster. Lane parts touching psi-side files outside this claim (t2c, terminal-verifier, c2l scalar_* files) are residuals \u00e2\u20ac\u201d note them in your report, do not edit them: arch-self-field-facts' claim on terminal-verifier + c2l scalar_block_invariants and claude-ambient's tests/omega/pass fixture claims may still be live; check `python3 tools/claims.py status` before editing any corpus fixture and prefer --allow-overlap notes when the conflicting owner is the dead fleet."
+    },
+    {
+      "name": "lowering-routes",
+      "board": "TASKS.md",
+      "item": "LOWERING-ROUTE-CONSOLIDATION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_scalar",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/mod.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/values/scalar",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/scalar_graph",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/tests"
+      ],
+      "suggested_first_slice": "Takeover of suspended session arch-self-sg-final (claim released; owner never resumes; its note: 'test completion is the current frontier: close the shared checked-tree result model families and the borrowed-caller cases'). Seed lanes to port onto fresh main: leaf/member-subslice-results (t2c terminal_scalar + c2l scalar_graph/call_lowering \u00e2\u20ac\u201d likely this session's own pushed work) and leaf/statement-sequence-nonplain-kinds (t2c values/scalar/structural_fields + c2l tests). Then close the named frontier per the board item."
+    },
+    {
+      "name": "check-hang",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CHECK-HOT-PATH-INDEXES",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/foundation/symbols/src/table.rs",
+        "omega-rust/psi/foundation/symbols/src/table/modules.rs",
+        "omega-rust/psi/semantics/validation/src/value_custody/expression_types/walk.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/flow/place/resolution.rs"
+      ],
+      "suggested_first_slice": "Takeover of suspended session jarod-overseer (3 claims released; owner never resumes). One chain of three freeform perf items against a measured >900 s `omega --check` hang of a std-importing program (hot profile: the_modules/intern resolution, value-custody walk, place resolution). In this worktree, in order, claiming each item before its edits: (1) SOURCE-MODULE-INDEX \u00e2\u20ac\u201d psi/foundation/symbols intern/module_index/the_modules intern_index: resolve interned module strings through identity or a dense index instead of linear scans; (2) EXPRESSION-WALK-DEDUP-SET \u00e2\u20ac\u201d psi/semantics/validation value_custody/expression_types/walk.rs O(N^2) revisits: dedupe already-walked expressions without weakening what each visit must prove; (3) PLACE-SYMBOL-POSITION-INDEX \u00e2\u20ac\u201d t2c flow/place/resolution.rs parent-edge/scope-index fast path. Measure `mbx run -p omega -- --check <std-importing program>` wall time before and after each fix. Claim via `python3 tools/claims.py claim --item <ITEM> --owner 'Jarod / win-w3-check-hang' --paths <files> --board TASKS_OPTIMIZER.md` (freeform items \u00e2\u20ac\u201d no board entry needed); if a still-live claim conflicts, note it and skip ahead."
+    }
+  ]
+}

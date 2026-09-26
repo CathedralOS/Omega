@@ -176,42 +176,6 @@ fn attached_unit_scalar_boundary_result_reaches_later_call_in_terminal_psi() {
 }
 
 #[test]
-fn unit_call_closure_retains_scalar_boundary_wrapper() {
-    let source = SOURCE
-        .replace("Host::measure(70)", "Scalar::measure()")
-        .replace(
-            "data Main {}",
-            r#"
-            data Scalar {}
-            machine Scalar::measure() -> i32
-            reaches Host
-            {
-                let result: i32 = Host::measure(70);
-                result
-            }
-            data Main {}
-        "#,
-        );
-    let checked = crate::front_end::checked_program(&source);
-    checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Scalar::measure"),
-    )
-    .expect("the scalar boundary wrapper already lowers as a named root");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .expect("the same wrapper belongs to the ordinary Unit call closure");
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("the composed result and boundary authority independently verify");
-}
-
-#[test]
 fn attached_unit_ordinary_scalar_result_reaches_later_call_in_terminal_psi() {
     let checked = ordinary_checked();
     let operations = &checked

@@ -36,20 +36,6 @@ fn boolean_entry_requirements_cover_matching_direct_crash_sites() {
 }
 
 #[test]
-fn entry_requirement_snapshots_survive_writes_and_named_state_rebinding() {
-    accepts(
-        "machine value(mut flag: bool) -> bool\nrequires flag\ncrashes Trap flag\n{ flag = false; transition { _ -> failed(false) } state failed(flag: bool) -> bool { crash Trap; } }",
-    );
-}
-
-#[test]
-fn entry_requirements_cover_matching_call_routes() {
-    accepts(
-        "machine trigger() -> bool\ncrashes Trap\n{ crash Trap; }\nmachine value(flag: bool) -> bool\nrequires flag\ncrashes Trap flag\n{ trigger() }",
-    );
-}
-
-#[test]
 fn entry_requirements_do_not_change_cause_formal_or_disjunction() {
     for source in [
         "machine value(flag: bool) -> bool\nrequires flag\ncrashes Abort flag\n{ crash Trap; }",

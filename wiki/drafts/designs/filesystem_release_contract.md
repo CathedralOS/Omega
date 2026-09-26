@@ -14,7 +14,7 @@ for a program's own open/query/close occurrence:
    exact object/argument contract, handle/alias identity preserved through
    intervening calls, exactly one applicable release, no later use.
 2. Rejoin of the exact occurrence at native realization in
-   `native-realization/src/native_realization/terminal_authority_policy/filesystem.rs`
+   `abstract-operations-to-target-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
    — an evidence-bound explicit-empty mechanism row, never a synthesized empty row.
 3. Native customer: `tests/omega/pass/filesystem/windows_canonicalize_exit`,
    whose recorded stop is `structural field store: scalar field type`.

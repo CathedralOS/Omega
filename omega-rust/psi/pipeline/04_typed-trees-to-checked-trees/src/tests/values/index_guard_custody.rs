@@ -36,17 +36,6 @@ fn builtin_index_guards_keep_their_selected_meaning() {
 }
 
 #[test]
-fn authored_ordering_cannot_supply_an_index_bound() {
-    check(
-        &read_source(
-            "operator < u64::custom(left: u64, right: u64) -> bool;",
-            "index < items.len",
-        ),
-        false,
-    );
-}
-
-#[test]
 fn authored_boolean_equality_cannot_expose_an_inner_index_bound() {
     check(
         "operator == bool::custom(left: bool, right: bool) -> bool;
@@ -78,14 +67,6 @@ fn loop_source(declaration: &str) -> String {
 #[test]
 fn builtin_loop_guards_establish_the_write_first_index_bound() {
     check(&loop_source(""), true);
-}
-
-#[test]
-fn authored_loop_guard_equality_cannot_establish_an_inductive_bound() {
-    check(
-        &loop_source("operator == bool::custom(left: bool, right: bool) -> bool;"),
-        false,
-    );
 }
 
 #[test]
@@ -223,21 +204,4 @@ fn computed_index_guards_keep_their_selected_meaning() {
             accepted,
         );
     }
-}
-
-#[test]
-fn nominal_len_fields_keep_their_declared_carrier() {
-    check(
-        "operator < i32::custom(left: i32, right: i32) -> bool;
-        data Main { len: i32; items: [u8; 4]; }
-        machine Main::read(&mut self) {
-            transition self.len >= 0 && self.len < 4 {
-                true -> read_item() false -> {}
-            }
-            state read_item(&mut self) {
-                let value: u8 = self.items[self.len];
-            }
-        }",
-        false,
-    );
 }

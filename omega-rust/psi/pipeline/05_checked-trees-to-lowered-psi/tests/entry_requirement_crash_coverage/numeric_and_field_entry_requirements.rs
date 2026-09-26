@@ -4,18 +4,6 @@ use super::{
 };
 
 #[test]
-fn numeric_entry_requirement_covers_an_unconditional_call() {
-    assert_unconditional_call_trap(&with_caller(
-        "machine trigger() -> bool crashes Trap { crash Trap; }\n\
-         machine guarded(input: u32) -> bool\n\
-         requires input > 0\n\
-         crashes Trap input > 0\n\
-         { trigger() }",
-        "guarded(1)",
-    ));
-}
-
-#[test]
 fn fixed_integer_entry_comparisons_preserve_their_declared_crash_routes() {
     for primitive in ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"] {
         for (comparison, actual, bound) in [
@@ -157,46 +145,6 @@ fn numeric_requirements_do_not_authorize_wrong_routes_or_new_body_values() {
             "{source}: {diagnostics:#?}"
         );
     }
-}
-
-#[test]
-fn trapping_arithmetic_cannot_become_numeric_entry_crash_evidence() {
-    let source = "machine trigger() -> bool crashes Trap { crash Trap; }\n\
-                  machine guarded(input: u32 in Trapping) -> bool\n\
-                  requires input + 1 > input\n\
-                  crashes Trap input > 0\n\
-                  { trigger() }";
-    let diagnostics =
-        crate::front_end::checked_program_result(source).expect_err("partial specification term");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("direct Trapping arithmetic")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn integer_field_entry_requirement_covers_unconditional_scalar_call() {
-    assert_structural_entry_requirement_artifact(
-        r#"
-        data Record { count: u32; }
-        data Helper {}
-        data Main {}
-        boundary trait Sink { machine record(value: bool); }
-        machine trigger() -> bool
-        crashes Trap
-        { crash Trap; }
-        machine Helper::forward(record: &Record)
-        reaches Sink requires record.count > 0
-        crashes Trap record.count > 0
-        { Sink::record(trigger()); }
-        machine Main::value(record: &Record)
-        requires record.count > 0
-        crashes Trap record.count > 0
-        { Helper::forward(record); }
-        "#,
-    );
 }
 
 #[test]

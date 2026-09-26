@@ -1,0 +1,14 @@
+// A typed value keeps its own carrier across a store: storing the `u32`
+// state into the `i32` output is an implicit conversion even though both
+// are Exact integers, because the typed value does not take the
+// destination's type. Decision 17 rejects it; spelling `self.state as i32`
+// is the escape.
+use omega::language::std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; state: u32; output: i32; }
+machine Main::main(&mut self) {
+    self.state = 7;
+    self.output = self.state;
+    let o: i32 = self.output;
+    self.console.exit_process(o);
+}

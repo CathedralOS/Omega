@@ -577,7 +577,7 @@ terminates by (i, path.len) -> Nat::BoundedDistance;
     // field RMW accumulator, which on re-invocation read a stale
     // static-folded zero and undercounted (the chained-RMW-static-fold face;
     // it silently corrupted every SECOND dir-walk in a process).
-    state wpc_done(&mut self, i: u64) { self.w_path_len = i; }
+    state wpc_done(&mut self, i: u64) { self.w_path_len = i as u64 in Wrapping; }
 }
 
 // One byte of the path copy. Both facts (in the slice, in the buffer) ride

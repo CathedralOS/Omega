@@ -1,4 +1,4 @@
-use crate::sources::AssembledSyntax;
+use build_evaluation::sources::AssembledSyntax;
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{
     SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,

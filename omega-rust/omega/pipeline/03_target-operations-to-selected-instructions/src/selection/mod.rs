@@ -47,12 +47,58 @@ pub fn select_instructions(
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
-    let environment = register_environment::validate_target_register_environment(
-        legalized.plan().target,
-        physical.model().clone(),
-        catalog.catalog().clone(),
-    )
-    .map_err(|_| SelectedInstructionError::custody())?;
+    let environment = target_register_environment(legalized.plan().target, physical, catalog)
+        .map_err(|_| SelectedInstructionError::custody())?;
     let plan = build_plan(legalized, constraints, &environment)?;
     validation::validate_with_environment(legalized, constraints, &environment, plan)
+}
+
+/// Environments already joined in this process, keyed by the target and the
+/// content identities of the validated physical model and constraint catalog.
+type EnvironmentKey = (
+    target::NativeTarget,
+    register_model::PhysicalRegisterModelIdentity,
+    register_model::RegisterConstraintCatalogIdentity,
+);
+
+/// The joined register environment is a pure function of the target and the
+/// validated physical model and constraint catalog, which their content
+/// identities name. Selection, scalar-graph construction and selection
+/// validation each cloned both and re-validated the join for every function;
+/// each distinct environment is now joined once per process. A failed join is
+/// not remembered, so it fails again on every request.
+pub(crate) fn target_register_environment(
+    target: target::NativeTarget,
+    physical: &ValidatedPhysicalRegisterModel,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<
+    register_environment::ValidatedTargetRegisterEnvironment,
+    register_environment::TargetRegisterEnvironmentValidationError,
+> {
+    static ENVIRONMENTS: std::sync::OnceLock<
+        std::sync::Mutex<
+            Vec<(
+                EnvironmentKey,
+                register_environment::ValidatedTargetRegisterEnvironment,
+            )>,
+        >,
+    > = std::sync::OnceLock::new();
+    let environments = ENVIRONMENTS.get_or_init(std::sync::Mutex::default);
+    let key = (target, physical.identity(), catalog.identity());
+    if let Ok(environments) = environments.lock()
+        && let Some((_, environment)) = environments.iter().find(|(candidate, _)| *candidate == key)
+    {
+        return Ok(environment.clone());
+    }
+    let environment = register_environment::validate_target_register_environment(
+        target,
+        physical.model().clone(),
+        catalog.catalog().clone(),
+    )?;
+    if let Ok(mut environments) = environments.lock()
+        && !environments.iter().any(|(candidate, _)| *candidate == key)
+    {
+        environments.push((key, environment.clone()));
+    }
+    Ok(environment)
 }

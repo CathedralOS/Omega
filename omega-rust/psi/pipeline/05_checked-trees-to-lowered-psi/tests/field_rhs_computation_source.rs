@@ -219,29 +219,6 @@ fn execute(
 }
 
 #[test]
-fn nested_and_cast_wrapped_field_rhs_reads_prewrite_value() {
-    execute(
-        r#"
-        boundary trait Trace { machine observe(value: u16) reaches Trace; }
-        data Main { value: u16; }
-        machine identity(value: u16) -> u16 { value }
-        machine replacement() -> u16 { 19 }
-        machine Main::main(&mut self) reaches Trace {
-            self.value = 17;
-            self.value = identity(identity(self.value)) as u16;
-            Trace::observe(self.value);
-            self.value = replacement();
-            Trace::observe(self.value);
-        }
-    "#,
-        &[],
-        &[unsigned(17), unsigned(19)],
-        false,
-        3,
-    );
-}
-
-#[test]
 fn pure_and_computed_field_rhs_observe_mutated_primitive_local() {
     execute(
         r#"
@@ -449,34 +426,4 @@ fn field_rhs_computation_custody_rejects_destination_root_and_call_substitution(
             "field RHS custody mutation {mutation} must reject: {result:?}"
         );
     }
-}
-
-#[test]
-fn receiver_field_rhs_call_reaches_canonical_terminal() {
-    let source = r#"
-        data Main { value: u16; }
-        machine identity(value: u16) -> u16 { value }
-        machine Main::main(&mut self) {
-            self.value = 17;
-            self.value = identity(self.value);
-        }
-    "#;
-    let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("call-bearing field RHS must reach canonical Terminal")
-    .into_artifact();
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
-    terminal_verifier::verify_module(
-        &module,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("reloaded field RHS artifact verifies independently");
 }

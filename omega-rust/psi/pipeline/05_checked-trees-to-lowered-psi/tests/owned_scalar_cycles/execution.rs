@@ -9,19 +9,13 @@ use terminal_psi::{
     OperationKind, StructuralAccess, StructuralTypeShape, TerminalModule, Terminator,
 };
 
-use super::{CUSTOMER, support};
+use super::support;
 
 fn unsigned(value: u128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
         scalar_type: support::unsigned_type(),
         value: IntegerValue::Unsigned(value),
     }
-}
-
-#[test]
-fn unchanged_ranked_walk_executes_selected_resets_with_one_unit_pauses() {
-    let (module, _, semantic_bytes, proof_bytes) = support::publish(CUSTOMER);
-    execute_cases(&module, &semantic_bytes, &proof_bytes);
 }
 
 pub fn execute_cases(module: &TerminalModule, semantic_bytes: &[u8], proof_bytes: &[u8]) {

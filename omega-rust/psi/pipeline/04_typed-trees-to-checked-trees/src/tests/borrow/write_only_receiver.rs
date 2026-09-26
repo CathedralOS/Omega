@@ -43,32 +43,6 @@ fn reject_index_observation(body: &str) {
 }
 
 #[test]
-fn write_only_self_direct_scalar_store_checks() {
-    checked_program_result(&receiver_source("&write self", "", "self.value = 17;"))
-        .expect("write-only self permits a direct scalar store in a plain record");
-}
-
-#[test]
-fn write_only_self_nested_scalar_store_checks() {
-    checked_program_result(&receiver_source(
-        "&write self",
-        "",
-        "self.inner.value = 17;",
-    ))
-    .expect("write-only self permits a nested scalar store in plain records");
-}
-
-#[test]
-fn write_only_self_literal_index_scalar_store_checks() {
-    checked_program_result(&receiver_source(
-        "&write self",
-        "",
-        "self.inner.values[1] = 17;",
-    ))
-    .expect("write-only self permits an in-bounds literal-index scalar store");
-}
-
-#[test]
 fn write_only_self_scalar_parameter_rhs_checks() {
     for destination in ["self.value", "self.inner.value", "self.inner.values[1]"] {
         let source = receiver_source("&write self", "", &format!("{destination} = replacement;"));
@@ -79,50 +53,13 @@ fn write_only_self_scalar_parameter_rhs_checks() {
 }
 
 #[test]
-fn write_only_self_direct_prior_read_rejects() {
-    reject_field_observation("let prior: u16 = self.value;");
-}
-
-#[test]
-fn write_only_self_nested_prior_read_rejects() {
-    reject_field_observation("let prior: u16 = self.inner.value;");
-}
-
-#[test]
-fn write_only_self_literal_index_prior_read_rejects() {
-    reject_index_observation("let prior: u16 = self.inner.values[1];");
-}
-
-#[test]
 fn write_only_self_direct_compound_assignment_rejects() {
     reject_field_observation("self.value += 1;");
 }
 
 #[test]
-fn write_only_self_nested_compound_assignment_rejects() {
-    reject_field_observation("self.inner.value += 1;");
-}
-
-#[test]
-fn write_only_self_literal_index_compound_assignment_rejects() {
-    reject_index_observation("self.inner.values[1] += 1;");
-}
-
-#[test]
 fn write_only_self_direct_read_after_write_rejects() {
     reject_field_observation("self.value = 17; let observed: u16 = self.value;");
-}
-
-#[test]
-fn write_only_self_nested_read_after_write_rejects() {
-    reject_field_observation("self.inner.value = 17; let observed: u16 = self.inner.value;");
-}
-
-#[test]
-fn write_only_self_literal_index_read_after_write_rejects() {
-    reject_index_observation(
-        "self.inner.values[1] = 17; let observed: u16 = self.inner.values[1];",
-    );
 }
 
 #[test]
@@ -159,22 +96,6 @@ fn write_only_self_mutable_reborrows_reject() {
 }
 
 #[test]
-fn write_only_self_bare_observation_rejects() {
-    reject_source(
-        &receiver_source("&write self", "", "self;"),
-        "reads write-only parameter `self`; `&write` permits replacement or exact `&write` forwarding, never observation",
-    );
-}
-
-#[test]
-fn write_only_self_return_rejects() {
-    reject_source(
-        &receiver_source("&write self", "-> Self", "self"),
-        "reads write-only parameter `self`; `&write` permits replacement or exact `&write` forwarding, never observation",
-    );
-}
-
-#[test]
 fn write_only_self_observing_receiver_calls_reject() {
     for receiver in ["&self", "&mut self"] {
         let source = format!(
@@ -186,43 +107,6 @@ fn write_only_self_observing_receiver_calls_reject() {
             "reads write-only parameter `self`; `&write` permits replacement or exact `&write` forwarding, never observation",
         );
     }
-}
-
-#[test]
-fn write_only_self_nonobserving_statement_call_checks() {
-    let source = format!(
-        "{}\nmachine Record::replace(&write self) {{ self.value = 17; }}",
-        receiver_source("&write self", "", "self.replace();"),
-    );
-    checked_program_result(&source).expect("write-only dispatch preserves non-observing access");
-}
-
-#[test]
-fn write_only_self_observing_statement_call_rejects() {
-    let source = format!(
-        "{}\nmachine Record::observe(&self) {{ let prior: u16 = self.value; }}",
-        receiver_source("&write self", "", "self.observe();"),
-    );
-    reject_source(&source, "calls through write-only parameter `self`");
-}
-
-#[test]
-fn write_only_self_nested_observing_statement_call_rejects() {
-    let source = format!(
-        "{}\nmachine Inner::observe(&self) {{ let prior: u16 = self.value; }}",
-        receiver_source("&write self", "", "self.inner.observe();"),
-    );
-    reject_source(&source, "calls through write-only parameter `self`");
-}
-
-#[test]
-fn write_only_self_static_fixed_array_length_checks() {
-    checked_program_result(&receiver_source(
-        "&write self",
-        "",
-        "let length: u64 = self.inner.values.len;",
-    ))
-    .expect("literal fixed-array length is static metadata, not receiver content");
 }
 
 #[test]

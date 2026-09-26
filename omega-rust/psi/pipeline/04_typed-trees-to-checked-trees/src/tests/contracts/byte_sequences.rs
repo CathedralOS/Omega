@@ -83,11 +83,11 @@ fn direct_computed_byte_stores_use_selected_arithmetic() {
         ("output[position] = 1 / 2 * 130;", true),
         ("let byte: u8 = 60; output[position] = byte + 5;", true),
         ("output[position] = 60 + 5;", true),
-        ("output[position] = (250 as u8 in Wrapping) + 71;", true),
+        ("output[position] = ((250 as u8 in Wrapping) + 71) as u8;", true),
         ("output[position] = (250 as u8 in Saturating) + 71;", false),
         ("let byte: u8 = 120; output[position] = byte + 8;", false),
         (
-            "let mut byte: u8 = 60; byte = unknown; output[position] = (byte as u8 in Wrapping) + 5;",
+            "let mut byte: u8 = 60; byte = unknown; output[position] = ((byte as u8 in Wrapping) + 5) as u8;",
             false,
         ),
     ] {
@@ -243,21 +243,6 @@ data Input { bytes: [u8; 4]; }
 "#;
 
 #[test]
-fn concatenation_establishes_a_raw_output_from_nested_live_operands() {
-    let source = format!(
-        r#"{DEFINITIONS}
-        machine concatenate(output: &mut [u8; 16], input: Input)
-        requires input.bytes in Utf8
-        ensures output in Utf8 {{
-            output = (input.bytes + "!") + "!";
-        }}
-        "#
-    );
-    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
-        .expect("nested concatenation establishes output");
-}
-
-#[test]
 fn concatenation_requires_every_operand_to_have_a_live_predicate() {
     for body in [
         "output = input.bytes + unknown;",
@@ -280,22 +265,6 @@ fn concatenation_requires_every_operand_to_have_a_live_predicate() {
             "{body}: {diagnostics:#?}"
         );
     }
-}
-
-#[test]
-fn concatenated_output_does_not_replay_a_later_source_mutation() {
-    let source = format!(
-        r#"{DEFINITIONS}
-        machine concatenate(output: &mut [u8; 16], input: &mut Input)
-        requires input.bytes in Utf8
-        ensures output in Utf8 {{
-            output = input.bytes + "!";
-            input.bytes[0] = 255;
-        }}
-        "#
-    );
-    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
-        .expect("copied bytes are independent of input");
 }
 
 #[test]
@@ -388,37 +357,37 @@ fn declared_ranges_bound_frozen_storage_reads() {
         (
             "data Input { value: u64 [0..=9]; }",
             "u64",
-            "output[position] = (input.value as u8 in Wrapping) + 48;",
+            "output[position] = ((input.value as u8 in Wrapping) + 48) as u8;",
             true,
         ),
         (
             "data Input { value: u64 [0..=9]; }",
             "u64 [0..=9]",
-            "output[position] = (unknown as u8 in Wrapping) + 48;",
+            "output[position] = ((unknown as u8 in Wrapping) + 48) as u8;",
             true,
         ),
         (
             "data Input { value: u64 [0..=9]; }",
             "u64",
-            "let byte: u64 [0..=9] = input.value; output[position] = (byte as u8 in Wrapping) + 48;",
+            "let byte: u64 [0..=9] = input.value; output[position] = ((byte as u8 in Wrapping) + 48) as u8;",
             true,
         ),
         (
             "data Input { value: u64 [0..=90]; }",
             "u64",
-            "output[position] = (input.value as u8 in Wrapping) + 48;",
+            "output[position] = ((input.value as u8 in Wrapping) + 48) as u8;",
             false,
         ),
         (
             "data Input { value: u64; }",
             "u64",
-            "output[position] = (input.value as u8 in Wrapping) + 48;",
+            "output[position] = ((input.value as u8 in Wrapping) + 48) as u8;",
             false,
         ),
         (
             "data Input { value: u64 [0..=9]; }",
             "u64 [0..=200]",
-            "output[position] = (unknown as u8 in Wrapping) + 48;",
+            "output[position] = ((unknown as u8 in Wrapping) + 48) as u8;",
             false,
         ),
     ] {
@@ -443,11 +412,11 @@ fn declared_ranges_do_not_bound_mutably_borrowed_storage() {
     for (input_decl, body) in [
         (
             "input: Input",
-            "let mut local: u64 [0..=9] = 5; corrupt(&mut local); output[position] = (local as u8 in Wrapping) + 48;",
+            "let mut local: u64 [0..=9] = 5; corrupt(&mut local); output[position] = ((local as u8 in Wrapping) + 48) as u8;",
         ),
         (
             "input: &mut Input",
-            "corrupt(&mut input.value); output[position] = (input.value as u8 in Wrapping) + 48;",
+            "corrupt(&mut input.value); output[position] = ((input.value as u8 in Wrapping) + 48) as u8;",
         ),
     ] {
         let source = format!(

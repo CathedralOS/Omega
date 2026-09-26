@@ -253,16 +253,9 @@ fn validate_receipt(
         )));
         return;
     }
-    let Some(authorization) = checked.fused_service_erasure(requirement) else {
+    if checked.fused_service_erasure(requirement).is_none() {
         diagnostics.push(Diagnostic::error(format!(
             "checked routed Binding field `{}::{}` lacks compiler-owned Fused erasure authority",
-            owner.name, field.name,
-        )));
-        return;
-    };
-    if authorization.provider_plan_digest != receipt.provider_plan_digest {
-        diagnostics.push(Diagnostic::error(format!(
-            "checked routed Binding field `{}::{}` substituted its selected-provider-plan digest",
             owner.name, field.name,
         )));
         return;
@@ -291,7 +284,6 @@ fn validate_receipt(
         .iter()
         .filter(|candidate| {
             candidate.plan.schema == schema
-                && candidate.plan.identity_digest().as_bytes() == &receipt.provider_plan_digest
                 && candidate.selected_by.composition_mode() == Ok(CompositionMode::Fused)
         })
         .count();

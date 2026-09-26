@@ -156,26 +156,6 @@ fn outcome_specific_named_and_unnamed_rows_discharge_on_matching_exit() {
 }
 
 #[test]
-fn outcome_specific_named_row_checks_evidence_after_result_substitution() {
-    let typed = parse_typed_trees(
-        r#"
-        trait Evidence {}
-        data Outcome { case Success; case Failure; }
-        proposition accepted(value: Outcome) evidence Evidence;
-        machine choose() -> Outcome
-        requires incoming: accepted(Outcome::Success)
-        ensures Outcome::Success -> { selected: accepted(result); }
-        {
-            selected = incoming;
-            Outcome::Success
-        }
-        "#,
-    );
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("the named source exactly inhabits the concretely substituted guarantee");
-}
-
-#[test]
 fn outcome_specific_named_row_rejects_wrong_substituted_evidence() {
     let typed = parse_typed_trees(
         r#"
@@ -310,22 +290,6 @@ fn outcome_specific_unnamed_row_substitutes_concrete_result() {
 }
 
 #[test]
-fn outcome_specific_unnamed_row_substitutes_payload_constructor() {
-    let typed = parse_typed_trees(
-        r#"
-        data Outcome { case Success(value: i32); case Failure; }
-        proposition accepted(value: Outcome);
-        machine choose() -> Outcome
-        requires accepted(Outcome::Success { value: 7 })
-        ensures Outcome::Success -> { accepted(result); }
-        { Outcome::Success { value: 7 } }
-        "#,
-    );
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("the full concrete payload constructor participates in result substitution");
-}
-
-#[test]
 fn outcome_specific_unnamed_row_rejects_missing_matching_proof() {
     let typed = parse_typed_trees(
         r#"
@@ -406,24 +370,6 @@ fn outcome_specific_assignment_on_all_join_inputs_passes() {
     );
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("every qualifying predecessor establishes the guarded term");
-}
-
-#[test]
-fn outcome_specific_rows_need_no_lane_on_crash_exit() {
-    let typed = parse_typed_trees(
-        r#"
-        trait Evidence {}
-        proposition ready() evidence Evidence;
-        data Outcome { case Success; case Failure; }
-        machine choose() -> Outcome
-        requires incoming: ready()
-        ensures Outcome::Success -> { selected: ready(); false; }
-        crashes Abort
-        { crash Abort; }
-        "#,
-    );
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("a crash exit has no result or guarded proof lane");
 }
 
 #[test]

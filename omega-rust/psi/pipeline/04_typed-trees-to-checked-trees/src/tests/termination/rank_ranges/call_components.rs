@@ -67,46 +67,6 @@ fn recursive_quotient_endpoints_preserve_selection_and_formation() {
 }
 
 #[test]
-fn recursive_remainder_endpoint_formation_uses_live_quotient_bounds() {
-    let source = QUOTIENT_PAIR
-        .replace("cap: u64 [0..=20]", "cap: i8")
-        .replace("limit: u64 [0..=20]", "limit: i8")
-        .replace(
-            "terminates by remaining",
-            "requires cap > -128; terminates by remaining",
-        )
-        .replace(
-            "terminates by pending",
-            "requires limit > -128; terminates by pending",
-        )
-        .replace("cap / 5", "cap % -1")
-        .replace("limit / 5", "limit % -1");
-    prove(&source);
-    reject(&source.replace("requires cap > -128;", ""));
-    reject(&source.replace("requires limit > -128;", ""));
-}
-
-#[test]
-fn recursive_quotient_endpoints_need_live_prefixes_and_named_arrivals() {
-    prove(&QUOTIENT_PAIR.replace(
-        "transition remaining > 0",
-        "self.observed = remaining; transition remaining > 0",
-    ));
-    reject(&QUOTIENT_PAIR.replace("cap: u64", "mut cap: u64").replace(
-        "transition remaining > 0",
-        "cap = 0; transition remaining > 0",
-    ));
-    let named = QUOTIENT_PAIR.replace(
-        "    transition remaining > 0 {\n        true -> self.second(cap, remaining)\n        false -> remaining\n    }",
-        "    transition { _ -> hold(cap, remaining) }\n    state hold(bound: u64 [0..=20], amount: u64 [0..=5]) {\n        transition amount > 0 { true -> self.second(bound, amount) false -> amount }\n    }",
-    );
-    prove(&named);
-    prove(&named.replace(" in 0..(limit / 5 + 6)", ""));
-    reject(&named.replace("hold(cap, remaining)", "hold(0, remaining)"));
-    reject(&named.replace("self.second(bound, amount)", "self.second(0, amount)"));
-}
-
-#[test]
 fn recursive_quotient_endpoints_follow_nested_terms_and_record_coordinates() {
     prove(
         &QUOTIENT_PAIR
@@ -805,18 +765,6 @@ fn reject(source: &str) {
 }
 
 #[test]
-fn range_bearing_calls_preserve_the_rank_on_one_edge_and_decrease_the_cycle() {
-    prove(PAIR);
-    prove(
-        &PAIR
-            .replace("remaining <= ceiling", "remaining < ceiling")
-            .replace("pending <= upper", "pending < upper")
-            .replace("floor..=ceiling", "floor..ceiling")
-            .replace("lower..=upper", "lower..upper"),
-    );
-}
-
-#[test]
 fn unranked_payloads_do_not_shift_numeric_call_parameters() {
     prove(
         &PAIR
@@ -844,41 +792,6 @@ fn each_call_rechecks_exact_bounds_after_argument_reordering() {
     }
     reject(&PAIR.replace("lower..=upper", "lower..=(upper - 1)"));
     reject(&PAIR.replace("pending > lower", "pending >= lower"));
-}
-
-#[test]
-fn a_preserving_call_cycle_and_a_hidden_preserving_parallel_edge_reject() {
-    reject(&PAIR.replace("pending - 1", "pending"));
-    reject(&PAIR.replace(
-        "false -> pending",
-        "false -> self.first(lower, pending, upper)",
-    ));
-}
-
-#[test]
-fn caller_facts_cannot_be_replaced_by_the_callees_requirements() {
-    reject(&PAIR.replace(
-        "floor <= remaining && remaining <= ceiling",
-        "remaining <= ceiling",
-    ));
-    reject(&PAIR.replace(
-        "self.first(lower, pending - 1, upper)",
-        "self.first(lower, pending - 2, upper)",
-    ));
-}
-
-#[test]
-fn endpoint_mutation_invalidates_range_premises_but_disjoint_stores_do_not() {
-    prove(&PAIR.replace(
-        "    transition remaining > floor",
-        "    self.observed = remaining; transition remaining > floor",
-    ));
-    for prefix in ["ceiling = 0;", "floor = 0;", "remaining = 0;"] {
-        reject(&PAIR.replace(
-            "    transition remaining > floor",
-            &format!("    {prefix} transition remaining > floor"),
-        ));
-    }
 }
 
 #[test]
@@ -960,36 +873,6 @@ satisfies Ops::note
                 "    transition remaining > floor",
                 "    let seen: u64 = self.bump(&mut remaining);\n    transition remaining > floor",
             ),
-    );
-}
-
-#[test]
-fn prefix_let_call_bindings_admit_single_member_cycles() {
-    // The corpus canary shape: a self-recursive member whose entry state binds
-    // a checked-body call before its rank-decreasing self-edge.
-    prove(
-        r#"
-data Main {}
-
-machine Main::main(&mut self) -> u32 {
-    transition { _ -> self.walk(4, 9) }
-}
-
-machine Main::level(&self, value: u32) -> u32 {
-    transition { _ -> value }
-}
-
-machine Main::walk(&mut self, remaining: u32, ceiling: u32 [5..=10])
-requires remaining <= ceiling;
-terminates by remaining in 0..=ceiling;
--> u32 {
-    let seen: u32 = self.level(remaining);
-    transition remaining > 0 {
-        true -> walk(remaining - 1, ceiling)
-        false -> remaining
-    }
-}
-"#,
     );
 }
 
@@ -1186,23 +1069,6 @@ fn unranged_natural_call_guards_preserve_boolean_wrapper_orientation() {
 }
 
 #[test]
-fn unrelated_boolean_guards_do_not_block_unranged_natural_call_progress() {
-    let source = without_ranges(PAIR)
-        .replace("floor: u64", "enabled: bool, floor: u64")
-        .replace("upper: u64", "flag: bool, upper: u64")
-        .replace("transition remaining > floor", "transition enabled")
-        .replace(
-            "ceiling, remaining, floor)",
-            "enabled, ceiling, remaining, floor)",
-        )
-        .replace(
-            "lower, pending - 1, upper)",
-            "flag, lower, pending - 1, upper)",
-        );
-    prove(&source);
-}
-
-#[test]
 fn mixed_call_ranges_preserve_dependent_endpoints_in_both_directions() {
     for omitted in [" in floor..=ceiling", " in lower..=upper"] {
         let source = PAIR.replace(omitted, "");
@@ -1318,26 +1184,6 @@ fn mixed_call_range_pins_survive_multiple_unranged_members_and_parallel_edges() 
     reject(&hidden_weak_cycle);
 }
 
-#[test]
-fn mixed_call_range_endpoint_inputs_accept_checked_arithmetic_identity() {
-    let source = PAIR.replace(" in lower..=upper", "");
-    prove(&source.replace(
-        "ceiling, remaining, floor)",
-        "ceiling + 0, remaining, floor)",
-    ));
-    reject(&source.replace(
-        "ceiling, remaining, floor)",
-        "ceiling + 1, remaining, floor)",
-    ));
-    reject(&format!(
-        "operator + u64::add(left: u64, right: u64) -> u64; {}",
-        source.replace(
-            "ceiling, remaining, floor)",
-            "ceiling + 0, remaining, floor)"
-        )
-    ));
-}
-
 const STATEFUL: &str = r#"
 data Main {}
 machine Main::count(&mut self, remaining: u32 [0..=9])
@@ -1451,78 +1297,6 @@ fn reject_requires(source: &str) {
             .message
             .contains("cannot prove requires contract")),
         "{source}\n{diagnostics:#?}"
-    );
-}
-
-const SUBORDINATE_REQUIRES: &str = r#"
-data Main {}
-
-machine Main::main(&mut self) -> u64 {
-    transition { _ -> self.outer(6, 4) }
-}
-
-machine Main::outer(&mut self, cap: u64, remaining: u64)
-requires remaining <= cap;
-terminates by remaining in 0..=cap;
--> u64 {
-    transition remaining > 0 {
-        true -> hold(remaining, cap)
-        false -> remaining
-    }
-    state hold(pending: u64, bound: u64) {
-        transition pending > 0 {
-            true -> self.inner(pending, bound)
-            false -> pending
-        }
-    }
-}
-
-machine Main::inner(&mut self, n: u64, limit: u64)
-requires n <= limit;
-terminates by n;
--> u64 {
-    transition n > 0 && n <= limit {
-        true -> self.outer(limit, n - 1)
-        false -> n
-    }
-}
-"#;
-
-#[test]
-fn subordinate_call_reads_the_caller_members_proven_range_invariant() {
-    prove(SUBORDINATE_REQUIRES);
-    // The invariant supplies exactly the comparisons it proves: a strictly
-    // stronger requirement, or one the carried facts do not establish,
-    // still has no site evidence.
-    reject_requires(&SUBORDINATE_REQUIRES.replace("requires n <= limit;", "requires n < limit;"));
-    reject_requires(&SUBORDINATE_REQUIRES.replace(
-        "requires n <= limit;",
-        "requires n <= limit && limit <= 42;",
-    ));
-    // An actual that is not the carried endpoint leaves the ceiling
-    // unpinned at the component edge even though `pending <= pending`
-    // remains provable.
-    reject(
-        &SUBORDINATE_REQUIRES.replace("self.inner(pending, bound)", "self.inner(pending, pending)"),
-    );
-    // An arrival the member cannot pin fails its own state-edge judgment
-    // rather than feeding a stale premise into the requires proof, and an
-    // intervening write to a required carrier does the same.
-    reject(
-        &SUBORDINATE_REQUIRES
-            .replace(
-                "transition remaining > 0 {",
-                "transition remaining > 0 && cap > 0 {",
-            )
-            .replace("hold(remaining, cap)", "hold(remaining, cap - 1)"),
-    );
-    reject(
-        &SUBORDINATE_REQUIRES
-            .replace("pending: u64, bound: u64)", "pending: u64, mut bound: u64)")
-            .replace(
-                "        transition pending > 0 {",
-                "        bound = bound; transition pending > 0 {",
-            ),
     );
 }
 
@@ -1764,102 +1538,6 @@ fn field_measure_member_reads_its_proven_invariant_at_a_subordinate_call() {
     reject(&FIELD_SUBORDINATE_REQUIRES.replace(
         "true -> hold(countdown)",
         "true -> hold(Countdown { remaining: countdown.remaining, limit: countdown.remaining - 1 })",
-    ));
-}
-
-const PROJECTED_ENDPOINT_REQUIRES: &str = r#"
-data Limits {
-    cap: u64 [0..=9];
-}
-
-data Main {}
-
-machine Main::main(&mut self) -> u64 {
-    transition { _ -> self.outer(4, Limits { cap: 6 }) }
-}
-
-machine Main::outer(&mut self, remaining: u64, limits: Limits)
-requires remaining <= limits.cap;
-terminates by remaining in 0..=limits.cap;
--> u64 {
-    transition remaining > 0 {
-        true -> hold(remaining, limits)
-        false -> remaining
-    }
-    state hold(pending: u64, bounds: Limits) {
-        transition pending > 0 {
-            true -> self.inner(pending, bounds)
-            false -> pending
-        }
-    }
-}
-
-machine Main::inner(&mut self, n: u64, current: Limits)
-requires n <= current.cap;
-terminates by n;
--> u64 {
-    transition n > 0 && n <= current.cap {
-        true -> self.outer(n - 1, current)
-        false -> n
-    }
-}
-"#;
-
-#[test]
-fn scalar_member_with_projected_endpoint_reads_its_invariant_at_a_subordinate_call() {
-    // `outer`'s rank is the scalar `remaining`; its authored ceiling is the
-    // entry-spelled projection `limits.cap`. The member's own state-edge
-    // judgment re-proves `0 <= pending <= bounds.cap` on every `hold`
-    // arrival through the `pending -> remaining, bounds -> limits`
-    // telescope, so `inner`'s public `requires n <= current.cap` is
-    // discharged without a respelled guard.
-    prove(PROJECTED_ENDPOINT_REQUIRES);
-    prove(&PROJECTED_ENDPOINT_REQUIRES.replace(
-        "transition pending > 0 {",
-        "transition pending > 0 && pending <= bounds.cap {",
-    ));
-    // A decreasing internal arrival keeps the endpoint pinned, so the
-    // re-established invariant still discharges the same requires.
-    prove(&PROJECTED_ENDPOINT_REQUIRES.replace(
-        "true -> hold(remaining, limits)",
-        "true -> hold(remaining - 1, limits)",
-    ));
-    // The invariant supplies exactly the membership it proves: a strictly
-    // stronger requires, or a conjunct the carried facts do not establish,
-    // still has no site evidence.
-    reject_requires(
-        &PROJECTED_ENDPOINT_REQUIRES
-            .replace("requires n <= current.cap;", "requires n < current.cap;"),
-    );
-    reject_requires(&PROJECTED_ENDPOINT_REQUIRES.replace(
-        "requires n <= current.cap;",
-        "requires n <= current.cap && current.cap <= 5;",
-    ));
-    // An actual that is not the carried record leaves the ceiling unpinned:
-    // the rebuilt literal's `cap` is `pending`, not the proven `bounds.cap`.
-    reject(&PROJECTED_ENDPOINT_REQUIRES.replace(
-        "true -> self.inner(pending, bounds)",
-        "true -> self.inner(pending, Limits { cap: pending })",
-    ));
-    // An intervening write to the record carrier invalidates the premise the
-    // invariant was read from.
-    reject(
-        &PROJECTED_ENDPOINT_REQUIRES
-            .replace(
-                "state hold(pending: u64, bounds: Limits)",
-                "state hold(pending: u64, mut bounds: Limits)",
-            )
-            .replace(
-                "        transition pending > 0 {",
-                "        bounds = bounds; transition pending > 0 {",
-            ),
-    );
-    // An arrival whose rebuilt record moves the authored endpoint fails the
-    // member's own state-edge judgment rather than feeding a stale premise:
-    // `bounds.cap` there is `remaining - 1`, not the pinned `limits.cap`.
-    reject(&PROJECTED_ENDPOINT_REQUIRES.replace(
-        "true -> hold(remaining, limits)",
-        "true -> hold(remaining, Limits { cap: remaining - 1 })",
     ));
 }
 

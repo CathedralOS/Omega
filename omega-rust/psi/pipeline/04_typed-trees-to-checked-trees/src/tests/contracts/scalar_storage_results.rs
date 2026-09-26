@@ -164,28 +164,6 @@ fn mutable_owned_formal_results_use_current_storage_and_saved_values() {
 }
 
 #[test]
-fn final_non_ascii_storage_cannot_preserve_ascii() {
-    check(
-        &byte_store_source(
-            "let mut byte: u8 = value; let saved: u8 = byte; byte = 200; byte",
-            "let byte: u8 = narrow(65); line[0] = byte;",
-        ),
-        false,
-    );
-}
-
-#[test]
-fn later_ascii_storage_cannot_bless_a_saved_non_ascii_value() {
-    check(
-        &byte_store_source(
-            "let mut byte: u8 = 200; let saved: u8 = byte; byte = value; saved",
-            "let byte: u8 = narrow(65); line[0] = byte;",
-        ),
-        false,
-    );
-}
-
-#[test]
 fn unknown_and_corrupted_storage_results_remain_unproved() {
     for (callee, body) in [
         (

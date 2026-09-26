@@ -26,9 +26,10 @@ pub(super) fn resolve_selected_spelled_operator_adapter_call(
         )));
     }
     let plan = resolve_exact_selected_plan(
+        checked,
         selected_provider_plans,
-        operator_use.provider_plan_report_fingerprint,
-        operator_use.provider_plan_commitment,
+        operator_use.selected_operator_symbol,
+        operator_use.origin,
         "fixed-token operator use",
     )?;
     let operator = exact_operator_definition(
@@ -202,12 +203,12 @@ mod tests {
         let [plan] = plans.as_slice() else {
             panic!("fixed-token dispatch fixture must derive one provider plan")
         };
-        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
             typed,
             &typed_trees_to_checked_trees::CheckingRequest::settled(),
         )
         .expect("check fixed-token dispatch fixture");
-        let (use_handle, mut operator_use) = checked
+        let (use_handle, _) = checked
             .facts
             .operators
             .uses
@@ -218,12 +219,6 @@ mod tests {
                     && operator_use.status == CheckedOperatorResolutionStatus::Resolved
             })
             .expect("one resolved fixed-token boundary use");
-        operator_use.provider_plan_report_fingerprint = plan.report_fingerprint();
-        operator_use.provider_plan_commitment =
-            checked_trees::CheckedProviderPlanCommitment::from_digest(
-                *plan.identity_digest().as_bytes(),
-            );
-        *checked.facts.operators.uses.get_mut(use_handle) = operator_use;
         Fixture {
             checked,
             plan: plan.clone(),
@@ -285,7 +280,7 @@ mod tests {
 
     #[test]
     fn fixed_token_drift_rejects_before_mutation() {
-        for drift in ["commitment", "spelling", "status", "expression"] {
+        for drift in ["spelling", "status", "expression"] {
             let mut fixture = fixture();
             let selected = effects::SelectedProviderPlanFacts::from_selection(
                 std::slice::from_ref(&fixture.plan),
@@ -294,10 +289,6 @@ mod tests {
             .expect("select fixed-token provider plan");
             let mut operator_use = *fixture.checked.facts.operators.uses.get(fixture.use_handle);
             match drift {
-                "commitment" => {
-                    operator_use.provider_plan_commitment =
-                        checked_trees::CheckedProviderPlanCommitment::from_digest([0xa5; 32]);
-                }
                 "spelling" => operator_use.spelling = OperatorSpelling::Subtract,
                 "status" => operator_use.status = CheckedOperatorResolutionStatus::Ambiguous,
                 "expression" => {

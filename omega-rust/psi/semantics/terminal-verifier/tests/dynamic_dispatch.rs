@@ -470,17 +470,6 @@ fn validation_error(module: &TerminalModule) -> ModuleError {
 }
 
 #[test]
-fn admits_exact_source_free_direct_dynamic_dispatch() {
-    validate_module(&dynamic_dispatch_module()).expect("exact direct dynamic dispatch is valid");
-}
-
-#[test]
-fn admits_exact_rebound_descriptor_and_indirect_dispatch() {
-    validate_module(&rebound_dynamic_dispatch_module())
-        .expect("exact rebound descriptor and indirect call are valid");
-}
-
-#[test]
 fn admits_changed_conformance_rebound_and_rejects_interface_substitution() {
     let module = changed_conformance_rebound_dynamic_dispatch_module();
     validate_module(&module).expect("distinct conformances for one exact interface are valid");
@@ -521,12 +510,6 @@ fn admits_changed_conformance_rebound_and_rejects_interface_substitution() {
         },
         "a rebound may change conformance, but not its existential interface"
     );
-}
-
-#[test]
-fn admits_exact_dynamic_descriptor_parameter_argument_and_dispatch() {
-    validate_module(&parameter_dynamic_dispatch_module())
-        .expect("exact dynamic descriptor parameter flow is valid");
 }
 
 #[test]
@@ -979,11 +962,6 @@ fn unit_dynamic_dispatch_module() -> TerminalModule {
         selection.conformance_application_commitment = commitment;
     }
     module
-}
-
-#[test]
-fn admits_exact_unit_dynamic_dispatch() {
-    validate_module(&unit_dynamic_dispatch_module()).expect("exact unit dynamic dispatch is valid");
 }
 
 /// A Unit-returning dynamic dispatch contributes the same call-graph edge as

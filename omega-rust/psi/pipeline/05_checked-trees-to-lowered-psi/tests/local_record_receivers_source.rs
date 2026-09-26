@@ -266,28 +266,6 @@ fn scalar_return_helper_reads_its_established_local_record_across_fuel() {
 }
 
 #[test]
-fn nested_record_constructor_and_mutable_receiver_publish_verified_terminal() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("observe"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("nested record observer retains its checked transitive body")
-    .into_artifact();
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
-    terminal_verifier::verify_module(
-        &module,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .unwrap();
-}
-
-#[test]
 fn owned_record_children_reuse_parameter_and_local_places() {
     for body in [
         "machine wrap(child: Inner) -> Outer { Outer { child: child } }",

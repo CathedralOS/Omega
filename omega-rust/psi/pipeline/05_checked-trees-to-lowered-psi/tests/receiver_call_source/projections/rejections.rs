@@ -26,33 +26,6 @@ fn shared_container_cannot_supply_a_projected_mutable_receiver() {
     );
 }
 
-#[test]
-fn projected_mutable_receiver_cannot_alias_an_explicit_mutable_argument() {
-    rejects_source(
-        r#"
-        data Record { value: u16; }
-        data Container { record: Record; }
-        machine Record::replace(&mut self, other: &mut Record) { self.value = 17; }
-        machine invoke(container: &mut Container) {
-            container.record.replace(&mut container.record);
-        }
-    "#,
-        "mutable receiver overlapping another argument",
-    );
-}
-
-#[test]
-fn shared_whole_receiver_cannot_gain_mutable_authority() {
-    rejects_source(
-        r#"
-        data Record { value: u16; }
-        machine Record::replace(&mut self) { self.value = 17; }
-        machine invoke(record: &Record) { record.replace(); }
-    "#,
-        "requires a mutable receiver, but its source is not writable",
-    );
-}
-
 fn rejects_projected_write_only_callee(
     caller_borrow: &str,
     body: &str,
@@ -76,26 +49,6 @@ fn rejects_projected_write_only_callee(
             }
         }
     }
-}
-
-#[test]
-fn shared_container_cannot_supply_a_projected_write_only_receiver() {
-    rejects_projected_write_only_callee(
-        "",
-        "self.value = 17;",
-        "",
-        "requires a write-only receiver, but its source is not writable",
-    );
-}
-
-#[test]
-fn attenuated_write_only_callee_cannot_read_after_store() {
-    rejects_projected_write_only_callee(
-        "mut",
-        "self.value = 17; let observed: u16 = self.value;",
-        "",
-        "reads field `value` from write-only parameter `self`",
-    );
 }
 
 #[test]

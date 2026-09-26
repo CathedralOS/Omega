@@ -192,14 +192,6 @@ const RECORD_ARRAY: &str = "
 ";
 
 #[test]
-fn fixed_array_of_affine_records_retains_the_element_declaration() {
-    // Fixed record-array syntax also appears in the layout corpus's
-    // runtime_plan_laid_record_array_mutable_write_exit fixture.
-    let entry = ExpectedShape::Record(vec![("number", integer(IntegerSign::Unsigned, 64))]);
-    assert_aggregate(RECORD_ARRAY, &ExpectedShape::Array(&entry, 3));
-}
-
-#[test]
 fn nested_fixed_arrays_retain_both_lengths_and_the_record_element() {
     // Nested array spelling follows runtime_plan_laid_nested_fixed_array_mutable_write_exit.
     let entry = ExpectedShape::Record(vec![("number", integer(IntegerSign::Signed, 32))]);

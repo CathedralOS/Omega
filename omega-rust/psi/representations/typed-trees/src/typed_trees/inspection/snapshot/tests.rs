@@ -336,7 +336,6 @@ fn snapshots_program_level_custody_and_full_state_census() {
         .fused_service_erasures
         .push(crate::typed_trees::FusedServiceErasureAuthorization {
             requirement,
-            provider_plan_digest: [9u8; 32],
         });
     program
         .boundary_calling_plans
@@ -416,7 +415,6 @@ fn snapshots_program_level_custody_and_full_state_census() {
         panic!("one fused service erasure")
     };
     assert_eq!(erasure.requirement, 62);
-    assert_eq!(erasure.provider_plan_digest.len(), 64);
     let [specialization] = snapshot.machine_specializations.as_slice() else {
         panic!("one machine specialization")
     };

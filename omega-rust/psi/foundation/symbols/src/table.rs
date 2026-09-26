@@ -1257,6 +1257,26 @@ impl Iterator for SymbolChildHandles<'_> {
             .or_else(|| self.supplemental.next().copied())
             .or_else(|| self.namespace.next())
     }
+
+    /// Skip whole parts by length: builtin lookups index the root's children
+    /// by ordinal, and stepping through them one at a time was measurable.
+    fn nth(&mut self, mut n: usize) -> Option<Self::Item> {
+        if let Some(contiguous) = self.contiguous.as_mut() {
+            let length = contiguous.len();
+            if n < length {
+                return contiguous.nth(n);
+            }
+            n -= length;
+            let _ = contiguous.nth(length);
+        }
+        let length = self.supplemental.len();
+        if n < length {
+            return self.supplemental.nth(n).copied();
+        }
+        n -= length;
+        let _ = self.supplemental.nth(length);
+        self.namespace.nth(n)
+    }
 }
 
 pub struct SymbolTableExtension {

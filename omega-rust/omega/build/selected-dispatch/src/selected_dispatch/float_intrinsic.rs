@@ -107,11 +107,6 @@ pub(super) fn plan_selected_float_intrinsic_rewrites(
         )
         .collect::<Vec<_>>();
     for selected_use in &selected_uses {
-        if selected_use.provider_plan_report_fingerprint == 0
-            && selected_use.provider_plan_commitment.is_empty()
-        {
-            continue;
-        }
         let rewrite = match resolve_selected_float_intrinsic_call(
             checked,
             selected_provider_plans.plans(),

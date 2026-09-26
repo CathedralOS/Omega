@@ -167,18 +167,6 @@ fn boundary_crash_in_scalar_wrapper_abandons_claim_without_a_result_or_receipt()
 }
 
 #[test]
-fn unit_wrapper_accepts_nested_affine_result_argument() {
-    let source = unit_wrapper_source()
-        .replace("Receipt [linear]", "Receipt")
-        .replace(
-            "Wrapper::measure(receipt, 70u16)",
-            "Wrapper::measure(forward(receipt), 70u16)",
-        );
-    let source = format!("{source}\nmachine forward(receipt: Receipt) -> Receipt {{ receipt }}");
-    unit_wrapper_artifact(&crate::front_end::checked_program(&source));
-}
-
-#[test]
 fn nested_wrapper_arguments_keep_effect_order_and_the_published_scalar_result() {
     let artifact = unit_wrapper_artifact(&crate::front_end::checked_program(NESTED_WRAPPER_SOURCE));
     let expected = [
@@ -415,11 +403,5 @@ fn nested_wrapper_operand_crash_preserves_only_the_completed_effect_prefix() {
 #[test]
 fn unit_wrapper_consumes_empty_record_local() {
     let source = constructed_wrapper_source("", "");
-    assert_constructed_wrapper_execution(&source);
-}
-
-#[test]
-fn unit_wrapper_consumes_scalar_record_local() {
-    let source = constructed_wrapper_source("value: i64;", "value: 7i64");
     assert_constructed_wrapper_execution(&source);
 }

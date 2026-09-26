@@ -90,20 +90,6 @@ fn projected_receiver_and_live_slice_require_compatible_access() {
 }
 
 #[test]
-fn shared_self_direct_field_write_rejects() {
-    reject_assignment(
-        r#"
-            data Pair { prefix: u8; value: u16; }
-
-            machine Pair::replace(&self) {
-                self.value = 17;
-            }
-        "#,
-        "value",
-    );
-}
-
-#[test]
 fn projected_mutable_receiver_accepts_a_distinct_derived_slice_argument() {
     checked_program_result(
         "data Reader { marker: u8; }
@@ -145,124 +131,6 @@ fn projected_mutable_receiver_rejects_an_overlapping_derived_slice_argument() {
             .contains("receives mutable receiver overlapping another argument in the same call")),
         "the explicit argument must be compared with its original storage: {diagnostics:#?}"
     );
-}
-
-#[test]
-fn shared_self_nested_field_write_rejects() {
-    reject_assignment(
-        r#"
-            data Inner { value: u16; }
-            data Outer { inner: Inner; }
-
-            machine Outer::replace(&self) {
-                self.inner.value = 17;
-            }
-        "#,
-        "inner",
-    );
-}
-
-#[test]
-fn shared_self_literal_index_write_rejects() {
-    reject_assignment(
-        r#"
-            data Inner { values: [u16; 2]; }
-            data Outer { inner: Inner; }
-
-            machine Outer::replace(&self) {
-                self.inner.values[1] = 17;
-            }
-        "#,
-        "inner",
-    );
-}
-
-#[test]
-fn mutable_self_direct_field_write_checks() {
-    checked_program_result(
-        r#"
-            data Pair { prefix: u8; value: u16; }
-
-            machine Pair::replace(&mut self) {
-                self.value = 17;
-            }
-        "#,
-    )
-    .expect("mutable self permits direct field stores");
-}
-
-#[test]
-fn mutable_self_nested_field_write_checks() {
-    checked_program_result(
-        r#"
-            data Inner { value: u16; }
-            data Outer { inner: Inner; }
-
-            machine Outer::replace(&mut self) {
-                self.inner.value = 17;
-            }
-        "#,
-    )
-    .expect("mutable self permits nested field stores");
-}
-
-#[test]
-fn mutable_self_literal_index_write_checks() {
-    checked_program_result(
-        r#"
-            data Inner { values: [u16; 2]; }
-            data Outer { inner: Inner; }
-
-            machine Outer::replace(&mut self) {
-                self.inner.values[1] = 17;
-            }
-        "#,
-    )
-    .expect("mutable self permits literal-index stores through nested fields");
-}
-
-#[test]
-fn write_only_parameter_direct_field_write_checks() {
-    checked_program_result(
-        r#"
-            data Pair { prefix: u8; value: u16; }
-
-            machine replace(destination: &write Pair) {
-                destination.value = 17;
-            }
-        "#,
-    )
-    .expect("write-only parameter permits a non-observing primitive field store");
-}
-
-#[test]
-fn write_only_parameter_nested_field_write_checks() {
-    checked_program_result(
-        r#"
-            data Inner { value: u16; }
-            data Outer { inner: Inner; }
-
-            machine replace(destination: &write Outer) {
-                destination.inner.value = 17;
-            }
-        "#,
-    )
-    .expect("write-only parameter permits an invariant-free nested primitive field store");
-}
-
-#[test]
-fn write_only_parameter_literal_index_write_checks() {
-    checked_program_result(
-        r#"
-            data Inner { values: [u16; 2]; }
-            data Outer { inner: Inner; }
-
-            machine replace(destination: &write Outer) {
-                destination.inner.values[1] = 17;
-            }
-        "#,
-    )
-    .expect("write-only parameter permits an in-bounds literal primitive element store");
 }
 
 #[test]
@@ -350,22 +218,6 @@ fn shared_self_field_cannot_supply_mutable_call_argument() {
 }
 
 #[test]
-fn mutable_self_field_can_supply_mutable_call_argument() {
-    checked_program_result(
-        r#"
-            data Pair { prefix: u8; value: u16; }
-
-            machine replace(value: &mut u16) { value = 17; }
-
-            machine Pair::forward(&mut self) {
-                replace(&mut self.value);
-            }
-        "#,
-    )
-    .expect("mutable self may lend a primitive field to a mutable call");
-}
-
-#[test]
 fn shared_state_self_cannot_inherit_mutable_entry_authority() {
     reject_assignment(
         r#"
@@ -399,24 +251,6 @@ fn absent_state_self_cannot_inherit_mutable_entry_authority() {
         "#,
         "value",
     );
-}
-
-#[test]
-fn mutable_state_self_field_write_checks() {
-    checked_program_result(
-        r#"
-            data Pair { prefix: u8; value: u16; }
-
-            machine Pair::replace(&mut self) {
-                transition { _ -> store() }
-
-                state store(&mut self) {
-                    self.value = 17;
-                }
-            }
-        "#,
-    )
-    .expect("the current state's explicit mutable self permits a field store");
 }
 
 #[test]

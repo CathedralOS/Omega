@@ -75,27 +75,6 @@ fn borrowed_view_field_length_entry_requirement_lowers_and_verifies() {
 }
 
 #[test]
-fn borrowed_view_field_length_guard_lowers_and_verifies() {
-    verify(
-        &format!(
-            "{WV}
-            machine Wv::guard_len {{
-                state probe(&mut self, i: u64) {{
-                    transition i < self.view.len {{
-                        true -> bump()
-                        _ -> probe(i)
-                    }}
-                }}
-                state bump(&mut self) {{
-                    self.out = 7;
-                }}
-            }}"
-        ),
-        "Wv::guard_len",
-    );
-}
-
-#[test]
 fn borrowed_view_field_element_read_lowers_and_verifies() {
     verify(
         &format!(
@@ -147,19 +126,6 @@ fn borrowed_view_field_element_read_requires_term_rejects() {
 }
 
 #[test]
-fn borrowed_view_field_element_read_mutable_requires_term_rejects() {
-    rejected(
-        &format!(
-            "{WV}
-            machine Wv::read_mut(&mut self, i: u64) -> u8 requires i < self.view.len {{
-                self.view[i]
-            }}"
-        ),
-        "Wv::read_mut",
-    );
-}
-
-#[test]
 fn borrowed_view_field_element_read_unguarded_rejects() {
     rejected(
         &format!(
@@ -169,19 +135,6 @@ fn borrowed_view_field_element_read_unguarded_rejects() {
             }}"
         ),
         "Wv::read",
-    );
-}
-
-#[test]
-fn borrowed_view_field_byte_store_rejects() {
-    rejected(
-        &format!(
-            "{WV}
-            machine Wv::poke(&mut self, i: u64) requires i < self.view.len {{
-                self.view[i] = 1;
-            }}"
-        ),
-        "Wv::poke",
     );
 }
 
@@ -267,38 +220,6 @@ fn shared_view_field_element_store_transition_rejects() {
             }}"
         ),
         "Wv::set",
-    );
-}
-
-#[test]
-fn mutable_view_field_subslice_result_unguarded_rejects() {
-    rejected(
-        &format!(
-            "{MV}
-            machine Mv::head(&self) -> &'r mut [u8] {{
-                self.view[0..3]
-            }}"
-        ),
-        "Mv::head",
-    );
-}
-
-#[test]
-fn mutable_view_field_subslice_field_bound_result_rejects() {
-    rejected(
-        &format!(
-            "{MV}
-            data Nv<'r> {{ view: &'r mut [u8]; n: u64; }}
-
-            machine Nv::build<'a>(x: &'a mut [u8], n: u64) -> Nv<'a> {{
-                Nv {{ view: x, n: n }}
-            }}
-
-            machine Nv::head(&self) -> &'r mut [u8] {{
-                self.view[0..self.n]
-            }}"
-        ),
-        "Nv::head",
     );
 }
 

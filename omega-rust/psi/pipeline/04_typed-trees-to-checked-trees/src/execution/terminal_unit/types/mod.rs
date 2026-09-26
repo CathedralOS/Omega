@@ -2297,7 +2297,7 @@ impl<'program> ShapeCollector<'program> {
             type_reference,
         )
         .ok()??;
-        let authorization = self.program.fused_service_erasure(carrier.requirement)?;
+        self.program.fused_service_erasure(carrier.requirement)?;
         if !source_parameter.is_valid() {
             return None;
         }
@@ -2342,7 +2342,6 @@ impl<'program> ShapeCollector<'program> {
                     })
                     .into_string(),
                 requirement: carrier.requirement,
-                provider_plan_digest: authorization.provider_plan_digest,
             },
         ))
     }
@@ -2438,12 +2437,7 @@ fn provider_backed_field(
         // discovery pass mint this shape before its nomination exists.
         let authorization = program.fused_service_erasure(requirement);
         return Some((
-            authorization.map(
-                |authorization| checked_trees::CheckedFusedServiceErasureReceipt {
-                    requirement,
-                    provider_plan_digest: authorization.provider_plan_digest,
-                },
-            ),
+            authorization.map(|_| checked_trees::CheckedFusedServiceErasureReceipt { requirement }),
             type_reference,
         ));
     }

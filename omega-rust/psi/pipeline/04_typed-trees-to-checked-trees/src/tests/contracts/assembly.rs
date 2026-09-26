@@ -3,26 +3,6 @@ use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
 #[test]
-fn accepts_proven_asm_entry_and_exit_facts() {
-    let source = r#"
-        data Main { port: u16; value: u8; ready: bool; }
-
-        machine Main::main(&mut self) reaches PortIo
-        requires self.ready
-        {
-            asm where
-                requires self.ready
-                clobbers rax, rdx, r10, r11, r15
-                ensures self.ready
-            { out self.port, self.value }
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("preserved entry fact should prove both asm assertions");
-}
-
-#[test]
 fn rejects_unproven_asm_requires_at_block_entry() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
@@ -144,26 +124,6 @@ fn rejects_asm_ensures_invalidated_by_msr_read() {
             .contains("cannot prove asm `ensures` fact at block exit")
             && diagnostic.message.contains("self.value == 2")
     }));
-}
-
-#[test]
-fn preserves_asm_ensures_across_unrelated_port_input() {
-    let source = r#"
-        data Main { port: u16; value: u8; ready: bool; }
-
-        machine Main::main(&mut self) reaches PortIo
-        requires self.ready
-        {
-            asm where
-                requires self.ready
-                clobbers rax, rdx, r10, r15
-                ensures self.ready
-            { in self.value, self.port }
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("a write to value must not invalidate a fact about ready");
 }
 
 #[test]

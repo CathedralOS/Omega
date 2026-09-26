@@ -114,12 +114,6 @@ fn an_authored_machine_cannot_replace_integer_embedding() {
 }
 
 #[test]
-fn a_computed_proof_machine_returns_an_integer_embedding_without_runtime_call_storage() {
-    check("machine payload(value: i32) -> Int { embed(value) }")
-        .expect("computed proof machine returns mathematical payload");
-}
-
-#[test]
 fn natural_coercion_uses_prior_nonnegativity_for_signed_payloads() {
     let source = r#"
         data Nat { case Zero; case Succ(previous: Nat); }

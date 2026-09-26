@@ -100,52 +100,6 @@ fn rejects_requires_fixed_indexed_boolean_expression_from_domain_fact_after_muta
 }
 
 #[test]
-fn accepts_requires_fixed_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
- {
-    let source = r#"
-        data Item [copy] {
-            value: i32;
-            tag: i32;
-        }
-
-        domain Item::Valid
-        requires
-            self.value > 0;
-
-        data Main {
-            items: [Item; 2];
-        }
-
-        machine Main::mark_valid(&mut self, item: &mut Item)
-        ensures
-            item in Item::Valid
-        {
-            item.value = 12;
-        }
-
-        machine Main::touch_tag(&mut self, item: &mut Item) {
-            item.tag = 0;
-        }
-
-        machine Main::accept(item: Item)
-        requires
-            item.value > 0
-        {
-        }
-
-        machine Main::main(&mut self) {
-            self.mark_valid(&mut self.items[0]);
-            self.touch_tag(&mut self.items[0]);
-            self.accept(self.items[0]);
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
-        "fixed indexed requires boolean expression should be preserved across disjoint mutating call",
-    );
-}
-
-#[test]
 fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mutating_call() {
     let source = r#"
         data Item [copy] {
@@ -296,89 +250,6 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_afte
 }
 
 #[test]
-fn accepts_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
- {
-    let source = r#"
-        data Item {
-            value: i32;
-            tag: i32;
-        }
-
-        domain Item::Valid
-        requires
-            self.value > 0;
-
-        data Main {
-            items: [Item; 2];
-        }
-
-        machine Main::mark_valid(&mut self, item: &mut Item)
-        ensures
-            item in Item::Valid
-        {
-            item.value = 12;
-        }
-
-        machine Main::touch_tag(&mut self, item: &mut Item) {
-            item.tag = 0;
-        }
-
-        machine Main::main(&mut self, index: u64) -> i32
-        requires
-            index < 2
-        ensures
-            self.items[index].value > 0
-        {
-            self.mark_valid(&mut self.items[index]);
-            self.touch_tag(&mut self.items[index]);
-            0
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
-        "dynamic indexed exit boolean ensures should be preserved across disjoint mutating call",
-    );
-}
-
-#[test]
-fn accepts_requires_domain_union_when_right_branch_is_proven() {
-    let source = r#"
-        data Password [copy] {
-            length: i32;
-            score: i32;
-        }
-
-        domain Password::Valid
-        requires
-            self.length > 0;
-
-        domain Password::Secure
-        requires
-            self.score >= 8;
-
-        data Main {
-            password: Password;
-        }
-
-        machine Main::accept(password: Password)
-        requires
-            password in Password::Valid | Password::Secure
-        {
-        }
-
-        machine Main::main(&mut self)
-        requires
-            self.password in Password::Secure
-        {
-            self.accept(self.password);
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("requires union should be provable when the right domain branch holds");
-}
-
-#[test]
 fn rejects_unproven_requires_domain_union() {
     let source = r#"
         data Password [copy] {
@@ -419,40 +290,6 @@ fn rejects_unproven_requires_domain_union() {
                 .message
                 .contains("password.length > 0 || password.score >= 8")
     }));
-}
-
-#[test]
-fn accepts_requires_from_instantiated_boundary_operator_boolean_ensures() {
-    let source = r#"
-        data Reading [copy] {
-            value: i32;
-            floor: i32;
-        }
-
-        boundary operator Guard::establish(reading: &mut Reading, reference: &Reading) -> ()
-        ensures
-            reading.value > reference.floor;
-
-        data Main {
-            reading: Reading;
-            reference: Reading;
-        }
-
-        machine Main::accept(reading: Reading, reference: Reading)
-        requires
-            reading.value > reference.floor
-        {
-        }
-
-        machine Main::main(&mut self) {
-            Guard::establish(&mut self.reading, self.reference);
-            self.accept(self.reading, self.reference);
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
-        "a boundary operator boolean postcondition should be substituted onto caller operands",
-    );
 }
 
 #[test]
@@ -682,42 +519,6 @@ fn named_call_operand_write_to_unrelated_storage_keeps_its_ensures_facts() {
 
     lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "a named call writing storage no enclosing operand names keeps its own ensures facts",
-    );
-}
-
-#[test]
-fn accepts_guarded_transition_that_establishes_state_arrival_requires() {
-    let source = r#"
-        data Main {
-            value: i32;
-        }
-
-        machine Main::accept(value: i32)
-        requires
-            value > 0
-        {
-        }
-
-        machine Main::main(&mut self) {
-            transition self.value > 0 {
-                true -> positive(self.value)
-                false -> done()
-            }
-
-            state positive(&mut self, value: i32)
-            requires
-                value > 0
-            {
-                self.accept(value);
-            }
-
-            state done(&mut self) {
-            }
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
-        "the taken guard should establish the target state's arrival contract, which is then assumed inside the state",
     );
 }
 

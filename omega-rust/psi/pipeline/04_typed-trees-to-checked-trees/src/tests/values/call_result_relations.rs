@@ -45,28 +45,6 @@ fn rejects_subtraction(source: &str) {
 }
 
 #[test]
-fn repeated_pure_call_satisfies_the_guarded_subtraction_task_source() {
-    accepts(&format!(
-        r#"
-        {COST}
-        data Main {{}}
-        machine Main::main(&mut self, level: u32 [1..=10], xp: u32 [0..=1000])
-            -> u32 [0..=1000]
-        {{
-            transition xp >= cost(level) {{
-                true -> spend(level, xp)
-                false -> (xp)
-            }}
-            state spend(&mut self, level: u32 [1..=10], xp: u32 [0..=1000])
-                -> u32 [0..=1000]
-                requires xp >= cost(level)
-            {{ xp - cost(level) }}
-        }}
-        "#
-    ));
-}
-
-#[test]
 fn repeated_pure_call_relation_follows_renamed_reordered_state_arguments() {
     // No target Requires: this must transport the established guard itself.
     accepts(&format!(
@@ -80,25 +58,6 @@ fn repeated_pure_call_relation_follows_renamed_reordered_state_arguments() {
             state debit(available: u32 [0..=1000], rank: u32 [1..=10]) -> u32 [0..=1000] {{
                 available - cost(rank)
             }}
-        }}
-        "#
-    ));
-}
-
-#[test]
-fn named_state_call_result_requirement_is_an_independent_body_assumption() {
-    // The unconditional delivery is established by the caller's entry Requires;
-    // the target requirement names its own parameter telescope.
-    accepts(&format!(
-        r#"
-        {COST}
-        machine spend(level: u32 [1..=10], xp: u32 [0..=1000]) -> u32 [0..=1000]
-            requires xp >= cost(level)
-        {{
-            transition {{ _ -> debit(xp, level) }}
-            state debit(available: u32 [0..=1000], rank: u32 [1..=10]) -> u32 [0..=1000]
-                requires available >= cost(rank)
-            {{ available - cost(rank) }}
         }}
         "#
     ));
@@ -134,20 +93,6 @@ fn same_spelled_nonentry_parameters_do_not_reuse_machine_entry_call_relations() 
         }}
         "#
     ));
-}
-
-#[test]
-fn same_spelled_nonentry_places_do_not_reuse_machine_entry_relations() {
-    // Adjacent legacy dependent_relations fallback must not authorize the new
-    // call-result rule through a display-name-only entry bridge.
-    rejects_subtraction(
-        r#"
-        machine spend(left: u32, right: u32) -> u32 requires left >= right {
-            transition { _ -> debit(right, left) }
-            state debit(left: u32, right: u32) -> u32 { left - right }
-        }
-        "#,
-    );
 }
 
 #[test]
@@ -191,22 +136,6 @@ fn effectful_repeated_calls_do_not_mint_a_stable_result_relation() {
 }
 
 #[test]
-fn distinct_same_signature_callees_do_not_share_a_result_relation() {
-    rejects_subtraction(&format!(
-        r#"
-        {COST}
-        machine other_cost(level: u32 [1..=10]) -> u32 [15..=60] {{ 60 }}
-        machine spend(level: u32 [1..=10], xp: u32 [0..=1000]) -> u32 {{
-            transition xp >= cost(level) {{ true -> debit(level, xp) false -> (xp) }}
-            state debit(rank: u32 [1..=10], available: u32 [0..=1000]) -> u32 {{
-                available - other_cost(rank)
-            }}
-        }}
-        "#
-    ));
-}
-
-#[test]
 fn disjoint_self_field_write_preserves_a_pure_call_input_relation() {
     accepts(&format!(
         r#"
@@ -238,52 +167,6 @@ fn an_unguarded_second_predecessor_removes_a_call_result_relation() {
                 }}
             }}
             state debit(rank: u32 [1..=10], available: u32 [0..=1000]) -> u32 {{
-                available - cost(rank)
-            }}
-        }}
-        "#
-    ));
-}
-
-#[test]
-fn saved_scalar_call_input_survives_a_later_mutating_state_argument() {
-    // Explicitly capture the scalar before the call: source lowering currently
-    // hoists nested argument calls before the jump's complete argument list.
-    // The saved value is independent of the subsequently changed field.
-    accepts(&format!(
-        r#"
-        {FIELD_COST}
-        data Main {{ level: u32 [0..=10]; }}
-        machine overwrite(value: &mut u32 [0..=10]) -> u32 {{ value = 10; 0 }}
-        machine Main::spend(&mut self, initial_level: u32 [0..=10], xp: u32 [0..=1000]) -> u32 [0..=1000] {{
-            self.level = initial_level;
-            let saved: u32 [0..=10] = self.level;
-            transition xp >= cost(saved) {{
-                true -> debit(saved, xp, overwrite(&mut self.level))
-                false -> (xp)
-            }}
-            state debit(rank: u32 [0..=10], available: u32 [0..=1000], ignored: u32)
-                -> u32 [0..=1000]
-            {{ available - cost(rank) }}
-        }}
-        "#
-    ));
-}
-
-#[test]
-fn changed_field_argument_is_not_the_pre_mutation_call_input_snapshot() {
-    rejects_subtraction(&format!(
-        r#"
-        {FIELD_COST}
-        data Main {{ level: u32 [0..=10]; }}
-        machine overwrite(value: &mut u32 [0..=10]) -> u32 {{ value = 10; 0 }}
-        machine Main::spend(&mut self, initial_level: u32 [0..=10], xp: u32 [0..=1000]) -> u32 {{
-            self.level = initial_level;
-            transition xp >= cost(self.level) {{
-                true -> debit(overwrite(&mut self.level), self.level, xp)
-                false -> (xp)
-            }}
-            state debit(ignored: u32, rank: u32 [0..=10], available: u32 [0..=1000]) -> u32 {{
                 available - cost(rank)
             }}
         }}

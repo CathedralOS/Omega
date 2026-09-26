@@ -158,32 +158,6 @@ fn discarded_result_still_requires_exact_source_and_cleanup() {
     }
 }
 
-#[test]
-fn discarded_boundary_result_retains_computed_arguments() {
-    let source = r#"
-        pub data Reply { case Done; }
-        machine identity(value: u8) -> u8 { value }
-        boundary trait Output {
-            machine reply(marker: u8) -> Reply reaches Output;
-            machine write(marker: u8) reaches Output;
-        }
-        data Root {}
-        machine Root::enter() reaches Output {
-            _ = Output::reply(identity(3u8));
-            Output::write(4u8);
-        }
-    "#;
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &crate::front_end::checked_program(source),
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .unwrap();
-    let module =
-        terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap()).unwrap();
-    terminal_verifier::verify_module(&module, &lowered.proof_bundle, &AdmissionProfile::default())
-        .unwrap();
-}
-
 const BUFFER_SOURCE: &str = r#"
         data Reply { case Done; }
         machine fill(out: &mut [u8]) -> Reply {

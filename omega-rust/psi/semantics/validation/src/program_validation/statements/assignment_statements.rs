@@ -189,7 +189,7 @@ pub(super) fn validate<'a, 'p>(
     let assignment_target_domain = assignment_target_type
         .map(|handle| program.arithmetic_domain_for_type_reference(handle))
         .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact);
-    let (interval, source_primitive) = assignment_target_type_raw
+    let (interval, source_primitive, source_domain) = assignment_target_type_raw
         .and_then(|destination| {
             arithmetic_domains::validate_anonymous_integer_range(
                 program,
@@ -212,13 +212,25 @@ pub(super) fn validate<'a, 'p>(
                 diagnostics,
             )
         });
+    // The declared policy is read through the RAW destination (its `in
+    // Wrapping` qualification lives on the Constrained shell that
+    // `assignment_target_type` unwraps), matching the store's actual slot.
+    let declared_target_domain = assignment_target_type_raw
+        .map(|handle| {
+            program.arithmetic_domain_for_type_reference(places::assignment_value_type(
+                program, handle,
+            ))
+        })
+        .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact);
     // Only a CLEANLY-analyzed RHS reaches the narrowing check -- an RHS that
     // already erred (its own overflow, a type error) is not re-flagged.
     if diagnostics.len() == before {
         arithmetic_domains::check_narrowing_assignment(
             assignment_target_primitive,
+            declared_target_domain,
             interval,
             source_primitive,
+            source_domain,
             &owner,
             diagnostics,
         );

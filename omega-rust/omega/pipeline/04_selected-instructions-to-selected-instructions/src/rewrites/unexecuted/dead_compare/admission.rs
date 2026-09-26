@@ -30,7 +30,7 @@ use selected_instructions::{
 use super::DeadCompareError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{block_instructions, terminator_successors};
-use crate::rewrites::unexecuted::condition_state::{EventSite, instruction_at};
+use crate::rewrites::condition_state::{EventSite, instruction_at};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,

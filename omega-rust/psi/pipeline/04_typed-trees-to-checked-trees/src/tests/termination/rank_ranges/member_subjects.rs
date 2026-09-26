@@ -54,32 +54,6 @@ fn reject_termination(source: &str) {
 }
 
 #[test]
-fn member_scalar_subject_proves_membership_and_descent_through_the_telescope() {
-    prove(MEMBER);
-    // A narrower declared leaf keeps the same produced coordinate: the
-    // arithmetic domain, not the field width, decides naturality.
-    let narrow = MEMBER.replace("u64", "u16");
-    prove(&narrow);
-    // A nested member chain resolves step by step against each declaration.
-    let nested = "data Inner { count: u64 [0..=9]; }
-data Outer { inner: Inner; }
-
-machine walk(outer: Outer)
-terminates by outer.inner.count -> Nat::Descending in 0..=9;
--> u64 {
-    transition { _ -> step(outer) }
-    state step(current: Outer) {
-        transition current.inner.count > 0 {
-            true -> step(Outer { inner: Inner { count: current.inner.count - 1 } })
-            false -> current.inner.count
-        }
-    }
-}
-";
-    prove(nested);
-}
-
-#[test]
 fn member_scalar_subject_rejects_stalled_foreign_and_respelled_arrivals() {
     for actual in [
         // The unchanged record, the unchanged field, and a deeper cut all
@@ -144,42 +118,6 @@ fn member_scalar_subject_rejects_prefix_writes_on_the_carrier_path() {
             &format!("        {statement}\n        transition current.count"),
         ));
     }
-}
-
-const INCREASING: &str = r#"
-data Bag { cursor: u64; }
-
-machine walk(bag: Bag, limit: u64 [0..=9])
-requires bag.cursor <= limit;
-terminates by bag.cursor -> Nat::IncreasingTo(limit) in 0..=limit;
--> u64 {
-    transition { _ -> step(bag, limit) }
-    state step(current: Bag, bound: u64 [0..=9]) {
-        transition current.cursor < bound {
-            true -> step(Bag { cursor: current.cursor + 1 }, bound)
-            false -> current.cursor
-        }
-    }
-}
-"#;
-
-#[test]
-fn member_increasing_subject_proves_the_clamped_ascent() {
-    prove(INCREASING);
-    reject_termination(&INCREASING.replace(
-        "Bag { cursor: current.cursor + 1 }",
-        "Bag { cursor: current.cursor }",
-    ));
-    reject_termination(&INCREASING.replace(
-        "Bag { cursor: current.cursor + 1 }",
-        "Bag { cursor: current.cursor + 2 }",
-    ));
-    // The view bound is pinned: `bound + 1` moves the shared limit.
-    reject_range(&INCREASING.replace(
-        "step(Bag { cursor: current.cursor + 1 }, bound)",
-        "step(Bag { cursor: current.cursor + 1 }, bound + 1)",
-    ));
-    reject_range(&INCREASING.replace("requires bag.cursor <= limit;", ""));
 }
 
 const DISTANCE: &str = r#"

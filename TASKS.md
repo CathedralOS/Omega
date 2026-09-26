@@ -179,8 +179,7 @@ backend-visible; full corpus runs only at the end of an item.
   const folds through selected operators and provider bodies
   (`const_evaluation.rs`), stage 04's selected inputs
   (`selected_generic_operator_provider_specializations`,
-  `selected_boundary_family_specializations`), operator-use plan stamps
-  (`bind_selected_provider_plan_facts`), selected float-comparison executions,
+  `selected_boundary_family_specializations`), selected float-comparison executions,
   boundary-dispatch settlement (`selected_dispatch::settle_selected_execution_dispatch`),
   callback materialization, task activations, component progress, the x86 FMA
   plan association and fused program-entry establishments. Measured on the
@@ -191,13 +190,14 @@ backend-visible; full corpus runs only at the end of an item.
   `pass/providers/checked_boundary_requirement_dispatch_exit`, so the
   per-target Psi runs duplicate work rather than produce different Terminal
   semantics; target dependence enters through the checked sidecars and
-  through selection inputs to checking. Two of those inputs change what Psi
-  checks and must move first: fused service erasure
-  (`provider_settlement` calls `TypedTrees::bind_fused_service_erasures`
-  before checking, while [entry roots](wiki/spec/build/entry_roots.md) and
-  [component publication](wiki/spec/build/component_publication.md) place
-  erasure in lowering and Terminal replay) and stage 04's selected generic
-  operator providers and boundary families (`CheckingRequest`). Moving the
+  through selection inputs to checking. Checked uses carry no plan stamps
+  (Omega joins by requirement, `provider_planning::selected_use_plan`) and
+  fused-service erasure is a requirement-level authorization with no plan
+  digest. Still target-dependent inputs that change what Psi checks: which
+  requirements are Fused (`provider_settlement` binds them from the target's
+  selection before checking; with Psi once the realized targets must agree)
+  and stage 04's selected generic operator providers and boundary families
+  (`CheckingRequest`), which become the union over realized targets. Moving the
   provider-body const folds follows the settled rule in
   [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation):
   every realized target must select the same provider for a folded
@@ -361,6 +361,30 @@ the complete product bar; focused successes below do not establish that baseline
   `data Main where i >= -1, i <= 4` form is still refused by the cross-state
   invariant-window check in `validation/src/proof_contracts/default_domains/
   assignment_windows.rs`.
+
+  `c1303f89d4` (macw9) ran the `source/library` leg: 49 suffixes migrated
+  under canonical forms only — 35 redundant narrow-conversion parameters
+  whose `requires` already carried the bound, 9 `Vec` index parameters to
+  `requires`, and 5 entry locals whose interval facts already flow from
+  suffixed inputs. No generated domains. Suffixes stay where the checker
+  cannot yet carry the equivalent fact: `widen_*` `ensures` cannot read
+  interval facts through `as` casts, const declarations cannot run
+  domain-membership proofs (`time.omg`), destructured-payload membership
+  does not discharge a callee's numeric `requires` (`console.omg`), call
+  arguments such as `fuel - 1`/`index + 1` do not fold into a callee
+  `requires` (`layout.omg` state parameters), indexed-path field writes
+  do not establish membership (`calling.omg`), and requires-admission is
+  textual where a `< 255` guard numerically implies `<= 254` (the five
+  `field_range` entry parameters).
+  `18500aa356` (macw9) closed the widest of those gaps on the checker side:
+  predicate-only `in D` membership is now established at ordinary statement
+  calls and dominating incoming guards when every instantiated predicate
+  is supported — `proven_predicates_grant_domain` in
+  `checks/contracts/calls.rs`, six probes, 5430/5430 crate tests, and a
+  19-case e2e matrix (10 accepts, 9 rejects). Aliases, indexed arguments,
+  routed domains, unsupported expressions and empty fact sets still
+  decline. Its unblocked customers are a re-migration leg, not part of
+  this landing.
 
   Acceptance: bracketed integer and float range annotations reject in every type
   position after migration. Equivalent data/case `where`, parameter `requires`,
@@ -667,6 +691,19 @@ _roots` shows the current shape: `use omega_language_std::targets::uefi_x86_64`
   told "machine `Main::main` state `main` reads `self.cont`, but data `Main`
   has no field `cont`". The refusal is right and the verb is wrong; a write
   target should not be reported as a read.
+
+  Do not try to reproduce one of these by writing a small program. Measured
+  three times: `sensor_min_max`'s float field store, a byte-domain field store
+  under a boundary call, and `dutch_flag`'s `self.items[0] = Color::White`
+  each check clean when written on their own -- `data Color { case Red; case
+  White; case Blue; }` with `self.items[0] = Color::White` is accepted, and so
+  is the same store to a plain `Color` field -- while the sample containing the
+  identical statement is refused. Adding the surrounding features one at a time
+  does not find it either: a console call, an index guard, a loop body, a
+  second fold and a `build.omg` with the same root bindings were each tried
+  against one of them and none reproduced. Copy the sample and delete from it
+  instead; that isolated the byte-domain case to a console call plus a literal
+  array fill in four steps.
 
   Method that works, and one cause closed by it (cab36531c8f). The phase the
   message carries is the only pointer: grep it verbatim under
@@ -1964,10 +2001,18 @@ syntax and other terminal services are not prerequisites.
   relaxes a conjunctive `requires` relation graph (`<=` transfers the
   ceiling, `<` less one, `==` both ways), recovers one achieving simple
   path deterministically, and binds every contract row on it as
-  `relevant_preconditions`. Reuse the existing acyclic max-arm,
+  `relevant_preconditions`. `52a1f10575` (macw9) landed the
+  conditional forms — a `ClauseScope` resolver discharges implication
+  premises to a fixpoint against conjunctive context and resolves
+  disjunctions in row order (max across live arm ceilings, shared transfer
+  edges at weakest strictness, unsatisfiable arms skipped), and
+  `8d8174bd0b` (macw9) added the `IntegerMath*` affine fragment:
+  literal ceilings floor-divide through a single-variable `coeff*value +
+  offset` solve, unit-coefficient var-var rows become transfer edges
+  (nonnegative constants only — slack dropped), and equalities emit both
+  feasible directions. Reuse the existing acyclic max-arm,
   ranked-interior, and topology-derived cycle bounds. Remaining:
-  disjunctive/implied ceilings (need per-arm support semantics),
-  `IntegerMath*` vocabulary clauses (linear checked reasoning),
+  `IntegerMath*` rows outside the affine fragment,
   guard/path-fact bounds (a separate premise channel, not contract rows),
   and the wait/foreign-edge cause (needs semantic vocabulary first).
   Preserve `InvocationBoundCallee` and `UnboundedCycleComponent` when
@@ -2124,11 +2169,14 @@ syntax and other terminal services are not prerequisites.
     machinery can derive, avoiding the direct fold and carrier-less `i_C ->
     i_B` casts. Serialized-Terminal execution tests cover every sign/width
     combination.
-  - Complete signed/mixed-sign saturating conversion beyond existing admitted
-    cases. Boolean-to-integer and unsigned narrowing already lower; reuse them
-    as controls. A signed saturating subtraction is not the unsigned clamp
-    identity. Missing representation/realization is implementation work, not a
-    reason to mark this whole row owner-blocked.
+  - Signed/mixed-sign saturating conversions landed at `3590f2f67c`
+    (macw9): `IntegerSaturatingCast` retained for every fixed-integer
+    source/destination pair — unsigned sources clamp via
+    `value -% (value sat_sub target_max)`, signed sources extract the
+    nonnegative portion via a sign-mask floor plus modular ceiling clamp,
+    and the clamped operand crosses through the wrapping conversion's
+    masked-halves route. Serialized-Terminal coverage in
+    `integer_policy_realization.rs` exercises every sign/width pair.
 
   Acceptance: the six `core/numeric_*` canaries and Trapping conversions in
   `source/library/core/numeric_conversion.omg` reach native execution with
@@ -2574,7 +2622,7 @@ syntax and other terminal services are not prerequisites.
   Owners: native proposal construction, `native-realization`'s
   `retained_native_product` and `callback_thunks`, selected-call ABI transport,
   and image private-function/relocation replay. See
-  [receiving custody limits](omega-rust/omega/compiler/native_realization.md#callback-custody-boundaries).
+  [receiving custody limits](omega-rust/omega/compiler/README.md#callback-custody-boundaries).
   Acceptance: the direct witness and
   `source/library/std/tests/callback_materialization_closure.omg` two-slot
   registrar produce native images binding exact function, symbol, relocation,
@@ -3037,6 +3085,64 @@ syntax and other terminal services are not prerequisites.
   canary and sample that stores across integer types or policies spells the
   cast.
 
+  This rejection broke 16 tests outside the item's claimed paths, all in
+  `typed-trees-to-checked-trees` and all deterministic: 6100 of 6116 pass at
+  7bb32a4d88. Their fixtures still carry implicit store conversions, and they
+  are not all one repair. Ten distinct messages appear:
+  `i32` to `i32 in Wrapping` (4), `u8 in Wrapping` to `u8` (3), `u8` to
+  `u8 in Wrapping` (2), `u8` to `u16` (2), `u8` to `u64`, `f32` to `f64`,
+  `f32` to `f32 in Saturating`, `f32 in Saturating` to `f32`, `f64` to
+  `f64 in Trapping`, and `f64 in Trapping` to `f64`.
+
+  Two kinds need different answers. Adding or dropping an arithmetic policy is
+  the spelling the rule asks for, and those fixtures take an `as`. The width
+  widenings -- `u8` to `u16`, `u8` to `u64`, `f32` to `f64` -- are a broader
+  refusal than "a typed value keeps its arithmetic policy", and whether the
+  rule should reach them is this item's call, not a fixture repair.
+
+  `call_bounds::tests::widening::argument_widening_does_not_reinterpret_saved\
+_wrapping_computations` is repaired as the worked example: it asserts rejection
+  carrying "cannot prove requires" and was being refused earlier for the
+  conversion instead, so its own subject went unexercised. Spelling
+  `input as u8 in Wrapping` restores it. The other fifteen each need the same
+  judgement -- incidental conversion, or a subject the new rule now refuses
+  earlier -- which wants this item's context.
+
+- **TARGET-SET-COMPILATION.** (new-scope) Multi-target compilation is
+  repeated single-target compilation at two layers
+  ([plan](wiki/drafts/designs/target_set_compilation.md), measured at
+  `c5a798a411`). `compiler::compile` does
+  `for (target, source) in request.targets.into_iter().zip(repeat_n(source))`:
+  `source_checkpoint.for_exact_target(name).assemble()` filters the source
+  graph per target, so resolve/type/build-eval/check/admission all re-run per
+  target and `build.omg` executes N times. The batch surface
+  (`with_target_configurations`, `ExplicitTargetSet`,
+  `TargetCompileConfiguration`) has no production caller; package operations
+  loop `for target in targets` one layer up
+  (`packages/manager/src/operations/inspect_packages/execution.rs`,
+  `CandidateSourcePreparation`), and `NativeInputReuse` deduplicates
+  realization inputs after the work is already done. Make target multiplicity
+  data: one `AssembledSyntax` retains all targets' qualified declarations
+  (target-indexed coexistence, a namespace/resolution model change), the
+  shared spine (resolve/type/build-eval/check/trust) runs once producing
+  target-indexed rows, and terminal/native products partition per
+  (entry, target) — identical partitions shared by construction. While
+  resequencing, name the spine: the native leg's stage order
+  (`prepare_native_product` → `realization::realize` → `realize_image` →
+  `emit_realization_object` → `physical_pipeline` →
+  `emit_optimized_fragments` → `assemble_*`) is stated at one owner, the
+  `settle_selected_execution` wedge becomes a named checked→settled stage,
+  and `RequestedCompileProduct::TerminalArtifact` is wired to the CLI so
+  `<root>.psi`/`.proof` publication is reachable. Acceptance: one invocation
+  over a two-target set loads, parses, resolves, types and evaluates build
+  once; package multi-target operations make one compile call; per-target
+  failure isolation and build-effect custody are preserved as data;
+  `NativeInputReuse`, `repeat_n` cloning and `CandidateSourcePreparation`
+  retire; single-target CLI output is unchanged. Sequencing and open
+  questions (Build vocabulary set-awareness, generated-source re-entry,
+  overlap with TWO-AXIS-TERMINAL-AUTHORITY-REVIEW and
+  PIPELINE-OWNER-CONSOLIDATION) are in the plan draft.
+
 - **STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.** (new-scope) The Unit state graph
   now completes a primitive scalar result (`CheckedControlResultPlan::Scalar`,
   `ReturnScalar` with the ordinary binding or exit completion), and ordinary or
@@ -3124,20 +3230,6 @@ syntax and other terminal services are not prerequisites.
   Acceptance after the ruling: specification, verifier, and both interpreter
   tests agree on linear and affine receiver disposition without silent custody
   removal. Do not merely repin the tests.
-
-- **CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT.** (new-scope) The closed-sum
-  arm's answer is stated in lowering: the case dispatch is the subject's
-  explicit terminal consumption, so an arm's no-code discards are its cleanup
-  evidence without the subject
-  (`composed_control/state_graph/edges.rs::validate_bindings`, fed the
-  subject's authored position by `cases.rs`). The three
-  `optimization-unit-semantics structural_cases::owned_results` tests pass
-  again. Remaining: the evidence producer,
-  `04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs::build_state_plan`,
-  still names the subject on each arm because a dispatch moves no place.
-  Treat a closed-sum `transition subject { .. }` over an owned parameter as
-  that statement's consumption there, then drop the subtraction in lowering
-  so the two facts agree by construction. Keep the equality check itself.
 
 - **FILTERED-CALLEE-CALL-SITES.** (new-scope) A source-authored statement call
   whose callee has no declaration in the selected program is dropped from the
@@ -3291,7 +3383,7 @@ syntax and other terminal services are not prerequisites.
 
   Acceptance: close the `checked-trees-to-lowered-psi --test suite value_dispatch`
   gaps and native `scalar_case_results` /
-  [float Match customers](omega-rust/omega/compiler/float_realization.md#operation-and-control-custody).
+  [float Match customers](wiki/drafts/reference/float_realization.md#operation-and-control-custody).
   Preserve effects, skipped trapping arms, overlapping patterns, full coverage,
   and independent replay. Retain `match_anonymous_result_landing`,
   `numeric_operand_destinations`, and `dutch_flag`'s native exit-70 oracle with
@@ -3683,7 +3775,7 @@ syntax and other terminal services are not prerequisites.
   Filesystem cohort emitters also have production callers:
   `providers/settlements/source_imports.rs` emits mechanism classifications;
   `packages/manager/src/review/candidate/semantic_bindings.rs` attaches
-  consumer permission rows. The merge in `native_realization/providers/mod.rs`
+  consumer permission rows. The merge in `abstract-operations-to-target-operations/src/provider_admission/mod.rs`
   is a **mechanism-classification** policy, separate from the optional receiver
   permission policy; preserve both exact identities.
 
@@ -3693,9 +3785,12 @@ syntax and other terminal services are not prerequisites.
   per-arity syscall constraint rows, `DirectSyscallRealization`, and
   `AdmittedBoundaryExecution::ToolchainSettled` through lowering and
   provider-plan evidence binding. Resume branch:
-  `swarm/macw8b-terminal-authority` at `7f856f6d43` (20 files, +496/−60 —
-  provider settlement + boundary lowering slice, interrupted mid-work;
-  unvalidated).
+  `swarm/macw9-terminal-authority` at `5728d45a2f` (supersedes
+  `7f856f6d43`): the macw9 leg carried the blueprint into a full
+  `direct_syscall` instruction family — selected-instruction identity,
+  legalization replay, scalar-graph selection, row encoding, aarch64 and
+  x86-64 form encoding, ABI call machinery across 176 files (+2913/−213),
+  still unvalidated at interrupt.
 
   Remaining delivery:
 
@@ -3749,7 +3844,7 @@ syntax and other terminal services are not prerequisites.
   shipped program's lifecycle.
 
   The native policy helpers in
-  `native-realization/src/native_realization/terminal_authority_policy/filesystem.rs`
+  `abstract-operations-to-target-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
   already bind an occurrence commitment into syscall/foreign-import mechanism
   identities and emit a constrained empty row, but only tests call them.
   Implement the checked-flow derivation, retained Terminal evidence and independent
@@ -3922,33 +4017,40 @@ syntax and other terminal services are not prerequisites.
   receiver-only ZII filtering and superseded special cases rather than adding
   stronger facts alongside the old path.
 
-  Measured direction, which is the opposite of "the receiver is exempt". Two
-  bodies differing only in receiver against named argument -- a guarded
-  `buf.line[buf.i] = 46` into a `[u8; 4] in Utf8` followed by a call taking the
-  same place -- split: the `&mut self` form is ACCEPTED, and the
-  `&mut Holder` form reports "cannot prove default-domain field requirement for
-  call done from run::put: parameter buf.line requires `[u8; N]::Utf8`".
-  Changing the receiver form's literal to 200 rejects it, so the receiver path
-  is discharging a provable ASCII byte rather than skipping the obligation. The
-  named path is the deficient one, and consolidation has to adopt the
-  receiver's discharge, not delete it.
+  Measured, and it is not a receiver exception. The two programs earlier
+  recorded here as a controlled pair were not one. A `&mut self` body that
+  writes `self.line[self.i] = 46` into a `[u8; 4] in Utf8` is accepted and the
+  `&mut Holder` twin is refused, but they give the checker different
+  information: the receiver's carrier was assigned the string literal `"    "`
+  in the same machine, and `carrier_proves_predicate` reads that
+  `AssignedValue` fact directly, while the parameter arrives carrying only its
+  declared-domain premise.
 
-  `append_state_parameter_domain_facts` skips `parameter.is_self` when seeding
-  entry field-domain premises, so the receiver reaches its call without them
-  and is still admitted; the named parameter has them and is refused after the
-  write. The asymmetry is therefore in how a write's effect on the domain is
-  evaluated per place, not in the entry seeding.
+  The required predicate is the point. Writing an ASCII byte into a byte
+  carrier emits its `BytePredicate` fact only when the carrier already proves
+  `AsciiOnly`; the declared domain proves `ValidUtf8`, and `ValidUtf8` does not
+  imply `AsciiOnly` -- correctly, since overwriting one byte of a multi-byte
+  sequence breaks it. So the parameter case is a sound refusal on the evidence
+  it has, not an exception the receiver escapes.
 
-  Probing `checks/contracts/nominal_inputs.rs` narrows it further: both forms
-  raise the same requirement at the same place (`self.line` and `buf.line`,
-  `owner_kind` Machine against Parameter), and every receiver call site reports
-  `satisfied=true` while the named form satisfies its pre-write sites and fails
-  only the call that follows the element store. So the obligation is raised
-  identically and only the post-write discharge differs. The receiver-only
-  filter the first paragraph asks about is
-  `checks/contracts/writes.rs::expression_is_self_relative`, which admits a
-  domain's zero value only when the fact's name path starts at the receiver;
-  start there rather than in the entry seeding or the obligation loop.
+  The real asymmetry is fact transport. `ctlC` -- the named form with
+  `buf.line = "    "` assigned in the same machine, then
+  `buf.line[buf.i] = 46` in a state reached by `put(buf)` -- is still refused,
+  so the `AssignedValue` literal fact reaches a receiver's own states through
+  the state graph but does not cross a call argument for a `&mut T` parameter.
+  That is what to repair, and it is transport rather than a domain exception.
+  Two earlier revisions of this note said otherwise; both were written from the
+  uncontrolled pair.
+
+  Where to look, and where not to.
+  `flow/transfers/context_transport.rs` already transports `AssignedValue`
+  beside `AssignedCase`, `AssignedScalarValue` and `BytePredicate`, but it
+  transports them for a WRITE, keyed on `write.source_place`, so it is not the
+  path a transition argument takes. `flow/transfers/projected.rs` copies
+  literal `AssignedValue` leaves for field predicates, also not that path. The
+  remaining candidates are the state-entry side, `flow/state.rs` and
+  `flow/entry_origins.rs`, which is where an arriving edge's arguments seed the
+  target state's facts.
 
   `samples/cli/rendering/dungeon_render` is the sample customer and needs more
   than this: its glyph reaches the carrier as `put(ch: u8)` -> `self.lab` ->
@@ -4057,6 +4159,30 @@ syntax and other terminal services are not prerequisites.
   `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`, not a historical
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
+
+  A traced omission to start from. `samples/cli/collections/matrix_multiply`
+  stops at `structural field store: scalar field type` (state 0, statement 0),
+  which is `self.a = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]` into a
+  `[[i32 in Wrapping; 3]; 3]` field. The whole-array route exists --
+  `structural_scalar_store/primitive.rs::array_literal_stores`, reached before
+  `plan_assignment` -- and every gate in it passes for this store except the
+  last: `closed_array_store_type` and `closed_array_extents` resolve, the
+  destination is a field segment with builtin coordinates and no shadowing
+  local, `borrowed_parameter_destination` resolves (it excludes `is_self` only
+  for a `whole` store, and this route asks for `whole = false`),
+  `TargetSelectors::resolve` and `checked_unit_path` both succeed, and
+  `control::scalar_arrays::elements` returns `None`. That last call delegates
+  to `validation::scalar_array_elements`, which is where the nested literal is
+  refused.
+
+  One prerequisite is not on `main`.
+  `validation::is_closed_primitive_array_type` walks `FixedArray` to its
+  element but has no `Constrained` arm, so an `i32 in Wrapping` element stopped
+  the walk one level down even though `closed_array_store_type` strips exactly
+  that wrapper at the top and admits `ArithmeticDomain` constraints there.
+  Adding the arm moves this store from failing the first gate to failing only
+  `scalar_array_elements`, and it was measured to move no corpus fixture on its
+  own, so it is unlanded and belongs with the element repair.
 
   `terminal-vocabulary-for-unit-bodies` is delegated implementation work:
   extend or add operations for non-vacated structural replacement, typed recast
@@ -4726,7 +4852,7 @@ syntax and other terminal services are not prerequisites.
   Std may be replaced, split or absent; only core and the specified
   compiler-injected vocabulary retain toolchain authority. Standalone
   std/alloc still receive broad `Toolchain` classification in
-  `compiler/src/sources/source/source_storage.rs`.
+  `build-evaluation/src/sources/source/source_storage.rs`.
   Remove that fallback as remaining consumers acquire exact source-byte
   catalog roles or accepted semantic bindings, not by relabeling a directory.
 
@@ -5157,6 +5283,22 @@ but report the missing runtime leg explicitly; it does not close that host row.
   space: each test binary is around 350 MB and this host has died under 1 GB
   free three times in one session. RE-MEASURE BEFORE WORKING A TARGET:
   twenty-one of the targets once listed here were already green when re-run.
+
+  This table predates `c60792d7bd` ("repo: the compiler is tested through the
+  corpus gate alone"), which deleted the compiler test suites most of it was
+  measured from. Eight of its thirteen targets no longer appear anywhere in
+  `omega-rust` or as a `tests/omega` fixture directory:
+  `native_filesystem_canaries` (its largest entry, 89),
+  `plan_laid_repeated_runtime`, `build_target_activation`,
+  `subslice_runtime_end_bounds`, `service_operational_contracts`,
+  `callback_terminal_custody`, `module_machine_indices` and
+  `rank_remainder_endpoints`. `source_evaluated_native_realization` survives
+  only inside a doc comment. Four still appear in sources: `recast_views`,
+  `private_joint_progress`, `optimizer_opt_in` and
+  `package_compilation_inputs` -- and `recast_views` names no fixture
+  directory, so the `tests/omega/{pass,fail}/recast` corpus it was read as is
+  green (14 pass, 12 fail, 0 unsatisfied). Re-measure a target before working
+  it; most of these counts describe tests that are gone.
 
   Remaining, re-measured on macOS arm64 after the repairs below:
 

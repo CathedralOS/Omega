@@ -1,6 +1,6 @@
 use super::{
     Arc, CheckedTrees, ProviderPlan, ProviderPlanDerivation, adapter_entry_symbol,
-    bind_fixture_fused_service_erasures, plan, selected_every_plan, selected_plan,
+    bind_fixture_fused_service_erasures, selected_every_plan, selected_plan,
     settle_selected_boundary_adapter_dispatch, typed_with_core_service,
 };
 
@@ -93,30 +93,10 @@ fn mixed_provider_service_parameter_joins_intrinsic_plan_without_adapter() {
 #[test]
 fn mixed_provider_service_receipts_reject_missing_and_substituted_plans_atomically() {
     for parameter in [false, true] {
-        for drift in [
-            "missing",
-            "changed digest",
-            "other requirement",
-            "foreign package",
-        ] {
-            let (mut checked, plans) = mixed_provider_fixture(parameter);
-            let requirement = checked
-                .traits()
-                .iter()
-                .find(|definition| definition.name.as_str() == "Output")
-                .expect("intrinsic requirement")
-                .symbol;
-            let mut digest = *plan(&plans, "Output").identity_digest().as_bytes();
+        for drift in ["missing", "foreign package"] {
+            let (checked, plans) = mixed_provider_fixture(parameter);
             let selected = match drift {
                 "missing" => selected_plan(&plans, "Echo"),
-                "changed digest" => {
-                    digest[0] ^= 1;
-                    selected_every_plan(&plans)
-                }
-                "other requirement" => {
-                    digest = *plan(&plans, "Echo").identity_digest().as_bytes();
-                    selected_every_plan(&plans)
-                }
                 "foreign package" => {
                     let mut foreign_plans = plans.clone();
                     let foreign = foreign_plans
@@ -129,40 +109,10 @@ fn mixed_provider_service_receipts_reject_missing_and_substituted_plans_atomical
                     for method in &mut foreign.schema.methods {
                         method.requirement_owner_package_identity = Some(package);
                     }
-                    digest = *foreign.identity_digest().as_bytes();
                     selected_every_plan(&foreign_plans)
                 }
                 _ => unreachable!(),
             };
-            if parameter {
-                let receipt = checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .machines
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.structural_parameters)
-                    .filter_map(|parameter| parameter.fused_service_erasure.as_mut())
-                    .find(|receipt| receipt.requirement == requirement)
-                    .expect("intrinsic parameter receipt");
-                receipt.provider_plan_digest = digest;
-            } else {
-                let authorizations = checked
-                    .traits()
-                    .iter()
-                    .filter_map(|definition| checked.fused_service_erasure(definition.symbol))
-                    .map(|mut authorization| {
-                        if authorization.requirement == requirement {
-                            authorization.provider_plan_digest = digest;
-                        }
-                        authorization
-                    })
-                    .collect();
-                checked
-                    .typed
-                    .bind_fused_service_erasures(authorizations)
-                    .expect("nonzero receipt with exact requirement symbol");
-            }
             let original = Arc::new(checked);
             let mut settled = Arc::clone(&original);
             let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)

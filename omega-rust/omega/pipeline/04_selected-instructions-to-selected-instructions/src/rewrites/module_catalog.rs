@@ -72,6 +72,20 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Shared,
     },
     RewriteModuleRow {
+        module: "condition_state",
+        route: RewriteModuleRoute::Shared,
+    },
+    RewriteModuleRow {
+        module: "constant_boolean",
+        // The pre-allocation executor: its discovery pass calls
+        // `fold_selected_constant_boolean` for the exact rule the
+        // catalog admits.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs",
+            evidence: "fold_selected_constant_boolean",
+        },
+    },
+    RewriteModuleRow {
         module: "copy_removal",
         // The pre-allocation executor: `run_pre_allocation_optimizations` is
         // the rewrite the stage entrance runs for that slice.
@@ -183,15 +197,7 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
-        module: "condition_state",
-        route: RewriteModuleRoute::Shared,
-    },
-    RewriteModuleRow {
         module: "confluence_relocation",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
-        module: "constant_boolean",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {

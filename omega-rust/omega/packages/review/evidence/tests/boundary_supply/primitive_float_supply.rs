@@ -136,56 +136,6 @@ machine exercise() {
 }
 
 #[test]
-fn intrinsic_application_rejects_post_check_selected_plan_drift() {
-    let Some(target) = host_target_name() else {
-        return;
-    };
-    let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        r#"pub data F32 {}
-pub boundary operator F32::negate(value: f32) -> f32;
-pub data FloatProvider {}
-pub machine FloatProvider::negate(value: f32) -> f32
-    satisfies F32::negate
-    via ForeignBinding::CompilerIntrinsic;
-machine exercise(value: f32) -> f32 { F32::negate(value) }
-"#,
-    );
-    package.write(
-        "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
-"#,
-    );
-    let mut checked = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
-        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
-    })
-    .expect("intrinsic application drift fixture should check");
-    let (actual_use, _) = checked
-        .facts
-        .operators
-        .named_uses
-        .iter()
-        .next()
-        .expect("one actual named intrinsic use");
-    checked
-        .facts
-        .operators
-        .named_uses
-        .get_mut(actual_use)
-        .provider_plan_commitment = checked_trees::CheckedProviderPlanCommitment::default();
-
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("post-check selected-plan substitution must reject");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("rejoins 0 exact selected provider plans")
-    }));
-}
-
-#[test]
 fn review_closes_named_float_conversion_with_exact_types_and_domain() {
     let Some(target) = host_target_name() else {
         return;
@@ -478,18 +428,8 @@ machine exercise() {
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
         .expect("both negation spellings check");
-        let requirement_uses = checked
-            .facts
-            .operators
-            .named_requirement_uses()
-            .filter(|selected_use| selected_use.provider_plan_report_fingerprint != 0)
-            .count();
-        let operator_uses = checked
-            .facts
-            .operators
-            .named_uses()
-            .filter(|selected_use| selected_use.provider_plan_report_fingerprint != 0)
-            .count();
+        let requirement_uses = checked.facts.operators.named_requirement_uses().count();
+        let operator_uses = checked.facts.operators.named_uses().count();
         reviews.push((
             project_checked_package_review(&checked)
                 .expect("both negation spellings have a closed package-review identity"),

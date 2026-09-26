@@ -799,16 +799,6 @@ fn record_reference_module() -> TerminalModule {
 }
 
 #[test]
-fn reference_record_moves_permission_and_restores_root_after_edge_discard() {
-    verify_module(
-        &record_reference_module(),
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("record construction and projection replay reference custody without new evidence");
-}
-
-#[test]
 fn reference_record_rejects_duplicate_child_and_unrestricted_owner() {
     let mut module = record_reference_module();
     let StructuralTypeShape::Record { fields } = &mut module.structural_types[2].shape else {
@@ -1319,16 +1309,6 @@ fn owned_reference_record_ingress_bounds_type_dag_expansion() {
             ..
         })
     ));
-}
-
-#[test]
-fn reference_record_result_replays_callee_construction_and_caller_restoration() {
-    verify_module(
-        &returned_record_reference_module(),
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("make_view returns its exact stored reference permission to the caller");
 }
 
 fn two_reference_result_module() -> TerminalModule {

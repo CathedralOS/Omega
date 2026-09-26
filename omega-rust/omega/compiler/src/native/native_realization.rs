@@ -13,15 +13,11 @@ mod object_emission;
 mod optimization_stage;
 mod optimized_fragment_projection;
 mod physical_stage;
-pub(crate) mod providers;
 mod realization_diagnostics;
 mod realization_request;
 pub(crate) mod source_evaluated_imports;
 mod target_stage;
-mod terminal_authority_permission_policy;
-pub mod terminal_authority_permissions;
-mod terminal_authority_policy;
-mod terminal_authority_review;
+pub use abstract_operations_to_target_operations::provider_admission::terminal_authority_permissions;
 
 pub use input_preparation::{PreparedNativeRealizationInput, prepare_native_realization_input};
 pub use realization_request::{
@@ -29,13 +25,13 @@ pub use realization_request::{
     NativeProviderSettlement, NativeRealizationRequest, RequestedNativeArtifact,
     RequestedNativeArtifactError,
 };
-pub use terminal_authority_permission_policy::{
+pub use abstract_operations_to_target_operations::provider_admission::{
     MissingTerminalAuthorityPermission, TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
     TerminalAuthorityPermissionPolicyRow, current_terminal_authority_permission_policy,
     terminal_authority_permission_policy_with_rows,
 };
-pub use terminal_authority_policy::{
+pub use abstract_operations_to_target_operations::provider_admission::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CompilerIntrinsicTerminalAuthorityPolicy,
     FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract,
     TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
@@ -53,12 +49,14 @@ pub use terminal_authority_policy::{
 
 use diagnostics::Diagnostic;
 
+use abstract_operations_to_target_operations::provider_admission::{
+    AdmittedNativeProviders, ProviderAdmissionRequest, admit_native_providers,
+};
 use self::{
     artifact_assembly::assemble_requested_native_artifact,
     boundary_applications::retain_boundary_application_coverage,
     input_preparation::lower_realization_input,
     object_emission::emit_realization_object,
-    providers::{AdmittedNativeProviders, admit_native_providers},
     realization_diagnostics::realization_error,
 };
 
@@ -94,7 +92,7 @@ fn realize_image(
     artifact
         .validate()
         .map_err(|error| realization_error("canonical artifact replay", error))?;
-    crate::native::entry_settlement::validate_fused_program_entry_establishments(
+    terminal_psi_to_abstract_operations::validate_fused_program_entry_establishments(
         &artifact,
         request.program_entry,
         request.selected_provider_plans,
@@ -131,8 +129,23 @@ fn realize_image(
         semantic_bytes,
         proof_bytes,
         terminal_artifact_identity,
-        request,
+        &ProviderAdmissionRequest {
+            target: request.target,
+            profile: request.profile,
+            program_entry: request.program_entry,
+            selected_provider_plans: request.selected_provider_plans,
+            external_binding_rows: request.external_binding_rows,
+            settlements: request.settlements,
+            compiler_builtins: request.compiler_builtins,
+            native_callbacks: request.native_callbacks,
+            terminal_authority_policy: &request.terminal_authority_policy,
+            terminal_authority_permission_policy: &request.terminal_authority_permission_policy,
+        },
     )?;
+    let executions = executions
+        .into_iter()
+        .map(native_artifact::NativeProviderExecution::from_evidence)
+        .collect();
     // A requested physical-authority exclusion is a demand on the admitted
     // mechanism closure, not a receiver permission: it is adjudicated against
     // the review's exercised dispositions whether or not the request carries

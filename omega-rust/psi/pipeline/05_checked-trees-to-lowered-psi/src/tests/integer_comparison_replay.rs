@@ -11,26 +11,6 @@ use lowered_psi::{
 use semantic_vocabulary::{IntegerSign, IntegerType, OperationId};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
-/// Omega separately rejoins these opaque commitments to actual selected
-/// ProviderPlans; this unit boundary tests only source-to-Terminal custody.
-fn checked_with_provider_commitments(source: &str) -> checked_trees::CheckedTrees {
-    let mut checked = crate::front_end::checked_program(source);
-    let handles = checked
-        .facts
-        .operators
-        .uses
-        .iter()
-        .map(|(handle, _)| handle)
-        .collect::<Vec<_>>();
-    for handle in handles {
-        let selected = checked.facts.operators.uses.get_mut(handle);
-        selected.provider_plan_report_fingerprint = 7;
-        selected.provider_plan_commitment =
-            checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]);
-    }
-    checked
-}
-
 fn selected_integer_comparison(token: &str, name: &str, primitive: &str) -> String {
     format!(
         "boundary operator {token} Comparison::{name}(left: {primitive}, right: {primitive}) -> bool;
@@ -39,7 +19,7 @@ fn selected_integer_comparison(token: &str, name: &str, primitive: &str) -> Stri
 }
 
 fn i32_equality() -> checked_trees::CheckedTrees {
-    checked_with_provider_commitments(&selected_integer_comparison("==", "equal", "i32"))
+    crate::front_end::checked_program(&selected_integer_comparison("==", "equal", "i32"))
 }
 
 #[test]
@@ -71,7 +51,7 @@ fn a_replayed_integer_occurrence_is_admitted_into_the_custody_scope() {
             ("u64", IntegerSign::Unsigned, 64),
         ] {
             let source = selected_integer_comparison(token, name, primitive);
-            let checked = checked_with_provider_commitments(&source);
+            let checked = crate::front_end::checked_program(&source);
             let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose"))
                 .expect("selected integer comparison lowers");
             let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {
@@ -224,31 +204,6 @@ fn a_foreign_integer_occurrence_rejects() {
     corrupted.selected_integer_comparison_occurrences[0].integer_type =
         IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     assert_eq!(replay(&corrupted), changed);
-    // A row whose provider commitment is not the checked use's, or is absent.
-    let mut corrupted = lowered.clone();
-    corrupted.selected_integer_comparison_occurrences[0].provider_plan_commitment =
-        checked_trees::CheckedProviderPlanCommitment::from_digest([9; 32]);
-    assert_eq!(replay(&corrupted), changed);
-    let mut checked_without_provider = checked.clone();
-    let use_handle = lowered.selected_integer_comparison_occurrences[0].operator_use;
-    checked_without_provider
-        .facts
-        .operators
-        .uses
-        .get_mut(use_handle)
-        .provider_plan_commitment = Default::default();
-    let mut corrupted = lowered.clone();
-    corrupted.selected_integer_comparison_occurrences[0].provider_plan_commitment =
-        Default::default();
-    assert_eq!(
-        lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
-            &checked_without_provider,
-            produced.artifact(),
-            &corrupted,
-        )
-        .unwrap_err(),
-        changed
-    );
     // A row whose recorded operand mapping or negation is not the authored
     // spelling's admitted emission. The admitted roster is the producer's
     // only source for both, so neither can be relabelled onto a real
@@ -264,7 +219,7 @@ fn a_foreign_integer_occurrence_rejects() {
     // emission: the same handle now resolves a `>` use, which emits the
     // reversed `IntegerLessThan` rather than this row's equality.
     let foreign =
-        checked_with_provider_commitments(&selected_integer_comparison(">", "greater", "i32"));
+        crate::front_end::checked_program(&selected_integer_comparison(">", "greater", "i32"));
     assert_eq!(
         lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
             &foreign,
@@ -275,7 +230,7 @@ fn a_foreign_integer_occurrence_rejects() {
         changed
     );
     // A row from a program whose checked use compares floats.
-    let float = checked_with_provider_commitments(
+    let float = crate::front_end::checked_program(
         "boundary operator == Float::equal(left: f32, right: f32) -> bool;
          machine choose(left: f32, right: f32) -> bool { left == right }",
     );

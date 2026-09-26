@@ -20,6 +20,11 @@ terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
 terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
+calling-conventions = { path = "../../representations/calling-conventions" }
+effects = { path = "../../representations/effects" }
+program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
+provider-planning = { path = "../../build/provider-planning" }
+target = { path = "../../representations/target" }
 
 [dev-dependencies]
 abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }

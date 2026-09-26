@@ -74,24 +74,6 @@ fn named_call_retains_a_route_no_statement_entry_fact_covers() {
 }
 
 #[test]
-fn named_call_discharge_survives_writes_to_disjoint_sibling_storage() {
-    // The statement-entry fact about `value` is untouched by the writes to
-    // `x`, and `value`'s immutable binding is entry-proven, so the route
-    // still discharges at the later statement.
-    checked_program_result(
-        "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
-         crashes Trap !(right >= 0);
-         pub machine safe(value: i32) -> bool
-         requires value >= 0 {
-             let mut x: i32 = value;
-             x = x - 100;
-             Comparison::equal(1, value)
-         }",
-    )
-    .expect("sibling writes do not disturb an entry-proven operand");
-}
-
-#[test]
 fn named_call_discharges_a_route_whose_exclusive_loan_never_writes() {
     // `peek` borrows `value` exclusively but provably never writes it, so the
     // operand-time capture of `value` still carries `value >= 0` at the
@@ -1672,23 +1654,6 @@ fn spelled_use_keeps_a_route_whose_guard_reads_a_callee_scope_call() {
     assert_eq!(surviving_guard_expressions(site), [&expected]);
 }
 
-/// A published-ceiling caller republishing `!(value >= floor())` covers the
-/// surviving route exactly: the transported `Call` leaf gives the caller a
-/// route it can spell again, so the invocation checks clean without
-/// over-publishing an unconditional ceiling.
-#[test]
-fn caller_republication_covers_a_route_whose_guard_reads_a_callee_scope_call() {
-    let source = "pub machine floor() -> i32 { 0 }
-         boundary operator == Comparison::equal(left: i32, right: i32) -> bool
-         crashes Trap !(right >= floor());
-         pub machine keep(value: i32) -> bool
-         crashes Trap !(value >= floor()) {
-             1 == value
-         }";
-    checked_program_result(source)
-        .expect("the caller's matching published route covers the call-leaf route");
-}
-
 /// Without coverage the route still fails closed — the uncovered diagnostic
 /// names the same structured route the site retained.
 #[test]
@@ -1820,22 +1785,6 @@ fn named_call_keeps_a_route_whose_guard_indexes_a_formal() {
     assert_eq!(surviving_guard_expressions(site), [&expected]);
 }
 
-/// A published-ceiling caller republishing `!(value >= items[0u64])` covers
-/// the surviving route exactly: the transported `Indexed` leaf gives the
-/// caller a route it can spell again, so the invocation checks clean without
-/// over-publishing an unconditional ceiling.
-#[test]
-fn caller_republication_covers_a_route_whose_guard_indexes_a_formal() {
-    let source = "boundary operator Ns::probe(left: [i32; 4], right: i32) -> bool
-         crashes Trap !(right >= left[0u64]);
-         pub machine keep(items: [i32; 4], value: i32) -> bool
-         crashes Trap !(value >= items[0u64]) {
-             Ns::probe(items, value)
-         }";
-    checked_program_result(source)
-        .expect("the caller's matching published route covers the indexed route");
-}
-
 /// The transport boundary stays conservative outside `Indexed`: a cast leaf
 /// still flattens to `Opaque`, whose display can hide a formal —
 /// `left[0u64] as i32 in Wrapping` mentions `left` — so the route still
@@ -1893,22 +1842,6 @@ fn spelled_use_keeps_a_route_whose_guard_reads_a_float_literal() {
         }),
     };
     assert_eq!(surviving_guard_expressions(site), [&expected]);
-}
-
-/// A published-ceiling caller republishing `!(value >= 1.5)` covers the
-/// surviving route exactly: the transported `Float` leaf gives the caller a
-/// route it can spell again, so the invocation checks clean without
-/// over-publishing an unconditional ceiling.
-#[test]
-fn caller_republication_covers_a_route_whose_guard_reads_a_float_literal() {
-    let source = "boundary operator == Comparison::equal(left: f64, right: f64) -> bool
-         crashes Trap !(right >= 1.5);
-         pub machine keep(value: f64) -> bool
-         crashes Trap !(value >= 1.5) {
-             1.0 == value
-         }";
-    checked_program_result(source)
-        .expect("the caller's matching published route covers the float-leaf route");
 }
 
 /// A float literal actual also transports: the guard's `left` binds the

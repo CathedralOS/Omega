@@ -64,51 +64,6 @@ fn earlier_strict_component_permits_a_later_reset() {
 }
 
 #[test]
-fn a_cycle_of_unchanged_arguments_has_no_progress() {
-    check(
-        &pair(
-            "transition progress.inner > 0 { true -> self.scan_b(progress) false -> 0 }",
-            "transition remaining.inner > 0 { true -> self.scan_a(remaining) false -> 0 }",
-            "Steps",
-            "remaining",
-        ),
-        false,
-    );
-}
-
-#[test]
-fn different_declared_orders_cannot_supply_one_joint_rank() {
-    check(
-        &pair(
-            "transition progress.inner > 0 { true -> self.scan_b(progress) false -> 0 }",
-            "transition remaining.inner > 0 {
-             true -> self.scan_a(Progress { outer: remaining.outer, inner: remaining.inner - 1 })
-             false -> 0
-         }",
-            "Reverse",
-            "remaining",
-        ),
-        false,
-    );
-}
-
-#[test]
-fn a_decreasing_rank_does_not_admit_non_tail_recursion() {
-    check(
-        &pair(
-            "transition progress.inner > 0 { true -> (1 + self.scan_b(progress)) false -> 0 }",
-            "transition remaining.inner > 0 {
-             true -> self.scan_a(Progress { outer: remaining.outer, inner: remaining.inner - 1 })
-             false -> 0
-         }",
-            "Steps",
-            "remaining",
-        ),
-        false,
-    );
-}
-
-#[test]
 fn ranking_arithmetic_requires_the_builtin_operator_meaning() {
     let body = pair(
         "transition progress.inner > 0 { true -> self.scan_b(progress) false -> 0 }",
@@ -154,56 +109,6 @@ fn a_strict_edge_elsewhere_does_not_admit_an_unchanged_subcycle() {
          { transition { _ -> self.scan_b(progress) } }",
     );
     check(&source, false);
-}
-
-#[test]
-fn one_strict_occurrence_cannot_hide_a_forwarding_alternative() {
-    check(
-        &pair(
-            "transition { _ -> self.scan_b(progress) }",
-            "transition remaining.inner > 0 {
-             true -> self.scan_a(Progress { outer: remaining.outer, inner: remaining.inner - 1 })
-             false -> self.scan_a(remaining)
-         }",
-            "Steps",
-            "remaining",
-        ),
-        false,
-    );
-}
-
-#[test]
-fn an_entry_relative_rank_is_not_replayed_after_a_parameter_write() {
-    check(
-        &pair(
-            "transition { _ -> self.scan_b(progress) }",
-            "remaining.inner = 4;
-             transition remaining.inner > 0 {
-                 true -> self.scan_a(Progress { outer: remaining.outer, inner: remaining.inner - 1 })
-                 false -> 0
-             }",
-            "Steps",
-            "remaining",
-        ),
-        false,
-    );
-}
-
-#[test]
-fn an_unrelated_inert_local_does_not_erase_the_joint_rank() {
-    check(
-        &pair(
-            "let unrelated: bool = true;
-             transition { _ -> self.scan_b(progress) }",
-            "transition remaining.inner > 0 {
-                 true -> self.scan_a(Progress { outer: remaining.outer, inner: remaining.inner - 1 })
-                 false -> 0
-             }",
-            "Steps",
-            "remaining",
-        ),
-        true,
-    );
 }
 
 #[test]

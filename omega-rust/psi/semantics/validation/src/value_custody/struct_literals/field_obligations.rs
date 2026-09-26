@@ -208,6 +208,7 @@ pub(super) fn enforce_construction_field_obligations(
                 Some(state),
                 field.value,
                 field_primitive,
+                program.arithmetic_domain_for_type_reference(field_type),
                 environment,
                 &owner,
                 diagnostics,
@@ -397,7 +398,7 @@ pub(crate) fn validate_array_literal_elements_for_shape(
                 // Statement arithmetic validation owns the query's diagnostics;
                 // this check consumes only its selected result carrier.
                 let mut arithmetic_diagnostics = Vec::new();
-                let (_, source_primitive) =
+                let (_, source_primitive, _) =
                     crate::proof_contracts::arithmetic_domains::validate_value_range(
                         program,
                         machine,
@@ -435,6 +436,7 @@ pub(crate) fn validate_array_literal_elements_for_shape(
                     Some(state),
                     *element,
                     element_primitive,
+                    program.arithmetic_domain_for_type_reference(element_type),
                     &ValueEnvironment::new(),
                     &owner,
                     diagnostics,

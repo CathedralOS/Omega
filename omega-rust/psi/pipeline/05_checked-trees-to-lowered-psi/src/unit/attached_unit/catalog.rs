@@ -573,11 +573,9 @@ pub(crate) fn lower_unit_structural_type_roots(
                         provider_type_identity,
                         erasure,
                     } => {
-                        if !erasure.requirement.is_valid()
-                            || erasure.provider_plan_digest == [0; 32]
-                        {
+                        if !erasure.requirement.is_valid() {
                             return unsupported(
-                                "fused Service erasure lacks an exact requirement or selected-provider-plan receipt",
+                                "fused Service erasure lacks an exact requirement receipt",
                             );
                         }
                         (field.relevance, StructuralFieldType::Erased {

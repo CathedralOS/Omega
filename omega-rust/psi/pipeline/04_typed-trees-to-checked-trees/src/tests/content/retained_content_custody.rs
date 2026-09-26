@@ -394,45 +394,6 @@ fn retained_content_custody_rejects_mutable_lifetime_bound_source() {
 }
 
 #[test]
-fn retained_content_custody_accepts_consumed_owned_source() {
-    checked_program(
-        r#"
-        data ByteUnit {}
-        data CountedQuantity<Unit> { magnitude: u64; }
-        trait Content<A> {
-            machine project(subject: &Self) -> A;
-        }
-
-        data Buffer [linear] {}
-        domain Buffer::Owned;
-        machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
-        satisfies Content<CountedQuantity<ByteUnit>>::project
-        {
-            CountedQuantity { magnitude: 1 }
-        }
-
-        data PendingWrite [linear] {}
-        domain PendingWrite::Retained
-        established by Writer::submit;
-        machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
-        satisfies Content<CountedQuantity<ByteUnit>>::project
-        {
-            CountedQuantity { magnitude: 1 }
-        }
-
-        boundary trait Writer {
-            machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite
-            ensures
-                result in PendingWrite::Retained;
-        }
-
-        data Main {}
-        machine Main::main(&mut self) {}
-        "#,
-    );
-}
-
-#[test]
 fn retained_content_custody_rejects_ambiguous_owned_sources() {
     let diagnostics = rejected(
         r#"

@@ -51,12 +51,9 @@ pub(super) fn build(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
-    let environment = register_environment::validate_target_register_environment(
-        native_target,
-        physical.model().clone(),
-        catalog.catalog().clone(),
-    )
-    .map_err(|_| invalid())?;
+    let environment =
+        crate::selection::target_register_environment(native_target, physical, catalog)
+            .map_err(|_| invalid())?;
     build_with_environment(function, source, constraints, &environment)
 }
 

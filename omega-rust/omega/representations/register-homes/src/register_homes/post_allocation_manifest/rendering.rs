@@ -73,6 +73,9 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::AddressFold(identity) => {
                     ("address-fold", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::ConstantBoolean(identity) => {
+                    ("constant-boolean", identity.bytes())
+                }
             };
             writeln!(
                 output,

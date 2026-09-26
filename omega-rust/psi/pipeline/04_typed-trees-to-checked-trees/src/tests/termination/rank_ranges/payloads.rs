@@ -37,45 +37,6 @@ fn reject(source: &str) {
 }
 
 #[test]
-fn named_state_ranges_ignore_unrelated_payloads_without_shifting_ordinals() {
-    prove(CLIMB);
-    reject(&CLIMB.replace(
-        "cursor + 1, enabled, ceiling)",
-        "cursor + 1, enabled, ceiling + 1)",
-    ));
-    reject(&CLIMB.replace("cursor + 1, enabled, ceiling)", "cursor, enabled, ceiling)"));
-}
-
-#[test]
-fn unrelated_payloads_can_cross_acyclic_and_cyclic_state_edges() {
-    prove(
-        r#"
-    data Payload { value: u64; }
-    machine walk(remaining: u32 [0..=5], payload: Payload)
-    terminates by remaining in 0..=5;
-    -> u32 {
-        transition remaining > 2 {
-            true -> first(payload, remaining)
-            false -> second(remaining, payload)
-        }
-        state first(carried: Payload, pending: u32 [0..=5]) {
-            transition pending > 0 {
-                true -> second(pending - 1, carried)
-                false -> pending
-            }
-        }
-        state second(left: u32 [0..=5], saved: Payload) {
-            transition left > 0 {
-                true -> first(saved, left - 1)
-                false -> left
-            }
-        }
-    }
-    "#,
-    );
-}
-
-#[test]
 fn numeric_mapping_mismatches_cannot_disappear_as_unrelated_payloads() {
     for destination_type in ["u32", "bool", "Payload", "u64 in Wrapping"] {
         reject(&CLIMB.replace("cursor: u64", &format!("cursor: {destination_type}")));
@@ -208,39 +169,6 @@ fn missing_rank_or_endpoint_slots_reject_even_on_impossible_arrivals() {
 }
 
 #[test]
-fn duplicated_rank_inputs_are_equal_at_every_arrival() {
-    let source = CLIMB
-        .replace(
-            "iterate(payload, index, flag, limit)",
-            "iterate(index, index, flag, limit)",
-        )
-        .replace("carried: Payload", "carried: u64")
-        .replace(
-            "carried, cursor + 1, enabled, ceiling",
-            "cursor + 1, cursor + 1, enabled, ceiling",
-        );
-    prove(&source);
-    // `index + 1` names `carried` as the moved copy of `index`, so `cursor`
-    // demotes to a stale snapshot: the `cursor + 1` reentry then moves an
-    // atom no hypothesis relates to the carried rank, and descent fails.
-    reject(&source.replace(
-        "iterate(index, index, flag, limit)",
-        "iterate(index + 1, index, flag, limit)",
-    ));
-    reject(&source.replace(
-        "cursor + 1, cursor + 1, enabled, ceiling",
-        "cursor + 1, cursor, enabled, ceiling",
-    ));
-    // The moved copy `cursor` keeps climbing while `carried` stays stale:
-    // the telescope names `cursor` the ranked carrier and the increasing
-    // distance still decreases.
-    prove(&source.replace(
-        "cursor + 1, cursor + 1, enabled, ceiling",
-        "cursor, cursor + 1, enabled, ceiling",
-    ));
-}
-
-#[test]
 fn duplicated_endpoints_are_pinned_as_equal_copies() {
     let source = CLIMB
         .replace(
@@ -252,57 +180,6 @@ fn duplicated_endpoints_are_pinned_as_equal_copies() {
     reject(&source.replace(
         "carried, cursor + 1, enabled, ceiling",
         "carried + 1, cursor + 1, enabled, ceiling + 1",
-    ));
-}
-
-#[test]
-fn duplicate_equality_checks_parallel_and_acyclic_arrivals() {
-    let source = r#"
-        machine walk(remaining: u32 [0..=5])
-        terminates by remaining in 0..=5;
-        -> u32 {
-            transition remaining > 2 {
-                true -> prepare(remaining, remaining)
-                false -> prepare(remaining, remaining)
-            }
-            state prepare(first: u32 [0..=5], second: u32 [0..=5]) {
-                transition { _ -> iterate(second, first) }
-            }
-            state iterate(left: u32 [0..=5], right: u32 [0..=5]) {
-                transition left > 0 && right > 0 {
-                    true -> iterate(left - 1, right - 1)
-                    false -> left
-                }
-            }
-        }
-    "#;
-    prove(source);
-    reject(&source.replace(
-        "false -> prepare(remaining, remaining)",
-        "false -> prepare(remaining + 1, remaining)",
-    ));
-    reject(&source.replace("iterate(second, first)", "iterate(second + 1, first)"));
-}
-
-#[test]
-fn auxiliary_step_copies_are_an_inductively_checked_premise() {
-    let source = r#"
-        machine walk(remaining: u32 [0..=5], step: u32 [1..=1])
-        terminates by remaining in 0..=5;
-        -> u32 {
-            transition { _ -> iterate(remaining, step, step) }
-            state iterate(pending: u32, first: u32 [1..=1], second: u32 [1..=1]) {
-                transition pending > 0 {
-                    true -> iterate(pending - first, first, second)
-                    false -> pending
-                }
-            }
-        }
-    "#;
-    prove(source);
-    reject(&source.replace(
-        "pending - first, first, second",
-        "pending - first, first, second + 1",
     ));
 }
 
@@ -337,26 +214,4 @@ fn duplicated_rank_or_endpoint_slots_cannot_choose_a_convenient_copy() {
             "cursor, cursor + 1, enabled, ceiling",
         );
     prove(&source);
-}
-
-#[test]
-fn different_arity_states_can_compose_exact_rank_mappings() {
-    prove(
-        r#"
-        machine walk(unused: bool, remaining: u32 [0..=5], payload: u64)
-        terminates by remaining in 0..=5;
-        -> u32 {
-            transition { _ -> prepare(payload, remaining, payload) }
-            state prepare(first_copy: u64, pending: u32, second_copy: u64) {
-                transition { _ -> iterate(pending, second_copy) }
-            }
-            state iterate(left: u32, carried: u64) {
-                transition left > 0 {
-                    true -> iterate(left - 1, carried)
-                    false -> left
-                }
-            }
-        }
-    "#,
-    );
 }

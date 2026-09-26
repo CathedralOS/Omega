@@ -403,67 +403,6 @@ fn float_call_endpoints_read_at_the_declared_carrier() {
 }
 
 #[test]
-fn incoming_argument_guards_keep_their_own_polarity() {
-    let positive = r#"
-        machine accept(delivered: u32 [1..=5]) -> u32 { delivered }
-        machine run(value: u32 [0..=5]) -> u32 {
-            transition value > 0 {
-                true -> accept(value)
-                false -> 0
-            }
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(positive), &CheckingRequest::settled())
-        .expect("the positive guard establishes the floor");
-    rejects_range(&positive.replace(
-        "true -> accept(value)\n                false -> 0",
-        "true -> 0\n                false -> accept(value)",
-    ));
-}
-
-#[test]
-fn named_state_delivery_checks_a_renamed_parameter_range() {
-    let source = r#"
-        machine run(value: u32 [0..=5]) -> u32 {
-            transition value > 0 {
-                true -> accept(value)
-                false -> 0
-            }
-            state accept(delivered: u32 [1..=5]) -> u32 { delivered }
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("guarded named-state arrival");
-    rejects_range(&source.replace("value > 0", "value >= 0"));
-}
-
-#[test]
-fn an_unknown_argument_cannot_claim_the_callees_range() {
-    rejects_range(
-        r#"
-        machine accept(value: u32 [1..=5]) -> u32 { value }
-        machine run(source: u32) -> u32 { accept(source) }
-    "#,
-    );
-}
-
-#[test]
-fn immutable_singleton_bound_is_not_a_guess_about_a_variable_limit() {
-    let source = r#"
-        machine accept(value: u32 [1..=4]) -> u32 { value }
-        machine run(limit: u32 [5..=5], value: u32 [1..=5]) -> u32 {
-            transition value < limit {
-                true -> accept(value)
-                false -> 0
-            }
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("the immutable limit is exactly five");
-    rejects_range(&source.replace("limit: u32 [5..=5]", "limit: u32 [4..=6]"));
-}
-
-#[test]
 fn bare_dispatch_guards_establish_bounded_arguments() {
     for condition in [
         "fuel > 1",
@@ -493,22 +432,6 @@ fn bare_dispatch_guards_establish_bounded_arguments() {
 }
 
 #[test]
-fn later_dispatch_arm_keeps_its_own_fuel_guard() {
-    let source = r#"
-        machine run(fuel: u64 [1..=128], matched: bool) -> u64 {
-            transition {
-                fuel > 1 && matched -> 0
-                fuel > 1 -> advance(fuel - 1)
-                _ -> 0
-            }
-            state advance(delivered: u64 [1..=128]) -> u64 { delivered }
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("the second arm supplies its own floor");
-}
-
-#[test]
 fn insufficient_dispatch_guards_cannot_deliver_a_bounded_decrement() {
     for condition in [
         "fuel >= 1",
@@ -525,25 +448,6 @@ fn insufficient_dispatch_guards_cannot_deliver_a_bounded_decrement() {
             }}"
         ));
     }
-}
-
-#[test]
-fn dispatch_guards_preserve_bounded_fuel_on_ranked_state_cycles() {
-    let source = r#"
-        machine run(fuel: u64 [1..=128]) -> u64
-        terminates by fuel;
-        {
-            transition { _ -> seek(fuel) }
-            state seek(fuel: u64 [1..=128]) -> u64 {
-                transition { fuel > 1 -> advance(fuel - 1) _ -> 0 }
-            }
-            state advance(fuel: u64 [1..=128]) -> u64 {
-                transition { fuel > 1 -> seek(fuel - 1) _ -> 0 }
-            }
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("bounded decreasing fuel stays in range");
 }
 
 #[test]

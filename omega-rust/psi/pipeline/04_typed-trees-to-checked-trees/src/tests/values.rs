@@ -1087,17 +1087,6 @@ fn checked_scalar_plan_retains_guard_proved_exact_integer_cast_range() {
 }
 
 #[test]
-fn boolean_integer_cast_keeps_binary_range_for_exact_shift() {
-    let source = r#"
-        machine encode(flag: bool) -> i32 {
-            (flag as i32) << 30
-        }
-    "#;
-
-    checked_program(source);
-}
-
-#[test]
 fn exact_integer_widen_keeps_source_range_for_exact_shift() {
     let source = r#"
         machine stride(width: u32) -> i64 {

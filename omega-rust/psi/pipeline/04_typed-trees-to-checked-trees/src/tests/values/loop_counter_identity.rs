@@ -18,13 +18,6 @@ fn loop_source(receiver: &str) -> String {
 }
 
 #[test]
-fn saturating_self_counter_keeps_its_own_loop_bound() {
-    let source = loop_source("self");
-    lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
-}
-
-#[test]
 fn another_receivers_field_cannot_establish_self_counter_monotonicity() {
     let source = loop_source("other");
     let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())

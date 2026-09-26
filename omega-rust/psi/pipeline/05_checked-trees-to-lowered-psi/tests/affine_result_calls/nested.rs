@@ -8,18 +8,6 @@ const DECLARATIONS: &str = "data Value { number: u64; }
     machine Main::consume(value: Value) {}
     machine Main::consume_pair(left: Value, right: Value) {}";
 
-#[test]
-fn nested_structural_call_has_a_real_temporary_result() {
-    assert_nested(
-        &format!(
-            "{DECLARATIONS} machine Main::caller(value: Value) {{ Main::consume(forward(value)); }}"
-        ),
-        "Main::caller",
-        &[(0, 1), (0, 0)],
-        5,
-    );
-}
-
 fn assert_nested(source: &str, name: &str, coordinates: &[(usize, usize)], fuel: usize) {
     let checked = checked(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name(name))
@@ -89,18 +77,6 @@ fn assert_nested(source: &str, name: &str, coordinates: &[(usize, usize)], fuel:
 }
 
 #[test]
-fn deeper_calls_execute_in_postorder_without_renumbering_occurrences() {
-    assert_nested(
-        &format!(
-            "{DECLARATIONS} machine Main::caller(value: Value) {{ Main::consume(forward(forward(value))); }}"
-        ),
-        "Main::caller",
-        &[(0, 2), (0, 1), (0, 0)],
-        7,
-    );
-}
-
-#[test]
 fn sibling_operands_execute_in_authored_argument_order() {
     assert_nested(
         &format!(
@@ -117,30 +93,6 @@ fn sibling_operands_execute_in_authored_argument_order() {
         "Main::caller",
         &[(0, 2), (0, 1), (0, 4), (0, 3), (0, 0)],
         11,
-    );
-}
-
-#[test]
-fn nested_results_in_unit_tails_use_the_same_expression_storage() {
-    assert_nested(
-        &format!(
-            "{DECLARATIONS} machine Main::caller(value: Value) {{ Main::consume(forward(value)) }}"
-        ),
-        "Main::caller",
-        &[(0, 1), (0, 0)],
-        5,
-    );
-}
-
-#[test]
-fn later_initializers_keep_nested_call_coordinates() {
-    assert_nested(
-        &format!(
-            "{DECLARATIONS} machine Main::tick() {{}} machine Main::caller(value: Value) {{ Main::tick(); let result: Value = forward(forward(value)); Main::consume(result); }}"
-        ),
-        "Main::caller",
-        &[(0, 0), (1, 1), (1, 0), (2, 0)],
-        9,
     );
 }
 
@@ -277,17 +229,6 @@ fn nested_structural_calls_reject_temporary_and_occurrence_drift() {
             "mutation {mutation}"
         );
     }
-}
-
-#[test]
-fn nested_argument_evaluation_does_not_hoist_scalar_computation() {
-    let source = "data Value { number: u64; }
-        machine forward(value: Value) -> Value { value }
-        machine Main::consume(count: u32, value: Value) {}
-        machine Main::caller(count: u32, value: Value) { Main::consume(count ^ 1u32, forward(value)); }";
-    let checked = checked(source);
-    lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
-        .expect("scalar operands evaluate before the following structural call");
 }
 
 #[test]

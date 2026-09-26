@@ -1053,7 +1053,7 @@ fn selected_boundary_operator_does_not_enter_trait_installation_reach_resolution
 }
 
 #[test]
-fn shared_provider_binding_publishes_exact_operator_identity_without_mutating_retained_custody() {
+fn shared_provider_binding_joins_exact_operator_plan_without_mutating_retained_custody() {
     let (checked, plan) = selected_operator_binding_fixture();
     let (use_handle, use_before) = checked
         .facts
@@ -1063,8 +1063,6 @@ fn shared_provider_binding_publishes_exact_operator_identity_without_mutating_re
         .map(|(handle, operator_use)| (handle, *operator_use))
         .next()
         .expect("one named boundary-operator use");
-    assert_eq!(use_before.provider_plan_report_fingerprint, 0);
-    assert!(use_before.provider_plan_commitment.is_empty());
     let original_contents = checked.clone();
     let original = Arc::new(checked);
     let selected = effects::SelectedProviderPlanFacts::from_selection(
@@ -1083,50 +1081,23 @@ fn shared_provider_binding_publishes_exact_operator_identity_without_mutating_re
     .expect("exact provider binding succeeds");
     let (bound, selected, _) = binding.into_parts();
 
-    assert!(!Arc::ptr_eq(&bound, &original));
     assert_eq!(original.as_ref(), &original_contents);
-    assert_eq!(
-        original
-            .facts
-            .operators
-            .named_uses
-            .get(use_handle)
-            .provider_plan_report_fingerprint,
-        0
-    );
-    assert_eq!(
-        bound
-            .facts
-            .operators
-            .named_uses
-            .get(use_handle)
-            .provider_plan_report_fingerprint,
-        plan.report_fingerprint()
-    );
-    assert_eq!(
-        bound
-            .facts
-            .operators
-            .named_uses
-            .get(use_handle)
-            .provider_plan_commitment
-            .as_bytes(),
-        plan.identity_digest().as_bytes(),
-    );
+    let bound_use = bound.facts.operators.named_uses.get(use_handle);
+    assert_eq!(*bound_use, use_before);
+    let (_, joined) = crate::selected_use_plan(
+        &bound,
+        selected.plans(),
+        bound_use.selected_operator_symbol,
+        bound_use.origin,
+    )
+    .expect("the use joins its selected plan by requirement identity");
+    assert_eq!(joined.identity_digest(), plan.identity_digest());
     assert!(selected.installation_reach_resolutions().is_empty());
 }
 
 #[test]
 fn late_reach_rejection_publishes_no_staged_operator_updates() {
     let (checked, operator_plan) = selected_operator_binding_fixture();
-    let use_handle = checked
-        .facts
-        .operators
-        .named_uses
-        .iter()
-        .map(|(handle, _)| handle)
-        .next()
-        .expect("one named boundary-operator use");
     let missing_trait_plan = selection_plan("MissingProvider", &["missing"], &["missing"]);
     let candidates = [operator_plan.clone(), missing_trait_plan.clone()];
     let selected = effects::SelectedProviderPlanFacts::from_selection(
@@ -1146,24 +1117,6 @@ fn late_reach_rejection_publishes_no_staged_operator_updates() {
         )
     }));
     assert_eq!(original.as_ref(), &original_contents);
-    assert_eq!(
-        original
-            .facts
-            .operators
-            .named_uses
-            .get(use_handle)
-            .provider_plan_report_fingerprint,
-        0
-    );
-    assert!(
-        original
-            .facts
-            .operators
-            .named_uses
-            .get(use_handle)
-            .provider_plan_commitment
-            .is_empty()
-    );
 }
 
 #[test]

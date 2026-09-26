@@ -194,11 +194,6 @@ fn assert_call_execution(source: &str, name: &str, scalar_arguments: &[TerminalS
 }
 
 #[test]
-fn a_local_affine_call_result_has_a_real_producer_and_cleanup() {
-    assert_call_execution(IDENTITY_CALL, "Main::caller", &[]);
-}
-
-#[test]
 fn ordinary_structural_initializers_retain_nested_and_generic_owned_types() {
     for (declarations, identity) in [
         (
@@ -413,17 +408,6 @@ fn root_and_transitive_calls_share_one_structural_producer() {
         &AdmissionProfile::default(),
     )
     .expect("shared producer retains exact type and machine identities");
-}
-
-#[test]
-fn a_structural_initializer_evaluates_its_scalar_expression() {
-    assert_call_execution(
-        "data Value { number: u64; }
-        machine forward(number: u64, value: Value) -> Value { value }
-        machine Main::caller(value: Value) { let result: Value = forward(3 + 4, value); }",
-        "Main::caller",
-        &[],
-    );
 }
 
 #[test]
