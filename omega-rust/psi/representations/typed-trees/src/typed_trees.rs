@@ -48,8 +48,47 @@ use diagnostics::PhaseSnapshot;
 use std::ops::{Deref, DerefMut};
 use symbols::SymbolTable;
 
+/// A process-unique tag for one `TypedTrees` instance.
+///
+/// Memo caches outside this crate key their entries on the program they were
+/// computed for. An address cannot serve as that key: when a program is
+/// dropped the allocator is free to place the next one at the same address,
+/// and a cache that trusts the address then answers one program's queries with
+/// another's verdicts. Mixing arena base pointers into a fingerprint does not
+/// close that, because those blocks are recycled together with the program.
+///
+/// `Default` mints the next tag, so every `TypedTrees` built by
+/// `Default::default()` or a `..Default::default()` literal carries its own.
+/// Equality is deliberately vacuous: the tag identifies an instance, not
+/// program content, and `TypedTrees` equality compares content.
+#[derive(Debug, Clone, Copy, Eq)]
+pub struct ProgramIdentity(u64);
+
+impl ProgramIdentity {
+    pub fn get(self) -> u64 {
+        self.0
+    }
+}
+
+impl Default for ProgramIdentity {
+    fn default() -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        Self(NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
+impl PartialEq for ProgramIdentity {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedTrees {
+    /// This instance's cache key; see `ProgramIdentity`. A clone keeps the
+    /// tag it was cloned from: its content is identical at that moment, and a
+    /// later mutation moves the arena lengths a consumer's fingerprint reads.
+    pub identity: ProgramIdentity,
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
@@ -300,6 +339,7 @@ impl TypedTrees {
         symbols: SymbolTable,
     ) -> Self {
         Self {
+            identity: ProgramIdentity::default(),
             roots,
             tables,
             symbols,
