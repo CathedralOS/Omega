@@ -741,10 +741,10 @@ fn type_reference_for_symbol(
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open — receiver-path and attached-data walks otherwise re-scan
 /// the declaration table per member hop.
-fn data_definition_by_symbol<'program>(
-    program: &'program TypedTrees,
+fn data_definition_by_symbol(
+    program: &TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, symbol)
 }
 

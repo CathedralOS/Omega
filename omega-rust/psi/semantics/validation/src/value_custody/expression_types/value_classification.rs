@@ -261,10 +261,10 @@ fn concrete_data_type_symbol(
 
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open (the declaration slice is otherwise re-scanned per query).
-fn data_definition_by_symbol<'program>(
-    program: &'program TypedTrees,
+fn data_definition_by_symbol(
+    program: &TypedTrees,
     symbol: symbols::SymbolHandle,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, symbol)
 }
 

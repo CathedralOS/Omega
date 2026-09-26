@@ -184,24 +184,18 @@ impl Drop for ProgramPlanScopeGuard {
 /// lowering's entry; the returned guard must stay alive for the whole build.
 pub fn enter_program_plan_scope() -> ProgramPlanScopeGuard {
     ProgramPlanScopeGuard {
-        operational: OPERATIONAL_PLAN_SLOT
-            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
-        service_reach: SERVICE_REACH_PLAN_SLOT
-            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
-        claim_frontiers: CLAIM_FRONTIER_SLOT
-            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
-        data_def_lookups: DATA_DEF_LOOKUP_SLOT
-            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
-        drop_hooks: DROP_HOOK_SLOT
-            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+        operational: OPERATIONAL_PLAN_SLOT.with(|cell| cell.borrow_mut().replace(None)),
+        service_reach: SERVICE_REACH_PLAN_SLOT.with(|cell| cell.borrow_mut().replace(None)),
+        claim_frontiers: CLAIM_FRONTIER_SLOT.with(|cell| cell.borrow_mut().replace(None)),
+        data_def_lookups: DATA_DEF_LOOKUP_SLOT.with(|cell| cell.borrow_mut().replace(None)),
+        drop_hooks: DROP_HOOK_SLOT.with(|cell| cell.borrow_mut().replace(None)),
         conformance_slot_carriers: CONFORMANCE_SLOT_CARRIERS_SLOT
-            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
-        data_def_positions: DATA_DEF_POSITIONS_SLOT
-            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+            .with(|cell| cell.borrow_mut().replace(None)),
+        data_def_positions: DATA_DEF_POSITIONS_SLOT.with(|cell| cell.borrow_mut().replace(None)),
         type_parameter_multiplicities: TYPE_PARAMETER_MULTIPLICITY_SLOT
-            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+            .with(|cell| cell.borrow_mut().replace(None)),
         call_argument_destinations: CALL_ARGUMENT_DESTINATIONS_SLOT
-            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+            .with(|cell| cell.borrow_mut().replace(None)),
     }
 }
 
@@ -354,10 +348,10 @@ pub(crate) fn memoized_data_definition_lookup(
 /// one is open — the declaration slice is otherwise re-scanned per query.
 /// `find`-style callers read the first match; callers that require uniqueness
 /// should use [`memoized_data_definition_lookup`] directly.
-pub(crate) fn data_definition_by_symbol<'program>(
-    program: &'program typed_trees::TypedTrees,
+pub(crate) fn data_definition_by_symbol(
+    program: &typed_trees::TypedTrees,
     symbol: symbols::SymbolHandle,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     memoized_data_definition_lookup(program, symbol)
         .first_position()
         .and_then(|position| program.data_definitions().get(position as usize))
