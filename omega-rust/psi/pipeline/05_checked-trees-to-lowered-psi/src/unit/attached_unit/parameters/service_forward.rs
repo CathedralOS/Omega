@@ -104,7 +104,6 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
             || target_parameter.qualifications != caller_parameter.qualifications
             || target_receipt.carrier_type_identity != caller_receipt.carrier_type_identity
             || target_receipt.requirement != caller_receipt.requirement
-            || target_receipt.provider_plan_digest != caller_receipt.provider_plan_digest
         {
             return unsupported(
                 "routed Service forwarding target substituted carrier, requirement, domain, or selected plan",

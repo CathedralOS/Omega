@@ -135,33 +135,19 @@ pub fn settle_checked_providers(
             .map(|selected| selected.derived.plan.clone())
             .collect::<Vec<_>>(),
     )?;
-    let mut fused_service_erasures = Vec::new();
-    let toolchain_trait_symbols = [
+    // Toolchain-minted host services are always Fused.
+    let mut fused_service_erasures = [
         toolchain_filesystem_plan
             .as_ref()
             .map(|minted| minted.trait_symbol),
         toolchain_time_host_plan
             .as_ref()
             .map(|minted| minted.trait_symbol),
-    ];
-    let toolchain_plan_digests = [
-        toolchain_filesystem_plan
-            .as_ref()
-            .map(|minted| *minted.plan.identity_digest().as_bytes()),
-        toolchain_time_host_plan
-            .as_ref()
-            .map(|minted| *minted.plan.identity_digest().as_bytes()),
-    ];
-    for (requirement, provider_plan_digest) in toolchain_trait_symbols
-        .into_iter()
-        .zip(toolchain_plan_digests)
-        .filter_map(|(requirement, digest)| Some((requirement?, digest?)))
-    {
-        fused_service_erasures.push(typed_trees::typed_trees::FusedServiceErasureAuthorization {
-            requirement,
-            provider_plan_digest,
-        });
-    }
+    ]
+    .into_iter()
+    .flatten()
+    .map(|requirement| typed_trees::typed_trees::FusedServiceErasureAuthorization { requirement })
+    .collect::<Vec<_>>();
     for selected in &selected_provider_plans {
         let composition_mode = selected
             .selected_by
@@ -176,12 +162,8 @@ pub fn settle_checked_providers(
             .iter()
             .any(|definition| definition.is_boundary && definition.symbol == requirement)
         {
-            fused_service_erasures.push(
-                typed_trees::typed_trees::FusedServiceErasureAuthorization {
-                    requirement,
-                    provider_plan_digest: *selected.derived.plan.identity_digest().as_bytes(),
-                },
-            );
+            fused_service_erasures
+                .push(typed_trees::typed_trees::FusedServiceErasureAuthorization { requirement });
         }
     }
     typed

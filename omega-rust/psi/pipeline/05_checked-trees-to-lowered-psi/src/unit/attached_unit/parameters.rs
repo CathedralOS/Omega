@@ -198,13 +198,10 @@ pub(crate) fn validate_direct_unit_parameter_custody(
                     "fused Service parameter receipt does not rejoin its exact owned affine typed source",
                 );
             }
-            let Some(authorization) = checked.fused_service_erasure(carrier.requirement) else {
+            if checked.fused_service_erasure(carrier.requirement).is_none() {
                 return unsupported(
                     "fused Service parameter lacks compiler-owned erasure authorization",
                 );
-            };
-            if authorization.provider_plan_digest != receipt.provider_plan_digest {
-                return unsupported("fused Service parameter substituted its provider-plan digest");
             }
             let base_identity = carrier.base_type_identity;
             let mut qualifications = carrier.qualifications;

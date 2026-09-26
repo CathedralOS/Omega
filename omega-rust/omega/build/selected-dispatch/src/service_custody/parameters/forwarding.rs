@@ -91,7 +91,6 @@ pub(super) fn validate(
         || target_parameter.qualifications != parameter.qualifications
         || target_receipt.carrier_type_identity != receipt.carrier_type_identity
         || target_receipt.requirement != receipt.requirement
-        || target_receipt.provider_plan_digest != receipt.provider_plan_digest
     {
         return Err("the forwarding target substituted carrier, domain, requirement, or plan");
     }

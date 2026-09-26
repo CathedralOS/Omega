@@ -320,7 +320,6 @@ pub struct BoundaryCallingPlanSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FusedServiceErasureSnapshot {
     pub requirement: u32,
-    pub provider_plan_digest: String,
 }
 
 /// The typed-expression handles retained for one machine's private ranking
@@ -673,7 +672,6 @@ impl TypedTreesSnapshot {
                 .iter()
                 .map(|authorization| FusedServiceErasureSnapshot {
                     requirement: authorization.requirement.arena_index(),
-                    provider_plan_digest: hex_digest(&authorization.provider_plan_digest),
                 })
                 .collect(),
             ranking_expression_custody: program

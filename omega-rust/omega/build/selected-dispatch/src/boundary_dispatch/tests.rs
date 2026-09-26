@@ -51,7 +51,6 @@ fn bind_fixture_fused_service_erasures(
                 .map(
                     |definition| typed_trees::typed_trees::FusedServiceErasureAuthorization {
                         requirement: definition.symbol,
-                        provider_plan_digest: *plan.identity_digest().as_bytes(),
                     },
                 )
         })

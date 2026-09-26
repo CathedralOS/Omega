@@ -38,7 +38,6 @@ pub(crate) fn bind_fixture_fused_service_erasures(typed: &mut typed_trees::Typed
         .map(
             |definition| typed_trees::typed_trees::FusedServiceErasureAuthorization {
                 requirement: definition.symbol,
-                provider_plan_digest: [0x5a; 32],
             },
         )
         .collect();
