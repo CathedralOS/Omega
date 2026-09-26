@@ -31,7 +31,7 @@ pub(super) fn report_argument_bounds(
         current_machine.name, parameter.name,
     );
     let before = diagnostics.len();
-    if let Some((interval, _)) = arithmetic_domains::validate_anonymous_integer_range(
+    if let Some((interval, _, _)) = arithmetic_domains::validate_anonymous_integer_range(
         program,
         parameter.type_reference,
         argument,
@@ -55,6 +55,7 @@ pub(super) fn report_argument_bounds(
         current_state,
         argument,
         parameter_primitive,
+        program.arithmetic_domain_for_type_reference(parameter.type_reference),
         value_environment,
         &owner,
         diagnostics,
@@ -65,7 +66,7 @@ pub(super) fn report_argument_bounds(
         .is_some()
     {
         let mut arithmetic_diagnostics = Vec::new();
-        let (interval, _) = arithmetic_domains::validate_value_range(
+        let (interval, _, _) = arithmetic_domains::validate_value_range(
             program,
             current_machine,
             current_state,

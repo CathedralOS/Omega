@@ -125,6 +125,17 @@ pub(crate) fn enforced_declared_range(
     range_constraint_interval(program, handle)
 }
 
+/// Spell a carrier for diagnostics: the primitive name plus its non-Exact
+/// arithmetic policy (`u32 in Wrapping`); a bare name spells Exact.
+fn carrier_spelling(primitive: PrimitiveType, domain: Option<ArithmeticDomain>) -> String {
+    match domain {
+        Some(domain) if domain != ArithmeticDomain::Exact => {
+            format!("{} in {}", primitive_name(primitive), domain.name())
+        }
+        _ => primitive_name(primitive).to_owned(),
+    }
+}
+
 /// Decision 17 at a VALUE-BINDING boundary (`self.f = v`, `let x: T = v`): a
 /// value whose proven range does not fit the destination integer type is a
 /// SILENT NARROWING (truncation). Storing a wider value into a narrower slot is
@@ -137,16 +148,41 @@ pub(crate) fn enforced_declared_range(
 /// Signedness falls out for free: `i32 -> u32` is caught on the negative half,
 /// `u32 -> i32` on the upper half. `target` is `None` (non-primitive or
 /// non-integer destination) => nothing to prove.
+///
+/// A TYPED value also keeps its own carrier across the store: it does not
+/// implicitly take the destination's integer type or arithmetic policy even
+/// when its proven range fits (`self.output = self.state & 255` stores a `u32
+/// in Wrapping` value into an `i32` slot). Typed values retain their types,
+/// policy erasure is explicit, and checked lowering has no conversion row for
+/// the mismatch -- so the destination difference is rejected here, naming the
+/// `as` cast that spells it. An anonymous value (`source`/`source_domain`
+/// `None`) carries no carrier of its own and keeps landing by range.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn check_narrowing_assignment(
     target: Option<PrimitiveType>,
+    target_domain: ArithmeticDomain,
     value: Interval,
     source: Option<PrimitiveType>,
+    source_domain: Option<ArithmeticDomain>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(primitive) = target else {
         return;
     };
+    if let Some(source_primitive) = source
+        && (source_primitive != primitive
+            || source_domain.is_some_and(|domain| domain != target_domain))
+    {
+        let target_spelling = carrier_spelling(primitive, Some(target_domain));
+        diagnostics.push(Diagnostic::error(format!(
+            "store in {owner} implicitly converts `{}` to `{target_spelling}`; a typed \
+             value keeps its type and arithmetic policy -- spell the conversion with \
+             `as` (for example `expr as {target_spelling}`)",
+            carrier_spelling(source_primitive, source_domain),
+        )));
+        return;
+    }
     let Some(range) = primitive_range(primitive) else {
         return;
     };
@@ -189,6 +225,7 @@ pub(crate) fn check_value_narrowing(
     state: Option<&State>,
     value: ExpressionHandle,
     target: PrimitiveType,
+    target_domain: ArithmeticDomain,
     environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -215,6 +252,7 @@ pub(crate) fn check_value_narrowing(
                 state,
                 arm.value,
                 target,
+                target_domain,
                 environment,
                 owner,
                 diagnostics,
@@ -223,7 +261,7 @@ pub(crate) fn check_value_narrowing(
         return;
     }
     let mut throwaway = Vec::new();
-    let (interval, source) = validate_value_range(
+    let (interval, source, source_domain) = validate_value_range(
         program,
         machine,
         state,
@@ -235,6 +273,14 @@ pub(crate) fn check_value_narrowing(
         &mut throwaway,
     );
     if throwaway.is_empty() {
-        check_narrowing_assignment(Some(target), interval, source, owner, diagnostics);
+        check_narrowing_assignment(
+            Some(target),
+            target_domain,
+            interval,
+            source,
+            source_domain,
+            owner,
+            diagnostics,
+        );
     }
 }

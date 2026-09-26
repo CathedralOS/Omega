@@ -1,16 +1,16 @@
-// The narrowing store obligation is a RANGE rule, not a crude type-width rule:
-// a value PROVEN in range narrows fine, and widening is always fine. This locks
-// the intersection-with-source-range behaviour that keeps proven-small values
-// (and `in Wrapping` sums) permissive -- a future over-strict check that rejected
-// these would break real code. All three stores below are sound and must compile.
+// A typed value keeps its own carrier across a store: proven-in-range is no
+// longer enough on its own -- the conversion must still be spelled with `as`.
+// What `as` buys back is exactly the old permissive case: a cast through a
+// proven-in-range source compiles, so real code migrates by spelling the
+// conversion rather than restructuring. All three stores below compile.
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; a: i8; b: i64; r: i32; s: i8; }
 machine Main::main(&mut self) reaches Console {
     self.a = 5;
-    self.b = self.a;   // widening i8 -> i64 (always sound)
-    self.r = self.b;   // b is proven {5}, so it narrows into i32 (range rule)
+    self.b = self.a as i64;   // widening i8 -> i64, spelled
+    self.r = self.b as i32;   // b is proven {5}; the cast spells the narrowing
     let x: i32 = 7;
-    self.s = x;        // x is proven {7}, so it narrows into i8
+    self.s = x as i8;         // x is proven {7}; the cast spells the narrowing
     self.console.exit_process(self.r);
 }

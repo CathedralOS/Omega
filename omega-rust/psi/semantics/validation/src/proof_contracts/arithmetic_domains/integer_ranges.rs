@@ -46,7 +46,7 @@ pub(crate) fn validate_anonymous_integer_range(
     expression: ExpressionHandle,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<(Interval, Option<PrimitiveType>)> {
+) -> Option<(Interval, Option<PrimitiveType>, Option<ArithmeticDomain>)> {
     let primitive = program.primitive_type_reference(destination)?;
     validate_anonymous_integer_primitive_range(program, primitive, expression, owner, diagnostics)
 }
@@ -57,7 +57,7 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
     expression: ExpressionHandle,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<(Interval, Option<PrimitiveType>)> {
+) -> Option<(Interval, Option<PrimitiveType>, Option<ArithmeticDomain>)> {
     // A destination policy governs operations after landing. It cannot give a
     // fraction an integer value or make an out-of-range anonymous value fit.
     if primitive == PrimitiveType::Addr || !primitive.accepts_integer_literal() {
@@ -116,25 +116,29 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
             ))
             .with_source_span(program.expression_table.source_span(expression)),
         );
-        return Some((Interval::UNBOUNDED, None));
+        return Some((Interval::UNBOUNDED, None, None));
     };
     if let Some(literal) = crate::value_custody::literals::land_integer_value(&value, primitive) {
-        return Some((literal_interval(&literal), Some(primitive)));
+        // The landed literal adopts the destination carrier; it has no
+        // arithmetic policy of its own for the store parity check.
+        return Some((literal_interval(&literal), Some(primitive), None));
     }
     diagnostics.push(Diagnostic::error(format!(
         "anonymous integer value `{value}` does not fit destination `{}` in {owner}",
         primitive.name()
     )));
-    Some((Interval::UNBOUNDED, None))
+    Some((Interval::UNBOUNDED, None, None))
 }
 
 /// Like [`validate_arithmetic_domains`] but also returns the expression's source
-/// integer primitive (the `None`-for-unknown result). The narrowing check needs
-/// it: a value produced by a typed source is ALWAYS within that type's range (a
-/// `u32 in Wrapping` sum is a u32 even when its mathematical interval spills past
-/// `u32`), so the sound value range is `interval ∩ primitive_range(source)` --
-/// intersecting keeps a flow-proven tighter interval while clamping a
-/// domain-wrapped over-approximation back to the type.
+/// integer primitive and arithmetic domain (the `None`-for-unknown results).
+/// The narrowing check needs the primitive: a value produced by a typed source
+/// is ALWAYS within that type's range (a `u32 in Wrapping` sum is a u32 even
+/// when its mathematical interval spills past `u32`), so the sound value range
+/// is `interval ∩ primitive_range(source)` -- intersecting keeps a flow-proven
+/// tighter interval while clamping a domain-wrapped over-approximation back to
+/// the type. The carrier-parity check needs the pair: a typed value keeps its
+/// own type and arithmetic policy across a store.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_value_range(
     program: &TypedTrees,
@@ -146,9 +150,9 @@ pub(crate) fn validate_value_range(
     target_domain: ArithmeticDomain,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) -> (Interval, Option<PrimitiveType>) {
+) -> (Interval, Option<PrimitiveType>, Option<ArithmeticDomain>) {
     if !expression.is_valid() {
-        return (Interval::UNBOUNDED, None);
+        return (Interval::UNBOUNDED, None, None);
     }
     let analysis = analyze(
         program,
@@ -161,7 +165,7 @@ pub(crate) fn validate_value_range(
         owner,
         diagnostics,
     );
-    (analysis.interval, analysis.primitive)
+    (analysis.interval, analysis.primitive, analysis.domain)
 }
 
 /// Retain every accepted occurrence-dependent exact fixed-integer cast under
@@ -203,7 +207,7 @@ pub(crate) fn collect_exact_integer_cast_facts(
                 && target_type != PrimitiveType::Addr
             {
                 let mut diagnostics = Vec::new();
-                let (interval, source_type) = validate_value_range(
+                let (interval, source_type, _) = validate_value_range(
                     program,
                     machine,
                     state,

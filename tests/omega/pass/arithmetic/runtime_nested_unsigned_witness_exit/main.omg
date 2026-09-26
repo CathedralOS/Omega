@@ -30,7 +30,7 @@ machine Main::main(&mut self) reaches Console {
     transition ((self.a / self.b) % 100 == 0) { true -> stored() _ -> bad1() }
     state stored(&mut self) {
         // The arg-materialization flavor of the same shape.
-        self.r = (self.a / self.b) % 100;
+        self.r = ((self.a / self.b) % 100) as u32 in Wrapping;
         transition self.r == 0 { true -> ordered() _ -> bad2() }
     }
     state ordered(&mut self) {
