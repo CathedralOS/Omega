@@ -23,14 +23,34 @@ pub(in crate::preparation::generic_data) fn concrete_machine_expression_handles(
 pub(in crate::preparation::generic_data) fn concrete_machine_state_handles(
     syntax: &SyntaxTrees,
 ) -> Vec<syntax_trees::item::StateHandle> {
-    syntax.root_items().filter_map(|item| {
-        let Item::Machine(machine) = item else { return None; };
-        if !machine.type_parameters.is_empty() || machine.attached_data.as_ref().is_some_and(|attached|
-            syntax.root_items().any(|item| matches!(item, Item::Data(data) if data.name == *attached && !data.type_parameters.is_empty()))) {
-            return None;
-        }
-        Some(syntax.items.state_handles(machine.states))
-    }).flatten().copied().collect()
+    // Generic data names once, instead of a root-item scan per attached
+    // machine.
+    let generic_data = syntax
+        .root_items()
+        .filter_map(|item| match item {
+            Item::Data(data) if !data.type_parameters.is_empty() => Some(data.name.as_str()),
+            _ => None,
+        })
+        .collect::<HashSet<&str>>();
+    syntax
+        .root_items()
+        .filter_map(|item| {
+            let Item::Machine(machine) = item else {
+                return None;
+            };
+            if !machine.type_parameters.is_empty()
+                || machine
+                    .attached_data
+                    .as_ref()
+                    .is_some_and(|attached| generic_data.contains(attached.as_str()))
+            {
+                return None;
+            }
+            Some(syntax.items.state_handles(machine.states))
+        })
+        .flatten()
+        .copied()
+        .collect()
 }
 
 pub(in crate::preparation::generic_data) fn collect_statement_expression_handles(
