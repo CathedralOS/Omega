@@ -181,7 +181,9 @@ fn successor_mentions(successor: &SelectedSuccessor, register: VirtualRegisterId
                 SelectedStructuralTransport::Unused => false,
             });
     let case_mentions = successor.structural_case.as_ref().is_some_and(|case| {
-        local_slot_mentions(case.slot, register)
+        case.source
+            .local_slot()
+            .is_some_and(|slot| local_slot_mentions(slot, register))
             || case.payloads.iter().any(|payload| match payload.transport {
                 SelectedCasePayloadTransport::Unmaterialized { parameter } => parameter == register,
                 SelectedCasePayloadTransport::Registers {
@@ -633,7 +635,12 @@ fn lower_successor(
         }
     }
     if let Some(case) = &mut successor.structural_case {
-        lower_local_slot(&mut case.slot, removed_register)?;
+        match &mut case.source {
+            selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+                lower_local_slot(slot, removed_register)?;
+            }
+            selected_instructions::SelectedCaseDispatchSource::Borrowed { .. } => {}
+        }
         for payload in &mut case.payloads {
             match &mut payload.transport {
                 SelectedCasePayloadTransport::Unmaterialized { parameter } => {

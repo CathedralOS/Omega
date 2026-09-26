@@ -1,0 +1,49 @@
+// A two-case `transition self` match where BOTH arms return their own case's
+// payload lowers as one structural split: each case edge binds its payload
+// parameter and the arm returns it. The mc_self2 wall left the else arm's
+// deferred read unsubstituted on the shared field carrier. Exits 70 only when
+// both arms observe their own payload.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Sum {
+    case Left(v: u64);
+    case Right(w: u64);
+}
+
+machine Sum::pick(&self) -> u64 {
+    transition self {
+        Sum::Left { v } -> (v)
+        Sum::Right { w } -> (w)
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let left: Sum = Sum::Left { v: 41 };
+    let right: Sum = Sum::Right { w: 29 };
+
+    transition left.pick() == 41 {
+        true -> first(right)
+        _ -> missed()
+    }
+
+    state first(&mut self, right: Sum) {
+        transition right.pick() == 29 {
+            true -> matched()
+            _ -> missed()
+        }
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

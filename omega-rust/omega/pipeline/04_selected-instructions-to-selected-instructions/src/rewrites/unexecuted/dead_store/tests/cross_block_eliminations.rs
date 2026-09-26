@@ -275,7 +275,7 @@ fn cross_block_staging_slot_dead_store_dies_across_the_edge() {
     // interval.
     let custody = staged_pair(Some(&|function| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot,
+            source: selected_instructions::SelectedCaseDispatchSource::Local { slot },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
             payloads: Vec::new(),
@@ -291,9 +291,11 @@ fn cross_block_staging_slot_dead_store_dies_across_the_edge() {
     // untouched, so the dead store still dies under its cover.
     let discarded = staged_pair(Some(&|function| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot: LocalStorageSlotId::Structural {
-                operation: OperationId::new(9).unwrap(),
-                place: PlaceId::new(2).unwrap(),
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::Structural {
+                    operation: OperationId::new(9).unwrap(),
+                    place: PlaceId::new(2).unwrap(),
+                },
             },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
@@ -921,9 +923,11 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // Case custody on the dead place writes its slot inside the interval.
     let custody = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot: LocalStorageSlotId::Structural {
-                operation: OperationId::new(9).unwrap(),
-                place: place(),
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::Structural {
+                    operation: OperationId::new(9).unwrap(),
+                    place: place(),
+                },
             },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
@@ -938,9 +942,11 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // A trivially discarded case binding on the dead place retires storage.
     let discarded = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot: LocalStorageSlotId::Structural {
-                operation: OperationId::new(9).unwrap(),
-                place: PlaceId::new(2).unwrap(),
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::Structural {
+                    operation: OperationId::new(9).unwrap(),
+                    place: PlaceId::new(2).unwrap(),
+                },
             },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
@@ -955,9 +961,11 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // A case payload's register parameter is a register transport only.
     let payload = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot: LocalStorageSlotId::Structural {
-                operation: OperationId::new(9).unwrap(),
-                place: PlaceId::new(2).unwrap(),
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::Structural {
+                    operation: OperationId::new(9).unwrap(),
+                    place: PlaceId::new(2).unwrap(),
+                },
             },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
@@ -2222,9 +2230,11 @@ fn cross_block_packed_dead_store_eliminates_and_keeps_scratch_custody() {
     let payload = mutated_chained(target, |function, environment| {
         make_packed_dead(function, environment);
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot: LocalStorageSlotId::Structural {
-                operation: OperationId::new(9).unwrap(),
-                place: PlaceId::new(2).unwrap(),
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::Structural {
+                    operation: OperationId::new(9).unwrap(),
+                    place: PlaceId::new(2).unwrap(),
+                },
             },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,

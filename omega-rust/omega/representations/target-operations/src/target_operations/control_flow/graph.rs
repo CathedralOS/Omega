@@ -89,10 +89,17 @@ pub enum TargetStructuralReturnSource {
 /// The inspected sum: an activation-local home, or the function's own owned
 /// incoming parameter. A parameter root keeps the exact prepared parameter row
 /// and the sum layout its value copy carries; it never borrows a home origin.
+/// A borrowed parameter root keeps the same prepared row and the referent's
+/// sum layout — the dispatch reads the tag and payload leaves through the
+/// borrow pointer rather than an activation value copy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetStructuralCaseSource {
     Home(crate::TargetStructuralHomeRequirement),
     Parameter {
+        parameter: TargetStructuralParameter,
+        layout: crate::TargetStructuralHomeLayout,
+    },
+    BorrowedParameter {
         parameter: TargetStructuralParameter,
         layout: crate::TargetStructuralHomeLayout,
     },
@@ -102,21 +109,25 @@ impl TargetStructuralCaseSource {
     pub const fn place(&self) -> semantic_vocabulary::PlaceId {
         match self {
             Self::Home(home) => home.place(),
-            Self::Parameter { parameter, .. } => parameter.place,
+            Self::Parameter { parameter, .. } | Self::BorrowedParameter { parameter, .. } => {
+                parameter.place
+            }
         }
     }
 
     pub const fn structural_type(&self) -> semantic_vocabulary::StructuralTypeId {
         match self {
             Self::Home(home) => home.structural_type(),
-            Self::Parameter { parameter, .. } => parameter.structural_type,
+            Self::Parameter { parameter, .. } | Self::BorrowedParameter { parameter, .. } => {
+                parameter.structural_type
+            }
         }
     }
 
     pub const fn layout(&self) -> &crate::TargetStructuralHomeLayout {
         match self {
             Self::Home(home) => &home.layout,
-            Self::Parameter { layout, .. } => layout,
+            Self::Parameter { layout, .. } | Self::BorrowedParameter { layout, .. } => layout,
         }
     }
 }

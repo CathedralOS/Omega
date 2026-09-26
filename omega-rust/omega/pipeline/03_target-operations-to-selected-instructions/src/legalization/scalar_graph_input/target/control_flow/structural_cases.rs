@@ -188,6 +188,54 @@ fn parameter_available(
         && layout.sum().is_some_and(|sum| sum.shape == parameter.shape)
 }
 
+/// A readable borrow's referent stays caller-owned, so there is no block home
+/// to reproduce: the retained parameter row, the clean declaration, and the
+/// type-derived sum layout are the whole correspondence.
+fn borrowed_parameter_available(
+    graph: &TargetControlGraph,
+    optimized: &PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
+    parameter: &TargetStructuralParameter,
+    layout: &target_operations::TargetStructuralHomeLayout,
+    expected_source: PlaceId,
+) -> bool {
+    let Some(declaration) = optimized
+        .structural_parameters
+        .iter()
+        .find(|declaration| declaration.place == expected_source)
+    else {
+        return false;
+    };
+    matches!(
+        declaration.access,
+        terminal_psi::StructuralAccess::SharedBorrow
+            | terminal_psi::StructuralAccess::MutableBorrow
+    ) && declaration.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+        && declaration.qualifications.is_empty()
+        && declaration.projected_qualifications.is_empty()
+        && parameter.place == expected_source
+        && optimized.entry_claims.is_empty()
+        && graph
+            .parameters
+            .iter()
+            .filter(|candidate| candidate.place == expected_source)
+            .eq(std::iter::once(parameter))
+        && parameter.structural_type == declaration.structural_type
+        && parameter.access == declaration.access
+        && parameter.multiplicity == declaration.multiplicity
+        && parameter.projected_qualifications.is_empty()
+        // The carrier is the pointer; the layout describes the referent.
+        && parameter.shape.class == calling_conventions::ValueClass::BorrowedReference
+        && super::super::super::aggregate_results::sum_type_layout(
+            parameter.structural_type,
+            plan,
+        )
+        .ok()
+        .map(target_operations::TargetStructuralHomeLayout::Sum)
+        .as_ref()
+            == Some(layout)
+}
+
 pub(super) fn matches(
     graph: &TargetControlGraph,
     optimized: &PsiOptimizationFunction,
@@ -204,6 +252,9 @@ pub(super) fn matches(
         }
         TargetStructuralCaseSource::Parameter { parameter, layout } => {
             parameter_available(graph, optimized, plan, parameter, layout, expected_source)
+        }
+        TargetStructuralCaseSource::BorrowedParameter { parameter, layout } => {
+            borrowed_parameter_available(graph, optimized, plan, parameter, layout, expected_source)
         }
     };
     if !available {

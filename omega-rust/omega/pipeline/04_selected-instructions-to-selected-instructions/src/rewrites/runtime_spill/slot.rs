@@ -183,7 +183,7 @@ fn shareable(
                 || successor
                     .structural_case
                     .as_ref()
-                    .is_some_and(|case| case.slot == slot)
+                    .is_some_and(|case| case.source.local_slot() == Some(slot))
             {
                 return false;
             }

@@ -95,7 +95,7 @@ pub(super) fn project(
         || !continuation.fuel.is_empty()
         || !continuation.bindings.is_empty()
         || !continuation.structural_bindings.is_empty()
-        || retained.slot != case.slot
+        || retained.source != case.source
         || retained.case != case.case
         || retained.case_tag != case.case_tag
         || !retained.trivial_affine_discards.is_empty()
@@ -108,15 +108,25 @@ pub(super) fn project(
     {
         return Err(error());
     }
-    let mut slots = prepared
-        .local_storage_slots
-        .iter()
-        .filter(|slot| slot.id == case.slot);
-    let slot = slots.next().ok_or_else(error)?;
-    if slots.next().is_some() {
-        return Err(error());
-    }
-    let place = case.slot.structural_place().ok_or_else(error)?;
+    let (place, byte_bound) = match case.source {
+        selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+            let mut slots = prepared
+                .local_storage_slots
+                .iter()
+                .filter(|row| row.id == slot);
+            let slot = slots.next().ok_or_else(error)?;
+            if slots.next().is_some() {
+                return Err(error());
+            }
+            (
+                slot.id.structural_place().ok_or_else(error)?,
+                slot.byte_size,
+            )
+        }
+        selected_instructions::SelectedCaseDispatchSource::Borrowed {
+            place, byte_size, ..
+        } => (place, byte_size),
+    };
     let integer = |sign, bits| {
         IntegerType::new(sign, bits)
             .map(ScalarType::Integer)
@@ -128,6 +138,12 @@ pub(super) fn project(
     let mut projected = case.clone();
     let mut accesses = Vec::new();
     let mut used = 0usize;
+    // A local source addresses its slot per payload; a borrowed source's
+    // referent pointer is already a register, so each payload is one load.
+    let per_payload = match case.source {
+        selected_instructions::SelectedCaseDispatchSource::Local { .. } => 2usize,
+        selected_instructions::SelectedCaseDispatchSource::Borrowed { .. } => 1usize,
+    };
     for (payload, output) in retained.payloads.iter().zip(&mut projected.payloads) {
         match payload.transport {
             Transport::Unused => {
@@ -160,23 +176,97 @@ pub(super) fn project(
                     ),
                     _ => return Err(error()),
                 };
-                let instruction_index =
-                    instruction_start.checked_add(used * 2).ok_or_else(error)?;
-                let register_index = register_start.checked_add(used * 2).ok_or_else(error)?;
-                let address = bridge.instructions.get(used * 2).ok_or_else(error)?;
-                let load = bridge.instructions.get(used * 2 + 1).ok_or_else(error)?;
-                let pointer = prepared
-                    .virtual_registers
-                    .get(register_index)
-                    .ok_or_else(error)?;
-                let loaded = prepared
-                    .virtual_registers
-                    .get(register_index + 1)
-                    .ok_or_else(error)?;
+                let load_index = used * per_payload;
+                let register_index = register_start.checked_add(load_index).ok_or_else(error)?;
                 let destination = prepared
                     .virtual_registers
                     .get(parameter.0 as usize)
                     .ok_or_else(error)?;
+                let provenance = SelectedInstructionProvenance {
+                    edges: vec![successor.psi_edge],
+                    ..Default::default()
+                };
+                let (pointer, loaded, load) = match case.source {
+                    selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+                        let instruction_index = instruction_start
+                            .checked_add(load_index)
+                            .ok_or_else(error)?;
+                        let address = bridge.instructions.get(load_index).ok_or_else(error)?;
+                        let load = bridge.instructions.get(load_index + 1).ok_or_else(error)?;
+                        let pointer = prepared
+                            .virtual_registers
+                            .get(register_index)
+                            .ok_or_else(error)?;
+                        let loaded = prepared
+                            .virtual_registers
+                            .get(register_index + 1)
+                            .ok_or_else(error)?;
+                        if pointer.id.0 as usize != register_index
+                            || loaded.id.0 as usize != register_index + 1
+                            || pointer.origin
+                                != (VirtualRegisterOrigin::AbiTransport {
+                                    instruction: address.id,
+                                    place,
+                                    byte_offset: 0,
+                                })
+                        {
+                            return Err(error());
+                        }
+                        check_instruction(
+                            address,
+                            instruction_index,
+                            SelectedInstructionKind::FrameAddress {
+                                slot: FrameStorageSlotId::Local(slot),
+                                byte_offset: 0,
+                            },
+                            constraints.keys.frame_address.ok_or_else(error)?,
+                            &[pointer.id],
+                            &provenance,
+                            function,
+                        )?;
+                        accesses.push(SelectedMemoryAccess {
+                            instruction: address.id,
+                            origin: SelectedMemoryAccessOrigin::Edge(successor.psi_edge),
+                            place,
+                            byte_offset: 0,
+                            byte_count: prepared
+                                .local_storage_slots
+                                .iter()
+                                .find(|row| row.id == slot)
+                                .map(|row| row.byte_size)
+                                .ok_or_else(error)?,
+                            role: SelectedMemoryAccessRole::AddressLocal { slot },
+                        });
+                        (pointer, loaded, load)
+                    }
+                    selected_instructions::SelectedCaseDispatchSource::Borrowed {
+                        pointer: borrow_pointer,
+                        ..
+                    } => {
+                        let load = bridge.instructions.get(load_index).ok_or_else(error)?;
+                        let pointer = prepared
+                            .virtual_registers
+                            .get(borrow_pointer.0 as usize)
+                            .ok_or_else(error)?;
+                        let loaded = prepared
+                            .virtual_registers
+                            .get(register_index)
+                            .ok_or_else(error)?;
+                        if pointer.id != borrow_pointer
+                            || loaded.id.0 as usize != register_index
+                            || !matches!(pointer.origin,
+                                VirtualRegisterOrigin::AbiTransport {
+                                    instruction,
+                                    place: origin_place,
+                                    byte_offset: 0,
+                                } if instruction.0 as usize <= instruction_start
+                                    && origin_place == place)
+                        {
+                            return Err(error());
+                        }
+                        (pointer, loaded, load)
+                    }
+                };
                 if parameter.0 as usize >= source_register_count
                     || destination.scalar_type != payload_type
                     || payload.semantic.parameter.scalar_type != payload_type
@@ -188,10 +278,8 @@ pub(super) fn project(
                         .semantic
                         .field_byte_offset
                         .checked_add(byte_count)
-                        .is_none_or(|end| end > slot.byte_size)
+                        .is_none_or(|end| end > byte_bound)
                     || payload.semantic.field_byte_offset % byte_count != 0
-                    || pointer.id.0 as usize != register_index
-                    || loaded.id.0 as usize != register_index + 1
                     || loaded.id != argument
                     || pointer.scalar_type != pointer_type
                     || loaded.scalar_type != payload_type
@@ -201,12 +289,6 @@ pub(super) fn project(
                     || loaded.definition_site.is_some()
                     || pointer.entry_fixed_view.is_some()
                     || loaded.entry_fixed_view.is_some()
-                    || pointer.origin
-                        != (VirtualRegisterOrigin::AbiTransport {
-                            instruction: address.id,
-                            place,
-                            byte_offset: 0,
-                        })
                     || loaded.origin
                         != (VirtualRegisterOrigin::StructuralObservation {
                             instruction: load.id,
@@ -216,60 +298,34 @@ pub(super) fn project(
                 {
                     return Err(error());
                 }
-                let provenance = SelectedInstructionProvenance {
-                    edges: vec![successor.psi_edge],
-                    ..Default::default()
-                };
-                check_instruction(
-                    address,
-                    instruction_index,
-                    SelectedInstructionKind::FrameAddress {
-                        slot: FrameStorageSlotId::Local(case.slot),
-                        byte_offset: 0,
-                    },
-                    constraints.keys.frame_address.ok_or_else(error)?,
-                    &[pointer.id],
-                    &provenance,
-                    function,
-                )?;
                 check_instruction(
                     load,
-                    instruction_index + 1,
+                    instruction_start + load_index + (per_payload - 1),
                     load_kind,
                     load_key.ok_or_else(error)?,
                     &[pointer.id, loaded.id],
                     &provenance,
                     function,
                 )?;
-                accesses.extend([
-                    SelectedMemoryAccess {
-                        instruction: address.id,
-                        origin: SelectedMemoryAccessOrigin::Edge(successor.psi_edge),
-                        place,
-                        byte_offset: 0,
-                        byte_count: slot.byte_size,
-                        role: SelectedMemoryAccessRole::AddressLocal { slot: case.slot },
-                    },
-                    SelectedMemoryAccess {
-                        instruction: load.id,
-                        origin: SelectedMemoryAccessOrigin::Edge(successor.psi_edge),
-                        place,
-                        byte_offset: payload.semantic.field_byte_offset,
-                        byte_count,
-                        role: SelectedMemoryAccessRole::ReadPlace,
-                    },
-                ]);
+                accesses.push(SelectedMemoryAccess {
+                    instruction: load.id,
+                    origin: SelectedMemoryAccessOrigin::Edge(successor.psi_edge),
+                    place,
+                    byte_offset: payload.semantic.field_byte_offset,
+                    byte_count,
+                    role: SelectedMemoryAccessRole::ReadPlace,
+                });
                 output.transport = Transport::Unmaterialized { parameter };
                 used += 1;
             }
         }
     }
-    if used == 0 || bridge.instructions.len() != used * 2 {
+    if used == 0 || bridge.instructions.len() != used * per_payload {
         return Err(error());
     }
     check_instruction(
         jump,
-        instruction_start + used * 2,
+        instruction_start + used * per_payload,
         SelectedInstructionKind::Jump,
         constraints.keys.jump,
         &[],
@@ -278,7 +334,7 @@ pub(super) fn project(
     )?;
     successor.block = continuation.block;
     successor.structural_case = Some(projected);
-    Ok((used * 2, used * 2 + 1, accesses))
+    Ok((used * per_payload, used * per_payload + 1, accesses))
 }
 
 fn check_instruction(

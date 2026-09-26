@@ -39,7 +39,7 @@ pub(super) fn retained(
             };
             matching.next().is_none()
                 && successor.source_target == case.target
-                && source_slot_matches(retained.slot, source, source_blocks, source_parameters)
+                && source_slot_matches(&retained.source, source, source_blocks, source_parameters)
                 && retained.case == case.case
                 && retained.trivial_affine_discards == case.trivial_affine_discards
                 && retained.payloads.len() == case.payloads.len()
@@ -58,9 +58,10 @@ pub(super) fn retained(
 // Mandatory selected-source replay validates the complete realization. This
 // roster join still distinguishes an operation result from a destination-owned
 // arrival; equal place numbers cannot substitute a different block's home.
-// A function's own owned parameter dispatches from its entry-retained slot.
+// A function's own owned parameter dispatches from its entry-retained slot,
+// and a readable borrow dispatches through its referent pointer.
 fn source_slot_matches(
-    slot: LocalStorageSlotId,
+    dispatch: &selected_instructions::SelectedCaseDispatchSource,
     source: PlaceId,
     blocks: &[AbstractBlockEntry],
     parameters: &[StructuralParameterDeclaration],
@@ -71,6 +72,23 @@ fn source_slot_matches(
             .iter()
             .filter_map(move |parameter| (parameter.place == source).then_some(block.block))
     });
+    let slot = match dispatch {
+        selected_instructions::SelectedCaseDispatchSource::Local { slot } => *slot,
+        selected_instructions::SelectedCaseDispatchSource::Borrowed { place, .. } => {
+            let mut declared = parameters
+                .iter()
+                .filter(|parameter| parameter.place == source);
+            return *place == source
+                && owners.next().is_none()
+                && declared.next().is_some_and(|parameter| {
+                    matches!(
+                        parameter.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
+                })
+                && declared.next().is_none();
+        }
+    };
     match slot {
         LocalStorageSlotId::Structural { place, .. } => place == source && owners.next().is_none(),
         LocalStorageSlotId::StructuralBlockParameter { block, place } => {
@@ -116,19 +134,29 @@ mod tests {
         let slot = LocalStorageSlotId::StructuralParameter { place: source };
         let parameter = owned(source);
         assert!(source_slot_matches(
-            slot,
+            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
             source,
             &[],
             std::slice::from_ref(&parameter)
         ));
         // No declared parameter, a borrowed one, a duplicate, or a block
         // arrival at the same place cannot stand in for the owned parameter.
-        assert!(!source_slot_matches(slot, source, &[], &[]));
+        assert!(!source_slot_matches(
+            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            source,
+            &[],
+            &[]
+        ));
         let mut borrowed = parameter.clone();
         borrowed.access = StructuralAccess::SharedBorrow;
-        assert!(!source_slot_matches(slot, source, &[], &[borrowed]));
         assert!(!source_slot_matches(
-            slot,
+            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            source,
+            &[],
+            &[borrowed]
+        ));
+        assert!(!source_slot_matches(
+            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
             source,
             &[],
             &[parameter.clone(), parameter.clone()]
@@ -140,7 +168,7 @@ mod tests {
             structural_parameters: vec![parameter.clone()],
         };
         assert!(!source_slot_matches(
-            slot,
+            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
             source,
             &[arrival],
             std::slice::from_ref(&parameter)
@@ -148,7 +176,12 @@ mod tests {
         let other = LocalStorageSlotId::StructuralParameter {
             place: PlaceId::new(8).unwrap(),
         };
-        assert!(!source_slot_matches(other, source, &[], &[parameter]));
+        assert!(!source_slot_matches(
+            &selected_instructions::SelectedCaseDispatchSource::Local { slot: other },
+            source,
+            &[],
+            &[parameter]
+        ));
     }
 
     #[test]
@@ -175,26 +208,50 @@ mod tests {
             }],
         };
         assert!(source_slot_matches(
-            slot,
+            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
             source,
             std::slice::from_ref(&entry),
             &[]
         ));
-        assert!(!source_slot_matches(slot, source, &[], &[]));
         assert!(!source_slot_matches(
-            slot,
+            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            source,
+            &[],
+            &[]
+        ));
+        assert!(!source_slot_matches(
+            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
             source,
             &[entry.clone(), entry.clone()],
             &[]
         ));
         let mut substituted = entry.clone();
         substituted.block = BlockId::new(4).unwrap();
-        assert!(!source_slot_matches(slot, source, &[substituted], &[]));
+        assert!(!source_slot_matches(
+            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            source,
+            &[substituted],
+            &[]
+        ));
         let operation_slot = LocalStorageSlotId::Structural {
             operation: OperationId::new(1).unwrap(),
             place: source,
         };
-        assert!(!source_slot_matches(operation_slot, source, &[entry], &[]));
-        assert!(source_slot_matches(operation_slot, source, &[], &[]));
+        assert!(!source_slot_matches(
+            &selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: operation_slot
+            },
+            source,
+            &[entry],
+            &[]
+        ));
+        assert!(source_slot_matches(
+            &selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: operation_slot
+            },
+            source,
+            &[],
+            &[]
+        ));
     }
 }
