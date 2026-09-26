@@ -280,11 +280,9 @@ stage is cheap.
   ONE-DRIVER-PER-STAGE/SOURCE-SET-UNION/BUILD-EVALUATES-ONCE.
 
 - **POST-FOLD-REPAIR.** The consolidation landed on main at `912b490c8f` as
-  one commit over an advancing upstream, and the tree is not yet compile-green;
-  this row owns the tail. `mbx check --workspace` enumerates the damage, which
-  is mechanical: files that landed with main's newer logic still spell the old
-  extern-crate names, and a few definitions kept the older signature while
-  their callers moved ahead. Rewrite dead-crate spellings to the owning stage
+  one commit over an advancing upstream; this row owns remaining test-build
+  damage and lost pre-fold behavior. Use `mbx check --workspace --all-targets`
+  to enumerate remaining build failures. Rewrite dead-crate spellings to the owning stage
   (`typed_trees` → `symbol_resolved_trees_to_typed_trees::typed_trees`,
   `checked_trees`/`fact_plan`/`flow_effects` → `crate::` inside stage 04,
   `lowered_psi` → `crate::lowered_psi` inside stage 05,
@@ -298,27 +296,24 @@ stage is cheap.
   divergence from upstream `e081a6857b`: `entry_settlement` stays in the
   binary (`omega::compiler::native::entry_settlement`), because its plan
   vocabulary is produced by stage 09 and provider planning; stage-00 hosting
-  would need a forward dependency. Acceptance: `mbx check --workspace` green
+  would need a forward dependency. Acceptance: workspace all-target checks and
+  affected regression tests pass, with the silent-reversion audit closed and
   with no crate resurrected outside `pipeline/`, `psi/foundation/`, the flat
   `psi/` boundary layer, or the `omega` binary.
 
-  Remaining stage-04 build dependencies in `src/validation/`: restore
-  `LicenseCandidates` and crate-visible `EntryMachines` in
-  `proof_contracts/contract_entailment/structural_judgment.rs`, `struct_trace`
-  in `proof_contracts/contract_entailment.rs`, and the moved `frozen_program`
-  reference in `machine_calls/calls/write_frames/demand.rs`. These are
-  published pre-fold definitions, not new semantic decisions. Recheck with
-  `mbx check -p typed-trees-to-checked-trees --all-targets` before the workspace gate.
+  Stage-05 unit tests still spell `checked_trees_to_lowered_psi::` as an
+  external crate. Changing those references to `crate::` alone is insufficient:
+  downstream stages consume the ordinary library's `LoweredPsi`, while unit
+  tests construct the lib-test copy's distinct type. Move cross-stage tests
+  across an integration-test boundary so producer and consumer share the same
+  representation identity; do not weaken assertions or add unchecked conversions.
+  Reproduce with `mbx nextest run -p checked-trees-to-lowered-psi --lib`.
 
   SILENT REVERSIONS. Compile-green is not the whole tail: the fold kept older
-  copies of files that 44 commits between `74902921fe` and `5d93a065f5`
-  changed, so about 1,100 of their added lines are absent from the folded
-  tree, most of them without a compile error (an older definition that still
-  builds). Found by checking each commit's added lines, with crate-path
-  prefixes stripped, against the folded file. Largest: `6989c2c0ac` (target
-  family bodies, 121 lines), `f7c5c878a0`, `01d0b17404`, `30865be33d`,
-  `e6421496a0` (inert-sibling admission in `build_evaluation/admission/
-  target_machines.rs`), `b8fee6a36d`, `67fb78a6e5`, `3ac66b7cb2`,
+  copies of files changed between `74902921fe` and `5d93a065f5`, often without
+  a compile error. Compare published pre-fold definitions under their new
+  owners, ignoring namespace and formatting changes. Remaining audit leads:
+  `b8fee6a36d`, `67fb78a6e5`, `3ac66b7cb2`,
   `dfef3aad41`, `520653aa2d`, `4359371ede`, `930514ffda`, `e206ac13a8`,
   `324d47bf4f` (check-pass memos and indexes in stage 04), `bcc2dab848` and
   `ebc356fe9d` (repository build-declaration tests, older copy), `bb4b693db9`,
