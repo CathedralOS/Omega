@@ -262,7 +262,7 @@ pub(super) fn case_parameter_fixture(target: NativeTarget) -> ValidatedRuntimeSp
         },
     };
     let case_edge = |payloads| SelectedStructuralCaseEdge {
-        slot,
+        source: selected_instructions::SelectedCaseDispatchSource::Local { slot },
         case: StructuralCaseId::new(1).unwrap(),
         case_tag: 0,
         trivial_affine_discards: Vec::new(),
@@ -1000,10 +1000,15 @@ fn case_payload_parameter_arrivals_still_require_exact_edge_definitions() {
             }
             // The case slot must be the structural place the load observes.
             6 => {
-                incoming(function, 3).structural_case.as_mut().unwrap().slot =
-                    LocalStorageSlotId::Boundary {
+                incoming(function, 3)
+                    .structural_case
+                    .as_mut()
+                    .unwrap()
+                    .source = selected_instructions::SelectedCaseDispatchSource::Local {
+                    slot: LocalStorageSlotId::Boundary {
                         operation: OperationId::new(1).unwrap(),
-                    };
+                    },
+                };
                 RuntimeSpillError::UnsupportedValue
             }
             // The observation's definer must be the edge's own field load

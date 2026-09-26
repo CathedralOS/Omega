@@ -543,7 +543,7 @@ fn edge_keeps(
         }
     }
     if let Some(case) = &successor.structural_case {
-        if case.slot.structural_place() == Some(read.place)
+        if case.source.place() == Some(read.place)
             || case.trivial_affine_discards.contains(&read.place)
         {
             return Err(StoredLoadForwardingError::AliasingWrite);

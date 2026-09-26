@@ -16,7 +16,7 @@ use crate::scalar_graph::scalar_graph_lowering::contract_lowering::{
 use crate::scalar_graph::scalar_graph_lowering::graph_validation::validate_scalar_graph;
 use crate::scalar_graph::scalar_graph_lowering::known_evaluation::evaluate_known_scalar_graph;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
-    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+    CaseDispatchArm, LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
     PreparedScalarContract, PreparedScalarMachine,
 };
 use crate::scalar_graph::scalar_graph_lowering::{
@@ -423,11 +423,24 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         when_false_erased_arguments,
                         when_false_erased_proof_arguments,
                     } if path.is_empty()
-                        && crate::emission::case_payload_dispatch::direct_case_reads(
+                        && (crate::emission::case_payload_dispatch::direct_case_reads(
                             &when_true_arguments,
                             source,
                             case,
-                        ) =>
+                        ) || crate::emission::case_payload_dispatch::direct_case_reads(
+                            &when_true_erased_arguments,
+                            source,
+                            case,
+                        ) || !crate::emission::case_payload_dispatch::direct_case_read_cases(
+                            &when_false_arguments,
+                            source,
+                        )
+                        .is_empty()
+                            || !crate::emission::case_payload_dispatch::direct_case_read_cases(
+                                &when_false_erased_arguments,
+                                source,
+                            )
+                            .is_empty()) =>
                     {
                         case_dispatch_terminator(
                             source,
@@ -526,6 +539,15 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 when_false_target,
                 ..
             } => vec![*when_true_target, *when_false_target],
+            LoweredScalarBranchTerminator::CaseDispatchSplit {
+                armed,
+                fallback_target,
+                ..
+            } => {
+                let mut targets = vec![*fallback_target];
+                targets.extend(armed.iter().map(|arm| arm.target));
+                targets
+            }
             _ => Vec::new(),
         })
         .collect::<Vec<_>>();
@@ -744,40 +766,45 @@ fn case_dispatch_terminator(
             return unsupported("case dispatch lost the matched operand's declared cases");
         }
     };
+    let case_payloads = |case: &terminal_psi::StructuralCaseDeclaration| {
+        let mut payloads = Vec::new();
+        let mut bound = Vec::new();
+        for field in &case.fields {
+            let scalar_type = match field.field_type {
+                terminal_psi::StructuralFieldType::Scalar(scalar) => scalar,
+                terminal_psi::StructuralFieldType::BoundedInteger(integer) => {
+                    semantic_vocabulary::ScalarType::Integer(integer.integer_type())
+                }
+                _ => continue,
+            };
+            if field.relevance.is_erased() {
+                continue;
+            }
+            // Payload slots append after the state's completed value
+            // namespace, where the emitted branch block declares them as
+            // parameters.
+            bound.push(
+                crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload {
+                    source,
+                    case: case.id,
+                    field: field.id,
+                    position: value_types.len() + payloads.len(),
+                },
+            );
+            payloads.push((
+                field.id,
+                semantic_vocabulary::QualifiedScalarType::from(scalar_type),
+            ));
+        }
+        (payloads, bound)
+    };
     let selected_case = cases
         .iter()
         .find(|declared| declared.id == selected)
         .ok_or(LoweringError::Unsupported(
             "case dispatch selects a case outside its root's sum",
         ))?;
-    let mut payloads = Vec::new();
-    let mut bound = Vec::new();
-    for field in &selected_case.fields {
-        let scalar_type = match field.field_type {
-            terminal_psi::StructuralFieldType::Scalar(scalar) => scalar,
-            terminal_psi::StructuralFieldType::BoundedInteger(integer) => {
-                semantic_vocabulary::ScalarType::Integer(integer.integer_type())
-            }
-            _ => continue,
-        };
-        if field.relevance.is_erased() {
-            continue;
-        }
-        // Payload slots append after the state's completed value namespace,
-        // where the emitted branch block declares them as parameters.
-        bound.push(
-            crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload {
-                source,
-                case: selected,
-                field: field.id,
-                position: value_types.len() + payloads.len(),
-            },
-        );
-        payloads.push((
-            field.id,
-            semantic_vocabulary::QualifiedScalarType::from(scalar_type),
-        ));
-    }
+    let (payloads, bound) = case_payloads(selected_case);
     let (
         when_true_target,
         when_true_arguments,
@@ -790,37 +817,102 @@ fn case_dispatch_terminator(
         when_false_erased_arguments,
         when_false_erased_proof_arguments,
     ) = when_false;
-    let when_true_arguments: Vec<LoweredDirectExpression> = when_true_arguments
-        .into_iter()
-        .map(|argument| crate::emission::case_payload_dispatch::substitute_direct(argument, &bound))
-        .collect();
+    let substitute = |arguments: Vec<LoweredDirectExpression>, bound: &[_]| {
+        arguments
+            .into_iter()
+            .map(|argument| {
+                crate::emission::case_payload_dispatch::substitute_direct(argument, bound)
+            })
+            .collect::<Vec<_>>()
+    };
+    let when_true_arguments = substitute(when_true_arguments, &bound);
+    let when_true_erased_arguments = substitute(when_true_erased_arguments, &bound);
     // Every deferred case read must land on a bound scalar payload slot; a
     // read into a non-scalar payload (e.g. a field of a record payload) has
     // no slot to bind and must decline here rather than leak a deferred
     // structural-field reference into the emitted module.
-    if crate::emission::case_payload_dispatch::direct_case_reads(
-        &when_true_arguments,
-        source,
-        selected,
-    ) || crate::emission::case_payload_dispatch::direct_case_reads(
-        &when_true_erased_arguments,
-        source,
-        selected,
-    ) {
+    let has_deferred_read = |arguments: &[LoweredDirectExpression]| {
+        cases.iter().any(|declared| {
+            crate::emission::case_payload_dispatch::direct_case_reads(
+                arguments,
+                source,
+                declared.id,
+            )
+        })
+    };
+    if has_deferred_read(&when_true_arguments) || has_deferred_read(&when_true_erased_arguments) {
         return unsupported("case dispatch cannot bind a non-scalar payload observation");
     }
-    Ok(LoweredScalarBranchTerminator::CaseDispatch {
+    // The false outcome's own deferred reads observe the other cases of the
+    // same sum — a `transition self` whose else arm returns `self.Right.w`
+    // needs Right's payloads bound on Right's edge, not the selected edge's.
+    // Arm every case the false side reads and substitute each arm's copy of
+    // the shared arguments with that case's bound rows.
+    let mut false_cases = crate::emission::case_payload_dispatch::direct_case_read_cases(
+        &when_false_arguments,
         source,
-        selected,
+    );
+    false_cases.extend(
+        crate::emission::case_payload_dispatch::direct_case_read_cases(
+            &when_false_erased_arguments,
+            source,
+        ),
+    );
+    false_cases.remove(&selected);
+    if false_cases.is_empty() {
+        return Ok(LoweredScalarBranchTerminator::CaseDispatch {
+            source,
+            selected,
+            cases: cases.iter().map(|declared| declared.id).collect(),
+            payloads,
+            when_true_target,
+            when_true_arguments,
+            when_true_erased_arguments,
+            when_true_erased_proof_arguments,
+            when_false_target,
+            when_false_arguments,
+            when_false_erased_arguments,
+            when_false_erased_proof_arguments,
+        });
+    }
+    let mut armed = Vec::new();
+    for declared in cases {
+        if declared.id == selected {
+            armed.push(CaseDispatchArm {
+                case: selected,
+                payloads: payloads.clone(),
+                target: when_true_target,
+                arguments: when_true_arguments.clone(),
+                erased_arguments: when_true_erased_arguments.clone(),
+                erased_proof_arguments: when_true_erased_proof_arguments.clone(),
+            });
+            continue;
+        }
+        if !false_cases.contains(&declared.id) {
+            continue;
+        }
+        let (arm_payloads, arm_bound) = case_payloads(declared);
+        let arm_arguments = substitute(when_false_arguments.clone(), &arm_bound);
+        let arm_erased_arguments = substitute(when_false_erased_arguments.clone(), &arm_bound);
+        if has_deferred_read(&arm_arguments) || has_deferred_read(&arm_erased_arguments) {
+            return unsupported("case dispatch cannot bind a non-scalar payload observation");
+        }
+        armed.push(CaseDispatchArm {
+            case: declared.id,
+            payloads: arm_payloads,
+            target: when_false_target,
+            arguments: arm_arguments,
+            erased_arguments: arm_erased_arguments,
+            erased_proof_arguments: when_false_erased_proof_arguments.clone(),
+        });
+    }
+    Ok(LoweredScalarBranchTerminator::CaseDispatchSplit {
+        source,
         cases: cases.iter().map(|declared| declared.id).collect(),
-        payloads,
-        when_true_target,
-        when_true_arguments,
-        when_true_erased_arguments,
-        when_true_erased_proof_arguments,
-        when_false_target,
-        when_false_arguments,
-        when_false_erased_arguments,
-        when_false_erased_proof_arguments,
+        armed,
+        fallback_target: when_false_target,
+        fallback_arguments: when_false_arguments,
+        fallback_erased_arguments: when_false_erased_arguments,
+        fallback_erased_proof_arguments: when_false_erased_proof_arguments,
     })
 }

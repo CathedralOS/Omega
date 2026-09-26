@@ -282,6 +282,11 @@ pub(crate) fn structural_arguments_match(
                 || caller
                     .blocks
                     .iter()
+                    .flat_map(|block| &block.structural_parameters)
+                    .any(|parameter| parameter.place == argument.place)
+                || caller
+                    .blocks
+                    .iter()
                     .flat_map(|block| &block.nodes)
                     .any(|node| {
                         matches!(&node.operation,

@@ -118,8 +118,10 @@ pub(in crate::legalization) fn source_owner(
 
 /// The owner a case dispatch inspects: a stored result or block arrival as
 /// `source_owner` resolves it, otherwise the function's own owned incoming
-/// parameter under the same owned-arrival contract a block arrival meets.
-/// Other structural consumers keep `source_owner` and never see a parameter.
+/// parameter under the same owned-arrival contract a block arrival meets. A
+/// readable borrowed parameter dispatches the caller's referent through its
+/// borrow pointer instead of an activation value copy. Other structural
+/// consumers keep `source_owner` and never see a parameter.
 pub(in crate::legalization) fn case_source(
     function: &PsiOptimizationFunction,
     place: PlaceId,
@@ -133,8 +135,6 @@ pub(in crate::legalization) fn case_source(
         .filter(|parameter| parameter.place == place);
     let declaration = parameters.next().ok_or(LegalizationError::custody())?;
     if parameters.next().is_some()
-        || declaration.is_self
-        || declaration.access != terminal_psi::StructuralAccess::Owned
         || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
@@ -142,11 +142,20 @@ pub(in crate::legalization) fn case_source(
     {
         return Err(LegalizationError::custody());
     }
-    Ok(
-        legalized_operations::LegalizedStructuralCaseSource::Parameter {
-            declaration: declaration.clone(),
-        },
-    )
+    match declaration.access {
+        terminal_psi::StructuralAccess::SharedBorrow
+        | terminal_psi::StructuralAccess::MutableBorrow => Ok(
+            legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+                declaration: declaration.clone(),
+            },
+        ),
+        terminal_psi::StructuralAccess::Owned if !declaration.is_self => Ok(
+            legalized_operations::LegalizedStructuralCaseSource::Parameter {
+                declaration: declaration.clone(),
+            },
+        ),
+        _ => Err(LegalizationError::custody()),
+    }
 }
 
 /// The inspected root's structural type: a live result home under the

@@ -46,64 +46,106 @@ pub(super) fn build(
     {
         return Err(invalid());
     }
-    let slot = match subject {
+    let dispatch_source = match subject {
         legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
             result,
-        } => LocalStorageSlotId::Structural {
-            operation: *operation,
-            place: result.place,
+        } => selected_instructions::SelectedCaseDispatchSource::Local {
+            slot: LocalStorageSlotId::Structural {
+                operation: *operation,
+                place: result.place,
+            },
         },
         legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
             block,
             declaration,
-        } => LocalStorageSlotId::StructuralBlockParameter {
-            block: *block,
-            place: declaration.place,
+        } => selected_instructions::SelectedCaseDispatchSource::Local {
+            slot: LocalStorageSlotId::StructuralBlockParameter {
+                block: *block,
+                place: declaration.place,
+            },
         },
         // The entry retains an owned parameter's value copy in its own slot.
         legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
-            LocalStorageSlotId::StructuralParameter {
+            selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::StructuralParameter {
+                    place: declaration.place,
+                },
+            }
+        }
+        // A borrowed parameter has no activation copy; the entry-retained
+        // referent pointer addresses the caller's bytes directly.
+        legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { declaration } => {
+            let pointer = builder
+                .transport
+                .pointers
+                .iter()
+                .find(|(stored, _)| *stored == declaration.place)
+                .map(|(_, pointer)| *pointer)
+                .ok_or_else(|| invalid())?;
+            selected_instructions::SelectedCaseDispatchSource::Borrowed {
                 place: declaration.place,
+                pointer,
+                byte_size: u32::from(layout.shape.byte_size),
             }
         }
     };
-    if builder
-        .transport
-        .local_slots
-        .iter()
-        .filter(|candidate| {
-            candidate.id == slot
-                && candidate.byte_size == u32::from(layout.shape.byte_size)
-                && candidate.alignment == layout.shape.alignment
-        })
-        .count()
-        != 1
-    {
-        return Err(invalid());
-    }
-    let pointer = register(builder, subject.place(), 0, 64, false)?;
-    memory(
-        builder,
-        block.id,
-        subject.place(),
-        0,
-        u32::from(layout.shape.byte_size),
-        SelectedMemoryAccessRole::AddressLocal { slot },
-    )?;
-    builder.emit(
-        SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: 0,
-        },
-        builder
-            .constraints
-            .keys
-            .frame_address
-            .ok_or_else(|| invalid())?,
-        &[pointer],
-        Default::default(),
-    )?;
+    let pointer = match dispatch_source {
+        selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+            if builder
+                .transport
+                .local_slots
+                .iter()
+                .filter(|candidate| {
+                    candidate.id == slot
+                        && candidate.byte_size == u32::from(layout.shape.byte_size)
+                        && candidate.alignment == layout.shape.alignment
+                })
+                .count()
+                != 1
+            {
+                return Err(invalid());
+            }
+            let pointer = register(builder, subject.place(), 0, 64, false)?;
+            memory(
+                builder,
+                block.id,
+                subject.place(),
+                0,
+                u32::from(layout.shape.byte_size),
+                SelectedMemoryAccessRole::AddressLocal { slot },
+            )?;
+            builder.emit(
+                SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                builder
+                    .constraints
+                    .keys
+                    .frame_address
+                    .ok_or_else(|| invalid())?,
+                &[pointer],
+                Default::default(),
+            )?;
+            pointer
+        }
+        selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => {
+            if builder
+                .registers
+                .get(pointer.0 as usize)
+                .is_none_or(|register| {
+                    register.scalar_type
+                        != ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 pointer type"),
+                        )
+                })
+            {
+                return Err(invalid());
+            }
+            pointer
+        }
+    };
     let tag = register(builder, subject.place(), 0, 32, true)?;
     memory(
         builder,
@@ -147,9 +189,9 @@ pub(super) fn build(
                 Default::default(),
             )?;
         }
-        let when_zero = successor(source, order, builder, slot, &cases[ordinal])?;
+        let when_zero = successor(source, order, builder, dispatch_source, &cases[ordinal])?;
         let when_nonzero = if ordinal + 2 == cases.len() {
-            successor(source, order, builder, slot, &cases[ordinal + 1])?
+            successor(source, order, builder, dispatch_source, &cases[ordinal + 1])?
         } else {
             SelectedSuccessor {
                 role: selected_instructions::SelectedSuccessorRole::CaseDispatchContinuation,
@@ -268,7 +310,7 @@ fn successor(
     source: &LegalizedScalarFunction,
     order: &[usize],
     builder: &Builder<'_>,
-    slot: LocalStorageSlotId,
+    dispatch_source: selected_instructions::SelectedCaseDispatchSource,
     case: &LegalizedStructuralCaseSuccessor,
 ) -> Result<SelectedSuccessor, SelectedInstructionError> {
     let block = order
@@ -304,7 +346,7 @@ fn successor(
         structural_bindings: Vec::new(),
         fuel: case.fuel.clone(),
         structural_case: Some(SelectedStructuralCaseEdge {
-            slot,
+            source: dispatch_source,
             case: case.case,
             case_tag: case.case_tag,
             payloads,

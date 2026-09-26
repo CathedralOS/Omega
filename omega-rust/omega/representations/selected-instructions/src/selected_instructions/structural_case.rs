@@ -6,11 +6,50 @@ use semantic_vocabulary::{PlaceId, StructuralCaseId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedStructuralCaseEdge {
-    pub slot: LocalStorageSlotId,
+    pub source: SelectedCaseDispatchSource,
     pub case: StructuralCaseId,
     pub case_tag: i32,
     pub payloads: Vec<SelectedCasePayloadBinding>,
     pub trivial_affine_discards: Vec<PlaceId>,
+}
+
+/// Where a selected case edge reads the dispatched sum. An activation-local
+/// home is a frame slot; a borrowed parameter is the entry-retained referent
+/// pointer, so the edge reads caller-owned bytes through it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedCaseDispatchSource {
+    Local {
+        slot: LocalStorageSlotId,
+    },
+    Borrowed {
+        place: PlaceId,
+        pointer: VirtualRegisterId,
+        /// The referent's full byte size — the payload-read bound a slot row
+        /// supplies for local sources.
+        byte_size: u32,
+    },
+}
+
+impl SelectedCaseDispatchSource {
+    pub fn place(&self) -> Option<PlaceId> {
+        match self {
+            Self::Local { slot } => slot.structural_place(),
+            Self::Borrowed { place, .. } => Some(*place),
+        }
+    }
+    pub fn byte_size(&self) -> Option<u32> {
+        match self {
+            Self::Borrowed { byte_size, .. } => Some(*byte_size),
+            _ => None,
+        }
+    }
+    /// Only a value-copy dispatch owns a local storage slot.
+    pub fn local_slot(&self) -> Option<LocalStorageSlotId> {
+        match self {
+            Self::Local { slot } => Some(*slot),
+            Self::Borrowed { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +75,22 @@ pub enum SelectedCasePayloadTransport {
 impl SelectedStructuralCaseEdge {
     /// Retain every semantic case coordinate and physical transport field.
     pub fn encode_identity(&self, bytes: &mut Vec<u8>) {
-        self.slot.encode_identity(bytes);
+        match self.source {
+            SelectedCaseDispatchSource::Local { slot } => {
+                bytes.push(0);
+                slot.encode_identity(bytes);
+            }
+            SelectedCaseDispatchSource::Borrowed {
+                place,
+                pointer,
+                byte_size,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&place.get().to_le_bytes());
+                bytes.extend_from_slice(&pointer.0.to_le_bytes());
+                bytes.extend_from_slice(&byte_size.to_le_bytes());
+            }
+        }
         bytes.extend_from_slice(&self.case.get().to_le_bytes());
         bytes.extend_from_slice(&self.case_tag.to_le_bytes());
         bytes.extend_from_slice(&(self.payloads.len() as u64).to_le_bytes());

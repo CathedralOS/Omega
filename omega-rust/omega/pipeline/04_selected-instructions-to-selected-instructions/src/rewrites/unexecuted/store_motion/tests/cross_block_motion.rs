@@ -261,9 +261,11 @@ fn cross_block_packed_stores_carry_their_scratch() {
     let payload = mutated_chained(target, |function, environment| {
         pack_store(function, environment);
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot: LocalStorageSlotId::Structural {
-                operation: OperationId::new(9).unwrap(),
-                place: PlaceId::new(2).unwrap(),
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::Structural {
+                    operation: OperationId::new(9).unwrap(),
+                    place: PlaceId::new(2).unwrap(),
+                },
             },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
@@ -642,7 +644,7 @@ fn cross_block_staging_slot_store_sinks_across_the_edge() {
     // Case custody staged through the moved slot writes it on the edge.
     let custody = staged_pair(Some(&|function| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot,
+            source: selected_instructions::SelectedCaseDispatchSource::Local { slot },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
             payloads: Vec::new(),
@@ -659,9 +661,11 @@ fn cross_block_staging_slot_store_sinks_across_the_edge() {
     // untouched, so the store still crosses.
     let discarded = staged_pair(Some(&|function| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot: LocalStorageSlotId::Structural {
-                operation: OperationId::new(9).unwrap(),
-                place: PlaceId::new(2).unwrap(),
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::Structural {
+                    operation: OperationId::new(9).unwrap(),
+                    place: PlaceId::new(2).unwrap(),
+                },
             },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
@@ -2347,9 +2351,11 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // Case custody on the moved place writes its slot inside the interval.
     let custody = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot: LocalStorageSlotId::Structural {
-                operation: OperationId::new(9).unwrap(),
-                place: place(),
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::Structural {
+                    operation: OperationId::new(9).unwrap(),
+                    place: place(),
+                },
             },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
@@ -2370,9 +2376,11 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // stops the crossing the same way an edge binding does.
     let payload = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            slot: LocalStorageSlotId::Structural {
-                operation: OperationId::new(9).unwrap(),
-                place: PlaceId::new(2).unwrap(),
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
+                slot: LocalStorageSlotId::Structural {
+                    operation: OperationId::new(9).unwrap(),
+                    place: PlaceId::new(2).unwrap(),
+                },
             },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,

@@ -86,7 +86,8 @@ pub use liveness::{
 pub use plan_identity::selected_instruction_plan_identity;
 pub use provenance::SelectedInstructionProvenance;
 pub use structural_case::{
-    SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedStructuralCaseEdge,
+    SelectedCaseDispatchSource, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
+    SelectedStructuralCaseEdge,
 };
 pub use values::{SelectedOperand, VirtualRegister, VirtualRegisterOrigin};
 

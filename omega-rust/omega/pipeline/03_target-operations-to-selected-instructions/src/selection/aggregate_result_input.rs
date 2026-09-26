@@ -500,8 +500,12 @@ pub(super) fn returned<'a>(
                 parameter.multiplicity,
             )
         }
-        // A returned parameter uses `StructuralParameter`, never this owner.
-        legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => return None,
+        // A returned parameter uses `StructuralParameter`, never this owner;
+        // a borrowed dispatch source has no local custody slot at all.
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+        | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
+            return None;
+        }
     };
     if structural_type != declared.structural_type
         || multiplicity != declared.multiplicity

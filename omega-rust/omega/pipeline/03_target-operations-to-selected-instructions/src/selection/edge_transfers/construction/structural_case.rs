@@ -39,11 +39,21 @@ pub(super) fn prepare(
     {
         return Ok(None);
     }
-    let slot = slots
-        .iter()
-        .find(|slot| slot.id == case.slot)
-        .ok_or_else(invalid)?;
-    let place = slot.id.structural_place().ok_or_else(invalid)?;
+    let (place, byte_bound) = match case.source {
+        selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+            let slot = slots
+                .iter()
+                .find(|row| row.id == slot)
+                .ok_or_else(invalid)?;
+            (
+                slot.id.structural_place().ok_or_else(invalid)?,
+                slot.byte_size,
+            )
+        }
+        selected_instructions::SelectedCaseDispatchSource::Borrowed {
+            place, byte_size, ..
+        } => (place, byte_size),
+    };
     let bridge_id = SelectedBlockId(block_position.try_into().map_err(|_| invalid())?);
     let mut continuation = successor.clone();
     continuation.role = SelectedSuccessorRole::EdgeTransferContinuation;
@@ -87,52 +97,74 @@ pub(super) fn prepare(
                 .semantic
                 .field_byte_offset
                 .checked_add(byte_count)
-                .is_none_or(|end| end > slot.byte_size)
+                .is_none_or(|end| end > byte_bound)
             || payload.semantic.field_byte_offset % byte_count != 0
         {
             return Err(invalid());
         }
-        let address_instruction =
-            SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);
-        *next_instruction += 1;
-        let pointer = VirtualRegisterId(registers.len().try_into().map_err(|_| invalid())?);
-        registers.push(VirtualRegister {
-            id: pointer,
-            scalar_type: ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-            ),
-            class: destination.class,
-            origin: VirtualRegisterOrigin::AbiTransport {
-                instruction: address_instruction,
-                place,
-                byte_offset: 0,
-            },
-            definition_site: None,
-            entry_fixed_view: None,
-        });
         let provenance = || SelectedInstructionProvenance {
             edges: vec![successor.psi_edge],
             ..Default::default()
         };
-        instructions.push(crate::selection::constraints::instruction(
-            address_instruction,
-            SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Local(slot.id),
-                byte_offset: 0,
-            },
-            constraints.keys.frame_address.ok_or_else(invalid)?,
-            &[pointer],
-            provenance(),
-            catalog,
-        )?);
-        memory.push(SelectedMemoryAccess {
-            instruction: address_instruction,
-            origin: SelectedMemoryAccessOrigin::Edge(successor.psi_edge),
-            place,
-            byte_offset: 0,
-            byte_count: slot.byte_size,
-            role: SelectedMemoryAccessRole::AddressLocal { slot: slot.id },
-        });
+        let pointer = match case.source {
+            selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+                let slot = slots
+                    .iter()
+                    .find(|row| row.id == slot)
+                    .ok_or_else(invalid)?;
+                let address_instruction =
+                    SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);
+                *next_instruction += 1;
+                let pointer = VirtualRegisterId(registers.len().try_into().map_err(|_| invalid())?);
+                registers.push(VirtualRegister {
+                    id: pointer,
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+                    ),
+                    class: destination.class,
+                    origin: VirtualRegisterOrigin::AbiTransport {
+                        instruction: address_instruction,
+                        place,
+                        byte_offset: 0,
+                    },
+                    definition_site: None,
+                    entry_fixed_view: None,
+                });
+                instructions.push(crate::selection::constraints::instruction(
+                    address_instruction,
+                    SelectedInstructionKind::FrameAddress {
+                        slot: FrameStorageSlotId::Local(slot.id),
+                        byte_offset: 0,
+                    },
+                    constraints.keys.frame_address.ok_or_else(invalid)?,
+                    &[pointer],
+                    provenance(),
+                    catalog,
+                )?);
+                memory.push(SelectedMemoryAccess {
+                    instruction: address_instruction,
+                    origin: SelectedMemoryAccessOrigin::Edge(successor.psi_edge),
+                    place,
+                    byte_offset: 0,
+                    byte_count: slot.byte_size,
+                    role: SelectedMemoryAccessRole::AddressLocal { slot: slot.id },
+                });
+                pointer
+            }
+            // The referent pointer was retained at entry; the bridge needs no
+            // addressing instruction of its own.
+            selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => {
+                if registers.get(pointer.0 as usize).is_none_or(|register| {
+                    register.scalar_type
+                        != ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 pointer type"),
+                        )
+                }) {
+                    return Err(invalid());
+                }
+                pointer
+            }
+        };
         let load_instruction =
             SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);
         *next_instruction += 1;

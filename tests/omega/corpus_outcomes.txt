@@ -1110,6 +1110,7 @@ pass/control_flow/runtime_string_literal_dispatch_exit checked 180ms
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit checked 177ms
 pass/control_flow/runtime_tuple_case_destructure_exit checked 186ms
 pass/control_flow/runtime_tuple_transition_exit checked 168ms
+pass/control_flow/self_case_payload_both_arms_exit checked 1843ms
 pass/control_flow/sum_field_storage_roundtrip checked 174ms
 pass/control_flow/termination_index_distance_compile checked 63ms
 pass/control_flow/transition_operand_schedule checked 1ms

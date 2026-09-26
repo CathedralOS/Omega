@@ -128,7 +128,8 @@ pub(super) fn reconstruct(
                 )
             }
             // `source_owner` never resolves a function parameter.
-            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
+            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
                 return Err(LegalizationError::custody());
             }
         }
