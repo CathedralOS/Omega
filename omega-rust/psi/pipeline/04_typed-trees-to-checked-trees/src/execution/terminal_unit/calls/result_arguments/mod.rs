@@ -317,19 +317,29 @@ pub(super) fn argument(
     if linear && (projected || access != CheckedStructuralAccess::Owned) {
         return None;
     }
-    if unrestricted
-        && !projected_borrow
-        && (projected
-            || access != CheckedStructuralAccess::Owned
-            || !(crate::validation::is_closed_primitive_array_type(
-                program,
-                parameter.type_reference,
-            ) || crate::validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                parameter.type_reference,
-            )))
-    {
-        return None;
+    if unrestricted && !projected_borrow {
+        // A shared borrow views the binding's own storage: the formal's
+        // referent — not its `&` shell — carries the closed/plain-content
+        // obligation, and the borrow arm below proves the loan itself.
+        let storage = match access {
+            CheckedStructuralAccess::Owned => Some(parameter.type_reference),
+            CheckedStructuralAccess::SharedBorrow => {
+                shared_closed_referent(program, parameter.type_reference)
+            }
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow => {
+                None
+            }
+        };
+        if projected
+            || !storage.is_some_and(|storage| {
+                crate::validation::is_closed_primitive_array_type(program, storage)
+                    || crate::validation::has_plain_owned_contents_with_numeric_constraints(
+                        program, storage,
+                    )
+            })
+        {
+            return None;
+        }
     }
     let path = if projected {
         if access != CheckedStructuralAccess::Owned && !projected_borrow {
@@ -345,7 +355,8 @@ pub(super) fn argument(
     let (value_expression, referent) = match access {
         CheckedStructuralAccess::Owned => (expression, formal_type),
         CheckedStructuralAccess::SharedBorrow => {
-            let referee = shared_plain_affine_referent(program, parameter.type_reference)?;
+            let referee = shared_plain_affine_referent(program, parameter.type_reference)
+                .or_else(|| shared_closed_referent(program, parameter.type_reference))?;
             let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
             else {
                 return None;
@@ -718,6 +729,30 @@ pub(super) fn argument(
         type_identity: target_identity.to_owned(),
         access: CheckedStructuralAccess::Owned,
     })
+}
+
+/// Shared references to a whole unrestricted closed carrier — a fixed
+/// primitive array or a record of plain-owned numerics — view storage the
+/// binding itself retains. Nested references and constrained carriers stay
+/// out, exactly as the owned argument lanes require.
+fn shared_closed_referent(
+    program: &TypedTrees,
+    reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference {
+        access: language_semantics::ReferenceAccess::Shared,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    (program.type_multiplicity(*referee) == Multiplicity::Unrestricted
+        && (crate::validation::is_closed_primitive_array_type(program, *referee)
+            || crate::validation::has_plain_owned_contents_with_numeric_constraints(
+                program, *referee,
+            )))
+    .then_some(*referee)
 }
 
 /// Whether the argument spelling names exactly the whole local `symbol`: an

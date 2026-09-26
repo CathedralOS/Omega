@@ -157,7 +157,13 @@ pub(super) fn admit(
             // A view-subslice local owns nothing: its shared view ends
             // with the loan, on every selected edge alike.
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => {}
+            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+            // Fixed-array, mutable-primitive, and trivial-affine locals mint
+            // storage at the authored statement the same way: the binding's
+            // own loans and disposal carry its custody, not the op.
+            | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+            | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {}
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
@@ -276,11 +282,6 @@ pub(super) fn admit(
                     CheckedUnitEffectOperationPlan::EstablishReference { .. }
                     | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
                         "state graph: operation custody: reference custody"
-                    }
-                    CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {
-                        "state graph: operation custody: scalar array or primitive local"
                     }
                     CheckedUnitEffectOperationPlan::PortWrite { .. } => {
                         "state graph: operation custody: port write"

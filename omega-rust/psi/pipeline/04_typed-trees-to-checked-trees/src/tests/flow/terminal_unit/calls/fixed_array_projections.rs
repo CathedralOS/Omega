@@ -3,6 +3,7 @@ use crate::tests::flow::terminal_unit::{
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, Multiplicity, PrimitiveType,
     checked, machine_named, record_fields,
 };
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess;
 
 #[test]
 fn retains_completion_receipt_for_result_bearing_boundary_call() {
@@ -503,7 +504,7 @@ fn fences_nested_fixed_array_projection_without_partial_plan() {
 }
 
 #[test]
-fn fences_four_index_direct_shared_projection_without_widening_legacy_calls() {
+fn four_index_direct_shared_projection_plans_on_shared_borrow_calls() {
     let checked = checked(
         r#"
         data Sink {}
@@ -516,14 +517,26 @@ fn fences_four_index_direct_shared_projection_without_widening_legacy_calls() {
         "#,
     );
 
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("a shared borrow of a literal-indexed projection is a checked call");
     assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(machine_named(&checked, "Root::forward"))
-            .is_none(),
-        "four direct indexes must not widen the legacy non-write projected-call cohort"
+        plan.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } if structural_arguments.iter().any(|argument| {
+                    argument.access == CheckedStructuralAccess::SharedBorrow
+                        && argument.path.len() == 4
+                })
+            )
+        }),
+        "the four-segment projection reaches the callee as one shared borrow"
     );
 }
 

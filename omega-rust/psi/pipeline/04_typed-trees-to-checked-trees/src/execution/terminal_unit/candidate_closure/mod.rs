@@ -366,6 +366,12 @@ pub(super) fn retain_available(
                     // holds; it names no callee.
                     | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                    // Fixed-array, mutable-primitive, and trivial-affine
+                    // establishments mint frame-local storage at the authored
+                    // statement; they name no callee either.
+                    | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                     // A borrowed-window move/restore pair carries no callee:
                     // the move's result binding and the restore's stored value
                     // are already custody rows inside this same state.
