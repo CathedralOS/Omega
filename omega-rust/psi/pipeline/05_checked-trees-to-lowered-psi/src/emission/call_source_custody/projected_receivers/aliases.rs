@@ -558,10 +558,12 @@ fn contains_owner(
 /// target's own expression.
 fn transition_mentions_owner(
     checked: &CheckedTrees,
-    transition: &checked_trees::statement::TableTransition,
+    transition: &typed_trees_to_checked_trees::checked_trees::statement::TableTransition,
     owner: SymbolHandle,
 ) -> bool {
-    use checked_trees::statement::{TransitionGuardNode, TransitionTargetNode};
+    use typed_trees_to_checked_trees::checked_trees::statement::{
+        TransitionGuardNode, TransitionTargetNode,
+    };
     if let TransitionGuardNode::When(guard) = transition.guard
         && contains_owner(checked, guard, owner)
     {

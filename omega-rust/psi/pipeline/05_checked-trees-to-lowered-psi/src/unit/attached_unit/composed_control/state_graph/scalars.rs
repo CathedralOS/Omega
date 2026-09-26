@@ -237,10 +237,10 @@ pub(super) fn emit_prefix(
 /// are the nested walker below's shape; other shapes stay on the ordinary
 /// observation path.
 pub(in crate::unit::attached_unit::composed_control) fn flat_case_payload_reads<'a>(
-    expression: &'a checked_trees::CheckedScalarExpression,
+    expression: &'a typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression,
     reads: &mut Vec<(u32, &'a str, &'a str)>,
 ) {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
         CheckedStructuralPredicatePathSegment as Segment,
     };
@@ -251,7 +251,7 @@ pub(in crate::unit::attached_unit::composed_control) fn flat_case_payload_reads<
         Some((case.as_str(), field.as_str()))
     }
     fn scalar<'a>(
-        expression: &'a checked_trees::CheckedScalarExpression,
+        expression: &'a typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression,
         reads: &mut Vec<(u32, &'a str, &'a str)>,
     ) {
         match expression {
@@ -280,7 +280,7 @@ pub(in crate::unit::attached_unit::composed_control) fn flat_case_payload_reads<
         }
     }
     fn boolean<'a>(
-        expression: &'a checked_trees::CheckedBooleanExpression,
+        expression: &'a typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression,
         reads: &mut Vec<(u32, &'a str, &'a str)>,
     ) {
         match expression {

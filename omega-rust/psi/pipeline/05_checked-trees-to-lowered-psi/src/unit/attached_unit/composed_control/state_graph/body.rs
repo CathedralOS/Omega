@@ -802,10 +802,10 @@ fn is_exclusive_loan_marker(checked: &CheckedTrees, statement: &StatementNode) -
     !local.is_mutable
         && matches!(
             checked.expression_table.expression(local.initial_value),
-            checked_trees::expression::ExpressionNode::Borrow(borrow)
+            typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Borrow(borrow)
                 if borrow.access == language_core::ReferenceAccess::Mutable
         )
-        && validation::reference_result_custody::mutable_borrowed_parts(
+        && typed_trees_to_checked_trees::validation::reference_result_custody::mutable_borrowed_parts(
             checked,
             local.type_reference,
         )

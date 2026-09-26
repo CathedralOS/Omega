@@ -42,7 +42,7 @@ pub(super) fn prepare<'a>(
         return unsupported("Unit graph case subject lacks owned custody");
     }
     let subject_position = match subject.source {
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             Some(
                 parameters
                     .get(parameter_index as usize)
@@ -137,7 +137,7 @@ pub(super) fn prepare<'a>(
             for transfer in &case.successor.scalar_arguments {
                 if !matches!(
                     transfer.source,
-                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
                 ) {
                     continue;
                 }

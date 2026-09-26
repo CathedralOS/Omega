@@ -705,14 +705,17 @@ pub(super) fn validate_projection(
 /// carries.
 pub(super) fn validate_copied_projection(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    state: &checked_trees::state::State,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    state: &typed_trees_to_checked_trees::checked_trees::state::State,
     expression: ExpressionHandle,
     copied: &CheckedUnitStructuralArgumentPlan,
     path: &[CheckedUnitStructuralPathSegment],
     type_identity: &str,
 ) -> Result<ProjectionRoot, LoweringError> {
-    if copied.access != checked_trees::CheckedStructuralAccess::SharedBorrow || path.is_empty() {
+    if copied.access
+        != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+        || path.is_empty()
+    {
         return unsupported("copied projection changed its access or path");
     }
     let mut spelled = Vec::new();
@@ -735,26 +738,31 @@ pub(super) fn validate_copied_projection(
     if spelled.as_slice() != path {
         return unsupported("copied projection changed its authored path");
     }
-    let leaf =
-        validation::expression_result_type_reference(&checked.typed, machine, state, expression)
-            .ok_or(LoweringError::Unsupported(
-                "copied projection lost its leaf type",
-            ))?;
+    let leaf = typed_trees_to_checked_trees::validation::expression_result_type_reference(
+        &checked.typed,
+        machine,
+        state,
+        expression,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "copied projection lost its leaf type",
+    ))?;
     if checked.normalized_type_identity(leaf).as_str() != type_identity {
         return unsupported("copied projection changed its copied leaf type");
     }
     let ExpressionNode::Name(_) = checked.expression_table.expression(root_expression) else {
         return unsupported("copied projection root is not a binding name");
     };
-    let root_reference = validation::expression_result_type_reference(
-        &checked.typed,
-        machine,
-        state,
-        root_expression,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "copied projection root has no declared type",
-    ))?;
+    let root_reference =
+        typed_trees_to_checked_trees::validation::expression_result_type_reference(
+            &checked.typed,
+            machine,
+            state,
+            root_expression,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "copied projection root has no declared type",
+        ))?;
     if checked.normalized_type_identity(root_reference).as_str() != copied.type_identity {
         return unsupported("copied projection root is not the borrowed place");
     }
