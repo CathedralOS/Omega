@@ -304,7 +304,7 @@ high-level flow: input preparation, phase ordering or dispatch, subordinate work
 and result/error handling. `lib.rs` wiring, re-exports, and a prose file map do
 not substitute for that orchestration.
 
-Use [main.rs](omega/src/main.rs) and
+Use [main.rs](omega/omega/src/main.rs) and
 [compiler.rs](omega/compiler/src/compiler.rs) as the gold
 standard: the former shows startup and typed invocation dispatch; the latter
 shows shared preparation, product selection, per-target realization, and outcomes.

@@ -47,7 +47,7 @@ The Rust toolchain is pinned in `rust-toolchain.toml`; `rustup` selects it.
 - Compile a program: `mbx run -p omega -- --check <root.omg>`; run it:
   `mbx run -p omega -- run <root.omg>`. The CLI package is `omega` (binary
   `omega`) — there is no `omega-cli` package. The full flag surface:
-  [omega-rust/omega/README.md](omega-rust/omega/README.md#command-surface).
+  [omega-rust/omega/omega/README.md](omega-rust/omega/omega/README.md#command-surface).
 - The compiler's end-to-end test is the corpus gate:
   `python tools/corpus_gate.py --filter <group/name fragment>`; a crate's own
   Rust tests run by package and name filter

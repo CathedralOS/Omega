@@ -138,7 +138,7 @@ For an explicitly assigned discoverability/architecture change, apply
 The customer outcome is a clearer route to a named operation, not a set of smaller
 files. Before editing, identify that operation, its crate entry, and the point
 where sequencing or ownership becomes hard to follow. Compare the route with
-[main.rs](../../../omega-rust/omega/src/main.rs) and
+[main.rs](../../../omega-rust/omega/omega/src/main.rs) and
 [compiler.rs](../../../omega-rust/omega/compiler/src/compiler.rs).
 
 Keep high-level orchestration visible at the crate entry and at subordinate

@@ -132,7 +132,7 @@ fn missing_source_preserves_an_existing_accepted_pair() {
 
 #[test]
 fn invalid_dependency_proof_leaves_build_and_absent_lock_unchanged() {
-    let corpus = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/omega/fail");
+    let corpus = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/omega/fail");
     for canary in fixture_roster::FAIL_CANARIES {
         let fixture = Fixture::new();
         let source = std::fs::read_to_string(corpus.join(canary).join("main.omg"))

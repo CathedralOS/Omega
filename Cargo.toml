@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "omega-rust/omega",
+    "omega-rust/omega/omega",
     "omega-rust/psi/foundation/arena",
     "omega-rust/psi/foundation/access-plans",
     "omega-rust/psi/foundation/diagnostics",

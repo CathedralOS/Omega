@@ -22,7 +22,7 @@ printed. Unsupported analysis or an unrepresentable ceiling prints
 limitation report, not proof that no finite bound exists or a complete
 component/foreign-wait resource analysis. Missing identities, invalid semantics,
 and failed certificate replay remain errors. The
-[logical-work contract](../../../../wiki/spec/resources/logical_work.md)
+[logical-work contract](../../../../../wiki/spec/resources/logical_work.md)
 owns full quantitative analysis; termination alone supplies no work ceiling.
 
 CLI and corrupted-evidence regressions live in
