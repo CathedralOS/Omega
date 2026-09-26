@@ -166,6 +166,19 @@ pub(in crate::validation) fn validate_structural_argument(
                         Some((structural_type, StructuralMultiplicity::Unrestricted,
                             StructuralAccess::Owned, &[][..], &[][..]))
                     }
+                    // A shared borrow of a completed primitive-array result
+                    // views storage the body keeps; the producer's owned
+                    // result still dominates it through the same replay.
+                    StructuralPlaceKind::OperationResult { structural_type, .. }
+                        if ordinary_call
+                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                            && argument.path.is_empty()
+                            && argument.access == StructuralAccess::SharedBorrow
+                            && crate::validation::scalar::array::plain_return_source(module, caller, argument.place) =>
+                    {
+                        Some((structural_type, StructuralMultiplicity::Unrestricted,
+                            StructuralAccess::SharedBorrow, &[][..], &[][..]))
+                    }
                     StructuralPlaceKind::OperationResult { .. }
                         if ordinary_call
                             && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
@@ -365,7 +378,12 @@ pub(in crate::validation) fn validate_structural_argument(
     let root_type = actual_type;
     if crate::validation::scalar::array::owned_payload_source(module, caller, argument.place)
         && (expected.multiplicity != StructuralMultiplicity::Unrestricted
-            || expected.access != StructuralAccess::Owned
+            // A shared-borrow formal views the payload the caller already
+            // owns; the argument side admitted only an exact unprojected
+            // shared borrow of a completed result for this pairing.
+            || !(expected.access == StructuralAccess::Owned
+                || (expected.access == StructuralAccess::SharedBorrow
+                    && argument.access == StructuralAccess::SharedBorrow))
             || !expected.qualifications.is_empty()
             || !expected.projected_qualifications.is_empty())
     {

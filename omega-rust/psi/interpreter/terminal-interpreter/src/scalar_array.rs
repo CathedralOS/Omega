@@ -47,8 +47,15 @@ impl TerminalExecution {
             parameter.structural_type,
         )
         .ok_or_else(invalid)?;
-        if parameter.access != StructuralAccess::Owned
-            || argument.access != StructuralAccess::Owned
+        // A shared loan binds the same element values read-only: lending the
+        // caller's array is observationally a copy, so `&arr` admits alongside
+        // the owned hand-off. Mutable views stay owned-only — writes through a
+        // borrow would never reach the caller's storage.
+        let owned_handoff = parameter.access == StructuralAccess::Owned
+            && argument.access == StructuralAccess::Owned;
+        let shared_loan = parameter.access == StructuralAccess::SharedBorrow
+            && argument.access == StructuralAccess::SharedBorrow;
+        if (!owned_handoff && !shared_loan)
             || !argument.path.is_empty()
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
