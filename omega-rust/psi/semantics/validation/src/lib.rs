@@ -90,7 +90,9 @@ pub use crate::machine_calls::calls::{
     generic_bound_call_requirement, generic_bound_value_call_requirement, operand_call_plans,
     state_reference_parameter_binding_is_stable,
 };
-pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
+pub use crate::proof_contracts::slice_ranking::{
+    slice_tail_strictly_decreases, slice_tail_strictly_decreases_with_bound_lookup,
+};
 pub use crate::value_custody::cleanup::validate_reserved_cleanup_selections;
 pub use crate::value_custody::content_conservation::{
     ContentConservationSourcePlan, build_content_conservation_plans,

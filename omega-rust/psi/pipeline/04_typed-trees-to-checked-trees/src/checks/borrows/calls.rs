@@ -37,19 +37,23 @@ use self::conflicts::check_call_access_conflicts;
 use self::evidence::CallCompatibility;
 use self::writability::check_mutable_argument_writability;
 use super::overlap::StatedOrderingPremise;
-use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
+use crate::checks::ranges::incoming_guards::{IncomingGuardIndex, IncomingGuardIndexCache};
 
 /// Initial construction is deliberately separate from replay: a checked
 /// program with deleted evidence must not be mistaken for an unbuilt ledger.
-pub(super) fn initialize_compatibility(program: &typed_trees::TypedTrees, facts: &mut CheckFacts) {
+pub(super) fn initialize_compatibility(
+    program: &typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
+    guard_index: &IncomingGuardIndexCache,
+) {
     let mut diagnostics = Vec::new();
     let call_frames = validation::CallFrameResolver::new(program);
-    let incoming_guards = IncomingGuardIndex::build(program, call_frames.as_ref());
+    let incoming_guards = guard_index.index(program, call_frames.as_ref());
     let mut bound_lookup = None;
     let certificates = collect_compatibility(
         program,
         facts,
-        &incoming_guards,
+        incoming_guards,
         call_frames.as_ref(),
         &mut diagnostics,
         &mut bound_lookup,
