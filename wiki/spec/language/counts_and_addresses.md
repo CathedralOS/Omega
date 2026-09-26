@@ -121,7 +121,9 @@ These identities support address comparison, not a simulated native memory
 layout. Their numeric order or difference does not establish byte adjacency or
 an offset within Psi instructions. This feature requires neither a virtual
 byte-addressed memory system nor execution of assembly against these numbers.
-It does not settle the `interpreted-inline-assembly` owner decision.
+Interpreted [assembly](assembly.md#interpreted-execution) separately realizes
+supported instruction semantics; any operation needing physical memory geometry
+requires an explicit admitted mapping, not arithmetic on these identities.
 
 ## Native code layout queries
 

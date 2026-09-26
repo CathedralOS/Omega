@@ -6,6 +6,15 @@ instruction shape, availability, target, authority, ordered operand constraints,
 ordering, flag data flow and realized clobbers. A catalog row is not proof that
 every source-to-native consumer realizes it.
 
+The settled [interpreted execution contract](../../../../wiki/spec/language/assembly.md#interpreted-execution)
+requires executable instruction semantics, not just footprint metadata. Reuse
+ordinary value/place/transition operations where exact; retain explicitly
+contracted environment effects otherwise. Scratch register/flag state is local
+to a block, while authorized memory and declared machine/device state persist.
+Unsupported execution profiles reject; neither an encoder nor a Unit-returning
+stub demonstrates interpretation. Expansion needs source-to-consumer acceptance,
+including pause/resume, effect and rejection controls for the claimed profile.
+
 | Catalog family | Current structured operands and distinctions |
 | --- | --- |
 | `jmp`, `hlt` | State-target transition or halt; no local post-state. |

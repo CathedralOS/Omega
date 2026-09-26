@@ -142,8 +142,11 @@ The recorded owner-blocker classification has since been corrected:
 C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT and NATIVE-WRAPPER-ENCODING-AARCH64 are
 implementation work under the [proof outcomes](../../spec/proofs/publication.md#outcomes)
 and [target-authored entry contracts](../../spec/build/entry_roots.md).
-`interpreted-inline-assembly` remains an owner decision for the separate
-interpreted-Cathedral customer. Current assignments are on [TASKS.md](../../../TASKS.md).
+Interpreted assembly is now settled as
+[instruction semantics over supplied environments](../../spec/language/assembly.md#interpreted-execution);
+the separate interpreted-Cathedral customer still needs that implementation.
+This correction does not rerun the recorded measurement. Current assignments
+are on [TASKS.md](../../../TASKS.md).
 
 ## Trajectory: divergent at current allocation
 

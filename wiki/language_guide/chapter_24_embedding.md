@@ -138,8 +138,10 @@ execution-mode conditionals throughout its shared code. A host routine that
 implements Cathedral's boot or update logic would not demonstrate this goal.
 Native timing and real-device correctness remain separate from a host simulation.
 
-Inline assembly remains supported language surface. How target-specific assembly
-runs under interpretation is an [open owner question](../../OWNER_QUESTIONS.md)
-named `interpreted-inline-assembly`; this chapter does not require removing it
-from OS code or promise an instruction emulator. See the
-[assembly chapter](chapter_22_inline_assembly.md).
+Inline assembly runs by interpreting supported instruction semantics against
+ordinary values/storage and a supplied target environment. Scratch registers
+are block-local; memory, device and contracted processor-state effects persist.
+Missing instruction/environment coverage rejects before execution, not as a
+no-op or native fallback. This preserves assembly-bearing OS code without
+requiring an alternate body per block or promising whole-host emulation. See the
+[assembly chapter](chapter_22_inline_assembly.md#running-assembly-under-interpretation).
