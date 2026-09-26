@@ -70,6 +70,9 @@ struct WalkStep {
     /// invalid handle; it only contributes its segment.
     reference: TypeReferenceHandle,
     segment: Option<PlaceSegment>,
+    /// How many segments the path through this step has, so `segments`
+    /// allocates its result once.
+    depth: u32,
 }
 
 #[derive(Default)]
@@ -85,10 +88,13 @@ impl TypeWalk {
         segment: Option<PlaceSegment>,
     ) -> Option<u32> {
         let step = u32::try_from(self.steps.len()).ok()?;
+        let depth = parent.map_or(0, |parent| self.steps[parent as usize].depth)
+            + u32::from(segment.is_some());
         self.steps.push(WalkStep {
             parent,
             reference,
             segment,
+            depth,
         });
         Some(step)
     }
@@ -107,14 +113,23 @@ impl TypeWalk {
     }
 
     fn segments(&self, step: u32) -> Vec<PlaceSegment> {
-        let mut segments = Vec::new();
+        let WalkStep { depth, .. } = self.steps[step as usize];
+        let mut segments = vec![
+            PlaceSegment::Case {
+                variant: SymbolHandle::invalid()
+            };
+            depth as usize
+        ];
+        let mut remaining = segments.len();
         let mut current = Some(step);
         while let Some(step) = current {
             let step = self.steps[step as usize];
-            segments.extend(step.segment);
+            if let Some(segment) = step.segment {
+                remaining -= 1;
+                segments[remaining] = segment;
+            }
             current = step.parent;
         }
-        segments.reverse();
         segments
     }
 }
