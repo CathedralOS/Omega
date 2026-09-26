@@ -555,6 +555,10 @@ impl TerminalExecution {
                         self.release_reference(operation, source)?;
                         OperationFlow::Advance
                     }
+                    OperationKind::EstablishZeroedStructural { .. } => {
+                        self.execute_establish_zeroed_structural(operation)?;
+                        OperationFlow::Advance
+                    }
                     OperationKind::EstablishScalarArray { ref elements } => {
                         self.execute_scalar_array_establishment(operation, elements)?;
                         OperationFlow::Advance

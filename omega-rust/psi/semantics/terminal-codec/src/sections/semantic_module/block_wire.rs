@@ -301,6 +301,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         } => storage_operations::encode_element_view_subslice(
             writer, source, start, end, length, obligation,
         )?,
+        OperationKind::EstablishZeroedStructural {} => {
+            value_operations::encode_establish_zeroed_structural(writer)?
+        }
         OperationKind::EstablishTrivialAffineLocal { destination } => {
             value_operations::encode_establish_trivial_affine_local(writer, destination)?
         }
@@ -854,6 +857,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         operation_tags::CALL_UNIT => call_operations::decode_call_unit(reader)?,
         operation_tags::BOUNDARY_CALL => call_operations::decode_boundary_call(reader)?,
         operation_tags::PORT_WRITE => call_operations::decode_port_write(reader)?,
+        operation_tags::ESTABLISH_ZEROED_STRUCTURAL => {
+            value_operations::decode_establish_zeroed_structural(reader)?
+        }
         operation_tags::ESTABLISH_TRIVIAL_AFFINE_LOCAL => {
             value_operations::decode_establish_trivial_affine_local(reader)?
         }

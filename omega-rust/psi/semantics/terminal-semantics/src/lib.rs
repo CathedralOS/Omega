@@ -24,6 +24,7 @@ mod scalar_leaf_semantics;
 mod semantic_rows;
 mod static_path;
 mod structural_effect;
+mod zeroed_structural;
 #[cfg(test)]
 mod tests;
 
@@ -50,6 +51,7 @@ pub use proof_bearing_scalar::{
 };
 pub use record_field::{RecordFieldCarrier, record_field_carrier};
 pub use scalar_array::scalar_array_leaf_shape;
+pub use zeroed_structural::{ZeroedStructuralLeaf, zeroed_structural_leaves, zeroed_structural_shape};
 pub use scalar_leaf_schema::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
     ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,

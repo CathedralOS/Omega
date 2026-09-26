@@ -220,6 +220,38 @@ pub(super) fn validate_establish_byte_sequence_literal(
     Ok(())
 }
 
+pub(super) fn validate_establish_zeroed_structural(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::EstablishZeroedStructural {} = &operation.kind else {
+        unreachable!("dispatched validate_establish_zeroed_structural")
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("zeroed structural establishment has no structural result");
+    };
+    if result.multiplicity != StructuralMultiplicity::Unrestricted
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !matches!(
+            machine.structural_places.iter().find(|place| place.id == result.place),
+            Some(StructuralPlaceDeclaration {
+                kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
+            }) if *producer == operation.id && *structural_type == result.structural_type
+        )
+        || !terminal_semantics::zeroed_structural_shape(
+            module.structural_types.iter(),
+            result.structural_type,
+        )
+    {
+        return malformed("zeroed structural establishment has an invalid result shape");
+    }
+    Ok(())
+}
+
 pub(super) fn validate_establish_trivial_affine_local(
     module: &TerminalModule,
     machine: &TerminalMachine,

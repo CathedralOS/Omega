@@ -40,6 +40,7 @@ impl TerminalFuelSchedule {
             | OperationKind::ReleaseReference { .. }
             | OperationKind::EstablishScalarCase { .. }
             | OperationKind::EstablishScalarArray { .. }
+            | OperationKind::EstablishZeroedStructural { .. }
             | OperationKind::EstablishByteSequenceLiteral { .. }
             | OperationKind::ByteSequenceLength { .. }
             | OperationKind::ByteSequenceRead { .. }

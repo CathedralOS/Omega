@@ -52,6 +52,42 @@ pub(in crate::validation) fn validate_establish_byte_sequence_literal(
     Ok(())
 }
 
+/// A zeroed structural establishment declares no operands: its structural
+/// result must be an unrestricted operation result over a type whose whole
+/// storage is zero-constructible (recursively plain-scalar leaves under
+/// records and fixed arrays).
+pub(in crate::validation) fn validate_establish_zeroed_structural(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Result<(), ModuleError> {
+    let OperationKind::EstablishZeroedStructural {} = &operation.kind else {
+        unreachable!("dispatched validate_establish_zeroed_structural")
+    };
+    let Some(result) = operation.result.structural() else {
+        return Err(ModuleError::ZeroedStructuralResultMismatch(operation.id));
+    };
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+        || !matches!(
+            machine.structural_places.iter().find(|place| place.id == result.place),
+            Some(terminal_psi::StructuralPlaceDeclaration {
+                kind: StructuralPlaceKind::OperationResult { producer, structural_type },
+                ..
+            }) if *producer == operation.id && *structural_type == result.structural_type
+        )
+        || !terminal_semantics::zeroed_structural_shape(
+            module.structural_types.iter(),
+            result.structural_type,
+        )
+    {
+        return Err(ModuleError::ZeroedStructuralResultMismatch(operation.id));
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_establish_trivial_affine_local(
     module: &TerminalModule,
     machine: &TerminalMachine,

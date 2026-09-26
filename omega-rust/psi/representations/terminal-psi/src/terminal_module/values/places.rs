@@ -234,6 +234,7 @@ impl OperationKind {
             // runtime element (and so an obligation it owns).
             Self::ReleaseReference { .. }
             | Self::EstablishScalarArray { .. }
+            | Self::EstablishZeroedStructural { .. }
             | Self::EstablishPrimitiveLocal { .. }
             | Self::EstablishScalarCase { .. }
             | Self::StructuralCaseLeafCopy { .. }

@@ -468,6 +468,7 @@ pub(super) fn append_operation(
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishScalarArray { .. }
+        | OperationKind::EstablishZeroedStructural { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishRecord { .. }
         | OperationKind::MoveStructuralField { .. }

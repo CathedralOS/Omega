@@ -67,6 +67,7 @@ const TS_PRIMITIVE_PLACE: &str =
 const VAL_REFERENCES: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/references.rs";
 const VAL_STRUCTURAL_OPS: &str = "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/operations/structural_paths.rs";
+const VAL_UNIT_OPERATION: &str = "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/operations/unit_operation.rs";
 const VAL_BORROWED_WINDOWS: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/borrowed_windows.rs";
 const VAL_STRUCTURAL_SCALAR: &str =
@@ -589,6 +590,13 @@ static OP_ELEMENT_VIEW_SUBSLICE: TrustedSurfaceEntry = entry(
         VAL_OPS,
         VAL_ELEMENTS_SUBSLICE,
     ],
+);
+static OP_ESTABLISH_ZEROED_STRUCTURAL: TrustedSurfaceEntry = entry(
+    "operation:establish-zeroed-structural",
+    "a validated zeroed structural establishment",
+    "no proposition facts: the total validation judgment carries the authority",
+    &["formation:operation-validation"],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_UNIT_OPERATION],
 );
 static OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL: TrustedSurfaceEntry = entry(
     "operation:establish-trivial-affine-local",
@@ -1201,6 +1209,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::EstablishScalarCase => &OP_ESTABLISH_SCALAR_CASE,
         OperationSemanticTag::EstablishStructuralCase => &OP_ESTABLISH_STRUCTURAL_CASE,
         OperationSemanticTag::EstablishScalarArray => &OP_ESTABLISH_SCALAR_ARRAY,
+        OperationSemanticTag::EstablishZeroedStructural => &OP_ESTABLISH_ZEROED_STRUCTURAL,
         OperationSemanticTag::EstablishByteSequenceLiteral => &OP_ESTABLISH_BYTE_SEQUENCE_LITERAL,
         OperationSemanticTag::ByteSequenceLength => &OP_BYTE_SEQUENCE_LENGTH,
         OperationSemanticTag::ByteSequenceWrite => &OP_BYTE_SEQUENCE_WRITE,
