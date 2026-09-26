@@ -12,7 +12,9 @@
 //! `certificate_search.rs` is separate producer machinery, not part of the
 //! checker: it runs the bounded denotation-lane search once at production
 //! time and emits nodes whose only authority is that the checker re-decides
-//! them. Verification consumes certificates; it never runs this search.
+//! them. `admission/denotation.rs` owns replay of a supplied certificate under
+//! its recorded conversion. Verification consumes certificates; it never runs
+//! this search.
 
 #![forbid(unsafe_code)]
 //!
@@ -32,6 +34,7 @@ mod mathematical_core;
 mod predicate_denotation;
 mod proof;
 
+pub use admission::denotation::check_denotation_certificate;
 pub use admission::evidence::{
     AcceptedFact, AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind,
     AdmissionProfile, AuthorizedAdmission, CertificateEnvelope, EvidenceError, EvidenceRoute,
@@ -49,7 +52,7 @@ pub use admission::recursion::{
     RecursiveEdgeObligation, verify_recursive_component,
     verify_recursive_component_with_machine_parameters,
 };
-pub use certificate_search::{check_denotation_certificate, produce_denotation_certificates};
+pub use certificate_search::produce_denotation_certificates;
 pub use classicality::ProofRuleFoundation;
 pub use integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, ClosedIntegerEvaluator, compare_integer_math_terms,

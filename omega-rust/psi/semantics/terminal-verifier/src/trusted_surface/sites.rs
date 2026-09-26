@@ -284,7 +284,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/admission.rs",
-        sha256: Some("a1166a15e645d8bafa31b8091c753a3d4c48e9e9f4dcc8832f6e47f3125e5683"),
+        sha256: Some("12ced6eecd22f86f8c238ffb1f14cf96299a86021abc37cc9b28b7ea68413bb0"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/proof-admission/src/admission/denotation.rs",
+        sha256: Some("d81711d9858c6b8ceb8882ae3a63a9f602a7723615203f63c64c0f5f466b0b2f"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -304,7 +309,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/certificate_search.rs",
-        sha256: Some("9d5642235dd9c82d5bae753df16f159a1d1192b96f80005956445747d10b8ce4"),
+        sha256: Some("dfc3829e4a06433f81793d31e481e0484636e1916734bccaf2878521d6ec83cd"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -379,7 +384,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/lib.rs",
-        sha256: Some("4c0009ac38b7faafb48271624040d1eefba152b59abe7204381909774fd7a8f9"),
+        sha256: Some("4d4af3bd653a6586862d2a7b470c102117e28b4bcca44fb812af31f9e760fa5b"),
         inventory_machinery: false,
     },
     ImplementationSite {

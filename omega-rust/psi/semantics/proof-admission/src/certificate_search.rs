@@ -4,7 +4,7 @@
 //! bounded denotation-lane space the crash verifier accepts and emits
 //! [`terminal_psi::CrashCertificate`] rosters naming which lane each node was
 //! built under. Receivers never run this search — they replay the recorded
-//! conversion through [`check_denotation_certificate`] and re-decide every
+//! conversion through [`crate::check_denotation_certificate`] and re-decide every
 //! supplied node against goals they reconstructed themselves.
 //!
 //! Both the lowering producer and verification test fixtures share this
@@ -64,29 +64,6 @@ pub fn produce_denotation_certificates(
         .collect()
 }
 
-/// Check a supplied crash certificate without searching. The recorded
-/// denotation lane is part of the certificate: a node produced under equality
-/// transport is replayed against that conversion exactly as produced.
-pub fn check_denotation_certificate(
-    context: &PropositionContext,
-    goal: &Proposition,
-    requirements: &[Proposition],
-    semantic_axioms: &[Proposition],
-    certificate: &CrashCertificate,
-) -> bool {
-    let convert = if certificate.with_value_equalities {
-        check_predicate_denotations_with_value_equalities
-    } else {
-        check_predicate_denotations
-    };
-    let Ok(denotations) = convert(context, goal, requirements, semantic_axioms) else {
-        return false;
-    };
-    denotations
-        .check_certificate(context, &certificate.proof)
-        .is_ok()
-}
-
 /// Establish a goal from the supplied premises by producing then re-deciding
 /// certificates. Test support for the search itself; production paths call
 /// `produce_denotation_certificates` and let the receiver decide.
@@ -100,7 +77,13 @@ fn establishes(
     produce_denotation_certificates(context, goal, requirements, semantic_axioms)
         .iter()
         .any(|certificate| {
-            check_denotation_certificate(context, goal, requirements, semantic_axioms, certificate)
+            crate::check_denotation_certificate(
+                context,
+                goal,
+                requirements,
+                semantic_axioms,
+                certificate,
+            )
         })
 }
 
@@ -379,10 +362,10 @@ fn projection(
 #[cfg(test)]
 mod tests {
     use super::{
-        MAXIMUM_PROOF_DEPTH, MAXIMUM_SEARCH_STEPS, check_denotation_certificate,
-        common_consequence, establishes, produce_denotation_certificates, prove,
+        MAXIMUM_PROOF_DEPTH, MAXIMUM_SEARCH_STEPS, common_consequence, establishes,
+        produce_denotation_certificates, prove,
     };
-    use crate::{ProofNode, ProofRule, check_certificate};
+    use crate::{ProofNode, ProofRule, check_certificate, check_denotation_certificate};
     use semantic_vocabulary::{Proposition, PropositionContext};
 
     #[test]
