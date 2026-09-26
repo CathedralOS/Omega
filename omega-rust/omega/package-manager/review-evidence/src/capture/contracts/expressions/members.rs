@@ -265,10 +265,18 @@ pub(crate) fn contract_member_path_root(
     if let Some((owner, _)) = validation::reserved_result_owner(&compilation.typed, expression) {
         // The result has no parameter symbol. Rejoin the exact authored
         // postcondition owner before matching its retained semantic place rows.
-        return matches!(context.owner,
+        // A public trait requirement owns its `result` through the signature
+        // symbol: the review context carries it as `StateSignature`.
+        return (match context.owner {
             checked_trees::ContractProofFactOwner::Machine { machine_symbol }
-            | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. }
-                if machine_symbol == owner)
+            | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } => {
+                machine_symbol == owner
+            }
+            checked_trees::ContractProofFactOwner::StateSignature { state_symbol, .. } => {
+                state_symbol == owner
+            }
+            _ => false,
+        })
         .then_some(facts::PlaceRoot::Expression(expression));
     }
     let typed_trees::expression::ExpressionNode::Name(path) =
