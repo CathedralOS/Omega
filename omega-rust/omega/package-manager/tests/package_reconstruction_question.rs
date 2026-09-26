@@ -18,8 +18,7 @@ use package_manager::review::{
 };
 use package_source::PrimaryGitChoices;
 use package_source::{
-    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
-    SourceResolverStorage,
+    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolver,
 };
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -52,7 +51,7 @@ fn resolve_workspace_package_closure_from_hardened_base(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
@@ -70,7 +69,7 @@ fn resolve_external_closure(
     live_root: impl AsRef<Path>,
     cache_dir: impl AsRef<Path>,
 ) -> ResolvedPackageSourceClosure {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
         .expect("source storage");
     resolve_external_local_package_closure(
         live_root,

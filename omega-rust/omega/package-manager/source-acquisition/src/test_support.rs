@@ -1,6 +1,7 @@
 //! Shared fixture construction for owner-local package-source tests.
 
 use crate::PrimaryGitChoices;
+use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::repository::VerifiedGitRepository;
@@ -11,7 +12,6 @@ use crate::limits::LocalSourceLimits;
 use crate::local::operations::resolve_local_source_snapshot;
 use crate::local::resolution_observations::ResolvedLocalSnapshot;
 use crate::observations::resolved::ResolvedGitSource;
-use crate::storage::SourceResolverStorage;
 use crate::tree::filesystem::open_absolute_directory_nofollow;
 use std::ffi::OsStr;
 use std::io::Write;
@@ -91,7 +91,7 @@ pub(crate) fn resolve_git_source_from_hardened_base(
         .execution_backend
         .executable()
         .to_path_buf();
-    let storage = SourceResolverStorage::for_hardened_base(
+    let storage = SourceResolver::for_hardened_base(
         hardened_base,
         PrimaryGitChoices {
             explicit_git: Some(primary_git.as_ref()),
@@ -106,8 +106,7 @@ pub(crate) fn resolve_local_source_snapshot_from_hardened_base(
     hardened_base: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
-    let storage =
-        SourceResolverStorage::for_hardened_base(hardened_base, PrimaryGitChoices::default())?;
+    let storage = SourceResolver::for_hardened_base(hardened_base, PrimaryGitChoices::default())?;
     resolve_local_source_snapshot(root, &storage, limits)
 }
 

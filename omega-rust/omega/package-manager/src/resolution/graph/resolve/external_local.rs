@@ -18,7 +18,7 @@ use crate::resolution::source::{
 use package_source::PrimaryGitChoices;
 use package_source::local::staging::StagedLocalSnapshot;
 use package_source::{ExternalSourceContext, SourceLineage};
-use package_source::{LocalSourceLimits, SourceResolverStorage};
+use package_source::{LocalSourceLimits, SourceResolver};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -38,7 +38,7 @@ pub(crate) fn resolve_external_local_package_closure_from_hardened_base(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
         .map_err(|error| {
             ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
@@ -55,7 +55,7 @@ pub(crate) fn resolve_external_local_package_closure_from_hardened_base(
 pub fn resolve_external_local_package_closure(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
@@ -78,7 +78,7 @@ pub fn resolve_external_local_package_closure(
 pub fn resolve_external_local_project_closure(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
     options: GitResolutionOptions<'_>,
@@ -103,7 +103,7 @@ pub fn resolve_external_local_project_closure(
 pub fn resolve_staged_external_local_project_closure(
     stage: &StagedLocalSnapshot,
     source_context: ExternalSourceContext,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
     options: GitResolutionOptions<'_>,
@@ -115,7 +115,7 @@ pub fn resolve_staged_external_local_project_closure(
         storage,
         source_limits,
         closure_limits,
-        &mut GitAcquisitionCache::with_options(options),
+        &mut GitAcquisitionCache::with_options(storage, options),
     )
 }
 
@@ -139,7 +139,7 @@ fn verify_pin_root(
 fn resolve_staged_external_local_project(
     stage: &StagedLocalSnapshot,
     source_context: ExternalSourceContext,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
     git_acquisitions: &mut GitAcquisitionCache<'_>,
@@ -177,7 +177,7 @@ fn resolve_staged_external_local_project(
 fn resolve_external_local_declared_closure(
     live_root: &Path,
     source_context: ExternalSourceContext,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
     application_root_allowed: bool,
@@ -195,7 +195,7 @@ fn resolve_external_local_declared_closure(
         source_limits,
         closure_limits,
         application_root_allowed,
-        &mut GitAcquisitionCache::with_options(options),
+        &mut GitAcquisitionCache::with_options(storage, options),
     );
     storage.verify_path_identity().map_err(|error| {
         ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))

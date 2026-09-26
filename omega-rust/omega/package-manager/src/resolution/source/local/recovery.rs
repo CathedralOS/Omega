@@ -10,13 +10,13 @@ use package_source::local::operations::{
     recover_cached_local_source_in_lane, verify_package_source_snapshot,
 };
 use package_source::{
-    ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceResolverStorage,
+    ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceResolver,
 };
 
 pub(crate) fn recover_cached_external_local_source(
     current: &PackageSourceCustody,
     expected: &SourceContentDigest,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
 ) -> Result<Option<PackageSourceCustody>, ResolvePackageSourceError> {
     let SourceLineage::ExternalLocal(origin) = current.key().source_lineage() else {
         return Ok(None);

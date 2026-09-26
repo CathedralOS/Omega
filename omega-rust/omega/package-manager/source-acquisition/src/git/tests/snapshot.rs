@@ -1,7 +1,7 @@
 use super::{
     Arc, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_SNAPSHOT_METADATA, GIT_SNAPSHOT_SOURCE,
     GitBlobBytes, GitExecutionTransport, GitTreeEntry, GitTreeEntryKind, LocalSourceLimits, Path,
-    PathBuf, SourceResolveError, SourceResolverStorage, create_git_source, git_cache_entry_root,
+    PathBuf, SourceResolveError, SourceResolver, create_git_source, git_cache_entry_root,
     local_git_request, make_tree_owner_writable, publish_git_member_snapshot,
     read_git_blobs_batch_from_path, resolve_git_source_from_hardened_base, run_test_git,
     run_test_git_with_input, temp_root, test_system_git_executor,
@@ -43,9 +43,8 @@ fn authenticated_member_snapshot_publishes_directly_in_workspace_member_lane() {
     let (tree, entries) = authenticated_single_file_member_tree(&repository);
     let storage_base = temp_root("git-member-snapshot-storage");
     std::fs::create_dir_all(&storage_base).expect("create retained storage base");
-    let storage =
-        SourceResolverStorage::for_hardened_base(&storage_base, PrimaryGitChoices::default())
-            .expect("retain resolver storage");
+    let storage = SourceResolver::for_hardened_base(&storage_base, PrimaryGitChoices::default())
+        .expect("retain resolver storage");
     let executor =
         test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
 
@@ -115,9 +114,8 @@ fn authenticated_member_snapshot_reuse_rejects_tampered_publication() {
     let (tree, entries) = authenticated_single_file_member_tree(&repository);
     let storage_base = temp_root("git-member-snapshot-reuse-storage");
     std::fs::create_dir_all(&storage_base).expect("create retained storage base");
-    let storage =
-        SourceResolverStorage::for_hardened_base(&storage_base, PrimaryGitChoices::default())
-            .expect("retain resolver storage");
+    let storage = SourceResolver::for_hardened_base(&storage_base, PrimaryGitChoices::default())
+        .expect("retain resolver storage");
     let executor =
         test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
 
@@ -174,9 +172,8 @@ fn authenticated_member_snapshot_rejects_replaced_workspace_member_lane() {
     let (tree, entries) = authenticated_single_file_member_tree(&repository);
     let storage_base = temp_root("git-member-snapshot-custody-storage");
     std::fs::create_dir_all(&storage_base).expect("create retained storage base");
-    let storage =
-        SourceResolverStorage::for_hardened_base(&storage_base, PrimaryGitChoices::default())
-            .expect("retain resolver storage");
+    let storage = SourceResolver::for_hardened_base(&storage_base, PrimaryGitChoices::default())
+        .expect("retain resolver storage");
     let lane_path = storage.workspace_members().path().to_path_buf();
     let retained_path = lane_path.with_extension("retained");
     std::fs::rename(&lane_path, &retained_path).expect("move retained lane");

@@ -13,7 +13,7 @@ use crate::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_project_closure,
 };
 use package_source::PrimaryGitChoices;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -188,7 +188,7 @@ impl SourcePreparationFixture {
     }
 
     fn closure(&self) -> crate::resolution::graph::ResolvedPackageSourceClosure {
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             self.0.join("resolved"),
             PrimaryGitChoices::default(),
         )
@@ -551,7 +551,7 @@ reaches Console
     }
 
     fn closure(&self) -> crate::resolution::graph::ResolvedPackageSourceClosure {
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             self.0.join("resolved"),
             PrimaryGitChoices::default(),
         )
@@ -847,7 +847,7 @@ impl IndependentComponentFixture {
     }
 
     fn closure(&self) -> crate::resolution::graph::ResolvedPackageSourceClosure {
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             self.0.join("resolved"),
             PrimaryGitChoices::default(),
         )
@@ -954,7 +954,7 @@ invokes FilesystemHost;
     }
 
     fn closure(&self) -> crate::resolution::graph::ResolvedPackageSourceClosure {
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             self.0.join("resolved"),
             PrimaryGitChoices::default(),
         )

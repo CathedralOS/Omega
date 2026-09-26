@@ -7,7 +7,7 @@ use crate::resolution::graph::{
     resolve_locked_package_source_closure,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
-use package_source::{LocalSourceLimits, SourceResolverStorage};
+use package_source::{LocalSourceLimits, SourceResolver};
 use std::fmt;
 use target::TargetProfile;
 
@@ -78,7 +78,7 @@ pub fn recover_locked_sources(
     lock: &PackageLock,
     target: TargetProfile,
     root_request: &PackageRootSourceRequest,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     options: LockedSourceRecoveryOptions,
 ) -> Result<ResolvedPackageSourceClosure, RecoverLockedSourcesError> {
     let retained = lock

@@ -11,7 +11,7 @@ use crate::review::{
 };
 use package_evidence::ledger::encode_ordinary_package_obligation_ledger;
 use package_source::PrimaryGitChoices;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -133,11 +133,9 @@ fn shared_product_graph_and_single_emission_preserve_reference_bytes_and_limits(
     );
     fixture.package("shared", "");
     fixture.package("tool", "");
-    let storage = SourceResolverStorage::for_hardened_base(
-        fixture.0.join("cache"),
-        PrimaryGitChoices::default(),
-    )
-    .unwrap();
+    let storage =
+        SourceResolver::for_hardened_base(fixture.0.join("cache"), PrimaryGitChoices::default())
+            .unwrap();
     let closure = resolve_external_local_package_closure(
         fixture.0.join("root"),
         ExternalSourceContext::derive(b"reconstruction-emission"),
@@ -293,11 +291,9 @@ fn dual_role_questions_keep_exact_context_and_reject_substitutions() {
         "builder.depend(Source::Path { location: \"../leaf\" });",
     );
     fixture.package("leaf", "");
-    let storage = SourceResolverStorage::for_hardened_base(
-        fixture.0.join("cache"),
-        PrimaryGitChoices::default(),
-    )
-    .unwrap();
+    let storage =
+        SourceResolver::for_hardened_base(fixture.0.join("cache"), PrimaryGitChoices::default())
+            .unwrap();
     let closure = resolve_external_local_package_closure(
         fixture.0.join("root"),
         ExternalSourceContext::derive(b"dual-reconstruction"),

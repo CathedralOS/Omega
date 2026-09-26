@@ -17,7 +17,7 @@ use package_manager::review::{
     SemanticBindingReview, compile_resolved_package_candidate_for_production,
 };
 use package_source::{
-    LocalSourceLimits, PrimaryGitChoices, SourceLineage, SourceRelativePath, SourceResolverStorage,
+    LocalSourceLimits, PrimaryGitChoices, SourceLineage, SourceRelativePath, SourceResolver,
 };
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -127,11 +127,9 @@ fn prepare(
             ),
         );
     }
-    let storage = SourceResolverStorage::for_hardened_base(
-        fixture.0.join("cache"),
-        PrimaryGitChoices::default(),
-    )
-    .unwrap();
+    let storage =
+        SourceResolver::for_hardened_base(fixture.0.join("cache"), PrimaryGitChoices::default())
+            .unwrap();
     let closure = resolve_workspace_project_closure(
         &SourceLineage::git("https://example.com/named-input-fixture.git").unwrap(),
         SourceRelativePath::parse("consumer").unwrap(),
@@ -336,7 +334,7 @@ fn shared_dependency_activation_requires_equal_complete_input_assignments() {
 }
 "#,
         );
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             fixture.0.join("cache"),
             PrimaryGitChoices::default(),
         )

@@ -17,7 +17,7 @@ use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourc
 use crate::resolution::source::{PackageSourceCustody, ResolvePackageSourceError};
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{
-    ExternalSourceContext, GitSourceRequest, LocalSourceLimits, SourceResolverStorage,
+    ExternalSourceContext, GitSourceRequest, LocalSourceLimits, SourceResolver,
     WorkspaceLineageIdentity,
 };
 use std::collections::BTreeMap;
@@ -32,7 +32,7 @@ pub fn resolve_locked_package_source_closure(
     subject: &CanonicalSourceClosureSubject,
     root_request: &PackageRootSourceRequest,
     acquisition: GitExactRevisionAcquisition,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
     subject_limits: CanonicalSourceClosureSubjectLimits,
@@ -63,7 +63,7 @@ pub fn resolve_locked_local_project_closure(
     subject: &CanonicalSourceClosureSubject,
     root_request: &PackageRootSourceRequest,
     acquisition: GitExactRevisionAcquisition,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
     subject_limits: CanonicalSourceClosureSubjectLimits,
@@ -91,7 +91,7 @@ fn resolve(
     subject: &CanonicalSourceClosureSubject,
     root_request: &PackageRootSourceRequest,
     acquisition: GitExactRevisionAcquisition,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
     subject_limits: CanonicalSourceClosureSubjectLimits,
@@ -178,7 +178,7 @@ struct Resolver<'a> {
     root_request: &'a PackageRootSourceRequest,
     root_policy: RootPolicy,
     acquisition: GitExactRevisionAcquisition,
-    storage: &'a SourceResolverStorage,
+    storage: &'a SourceResolver,
     source_limits: LocalSourceLimits,
     local_roots: BTreeMap<PackageKey, PathBuf>,
     git_requests: BTreeMap<PackageKey, GitSourceRequest>,

@@ -25,7 +25,7 @@ pub enum GitExactRevisionAcquisition {
 }
 
 /// Reconstruct whole-source custody from recorded commit/root-tree identities
-/// with the selected primary Git (`lane.primary_git()?` trusts the lane's own).
+/// with the selected primary Git from `resolver.primary_git()?`.
 /// The original authored request remains in the result and cache metadata.
 /// IDs are expected content, not proof of acquisition or package acceptance.
 /// Named workspace member selection is not performed by this entrance.

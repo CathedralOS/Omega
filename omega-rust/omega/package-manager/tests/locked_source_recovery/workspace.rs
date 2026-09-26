@@ -1,8 +1,8 @@
 use super::{
     ExternalSourceContext, LocalSourceLimits, LockedSourceRecoveryOptions,
     PackageRootSourceRequest, PackageSourceClosureLimits, RecoverLockedSourcesError,
-    ResolvedPackageSourceClosure, SourceResolverStorage, TARGET, Tree, assert_fresh_matches,
-    capture_lock, fs, package, recover_locked_sources,
+    ResolvedPackageSourceClosure, SourceResolver, TARGET, Tree, assert_fresh_matches, capture_lock,
+    fs, package, recover_locked_sources,
 };
 use package_manager::resolution::graph::{
     resolve_workspace_project_closure, resolve_workspace_project_closure_in_context,
@@ -11,7 +11,7 @@ use package_source::{ExternalLocalLineage, SourceLineage, SourceRelativePath};
 
 fn workspace(
     tree: &Tree,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     escaping: bool,
 ) -> ResolvedPackageSourceClosure {
     let mut dependencies =

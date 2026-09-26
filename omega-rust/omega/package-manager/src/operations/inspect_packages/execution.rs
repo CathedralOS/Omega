@@ -14,14 +14,14 @@ use crate::review::{
     compile_resolved_package_reviews_reusing,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::borrow::Borrow;
 use std::path::Path;
 use target::TargetProfile;
 
 const MAXIMUM_REPORT_BYTES: usize = 8 * 1024 * 1024;
 
-pub(super) fn inspect<Storage: Borrow<SourceResolverStorage>>(
+pub(super) fn inspect<Storage: Borrow<SourceResolver>>(
     transaction: &PackageFileTransaction,
     requested_targets: Vec<TargetProfile>,
     details: bool,
@@ -143,7 +143,7 @@ fn check(
     project_root: &Path,
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     offline: bool,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     preparation: &mut CandidateSourcePreparation,

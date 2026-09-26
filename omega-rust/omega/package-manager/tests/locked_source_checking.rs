@@ -13,7 +13,7 @@ use package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
 use package_manager::review::compile_resolved_package_reviews;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::fs;
 use std::path::PathBuf;
 use target::TargetProfile;

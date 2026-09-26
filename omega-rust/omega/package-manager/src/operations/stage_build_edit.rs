@@ -4,9 +4,7 @@ use std::path::Path;
 
 use crate::declarations::dependencies::edit::BuildFileReplacement;
 use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
-use package_source::{
-    LocalSourceLimits, SourceRelativePath, SourceResolveError, SourceResolverStorage,
-};
+use package_source::{LocalSourceLimits, SourceRelativePath, SourceResolveError, SourceResolver};
 
 /// Stage an automatic dependency edit after checking the planner's old-file
 /// digest. Manual and unchanged plans do not contain a replacement to stage.
@@ -17,7 +15,7 @@ use package_source::{
 /// as package lineage and the base for relative dependencies.
 pub fn stage_build_dependency_edit(
     replacement: &BuildFileReplacement,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     limits: LocalSourceLimits,
 ) -> Result<StagedLocalSnapshot, SourceResolveError> {
     let root = replacement

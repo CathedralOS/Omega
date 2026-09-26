@@ -5,13 +5,13 @@ pub use super::recovery::recover_cached_local_source_in_lane;
 use std::path::Path;
 
 use crate::SourceResolveError;
+use crate::SourceResolver;
 use crate::custody::tree::CacheCustodyKind;
 use crate::error::local_snapshot_invalid;
 use crate::identity::SourceContentDigest;
 use crate::limits::LocalSourceLimits;
 use crate::snapshot::permissions::verify_open_snapshot_tree_modes;
 use crate::storage::RetainedStorageLane;
-use crate::storage::SourceResolverStorage;
 
 use super::resolution_observations::{
     ResolvedLocalSnapshot, ResolvedLocalSource, VerifiedPackageSourceEntry,
@@ -125,12 +125,12 @@ pub fn resolve_local_source_snapshot_in_lane(
 
 pub fn resolve_local_source_snapshot(
     root: impl AsRef<Path>,
-    storage: &SourceResolverStorage,
+    resolver: &SourceResolver,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
-    storage.verify_path_identity()?;
+    resolver.verify_path_identity()?;
     let result =
-        resolve_local_source_snapshot_in_lane(root, storage.external_local_sources(), limits);
-    storage.verify_path_identity()?;
+        resolve_local_source_snapshot_in_lane(root, resolver.external_local_sources(), limits);
+    resolver.verify_path_identity()?;
     result
 }

@@ -14,7 +14,7 @@ use package_source::{
     ExternalLocalLineage, ExternalSourceContext, ImmutableSourceResolution, SourceContentDigest,
     SourceLineage,
 };
-use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
+use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolver};
 use std::path::Path;
 
 /// Bind a proposed project tree to its original live path and consuming context.
@@ -61,8 +61,7 @@ pub fn resolve_external_local_package_source_from_hardened_base(
     limits: LocalSourceLimits,
     source_context: ExternalSourceContext,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    let storage =
-        SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
+    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
     resolve_external_local_package_source(source_root, &storage, limits, source_context)
 }
 
@@ -105,7 +104,7 @@ pub(crate) fn resolve_external_local_project_source_in_lane(
 
 pub fn resolve_external_local_package_source(
     source_root: impl AsRef<Path>,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     limits: LocalSourceLimits,
     source_context: ExternalSourceContext,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
@@ -122,7 +121,7 @@ pub fn resolve_external_local_package_source(
 
 pub fn resolve_external_local_project_source(
     source_root: impl AsRef<Path>,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     limits: LocalSourceLimits,
     source_context: ExternalSourceContext,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {

@@ -9,8 +9,7 @@ use package_manager::resolution::graph::{
 };
 use package_source::PrimaryGitChoices;
 use package_source::{
-    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
-    SourceResolverStorage,
+    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolver,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -118,7 +117,7 @@ fn resolve_diamond(tree: &TempTree, role: &str) -> ResolvedPackageSourceClosure 
     }
     write_member(&sources.join("shared"), "package", "shared_package", "");
     let storage =
-        SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
+        SourceResolver::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
             .expect("source resolver storage");
     resolve_external_local_project_closure(
         sources.join("root"),
@@ -238,7 +237,7 @@ fn workspace_graph_text_recovers_without_old_source_or_cache() {
     let lineage = SourceLineage::git("https://github.com/CathedralOS/source-text-fixture.git")
         .expect("workspace source lineage");
     let storage =
-        SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
+        SourceResolver::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
             .expect("workspace resolver storage");
     let closure = resolve_workspace_package_closure(
         &lineage,

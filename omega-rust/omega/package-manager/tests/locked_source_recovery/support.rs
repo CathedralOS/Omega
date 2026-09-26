@@ -2,8 +2,8 @@ use super::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock,
     PackageLockRecoveryLimits, PackageLockTarget, PackageRootSourceRequest, Path, PathBuf,
-    ResolvedPackageSourceClosure, SourceResolverStorage, TARGET, compile_resolved_package_reviews,
-    fs, package_compilation_inputs,
+    ResolvedPackageSourceClosure, SourceResolver, TARGET, compile_resolved_package_reviews, fs,
+    package_compilation_inputs,
 };
 use package_manager::review::SemanticBindingReview;
 use package_source::PrimaryGitChoices;
@@ -30,9 +30,8 @@ impl Tree {
     pub(crate) fn path(&self, relative: &str) -> PathBuf {
         self.0.join(relative)
     }
-    pub(crate) fn storage(&self, name: &str) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.path(name), PrimaryGitChoices::default())
-            .unwrap()
+    pub(crate) fn storage(&self, name: &str) -> SourceResolver {
+        SourceResolver::for_hardened_base(self.path(name), PrimaryGitChoices::default()).unwrap()
     }
 }
 impl Drop for Tree {

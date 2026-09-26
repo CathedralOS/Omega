@@ -589,7 +589,7 @@ mod tests {
         resolve_external_local_package_closure,
     };
     use package_source::{
-        ExternalSourceContext, LocalSourceLimits, PrimaryGitChoices, SourceResolverStorage,
+        ExternalSourceContext, LocalSourceLimits, PrimaryGitChoices, SourceResolver,
     };
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -626,7 +626,7 @@ mod tests {
         }
 
         fn closure(&self) -> ResolvedPackageSourceClosure {
-            let storage = SourceResolverStorage::for_hardened_base(
+            let storage = SourceResolver::for_hardened_base(
                 self.0.join("cache"),
                 PrimaryGitChoices::default(),
             )

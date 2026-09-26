@@ -2,7 +2,7 @@ use super::fixture::*;
 use package_manager::PackageCommandStatus;
 use package_manager::operations::{PackageInspectionOptions, inspect_packages};
 use package_source::PrimaryGitChoices;
-use package_source::SourceResolverStorage;
+use package_source::SourceResolver;
 
 #[test]
 fn inspection_keeps_accepted_git_pin_when_head_moves_and_cache_is_missing() {
@@ -92,11 +92,8 @@ fn inspect_with_offline(
             build_inputs: None,
         },
         Some(
-            &SourceResolverStorage::for_hardened_base(
-                fixture.path("cache"),
-                PrimaryGitChoices::default(),
-            )
-            .unwrap(),
+            &SourceResolver::for_hardened_base(fixture.path("cache"), PrimaryGitChoices::default())
+                .unwrap(),
         ),
     )
     .unwrap();

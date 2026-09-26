@@ -1,6 +1,6 @@
 use super::super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, Path, PathBuf,
-    SourceRelativePath, SourceResolverStorage, resolve_external_local_project_closure,
+    SourceRelativePath, SourceResolver, resolve_external_local_project_closure,
     resolve_staged_external_local_project_closure,
 };
 use super::super::{run_test_git, temp_root, write_application};
@@ -84,9 +84,8 @@ impl Fixture {
         self.directory.join(path)
     }
 
-    pub(super) fn storage(&self, name: &str) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.path(name), PrimaryGitChoices::default())
-            .unwrap()
+    pub(super) fn storage(&self, name: &str) -> SourceResolver {
+        SourceResolver::for_hardened_base(self.path(name), PrimaryGitChoices::default()).unwrap()
     }
 
     pub(super) fn repository(&self) {
@@ -121,7 +120,7 @@ impl Fixture {
 
     pub(super) fn resolve(
         &self,
-        storage: &SourceResolverStorage,
+        storage: &SourceResolver,
         proposed: Option<&str>,
         options: GitResolutionOptions<'_>,
     ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {

@@ -16,7 +16,8 @@ src/
 │   └── identity.rs   canonical exact-tree identity
 ├── snapshot/       source-neutral construction, verification, and publication
 ├── custody/        locks, retained-tree validation, and cache publication
-├── storage.rs      retained private storage and explicit acquisition lanes
+├── source_resolver.rs session entrance: retain storage and select host Git once
+├── storage.rs      retained root and lane directory custody
 ├── local/          local-source adapter and issued local observations
 │   ├── recovery.rs     verified historical bytes from the existing snapshot cache
 │   ├── staging.rs      proposed file edits with original live-source identity
@@ -54,7 +55,14 @@ Package declarations, graph reconciliation, review, and admission remain
 manager responsibilities. `SourceRelativePath` is lexical source navigation,
 not an authored workspace-member declaration.
 
-The crate root retains ordinary whole-storage entry points. Callers that
+`source_resolver::SourceResolver` is the session entrance. Its constructors first
+retain the private root, capture host Git outside package-controlled roots, then
+create and verify the acquisition lanes. The session retains one optional Git
+selection; local resolution works when no host Git is available. Git acquisition
+receives the session's selection explicitly. Root, lane, and child-lane custody
+contain only filesystem state and never select or retain an executable.
+
+The crate root exposes ordinary whole-session entry points. Callers that
 already hold one retained lane use the responsibility paths directly:
 `git::resolution` for Git acquisition, `local::operations` and `local::model`
 for exact snapshot work, and `storage::RetainedStorageLane` for lane custody.

@@ -11,7 +11,7 @@ use package_manager::review::{
     compile_resolved_package_reviews, triage_review_update,
 };
 use package_source::PrimaryGitChoices;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -81,7 +81,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     let context = ExternalSourceContext::derive(b"provider-selection-conflict");
     write_provider_package(&live, "MonotonicClock");
 
-    let baseline_storage = SourceResolverStorage::for_hardened_base(
+    let baseline_storage = SourceResolver::for_hardened_base(
         tree.path("baseline-cache"),
         PrimaryGitChoices::default(),
     )
@@ -102,7 +102,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     .expect("compile baseline provider evidence");
 
     write_provider_package(&live, "WallClock");
-    let candidate_storage = SourceResolverStorage::for_hardened_base(
+    let candidate_storage = SourceResolver::for_hardened_base(
         tree.path("candidate-cache"),
         PrimaryGitChoices::default(),
     )

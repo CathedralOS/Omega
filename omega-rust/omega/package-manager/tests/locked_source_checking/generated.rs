@@ -1,14 +1,14 @@
 use super::{
     LocalSourceLimits, LockedSourceRecoveryOptions, PackageSourceClosureLimits, PathBuf,
-    ResolvedPackageSourceClosure, SourceResolverStorage, TARGET, Tree, assert_fresh_matches,
-    capture_lock, check_locked_sources, fs,
+    ResolvedPackageSourceClosure, SourceResolver, TARGET, Tree, assert_fresh_matches, capture_lock,
+    check_locked_sources, fs,
 };
 use package_manager::resolution::graph::resolve_workspace_project_closure;
 use package_source::{SourceLineage, SourceRelativePath};
 
 pub(super) fn generated_workspace(
     tree: &Tree,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
 ) -> ResolvedPackageSourceClosure {
     let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

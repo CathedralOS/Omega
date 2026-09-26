@@ -2,7 +2,7 @@ use super::{
     CanonicalSourceClosureSubjectLimits, ExternalSourceContext, GitExactRevisionAcquisition,
     LocalSourceLimits, LockedSourceRecoveryOptions, PackageLock, PackageLockRecoveryLimits,
     PackageRootSourceRequest, PackageSourceClosureLimits, RecoverLockedSourcesError,
-    ResolvedPackageSourceClosure, SourceResolverStorage, TARGET, TargetProfile, Tree,
+    ResolvedPackageSourceClosure, SourceResolver, TARGET, TargetProfile, Tree,
     assert_fresh_matches, capture_lock, fs, package, recover_locked_sources,
 };
 use package_manager::resolution::graph::GitResolutionOptions;
@@ -13,7 +13,7 @@ use package_manager::resolution::graph::{
 use package_manager::resolution::source::ResolvePackageSourceError;
 use package_source::SourceResolveError;
 
-fn diamond(tree: &Tree, storage: &SourceResolverStorage) -> ResolvedPackageSourceClosure {
+fn diamond(tree: &Tree, storage: &SourceResolver) -> ResolvedPackageSourceClosure {
     package(
         &tree.path("sources/root"),
         "root",

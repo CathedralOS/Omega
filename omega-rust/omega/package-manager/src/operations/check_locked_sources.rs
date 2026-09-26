@@ -11,7 +11,7 @@ use crate::review::{
     LockedPolicyComparisonError, RestrictedBuildCheckpoint, compare_locked_package_policies,
     compile_resolved_package_reviews_with_checkpoint,
 };
-use package_source::SourceResolverStorage;
+use package_source::SourceResolver;
 use std::fmt;
 use std::path::Path;
 use target::TargetProfile;
@@ -115,7 +115,7 @@ pub fn check_locked_sources<'lock>(
     lock: &'lock PackageLock,
     target: TargetProfile,
     root_request: &PackageRootSourceRequest,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     options: LockedSourceRecoveryOptions,
     build_root: &Path,
 ) -> Result<CheckedLockedSources<'lock>, CheckLockedSourcesError> {

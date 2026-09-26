@@ -6,7 +6,7 @@ use super::{
     PackageReviewPropositionEvidence, PackageReviewRepresentationTcbKind,
     PackageReviewSourceLocationRole, PackageSourceClosureLimits, Path, PathBuf,
     ResolvePackageSourceError, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
-    SourceLineage, SourceRelativePath, SourceResolverStorage, SystemTime, UNIX_EPOCH,
+    SourceLineage, SourceRelativePath, SourceResolver, SystemTime, UNIX_EPOCH,
     resolve_workspace_package_closure,
 };
 use package_source::PrimaryGitChoices;
@@ -57,7 +57,7 @@ pub(super) fn resolve_workspace_package_closure_from_hardened_base(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;

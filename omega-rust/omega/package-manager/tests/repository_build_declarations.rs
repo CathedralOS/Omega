@@ -8,7 +8,7 @@ use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_project_closure,
 };
 use package_source::PrimaryGitChoices;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -193,11 +193,9 @@ fn compiler_application_and_standard_library_declare_their_kinds() {
 fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependency() {
     let repository = repository_root();
     let temp = TempTree::new("ordinary-standard-library-edges");
-    let storage = SourceResolverStorage::for_hardened_base(
-        temp.0.join("resolved"),
-        PrimaryGitChoices::default(),
-    )
-    .expect("create repository project resolver storage");
+    let storage =
+        SourceResolver::for_hardened_base(temp.0.join("resolved"), PrimaryGitChoices::default())
+            .expect("create repository project resolver storage");
 
     let compiler = resolve_external_local_project_closure(
         repository.join("source/omega"),

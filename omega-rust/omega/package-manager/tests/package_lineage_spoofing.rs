@@ -5,7 +5,7 @@ use package_manager::resolution::graph::{
 use package_manager::review::SemanticBindingReview;
 use package_manager::review::compile_resolved_package_reviews;
 use package_source::PrimaryGitChoices;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -115,11 +115,9 @@ machine build(builder: &mut Build) {{
     )
     .expect("write root package source");
 
-    let storage = SourceResolverStorage::for_hardened_base(
-        tree.0.join("cache"),
-        PrimaryGitChoices::default(),
-    )
-    .expect("create resolver storage");
+    let storage =
+        SourceResolver::for_hardened_base(tree.0.join("cache"), PrimaryGitChoices::default())
+            .expect("create resolver storage");
     let closure = resolve_external_local_package_closure(
         &root,
         ExternalSourceContext::derive(b"same-name-different-lineage-fixture"),

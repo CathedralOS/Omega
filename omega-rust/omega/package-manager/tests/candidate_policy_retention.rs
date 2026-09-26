@@ -7,7 +7,7 @@ use package_manager::resolution::graph::{
 use package_manager::review::SemanticBindingReview;
 use package_manager::review::compile_resolved_package_reviews;
 use package_source::PrimaryGitChoices;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -91,7 +91,7 @@ fn exact_package_and_target_policies_recover_without_the_source_or_review_set() 
         .unwrap();
     }
     let storage =
-        SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
+        SourceResolver::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
             .unwrap();
     let sources = resolve_external_local_package_closure(
         tree.path("source/root"),

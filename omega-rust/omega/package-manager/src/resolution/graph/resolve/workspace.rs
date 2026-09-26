@@ -16,7 +16,7 @@ use package_source::{
     ExternalSourceContext, SourceLineage, SourceRelativePath, WorkspaceLineageIdentity,
     WorkspaceMemberLineage,
 };
-use package_source::{LocalSourceLimits, SourceResolverStorage};
+use package_source::{LocalSourceLimits, SourceResolver};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -34,7 +34,7 @@ pub(crate) fn resolve_workspace_package_closure_from_hardened_base(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
@@ -53,7 +53,7 @@ pub fn resolve_workspace_package_closure(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
@@ -61,6 +61,7 @@ pub fn resolve_workspace_package_closure(
         ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
     })?;
     let result = resolve_workspace_package_closure_impl(
+        storage,
         workspace_root_source,
         root_member_path,
         live_workspace_root.as_ref(),
@@ -83,7 +84,7 @@ pub fn resolve_workspace_project_closure(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
@@ -91,6 +92,7 @@ pub fn resolve_workspace_project_closure(
         ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
     })?;
     let result = resolve_workspace_package_closure_impl(
+        storage,
         workspace_root_source,
         root_member_path,
         live_workspace_root.as_ref(),
@@ -123,7 +125,7 @@ pub(crate) fn resolve_workspace_package_closure_in_context_from_hardened_base(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
@@ -144,7 +146,7 @@ pub fn resolve_workspace_package_closure_in_context(
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
@@ -152,6 +154,7 @@ pub fn resolve_workspace_package_closure_in_context(
         ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
     })?;
     let result = resolve_workspace_package_closure_impl(
+        storage,
         workspace_root_source,
         root_member_path,
         live_workspace_root.as_ref(),
@@ -176,7 +179,7 @@ pub fn resolve_workspace_project_closure_in_context(
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
-    storage: &SourceResolverStorage,
+    storage: &SourceResolver,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
@@ -184,6 +187,7 @@ pub fn resolve_workspace_project_closure_in_context(
         ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
     })?;
     let result = resolve_workspace_package_closure_impl(
+        storage,
         workspace_root_source,
         root_member_path,
         live_workspace_root.as_ref(),
@@ -202,6 +206,7 @@ pub fn resolve_workspace_project_closure_in_context(
 
 #[allow(clippy::too_many_arguments)]
 fn resolve_workspace_package_closure_impl(
+    storage: &SourceResolver,
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: &Path,
@@ -269,7 +274,7 @@ fn resolve_workspace_package_closure_impl(
             true,
         ),
     )]);
-    let mut git_acquisitions = GitAcquisitionCache::default();
+    let mut git_acquisitions = GitAcquisitionCache::new(storage);
     let cache_dir = workspace_cache
         .checked_source_cache_dir()
         .map_err(ResolveWorkspacePackageClosureError::Root)?;

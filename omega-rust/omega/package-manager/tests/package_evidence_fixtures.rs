@@ -22,7 +22,7 @@ use package_manager::review::{
     triage_update_without_admission_baseline,
 };
 use package_source::{
-    LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolveError, SourceResolverStorage,
+    LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolveError, SourceResolver,
 };
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

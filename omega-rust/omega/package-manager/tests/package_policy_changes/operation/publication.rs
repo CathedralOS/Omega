@@ -1,6 +1,6 @@
 use super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, Path, PathBuf,
-    SourceResolverStorage,
+    SourceResolver,
 };
 use super::{
     ASSUMPTION, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
@@ -545,8 +545,8 @@ fn changed_build_input_rejects_publication_with_identical_generated_source_and_p
     let accepted = propose(&review(&tree, "accepted", None));
     let (_, accepted_text) = write_lock(&tree, vec![accepted.clone()]);
     let dependency = tree.path("sources/dependency");
-    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/omega/packages/generated-table");
+    let fixture_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/omega/packages/generated-table");
     fs::create_dir_all(dependency.join("inputs")).unwrap();
     for relative in ["build.omg", "main.omg", "inputs/table.txt"] {
         fs::copy(fixture_root.join(relative), dependency.join(relative)).unwrap();
@@ -689,7 +689,7 @@ fn preparation_recovers_pending_declarations_before_compiler_input_resolution() 
     source(&tree, PURE, "");
     let root = tree.path("sources/root");
     let after_build = fs::read_to_string(root.join("build.omg")).unwrap();
-    let storage = SourceResolverStorage::for_hardened_base(
+    let storage = SourceResolver::for_hardened_base(
         tree.path("recovered-cache"),
         PrimaryGitChoices::default(),
     )

@@ -1,6 +1,6 @@
 use super::super::{
     GitCommitId, GitSourceRequest, GitTreeId, GitWorkspaceProjectionResult, LocalSourceLimits,
-    PathBuf, SourceResolverStorage, create_git_source, local_git_request, make_tree_owner_writable,
+    PathBuf, SourceResolver, create_git_source, local_git_request, make_tree_owner_writable,
     run_test_git, run_test_git_with_input, temp_root, test_system_git_executor,
 };
 use super::{
@@ -11,7 +11,7 @@ use crate::PrimaryGitChoices;
 pub(super) struct Fixture {
     pub(super) repository: PathBuf,
     storage_base: PathBuf,
-    pub(super) storage: SourceResolverStorage,
+    pub(super) storage: SourceResolver,
     pub(super) request: GitSourceRequest,
     pub(super) commit: GitCommitId,
     pub(super) root_tree: GitTreeId,
@@ -60,7 +60,7 @@ impl Fixture {
             .executable()
             .to_path_buf();
         let storage_base = temp_root(name);
-        let storage = SourceResolverStorage::for_hardened_base(
+        let storage = SourceResolver::for_hardened_base(
             &storage_base,
             PrimaryGitChoices {
                 explicit_git: Some(executable.as_ref()),
@@ -86,7 +86,7 @@ impl Fixture {
     ) -> Result<GitWorkspaceProjectionResult<&'static str>, GitWorkspaceProjectionError<&'static str>>
     {
         resolve_git_workspace_member_at_revision_in_lanes(
-            self.storage.git_sources().primary_git().unwrap(),
+            self.storage.primary_git().unwrap(),
             &self.request,
             &self.commit,
             &self.root_tree,
