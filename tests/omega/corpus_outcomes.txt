@@ -166,8 +166,9 @@ fail/calls/empty_body_return_machine_rejected rejected 8ms expected
 	machine `Main::get` state `get` declares a return type but its body is empty -- it can never produce the value (callers would silently bind 0). Return a value or drop the `-> T`.
 fail/calls/free_machine_named_transition_rejected rejected 0ms expected
 	unsupported transition target `scan`
-fail/calls/immutable_arg_for_mut_param_rejected rejected 8ms
+fail/calls/immutable_arg_for_mut_param_rejected rejected 79ms expected
 	argument `c` for state `handle` is declared `&mut` (`&mut Counter`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/calls/mutual_cycle_decrease_unproven rejected 8ms expected
 	machine call cycle: `Main::ping`, `Main::pong` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
@@ -1430,6 +1431,7 @@ pass/proofs/runtime_decreases_u64_measure_exit checked 179ms
 pass/proofs/runtime_nat_structural_recursion_exit checked 492ms
 pass/proofs/runtime_ranked_accumulator_guarantee_exit rejected 89ms
 	provider selection operand does not resolve to one visible product declaration
+pass/providers/boundary_scalar_field_store checked 333ms
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 10662ms
 pass/providers/checked_boundary_operator_physical_custody checked 3478ms
 pass/providers/checked_boundary_requirement_dispatch_exit checked 181ms
