@@ -3451,6 +3451,26 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   already threaded there. Carry the filtered names into that pass, match calls
   whose `target_symbol` is invalid against them, and reject naming both.
 
+  The described mechanism does not reproduce in product scope, and the minimal
+  pair says why. A `linux_x86_64 machine Legs::bump` called by an unscoped
+  `Main::main`, built for `macos_arm64`, is not filtered at all: instrumenting
+  `admit_provider_default_calls` shows an empty filtered set, `Legs::bump` in
+  the selected set, and zero statement calls anywhere in the program with an
+  invalid `target_symbol`. `canonical_product_targets` makes a single-target
+  family its own canonical target, so it is selected, and
+  `select_product_target` already says such a helper "stays an inert sibling
+  with its callers".
+
+  The defect survives that correction in a different form. `omega --check
+  --target macos_arm64` accepts the program, and realization then fails at
+  `Lowering(Unsupported("attached Unit member has no checked terminal
+  selection"))` -- internal text with no source span, naming neither the call
+  nor the target. Changing one word to `macos_arm64 machine Legs::bump`
+  builds and exits 70, so the pair isolates the foreign-only declaration.
+  Re-measure the `UefiOsHandoffCycle::acquire` witness before assuming the
+  no-call-row shape still exists in dependency scope; product scope no longer
+  produces it.
+
   The obvious form of that check is refuted, and the reason names a missing
   dependency. Rejecting every statement call whose `target_symbol` is invalid
   at `admit_provider_default_calls` -- on the item's own reasoning that an
