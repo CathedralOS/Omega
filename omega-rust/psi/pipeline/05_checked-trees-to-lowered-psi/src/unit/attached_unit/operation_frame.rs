@@ -440,6 +440,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
@@ -483,6 +484,9 @@ impl OperationFrame<'_, '_> {
             }
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {
                 self.establish_scalar_local(result, value)
+            }
+            CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {
+                self.establish_scalar_array(operation)
             }
             CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } => {
                 self.move_structural_field(result, source)
@@ -881,7 +885,7 @@ impl OperationFrame<'_, '_> {
             },
             path: field_path,
             type_identity: store.value.type_identity.clone(),
-            access: checked_trees::CheckedStructuralAccess::Owned,
+            access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
         };
         require_parameter_window_root(self.parameters, &window_place, self.evaluation)?;
         let moved = self.windows.emit_move(
@@ -984,6 +988,96 @@ impl OperationFrame<'_, '_> {
             )?;
         }
         self.values.push(lowered);
+        Ok(())
+    }
+
+    /// One `let`-bound primitive array literal: stage each element operand as
+    /// a private value tail, emit the constructor's structural result into
+    /// the body's own binding namespace, then release the tail. A
+    /// statement-source construction additionally binds the declared local.
+    fn establish_scalar_array(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> Result<(), LoweringError> {
+        let CheckedUnitEffectOperationPlan::EstablishScalarArray {
+            source,
+            result,
+            elements,
+        } = operation
+        else {
+            return unsupported("array producer missing");
+        };
+        self.results
+            .require_next(result, "array result binding is not dense")?;
+        let leaf_start = self.values.len();
+        for (ordinal, element) in elements.iter().enumerate() {
+            let element_ordinal = u32::try_from(ordinal)
+                .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
+            let value = self.evaluation.source_value(
+                self.checked,
+                self.machine,
+                self.state,
+                result.statement_index,
+                CheckedScalarExpressionRole::ArrayElement {
+                    source: *source,
+                    element_ordinal,
+                },
+                element,
+                self.source_value_count,
+                self.values,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.operations,
+                self.calls,
+            )?;
+            self.values.push(value);
+        }
+        let declaration = super::scalar_arrays::emit(
+            result,
+            &self.values[leaf_start..],
+            self.type_ids,
+            self.next_place,
+            self.operations,
+        )?;
+        self.values.truncate(leaf_start);
+        let local_place = declaration.id;
+        if let StructuralResults::StateGraph { places, state } = &mut self.results {
+            places.push(declaration);
+            let producer = self
+                .operations
+                .operations
+                .last()
+                .ok_or(LoweringError::Unsupported(
+                    "array establishment emitted no operation",
+                ))?;
+            let OperationResult::Structural(produced) = &producer.result else {
+                return unsupported("array establishment produced no structural value");
+            };
+            let produced = produced.clone();
+            self.evaluation.establish_structural_result(
+                self.checked,
+                state.state,
+                result,
+                produced,
+                self.structural_types.declarations(),
+                self.operations,
+            )?;
+        } else {
+            self.results.push(declaration, false);
+            // The dense route registers no result row, so it binds the
+            // statement's local here; the state-graph row's own registration
+            // already named it.
+            if *source == typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::Statement {
+                super::structural_values::bind_local(
+                    self.checked,
+                    self.state,
+                    operation,
+                    local_place,
+                    &mut self.evaluation.structural_locals,
+                )?;
+            }
+        }
         Ok(())
     }
 

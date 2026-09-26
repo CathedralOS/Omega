@@ -144,6 +144,44 @@ fn state_lends_a_bound_call_result_to_a_unit_call() {
     );
 }
 
+/// A state lends a scalar-array local it established to a borrowed
+/// `&[u64; 2]` formal. The structural-argument rosters used to admit only
+/// record and sum homes, so the shared borrow of a produced array had no
+/// caller structural home to cite.
+#[test]
+fn state_lends_an_established_scalar_array_to_a_borrowed_formal() {
+    let source = r#"
+        boundary trait Sink { machine finish(value: u64); }
+        machine sum(items: &[u64; 2]) reaches Sink {
+            Sink::finish(items[0]);
+            Sink::finish(items[1]);
+        }
+        data Main {}
+        machine Main::main(selected: bool) reaches Sink {
+            transition selected { true -> yes() _ -> no() }
+            state yes() {
+                let items: [u64; 2] = [7u64, 9u64];
+                sum(&items);
+            }
+            state no() {
+                let items: [u64; 2] = [3u64, 4u64];
+                sum(&items);
+            }
+        }
+    "#;
+    let lends_array = |operation: &CheckedUnitEffectOperationPlan| {
+        matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { structural_arguments, .. }
+        if structural_arguments.iter().any(|argument| {
+            argument.access == CheckedStructuralAccess::SharedBorrow
+                && argument.path.is_empty()
+        }))
+    };
+    assert_eq!(
+        run(source, "Main::main", lends_array, &[true, false]),
+        [vec![7, 9], vec![3, 4]]
+    );
+}
+
 /// A state moves an owned value its incoming edge transferred into a Unit
 /// call that takes it whole. The old state copy admitted only borrowed Unit
 /// operands.

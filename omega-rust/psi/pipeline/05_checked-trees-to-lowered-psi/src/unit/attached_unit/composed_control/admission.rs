@@ -435,7 +435,14 @@ pub(super) fn admit_calls<'a>(
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 // A view-subslice local narrows a view the state holds.
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {}
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                // Frame-local storage minted at an authored statement names no
+                // callee; borrowed references bind storage already owned here.
+                | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
                 _ => return unsupported("composed Unit call state contains a non-call operation"),
             }
         }

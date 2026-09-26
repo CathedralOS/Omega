@@ -702,6 +702,26 @@ pub(super) fn validate(
             ) if result.statement_index as usize == ordinal => {
                 super::super::super::view_ranges::binding_local(checked, state.state, operation)?;
             }
+            // A `let`-bound primitive array literal mints its storage at the
+            // declaration: the op replays like an owned establishment, and the
+            // shared checker rejoins every element operand to its source.
+            (
+                CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                    source,
+                    result,
+                    elements,
+                },
+                StatementNode::LocalData(local),
+            ) if !local.is_mutable && result.statement_index as usize == ordinal => {
+                super::super::super::scalar_arrays::validate(
+                    checked,
+                    machine,
+                    state.state,
+                    *source,
+                    result,
+                    elements,
+                )?;
+            }
             _ => return unsupported("Unit graph reordered a source effect"),
         }
     }
@@ -826,7 +846,8 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
         CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
             Some(result.statement_index)
         }
-        CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
+        CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
             Some(result.statement_index)
         }
         CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
@@ -844,7 +865,13 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
             Some(store.statement_index)
         }
         CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => Some(write.statement_index),
-        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+        CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+            statement_index, ..
+        }
+        | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+            statement_index, ..
+        }
+        | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index, ..
         } => Some(*statement_index),
         CheckedUnitEffectOperationPlan::AtomicAccess(access) => Some(access.statement_index),
