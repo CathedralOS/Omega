@@ -125,6 +125,7 @@ pub(super) fn resolve<'a>(
         ordinal,
         target,
     )?;
+    let place = rejoin_loan_local(program, state, ordinal, place)?;
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
@@ -484,4 +485,60 @@ pub(super) fn exact_relevant_field<'a>(
         });
     let field = fields.next()?;
     fields.next().is_none().then_some(field)
+}
+
+/// Rejoin a write through an exclusive loan local with the place it loans.
+///
+/// `let seen: &mut u8 = &mut self.byte; seen = 0;` writes `self.byte`. The
+/// local is immutable and a reference cannot be reseated, so the name denotes
+/// one place for its whole scope and the store is the ordinary parameter-rooted
+/// store of that place with the loan's own segments in front. This adds no
+/// authority: the loan's exclusivity, lifetime and conflicting-access rules are
+/// already checked, and a shared loan is not a write destination.
+///
+/// A place that is not rooted at such a local is returned unchanged.
+fn rejoin_loan_local(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    ordinal: usize,
+    place: crate::flow::CanonicalPlace,
+) -> Option<crate::flow::CanonicalPlace> {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return Some(place);
+    };
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut declarations =
+        statements
+            .iter()
+            .enumerate()
+            .take(ordinal)
+            .filter_map(|(declared, statement)| match statement {
+                StatementNode::LocalData(local) if local.symbol == symbol => {
+                    Some((declared, local))
+                }
+                _ => None,
+            });
+    let Some((_, local)) = declarations.next() else {
+        return Some(place);
+    };
+    if declarations.next().is_some() {
+        return None;
+    }
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
+    else {
+        return Some(place);
+    };
+    // A reseatable binding does not denote one place, and a shared loan
+    // carries no write authority to rejoin.
+    if local.is_mutable || borrow.access != language_core::ReferenceAccess::Mutable {
+        return None;
+    }
+    let mut loaned = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        ordinal,
+        borrow.target,
+    )?;
+    loaned.segments.extend(place.segments);
+    Some(loaned)
 }
