@@ -26,7 +26,7 @@ mod symbolic_values;
 mod tests;
 mod where_fact_intervals;
 
-pub use where_fact_intervals::data_where_field_intervals;
+pub use where_fact_intervals::{case_where_field_intervals, data_where_field_intervals};
 pub(crate) use where_fact_intervals::{stored_field_where_interval, where_fact_interval};
 
 use diagnostics::Diagnostic;

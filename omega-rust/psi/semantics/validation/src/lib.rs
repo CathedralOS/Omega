@@ -252,7 +252,9 @@ pub use proof_contracts::contract_entailment::{
     strict_arithmetic_expression_implication,
     strict_arithmetic_expression_implication_with_arguments,
 };
-pub use proof_contracts::default_domains::data_where_field_intervals;
+pub use proof_contracts::default_domains::{
+    case_where_field_intervals, data_where_field_intervals,
+};
 pub use proof_contracts::float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
 };

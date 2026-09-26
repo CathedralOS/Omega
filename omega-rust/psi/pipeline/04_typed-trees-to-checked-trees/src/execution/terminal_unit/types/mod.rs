@@ -2196,14 +2196,25 @@ impl<'program> ShapeCollector<'program> {
                         fields.push(field);
                     }
                     DataMember::Variant(variant) => {
+                        // Case-local intervals use the same bounded field
+                        // representation as record facts. Keeping the owning
+                        // case here lets Terminal check every constructor and
+                        // expose the bounds only on its selected payload edge.
+                        let intervals =
+                            validation::case_where_field_intervals(self.program, variant)
+                                .unwrap_or_default();
                         let mut payload_fields = Vec::new();
                         for field in self.program.data_payload_fields(variant) {
+                            let bounds = intervals
+                                .iter()
+                                .find(|(symbol, _, _)| *symbol == field.symbol)
+                                .map(|(_, low, high)| (*low, *high));
                             let Some(field) = self.structural_field_plan(
                                 field,
                                 binders,
                                 &substitutions,
                                 &identity,
-                                None,
+                                bounds,
                             ) else {
                                 self.in_progress.remove(&identity);
                                 return None;
