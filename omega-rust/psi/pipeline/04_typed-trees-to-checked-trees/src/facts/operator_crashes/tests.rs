@@ -5,6 +5,9 @@
 //! A call whose evaluation emitted no capture falls back to the containing
 //! statement's entry contexts, and only while every place a guard leaf reads
 //! keeps its invocation-entry provenance below the operand it binds to.
+//! Token-bearing `boundary machine` declarations instead use ordinary calls:
+//! their published routes live on the machine contract, and invocation-specific
+//! refinements join that contract to the exact flow call.
 
 use crate::tests::front_end::{checked_program_result, typed_program};
 use checked_trees::CheckedTrees;
@@ -26,6 +29,61 @@ fn named_sites(checked: &CheckedTrees) -> Vec<&checked_trees::CheckedCrashOperat
         .flat_map(|machine| machine.crash.checked_operators())
         .filter(|site| site.named_use.is_valid())
         .collect()
+}
+
+fn boundary_machine_site<'a>(
+    checked: &'a CheckedTrees,
+    target_name: &str,
+) -> (
+    &'a checked_trees::CheckedCrashCallSite,
+    &'a checked_trees::FlowCallFact,
+) {
+    let target = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == target_name)
+        .expect("the boundary machine is a declared call target");
+    let plans = &checked.facts.contract_plans;
+    let target_plan = plans
+        .for_machine(target.symbol)
+        .expect("the callee owns its contract");
+    let sites = plans
+        .machines
+        .iter()
+        .flat_map(|plan| plan.crash.checked_calls())
+        .filter(|site| site.target_machine() == target.symbol)
+        .collect::<Vec<_>>();
+    let [site] = sites.as_slice() else {
+        panic!("one ordinary call to {target_name}: {sites:#?}");
+    };
+    assert_eq!(site.target_contract_commitment(), target_plan.commitment);
+    assert!(
+        plans
+            .machines
+            .iter()
+            .flat_map(|plan| plan.crash.checked_operators())
+            .all(|site| site.selected_operator != target.symbol),
+        "a boundary-machine call must not fabricate a legacy operator site"
+    );
+    let location = site.location();
+    let flow = &checked.facts.flow;
+    let calls = flow
+        .control
+        .states
+        .iter()
+        .filter(|(_, state)| state.state_symbol == location.state())
+        .flat_map(|(_, state)| flow.control.calls.span_or_empty(state.calls))
+        .filter(|call| {
+            call.statement_index == location.statement_ordinal() as usize
+                && call.call_ordinal == location.call_ordinal() as usize
+                && call.target_symbol == site.target_state()
+        })
+        .collect::<Vec<_>>();
+    let [call] = calls.as_slice() else {
+        panic!("one exact flow invocation for the checked crash site: {calls:#?}");
+    };
+    assert!(call.authored_expression.is_valid());
+    (site, call)
 }
 
 #[test]
@@ -573,19 +631,14 @@ fn assert_negated_right_at_least_zero(form: &checked_trees::CheckedBooleanExpres
 
 #[test]
 fn authored_operator_crash_buckets_carry_their_structured_guard_forms() {
-    // Both declaration forms publish the same guard over their own formal
-    // parameters. Neither owns a machine contract plan in the checked
+    // Both legacy operator spellings publish the same guard over their own
+    // formal parameters. Neither owns a machine contract plan in the checked
     // output, so the site's published bucket is the only carrier the
     // Terminal producer can read the form from. A spelled use and a named
     // call read the same declaration and therefore the same form.
     for (declaration, use_site) in [
         (
             "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
-             crashes Trap !(right >= 0);",
-            "1 == value",
-        ),
-        (
-            "boundary machine == Comparison::equal(left: i32, right: i32) -> bool
              crashes Trap !(right >= 0);",
             "1 == value",
         ),
@@ -625,6 +678,50 @@ fn authored_operator_crash_buckets_carry_their_structured_guard_forms() {
             "{declaration}"
         );
         assert_eq!(published_guard_forms(&inspect(&source)), forms);
+    }
+}
+
+#[test]
+fn boundary_machine_crash_buckets_keep_the_machine_contract_and_call_identity() {
+    use checked_trees::CrashPredicateExpression as Predicate;
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    for use_site in ["1 == value", "Comparison::equal(1, value)"] {
+        let source = format!(
+            "data Comparison {{}}
+             boundary machine == Comparison::equal(left: i32, right: i32) -> bool
+             crashes Trap !(right >= 0);
+             pub machine safe(value: i32) -> bool
+             requires value >= 0 {{ {use_site} }}"
+        );
+        let checked =
+            checked_program_result(&source).expect("the entry premise discharges the route");
+        let (site, _) = boundary_machine_site(&checked, "Comparison::equal");
+        assert!(site.surviving_buckets().is_empty());
+        let plan = checked
+            .facts
+            .contract_plans
+            .for_machine(site.target_machine())
+            .unwrap();
+        let [bucket] = plan.crash.published() else {
+            panic!("one published boundary route");
+        };
+        let [checked_trees::CrashRouteGuard::Predicate(guard)] = bucket.alternative_guards() else {
+            panic!("the published route retains its predicate");
+        };
+        assert_eq!(
+            guard.expression(),
+            Some(&Predicate::Unary {
+                operator: UnaryOperator::LogicalNot as u8,
+                operand: Box::new(Predicate::Binary {
+                    operator: BinaryOperator::GreaterOrEqual as u8,
+                    left: Box::new(Predicate::Parameter(1)),
+                    right: Box::new(Predicate::Integer("0".into())),
+                }),
+            })
+        );
+        let inspected = inspect(&source);
+        let (inspected_site, _) = boundary_machine_site(&inspected, "Comparison::equal");
+        assert_eq!(inspected_site, site);
     }
 }
 
@@ -1277,14 +1374,12 @@ fn unrewritten_statement_call_to_a_crash_contracted_operator_fails_closed() {
     }
 }
 
-/// A spelled `collection[index]` selects the `[]` meaning exactly as a
-/// binary use selects `+`: the use must carry an operand-time capture row or
-/// its crash contract has no invocation custody to check. Before the flow
-/// pass recorded indexed invocations, this source failed with missing
-/// capture instead of producing the site the named spelling already had.
+/// A spelled index selecting a boundary machine retains an ordinary flow
+/// invocation and a refinement of that machine's published crash contract.
 #[test]
 fn spelled_index_use_discharges_a_route_its_captured_operands_prove_false() {
-    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+    let source = "data Index {}
+         boundary machine [] Index::at(items: &[i32], index: u64) -> i32
          requires index < items.len
          crashes Trap !(index >= 1);
          data Main {}
@@ -1295,37 +1390,16 @@ fn spelled_index_use_discharges_a_route_its_captured_operands_prove_false() {
     checked_program_result(source)
         .expect("the operand-time capture discharges the index use's route");
     let checked = inspect(source);
-    let sites: Vec<_> = checked
-        .facts
-        .contract_plans
-        .machines
-        .iter()
-        .flat_map(|machine| machine.crash.checked_operators())
-        .filter(|site| site.operator_use.is_valid())
-        .collect();
-    let [site] = sites.as_slice() else {
-        panic!("one spelled operator crash site")
-    };
-    assert!(
-        checked
-            .facts
-            .flow
-            .control
-            .operator_invocations
-            .iter()
-            .any(|(handle, invocation)| site.invocation == handle
-                && invocation.operator_use == site.operator_use),
-        "the spelled index use owns an operand-time capture row"
-    );
-    assert!(site.surviving.is_empty());
+    let (site, _) = boundary_machine_site(&checked, "Index::at");
+    assert!(site.surviving_buckets().is_empty());
 }
 
-/// The named call spelling of the same `[]` operator exercises the same
-/// discharge path through its `named_use` capture row — identical published
-/// and surviving buckets prove the two spellings see the same route.
+/// The named spelling uses the same machine contract and ordinary-call
+/// discharge as the token spelling, not the legacy named-operator table.
 #[test]
 fn named_index_call_matches_the_spelled_index_discharge() {
-    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+    let source = "data Index {}
+         boundary machine [] Index::at(items: &[i32], index: u64) -> i32
          requires index < items.len
          crashes Trap !(index >= 1);
          data Main {}
@@ -1335,20 +1409,21 @@ fn named_index_call_matches_the_spelled_index_discharge() {
          }";
     checked_program_result(source).expect("the named call keeps the discharged route");
     let checked = inspect(source);
-    let sites = named_sites(&checked);
-    let [site] = sites.as_slice() else {
-        panic!("one named operator crash site")
-    };
-    assert!(site.surviving.is_empty());
+    let (site, _) = boundary_machine_site(&checked, "Index::at");
+    assert!(site.surviving_buckets().is_empty());
+    let spelled =
+        checked_program_result(&source.replace("Index::at(items, index)", "items[index]"))
+            .expect("the token spelling uses the same contract");
+    let (spelled_site, _) = boundary_machine_site(&spelled, "Index::at");
+    assert_eq!(site.surviving_buckets(), spelled_site.surviving_buckets());
 }
 
-/// A range index `collection[start..end]` selects the `[..]` meaning whose
-/// operands are the bounds: the capture row must expand to
-/// [collection, start, end] — the same operand list `operands()` reports —
-/// so each bound is captured where it finishes evaluating.
+/// A range index becomes an ordinary call with ordered arguments
+/// [collection, start, end], not one opaque range argument.
 #[test]
 fn spelled_range_use_discharges_a_route_its_captured_bounds_prove_false() {
-    let source = "boundary machine [..] Range::of(items: &[i32], start: u64, end: u64) -> &[i32]
+    let source = "data Range {}
+         boundary machine [..] Range::of(items: &[i32], start: u64, end: u64) -> &[i32]
          requires start <= end && end <= items.len
          crashes Trap !(start <= end);
          data Main {}
@@ -1358,35 +1433,34 @@ fn spelled_range_use_discharges_a_route_its_captured_bounds_prove_false() {
          }";
     checked_program_result(source).expect("the bound captures discharge the range use's route");
     let checked = inspect(source);
-    let sites: Vec<_> = checked
-        .facts
-        .contract_plans
-        .machines
-        .iter()
-        .flat_map(|machine| machine.crash.checked_operators())
-        .filter(|site| site.operator_use.is_valid())
-        .collect();
-    let [site] = sites.as_slice() else {
-        panic!("one spelled operator crash site")
+    let (site, invocation) = boundary_machine_site(&checked, "Range::of");
+    assert!(site.surviving_buckets().is_empty());
+    let typed_trees::expression::ExpressionNode::Call(call) = checked
+        .expression_table
+        .expression(invocation.authored_expression)
+    else {
+        panic!("an ordinary range call");
     };
-    assert!(site.surviving.is_empty());
-    let invocation = checked
-        .facts
-        .flow
-        .control
-        .operator_invocations
-        .get(site.invocation);
-    let operands = checked
-        .facts
-        .flow
-        .control
-        .operator_operands
-        .span_or_empty(invocation.operands);
+    let arguments = checked.expression_table.expression_handles(call.arguments);
+    let state =
+        crate::semantic::calls::find_state(&checked.typed, site.location().state()).unwrap();
+    let parameters = checked.state_parameters(state);
     assert_eq!(
-        operands.len(),
+        arguments.len(),
         3,
-        "[collection, start, end] captured in order"
+        "collection and both bounds remain separate arguments"
     );
+    for (argument, expected) in arguments.iter().zip(&parameters[1..]) {
+        let typed_trees::expression::ExpressionNode::Name(name) =
+            checked.expression_table.expression(*argument)
+        else {
+            panic!("the argument directly names the source parameter");
+        };
+        assert_eq!(
+            name.symbol, expected.symbol,
+            "the argument order is preserved"
+        );
+    }
 }
 
 /// Without a premise proving the guard false the spelled index use retains
@@ -1394,7 +1468,8 @@ fn spelled_range_use_discharges_a_route_its_captured_bounds_prove_false() {
 /// rather than passing with no capture row at all.
 #[test]
 fn spelled_index_use_keeps_a_route_its_operands_cannot_disprove() {
-    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+    let source = "data Index {}
+         boundary machine [] Index::at(items: &[i32], index: u64) -> i32
          requires index < items.len
          crashes Trap !(index >= 1);
          pub data Main {}
@@ -1411,18 +1486,8 @@ fn spelled_index_use_keeps_a_route_its_operands_cannot_disprove() {
         "{diagnostics:#?}"
     );
     let checked = inspect(source);
-    let sites: Vec<_> = checked
-        .facts
-        .contract_plans
-        .machines
-        .iter()
-        .flat_map(|machine| machine.crash.checked_operators())
-        .filter(|site| site.operator_use.is_valid())
-        .collect();
-    let [site] = sites.as_slice() else {
-        panic!("one spelled operator crash site")
-    };
-    assert_eq!(site.surviving.len(), 1);
+    let (site, _) = boundary_machine_site(&checked, "Index::at");
+    assert_eq!(site.surviving_buckets().len(), 1);
 }
 
 #[test]
@@ -1459,7 +1524,7 @@ fn named_call_capture_rows_fail_closed_when_duplicated() {
 /// A `crashes` guard may read a member projection of a structural formal —
 /// `items.len` on a `&[i32]` — and the member selection must still resolve.
 /// Contract copies keep parameter names unbound, so the formal's type is
-/// recovered by locating the exact operator contract fact that contains the
+/// recovered by locating the exact machine contract fact that contains the
 /// receiver expression; a name nested under a `Member` receiver is inside
 /// the fact just as a top-level operand is. Before the contract-fact
 /// traversal reached member receivers, this source rejected during authored
@@ -1470,7 +1535,8 @@ fn named_call_capture_rows_fail_closed_when_duplicated() {
 /// not falsify the guard.
 #[test]
 fn spelled_index_crash_guard_resolves_collection_length_on_a_slice_formal() {
-    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+    let source = "data Index {}
+         boundary machine [] Index::at(items: &[i32], index: u64) -> i32
          requires index < items.len
          crashes Trap items.len == 0;
          data Main {}
@@ -1481,19 +1547,19 @@ fn spelled_index_crash_guard_resolves_collection_length_on_a_slice_formal() {
     checked_program_result(source)
         .expect("the collection-length member resolves and the route is retained");
     let checked = inspect(source);
-    let sites: Vec<_> = checked
-        .facts
-        .contract_plans
-        .machines
-        .iter()
-        .flat_map(|machine| machine.crash.checked_operators())
-        .filter(|site| site.operator_use.is_valid())
-        .collect();
-    let [site] = sites.as_slice() else {
-        panic!("one spelled operator crash site")
-    };
-    assert_eq!(site.published.len(), 1);
-    let [surviving] = site.surviving.as_slice() else {
+    let (site, _) = boundary_machine_site(&checked, "Index::at");
+    assert_eq!(
+        checked
+            .facts
+            .contract_plans
+            .for_machine(site.target_machine())
+            .unwrap()
+            .crash
+            .published()
+            .len(),
+        1
+    );
+    let [surviving] = site.surviving_buckets() else {
         panic!("the unfalsified collection-length route survives")
     };
     assert!(
@@ -1511,7 +1577,8 @@ fn spelled_index_crash_guard_resolves_collection_length_on_a_slice_formal() {
 /// route the spelled use produced.
 #[test]
 fn named_index_call_crash_guard_resolves_collection_length_on_a_slice_formal() {
-    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+    let source = "data Index {}
+         boundary machine [] Index::at(items: &[i32], index: u64) -> i32
          requires index < items.len
          crashes Trap items.len == 0;
          data Main {}
@@ -1521,12 +1588,19 @@ fn named_index_call_crash_guard_resolves_collection_length_on_a_slice_formal() {
          }";
     checked_program_result(source).expect("the named call retains the collection-length route");
     let checked = inspect(source);
-    let sites = named_sites(&checked);
-    let [site] = sites.as_slice() else {
-        panic!("one named operator crash site")
-    };
-    assert_eq!(site.published.len(), 1);
-    assert_eq!(site.surviving.len(), 1);
+    let (site, _) = boundary_machine_site(&checked, "Index::at");
+    assert_eq!(
+        checked
+            .facts
+            .contract_plans
+            .for_machine(site.target_machine())
+            .unwrap()
+            .crash
+            .published()
+            .len(),
+        1
+    );
+    assert_eq!(site.surviving_buckets().len(), 1);
 }
 
 /// A published-ceiling caller that republishes the same `items.len == 0`
@@ -1553,7 +1627,8 @@ fn caller_republication_covers_a_collection_length_route() {
 /// fail-closed, as with any other surviving route.
 #[test]
 fn spelled_index_use_keeps_a_collection_length_route_no_premise_disproves() {
-    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+    let source = "data Index {}
+         boundary machine [] Index::at(items: &[i32], index: u64) -> i32
          requires index < items.len
          crashes Trap items.len == 7;
          pub data Main {}
@@ -1570,18 +1645,8 @@ fn spelled_index_use_keeps_a_collection_length_route_no_premise_disproves() {
         "{diagnostics:#?}"
     );
     let checked = inspect(source);
-    let sites: Vec<_> = checked
-        .facts
-        .contract_plans
-        .machines
-        .iter()
-        .flat_map(|machine| machine.crash.checked_operators())
-        .filter(|site| site.operator_use.is_valid())
-        .collect();
-    let [site] = sites.as_slice() else {
-        panic!("one spelled operator crash site")
-    };
-    assert_eq!(site.surviving.len(), 1);
+    let (site, _) = boundary_machine_site(&checked, "Index::at");
+    assert_eq!(site.surviving_buckets().len(), 1);
 }
 
 fn spelled_site(checked: &CheckedTrees) -> &checked_trees::CheckedCrashOperatorSite {
