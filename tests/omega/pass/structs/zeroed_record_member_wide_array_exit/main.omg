@@ -1,0 +1,47 @@
+// Wide elided member: a record literal spells `tag` only, leaving `wides` —
+// an array of records each holding a [u64; 1024] scalar array — to
+// EstablishZeroedStructural. The leaf walk must enumerate all 2048 scalar
+// elements; a recursion guard that counts each element as a visited cell
+// wrongly rejects the shape. Exits 70.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Wide {
+    cells: [u64; 1024];
+    count: u64;
+}
+
+data Bag {
+    wides: [Wide; 2];
+    tag: u8;
+}
+
+data Main {
+    console: Binding<Console>;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.bag = Bag { tag: 7 };
+
+    transition self.bag.wides[1].cells[1023] == 0 {
+        true -> check_first() _ -> bad()
+    }
+    state check_first(&mut self) {
+        transition self.bag.wides[0].cells[0] == 0 {
+            true -> check_count() _ -> bad()
+        }
+    }
+    state check_count(&mut self) {
+        transition self.bag.wides[0].count == 0 && self.bag.tag == 7 {
+            true -> good() _ -> bad()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
