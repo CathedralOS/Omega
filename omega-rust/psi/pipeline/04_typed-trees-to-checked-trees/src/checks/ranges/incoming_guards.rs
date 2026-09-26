@@ -42,8 +42,40 @@ type ImmutableArgumentSymbols = Vec<(SymbolHandle, SymbolHandle)>;
 /// typed program. Keeping the machine results here prevents ranges, contracts,
 /// crash coverage, and multiplicity from independently repeating the same
 /// whole-program work.
-pub(in crate::checks) struct IncomingGuardIndex {
+pub(crate) struct IncomingGuardIndex {
     machines: Vec<(SymbolHandle, Vec<IncomingGuard>)>,
+}
+
+/// One lazily-built `IncomingGuardIndex` per resolver presence. Building
+/// without call frames answers conservatively (call-write resolution is
+/// unavailable), so the two presences stay in separate cells rather than
+/// sharing whichever variant was requested first. A resolver's content is
+/// determined by the program, so presence alone keys the index.
+#[derive(Default)]
+pub(crate) struct IncomingGuardIndexCache {
+    with_call_frames: std::sync::OnceLock<IncomingGuardIndex>,
+    without_call_frames: std::sync::OnceLock<IncomingGuardIndex>,
+}
+
+impl std::fmt::Debug for IncomingGuardIndexCache {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("IncomingGuardIndexCache")
+    }
+}
+
+impl IncomingGuardIndexCache {
+    pub(crate) fn index(
+        &self,
+        program: &typed_trees::TypedTrees,
+        call_frames: Option<&validation::CallFrameResolver<'_>>,
+    ) -> &IncomingGuardIndex {
+        let cell = if call_frames.is_some() {
+            &self.with_call_frames
+        } else {
+            &self.without_call_frames
+        };
+        cell.get_or_init(|| IncomingGuardIndex::build(program, call_frames))
+    }
 }
 
 impl IncomingGuardIndex {

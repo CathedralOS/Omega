@@ -687,7 +687,10 @@ pub(super) fn machine_decrease_outcome(
     let adjacency = graph::machine_adjacency(program, machine);
     let components = graph::strongly_connected_components(&adjacency);
 
-    let proven_with = |orientation: DistanceOrientation| {
+    // Slice-tail decrease probes build the whole-program bound index; share
+    // the lazily-filled cell across every cyclic component probe.
+    let mut bound_lookup = None;
+    let mut proven_with = |orientation: DistanceOrientation| {
         components
             .iter()
             .filter(|component| graph::component_is_cyclic(&adjacency, component))
@@ -701,6 +704,7 @@ pub(super) fn machine_decrease_outcome(
                     &order,
                     orientation,
                     call_frames,
+                    &mut bound_lookup,
                 )
             })
     };
@@ -809,8 +813,8 @@ fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
 /// decrease on each in-cycle edge is sufficient (if stronger than necessary)
 /// for well-foundedness around the cycle, and it composes the existing
 /// single-edge ranking proofs.
-fn component_has_proven_decrease(
-    program: &typed_trees::TypedTrees,
+fn component_has_proven_decrease<'p>(
+    program: &'p typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     adjacency: &[Vec<usize>],
     component: &[usize],
@@ -818,6 +822,7 @@ fn component_has_proven_decrease(
     order: &RankingOrder,
     orientation: DistanceOrientation,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     let states = program.machine_states(machine);
     let edges = graph::cyclic_edges(adjacency, component);
@@ -845,6 +850,7 @@ fn component_has_proven_decrease(
                     order,
                     orientation,
                     call_frames,
+                    bound_lookup,
                 )
             })
         });
@@ -910,14 +916,15 @@ fn cycle_edge_strictly_decreases(
     found
 }
 
-fn state_has_proven_supported_self_loop(
-    program: &typed_trees::TypedTrees,
+fn state_has_proven_supported_self_loop<'p>(
+    program: &'p typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     measure: DecreaseMeasure,
     order: &RankingOrder,
     orientation: DistanceOrientation,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     // Slice-length, struct-view and lexicographic orders rank a single
     // decreasing value; only the nat provers understand the two-subject
@@ -932,7 +939,7 @@ fn state_has_proven_supported_self_loop(
             _,
         ) => nat::state_has_proven_self_loop(program, state, measure, orientation),
         (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) => {
-            slice::state_has_proven_self_loop(program, machine, state, decreases)
+            slice::state_has_proven_self_loop(program, machine, state, decreases, bound_lookup)
         }
         (
             RankingOrder::CustomStructView {

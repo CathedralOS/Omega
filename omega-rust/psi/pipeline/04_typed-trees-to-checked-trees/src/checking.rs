@@ -240,6 +240,10 @@ pub fn lower_typed_trees(
     // query the same (program, borrow) pair, so one lazily-filled table serves
     // the whole check pass instead of each consumer rebuilding it.
     let mutation_summaries = crate::flow::StateMutationSummaryCache::default();
+    // Incoming guard discovery is immutable program data keyed only on
+    // resolver presence; certificate construction and the check replay share
+    // one lazily-filled table instead of rebuilding it per entry.
+    let incoming_guard_index = checks::IncomingGuardIndexCache::default();
     let mut facts = build_check_facts(
         &program,
         &validated.proof_plan,
@@ -259,7 +263,11 @@ pub fn lower_typed_trees(
             .map(|plan| plan.checked_summary.clone())
     })?;
     checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;
-    checks::initialize_checked_borrow_call_certificates(&program, &mut facts);
+    checks::initialize_checked_borrow_call_certificates(
+        &program,
+        &mut facts,
+        &incoming_guard_index,
+    );
 
     // MP5: specialization selection happens before checked contract plans
     // exist. Bind the selected machines' normalized contract identities now,
@@ -276,6 +284,7 @@ pub fn lower_typed_trees(
                 &program,
                 &mut facts,
                 &mutation_summaries,
+                &incoming_guard_index,
             )?;
         }
         #[cfg(test)]

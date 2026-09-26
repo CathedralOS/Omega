@@ -276,8 +276,9 @@ pub(super) fn initialize_checked_direct_borrow_resources(
 pub(super) fn initialize_checked_borrow_call_certificates(
     program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
+    guard_index: &crate::checks::ranges::incoming_guards::IncomingGuardIndexCache,
 ) {
-    calls::initialize_compatibility(program, facts)
+    calls::initialize_compatibility(program, facts, guard_index)
 }
 
 fn validate_checked_borrow_compatibility_certificates<'p>(
