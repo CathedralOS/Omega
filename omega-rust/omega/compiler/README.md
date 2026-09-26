@@ -223,12 +223,12 @@ reuse is an optimization, not review, proof or audit evidence.
 ### Program-entry settlement
 
 [Entry roots](../../../wiki/spec/build/entry_roots.md) owns the source/arrival
-contract. [entry_settlement](src/native/entry_settlement/mod.rs) independently replays
+contract. [entry_settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/mod.rs) independently replays
 target, source signature, calling/storage plans, canonical artifact, exact
 Terminal entry, and service establishment before issuing the validated carrier.
 It does not call the Psi receipt producer to validate that producer's output.
 
-[service_establishment.rs](src/native/entry_settlement/service_establishment.rs) joins
+[service_establishment.rs](../pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/service_establishment.rs) joins
 selected Fused service evidence to the Terminal receiver's attachment and exact
 erased fields, then to the selected provider plans. Semantic receiver identity
 and retained Terminal attachment identity are separate facts and need not have

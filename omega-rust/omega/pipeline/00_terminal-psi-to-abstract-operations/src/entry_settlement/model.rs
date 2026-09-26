@@ -1,14 +1,14 @@
 use super::calling_plans::validate_paired_calling_plans;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
-use terminal_psi_to_abstract_operations::TerminalPlacedViewEstablishment;
+use crate::TerminalPlacedViewEstablishment;
 
 /// Exact build-owned source-entry custody carried into native realization.
 /// This is declaration and calling-contract evidence only: it owns no runtime
 /// roots and cannot authorize a physical bootstrap, image, or publication.
 #[derive(Debug, Clone, Copy)]
 pub struct NativeProgramEntrySettlement<'entry> {
-    pub(crate) checked_entry: Option<&'entry CheckedProgramEntryTerminalReceipt>,
+    pub checked_entry: Option<&'entry CheckedProgramEntryTerminalReceipt>,
     pub(crate) source: &'entry program_entry_plan::SelectedProgramEntrySourceSignature,
     pub(crate) semantic_calling_application: Option<&'entry BoundaryCallingPlanRealization>,
     pub(crate) physical_calling_application: Option<&'entry BoundaryCallingPlanRealization>,
@@ -127,7 +127,7 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
         }
     }
 
-    pub(crate) fn validate_fused_service_establishments_for_target(self) -> Result<(), String> {
+    pub fn validate_fused_service_establishments_for_target(self) -> Result<(), String> {
         let source_identity = self.source.identity();
         let slot = self.source.target_slot();
         let receiver_identity = self.source.receiver().normalized_type_identity();
@@ -229,7 +229,7 @@ impl ValidatedNativeProgramEntrySettlement {
     /// Attach the placed-view establishments the executable input boundary
     /// already joined to this artifact's roster. Settlement retains the exact
     /// loans as boundary custody; it does not re-validate them.
-    pub(crate) fn with_placed_view_establishments(
+    pub fn with_placed_view_establishments(
         mut self,
         establishments: &[TerminalPlacedViewEstablishment],
     ) -> Self {

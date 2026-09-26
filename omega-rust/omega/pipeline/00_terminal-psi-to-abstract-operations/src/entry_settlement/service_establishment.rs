@@ -94,7 +94,7 @@ pub(super) fn validate_terminal_rows(
     Ok(())
 }
 
-pub(crate) fn validate_for_artifact_and_selected_plans(
+pub fn validate_for_artifact_and_selected_plans(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     settlement: NativeProgramEntrySettlement<'_>,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,

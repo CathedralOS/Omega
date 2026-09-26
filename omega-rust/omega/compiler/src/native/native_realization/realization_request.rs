@@ -2,7 +2,7 @@
 //! builtin, and callback-thunk settlements, the request itself, and the
 //! requested or settled artifact results.
 
-use crate::native::entry_settlement::NativeProgramEntrySettlement;
+use terminal_psi_to_abstract_operations::NativeProgramEntrySettlement;
 use installation_evidence::ProviderExecutionEvidence;
 use native_artifact::{DynamicElfNativeArtifact, NativeArtifact};
 use target_operations::BoundaryRealization;

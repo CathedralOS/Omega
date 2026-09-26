@@ -94,7 +94,7 @@ fn realize_image(
     artifact
         .validate()
         .map_err(|error| realization_error("canonical artifact replay", error))?;
-    crate::native::entry_settlement::validate_fused_program_entry_establishments(
+    terminal_psi_to_abstract_operations::validate_fused_program_entry_establishments(
         &artifact,
         request.program_entry,
         request.selected_provider_plans,
