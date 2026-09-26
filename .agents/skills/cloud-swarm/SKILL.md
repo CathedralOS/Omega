@@ -221,7 +221,11 @@ output; when it is, hand the worker a slice whose dependency is already
 landed. Gates projected beyond ~30min get this treatment by default, and
 mechanical refreshes a pin advance will need (Squalr `omega update` lock
 refreshes, swarm-binaries republish) run inside the pin-advance pipeline
-itself so they are warm before any worker asks for them.
+itself so they are warm before any worker asks for them. Order the
+pipeline merge-first: `omega update` locks pin content hashes, so a lane
+merged after locks minted makes every dependent package's lock stale and
+the whole re-lock pass must re-run — drain pending merges, THEN refresh
+locks, THEN push the pin lane.
 6. Prune the remote ref only after the push lands.
 
 **Never park on a `blocked` verdict.** The LANE stays pushed for later
