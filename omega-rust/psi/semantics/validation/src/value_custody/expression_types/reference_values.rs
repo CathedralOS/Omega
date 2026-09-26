@@ -515,6 +515,23 @@ fn selected_value_type(
                 ),
                 _ => return None,
             };
+            // A `&mut self` / `&self` receiver's referee names the machine
+            // symbol; its attached data declaration carries the fields. Other
+            // receivers already name the data declaration directly.
+            let symbol = if program
+                .data_definitions()
+                .iter()
+                .any(|definition| definition.symbol == symbol)
+            {
+                symbol
+            } else {
+                program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == symbol)
+                    .map(|machine| machine.attached_data_symbol)
+                    .unwrap_or(symbol)
+            };
             let mut definitions = program
                 .data_definitions()
                 .iter()
@@ -553,14 +570,29 @@ fn selected_value_type(
                     substitutions.push((parameter.symbol, *argument));
                 }
             }
-            crate::value_custody::places::exact_data_member_field(
+            let field = crate::value_custody::places::exact_data_member_field(
                 program,
                 definition,
                 member.member_symbol,
                 member.member.as_str(),
                 member.case_variant.as_ref().map(|variant| variant.as_str()),
-            )
-            .map(|field| field.type_reference)
+            );
+            // Through a forwarding root the declared field symbol can differ
+            // from the member's resolved symbol (a generic telescope re-keys
+            // it); the name is already unique inside a data declaration, so
+            // a name-only lookup stays exact.
+            let field = match (field, forwarding_root) {
+                (Some(field), _) => Some(field),
+                (None, None) => None,
+                (None, Some(_)) => crate::value_custody::places::exact_data_member_field(
+                    program,
+                    definition,
+                    symbols::SymbolHandle::invalid(),
+                    member.member.as_str(),
+                    member.case_variant.as_ref().map(|variant| variant.as_str()),
+                ),
+            };
+            field.map(|field| field.type_reference)
         }
         // A projected `const` value arrives as its substituted array literal;
         // the authored selection still names the declaring constant, so its
