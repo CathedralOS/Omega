@@ -156,6 +156,12 @@ impl StateGraphEmission<'_, '_> {
         };
         let mut edge_evaluation = evaluation.branch(staged, operation_start);
         let mut edge_values = values.to_vec();
+        // A case edge's payloads are the staged block's formals; they join the
+        // edge namespace ahead of every later read so `established` positions
+        // name this vector's tail slots directly.
+        for (_, value) in payload_values {
+            edge_values.push(*value);
+        }
         let mut nested_rows = Vec::new();
         if stage {
             // A read below a case payload's record member in this edge's

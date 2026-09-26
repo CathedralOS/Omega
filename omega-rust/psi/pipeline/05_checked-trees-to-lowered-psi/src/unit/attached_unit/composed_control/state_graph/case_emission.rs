@@ -8,8 +8,8 @@ use super::super::super::{
     StructuralTypeShape, ValueDeclaration, allocate_dense, terminal_scalar_type, unsupported,
     value_id,
 };
-use super::super::{LoweringError, catalogs};
-use super::{CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan};
+use super::super::{CheckedTrees, LoweringError, catalogs};
+use super::{CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan, scalars};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
 pub(super) struct PreparedCase<'a> {
@@ -25,6 +25,7 @@ pub(super) struct PreparedCases<'a> {
 }
 
 pub(super) fn prepare<'a>(
+    checked: &CheckedTrees,
     state: &'a CheckedComposedUnitControlStatePlan,
     catalogs: &catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
@@ -38,6 +39,19 @@ pub(super) fn prepare<'a>(
     if subject.access != checked_trees::CheckedStructuralAccess::Owned || !subject.path.is_empty() {
         return unsupported("Unit graph case subject lacks owned custody");
     }
+    let subject_position = match subject.source {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+            Some(
+                parameters
+                    .get(parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph case parameter missing",
+                    ))?
+                    .position,
+            )
+        }
+        _ => None,
+    };
     let (place, structural_type) = match subject.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             let parameter =
@@ -112,6 +126,53 @@ pub(super) fn prepare<'a>(
                         scalar_type,
                     },
                 ));
+            }
+            // The checker records a payload row only for a verbatim parameter
+            // forward; a successor argument expression that reads this case's
+            // payload (a `[Case, Field]` scalar leaf below the subject) binds
+            // the field as an extra staged-block formal the expression reads
+            // back through the edge's namespace tail.
+            for transfer in &case.successor.scalar_arguments {
+                if !matches!(
+                    transfer.source,
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                ) {
+                    continue;
+                }
+                let argument = scalars::successor_value(checked, state, &case.successor, transfer)?;
+                let Some(expression) = argument.as_pure() else {
+                    continue;
+                };
+                let mut reads = Vec::new();
+                scalars::flat_case_payload_reads(expression, &mut reads);
+                for (position, case_name, field_name) in reads {
+                    if Some(position) != subject_position || case_name != declared.identity.as_str()
+                    {
+                        continue;
+                    }
+                    let field = declared
+                        .fields
+                        .iter()
+                        .find(|field| field.identity == field_name)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph case argument reads an undeclared payload",
+                        ))?;
+                    if fields.contains(&field.id) {
+                        continue;
+                    }
+                    let Some(scalar_type) = field.field_type.scalar_type() else {
+                        return unsupported("Unit graph case argument reads a non-scalar payload");
+                    };
+                    fields.push(field.id);
+                    values.push((
+                        u32::MAX,
+                        ValueDeclaration {
+                            qualifications: Default::default(),
+                            id: value_id(allocate_dense(next_value)?),
+                            scalar_type,
+                        },
+                    ));
+                }
             }
             Ok(PreparedCase {
                 successor: &case.successor,
