@@ -350,13 +350,13 @@ fn retains_values_across_unit_call<Value>(
         // outside the exact call footprint checked below.
         return None;
     }
-    let mut states = borrow.states.iter().filter(|(_, candidate)| {
-        candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
+    let bucket = crate::flow::fact_rows::with_borrow_state_index(borrow, |index| {
+        index.bucket(machine.symbol, state.symbol).to_vec()
     });
-    let (_, borrowed_state) = states.next()?;
-    if states.next().is_some() {
+    let &[borrowed_state_handle] = bucket.as_slice() else {
         return None;
-    }
+    };
+    let borrowed_state = borrow.states.get(borrowed_state_handle);
     let mut calls = borrow
         .calls
         .span_or_empty(borrowed_state.calls)
