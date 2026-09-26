@@ -126,7 +126,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
     facts: &mut CheckFacts,
     incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
 ) {
-    let content_conservation = crate::validation::build_content_conservation_plans(program);
+    let content_conservation = crate::validation::content_conservation_plans(program);
     let mut integer_types = None;
     for machine in program.machines() {
         let incoming = incoming_guards.for_machine(machine.symbol);

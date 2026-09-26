@@ -110,8 +110,7 @@ fn same_condition(program: &TypedTrees, left: ExpressionHandle, right: Expressio
         (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
             let arguments = program.expression_table.expression_handles(left.arguments);
             let other_arguments = program.expression_table.expression_handles(right.arguments);
-            let proof_only =
-                symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+            let proof_only = crate::validation::proof_only_classification(program);
             return left.target_symbol.is_valid()
                 && left.target_symbol == right.target_symbol
                 && !left.receiver.is_valid()

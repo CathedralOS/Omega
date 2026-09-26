@@ -505,8 +505,7 @@ pub(crate) fn validate_checked_call_candidate<'program>(
         reject("the selected entry has preconditions", diagnostics);
         return None;
     }
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     if program.state_parameters(state).iter().any(|parameter| {
         crate::validation::proof_contracts::quotients::type_has_forbidden_denotational_content(
             program,

@@ -107,8 +107,7 @@ pub(crate) fn lower_call_arguments(
     let mut structural_index = 0usize;
     let mut scalar_erased_index = 0usize;
     let mut proof_erased_index = 0usize;
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     let mut proof_terms = Vec::new();
     let mut output = Vec::new();
     for target in target_parameters {
@@ -446,8 +445,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
     let mut argument_ordinal = 0u32;
     let mut erased_ordinal = 0u32;
     let mut proof_erased_ordinal = 0u32;
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     let mut scalar_arguments = Vec::new();
     let mut proof_terms = Vec::new();
     for (argument, target_parameter) in arguments.iter().zip(target_parameters) {

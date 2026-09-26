@@ -12,26 +12,55 @@ pub(crate) fn machine_state_count(
         .sum()
 }
 
-// The machine table is queried once per expression through this module: a
-// whole-table `.find` per query rescans every machine. Cache each query's
-// exact scan verdict (hit AND miss) per program; monomorphization appends
-// machines mid-compile, so freshness is the owner's `ProgramIdentity` AND the
-// current machine count. A hit is still validated against the machine's own
-// symbol, so a stale or synthesized handle can only ever trigger a rescan; a
-// cached MISS has no such validation, which is why the owner has to be an
-// identity and not an address. A dropped program's address is reused, and a
-// replacement that happens to match the count and the anchor symbols would
-// otherwise be told a machine it does own is absent.
+// The machine table is queried once per expression through this module, so
+// each program's first query indexes every machine symbol by its first
+// position and later queries, hit or miss, probe that index. Monomorphization
+// appends machines mid-compile, so freshness is the owner's `ProgramIdentity`
+// AND the current machine count and boundary symbols. A hit is still
+// validated against the machine's own symbol, so a stale index can only ever
+// trigger a rebuild; a miss has no such validation, which is why the owner has
+// to be an identity and not an address. A dropped program's address is
+// reused, and a replacement that happens to match the count and the anchor
+// symbols would otherwise be told a machine it does own is absent.
+struct MachineIndex {
+    owner: symbol_resolved_trees_to_typed_trees::typed_trees::ProgramIdentity,
+    len: usize,
+    first: Option<SymbolHandle>,
+    last: Option<SymbolHandle>,
+    positions: ::symbols::SymbolMap<usize>,
+}
+
+impl MachineIndex {
+    fn of(program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees) -> Self {
+        let machines = program.machines();
+        let mut positions = ::symbols::SymbolMap::default();
+        positions.reserve(machines.len());
+        for (position, machine) in machines.iter().enumerate() {
+            positions.entry(machine.symbol).or_insert(position);
+        }
+        Self {
+            owner: program.identity,
+            len: machines.len(),
+            first: machines.first().map(|machine| machine.symbol),
+            last: machines.last().map(|machine| machine.symbol),
+            positions,
+        }
+    }
+
+    fn is_fresh_for(
+        &self,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ) -> bool {
+        let machines = program.machines();
+        self.owner.get() == program.identity.get()
+            && self.len == machines.len()
+            && self.first == machines.first().map(|machine| machine.symbol)
+            && self.last == machines.last().map(|machine| machine.symbol)
+    }
+}
+
 thread_local! {
-    static MACHINE_INDEX: RefCell<
-        Option<(
-            symbol_resolved_trees_to_typed_trees::typed_trees::ProgramIdentity,
-            usize,
-            Option<SymbolHandle>,
-            Option<SymbolHandle>,
-            std::collections::HashMap<SymbolHandle, Option<usize>>,
-        )>,
-    > = const { RefCell::new(None) };
+    static MACHINE_INDEX: RefCell<Option<MachineIndex>> = const { RefCell::new(None) };
 }
 
 fn machine_index_by_symbol(
@@ -43,53 +72,24 @@ fn machine_index_by_symbol(
     }
     MACHINE_INDEX.with(|cell| {
         let mut slot = cell.borrow_mut();
+        if !slot
+            .as_ref()
+            .is_some_and(|index| index.is_fresh_for(program))
+        {
+            *slot = Some(MachineIndex::of(program));
+        }
         let machines = program.machines();
-        let first = machines.first().map(|machine| machine.symbol);
-        let last = machines.last().map(|machine| machine.symbol);
-        let stale = match &*slot {
-            Some((owner, len, first_anchor, last_anchor, _)) => {
-                owner.get() != program.identity.get()
-                    || *len != machines.len()
-                    || *first_anchor != first
-                    || *last_anchor != last
-            }
-            None => true,
-        };
-        if stale {
-            *slot = Some((
-                program.identity,
-                machines.len(),
-                first,
-                last,
-                std::collections::HashMap::new(),
-            ));
-        }
-        let Some((_, _, _, _, verdicts)) = &mut *slot else {
-            return None;
-        };
-        match verdicts.get(&symbol) {
-            Some(Some(index)) => {
-                // A cached hit still verifies: a stale map under a reused
-                // address can only ever send the query back to the scan.
-                if machines
-                    .get(*index)
+        let verified = |index: &MachineIndex| {
+            index.positions.get(&symbol).map(|position| {
+                machines
+                    .get(*position)
                     .is_some_and(|machine| machine.symbol == symbol)
-                {
-                    Some(*index)
-                } else {
-                    verdicts.remove(&symbol);
-                    let found = machines.iter().position(|machine| machine.symbol == symbol);
-                    verdicts.insert(symbol, found);
-                    found
-                }
-            }
-            Some(None) => None,
-            None => {
-                let found = machines.iter().position(|machine| machine.symbol == symbol);
-                verdicts.insert(symbol, found);
-                found
-            }
+            })
+        };
+        if verified(slot.as_ref()?) == Some(false) {
+            *slot = Some(MachineIndex::of(program));
         }
+        slot.as_ref()?.positions.get(&symbol).copied()
     })
 }
 

@@ -110,7 +110,7 @@ pub(crate) fn build(
             continue;
         }
         let content_conservation = content_conservation
-            .get_or_insert_with(|| crate::validation::build_content_conservation_plans(program));
+            .get_or_insert_with(|| crate::validation::content_conservation_plans(program));
         let (published, surviving) = retained_operator_crash_routes(
             program,
             operators,
@@ -190,7 +190,7 @@ pub(crate) fn build(
             continue;
         };
         let content_conservation = content_conservation
-            .get_or_insert_with(|| crate::validation::build_content_conservation_plans(program));
+            .get_or_insert_with(|| crate::validation::content_conservation_plans(program));
         let (published, surviving) = retained_operator_crash_routes(
             program,
             operators,

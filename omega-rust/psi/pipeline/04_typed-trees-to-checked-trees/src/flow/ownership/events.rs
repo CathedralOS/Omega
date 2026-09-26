@@ -37,7 +37,9 @@ pub(crate) struct DirectMoveEventSink<'segments> {
     pub(super) state: &'segments symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     events: Vec<DiscoveredMoveEvent>,
     proof_only: Option<
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
+        std::sync::Arc<
+            symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
+        >,
     >,
     pub(super) source_arm:
         arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMatchArm>,
@@ -72,9 +74,9 @@ impl DirectMoveEventSink<'_> {
         program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     ) -> &symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification
     {
-        self.proof_only.get_or_insert_with(|| {
-            symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program)
-        })
+        &**self
+            .proof_only
+            .get_or_insert_with(|| crate::validation::proof_only_classification(program))
     }
 
     fn append_move_event(

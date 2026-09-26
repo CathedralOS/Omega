@@ -30,7 +30,7 @@ pub(crate) fn build_contract_plans(
     call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Result<crate::checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
     let mut machines = Vec::new();
-    let content_conservation = crate::validation::build_content_conservation_plans(program);
+    let content_conservation = crate::validation::content_conservation_plans(program);
     for machine in program.machines() {
         let service_fact = service_reaches.for_machine(machine.symbol);
         let published_service_row = service_fact

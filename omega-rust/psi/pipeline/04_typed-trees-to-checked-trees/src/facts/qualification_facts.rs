@@ -436,9 +436,9 @@ pub(crate) fn build_qualification_facts(
         vacuous_uses,
         content: crate::checked_trees::ContentProjectionFacts {
             plans: crate::validation::build_content_projection_plans(program),
-            conservation_plans: crate::validation::build_content_conservation_plans(program)
-                .into_iter()
-                .map(|source| source.plan)
+            conservation_plans: crate::validation::content_conservation_plans(program)
+                .iter()
+                .map(|source| source.plan.clone())
                 .collect(),
             identity_reshuffles: Vec::new(),
             partition_compositions: Vec::new(),
