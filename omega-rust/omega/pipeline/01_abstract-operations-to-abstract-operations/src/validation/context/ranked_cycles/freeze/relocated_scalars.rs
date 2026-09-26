@@ -60,7 +60,12 @@
 //! preheader-visible, resolved through an invariant member structural
 //! parameter, or produced in the same run, while a mutable or write-only
 //! borrow may name only a uniquely member-produced root the same run already
-//! relocated and no other member observes), an admissible
+//! relocated and no other member observes — and, for a call carrying
+//! crash-route custody, the scalar crash lane's halves under a scalar-only
+//! predicate gate: the carried roster equals the callee's verifier-owned
+//! contract derivation at the seed arguments, and the caller's published
+//! ceiling covers the roster the substituted arguments produce, with the
+//! moved roster itself re-derived in the comparison), an admissible
 //! structural-result call — `CallStructural` — in either form the cyclic
 //! eligibility fence confines (an affine claim-free
 //! result the producing member block dispatches or returns: the same effect
@@ -73,7 +78,9 @@
 //! performs; or an unrestricted claim-free result spelling one of the
 //! frontier's plain-source shapes: a custody-free copy payload that moves
 //! byte-exact under the shared no-member-stores bound, with no discard
-//! roster to tolerate and no containment bound), or
+//! roster to tolerate and no containment bound — and either form may carry
+//! crash-route custody, re-deriving the roster under the same scalar-only
+//! gate the borrow calls use), or
 //! an admissible scalar
 //! computation (an obligated variant keeps its verifier-discharged
 //! obligation byte-exact inside the moved operation) whose uses are all
@@ -520,6 +527,42 @@ pub(super) fn validate(
                 }
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
+        } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_unit_call(
+            relocation.expected,
+        )
+        .is_some()
+        {
+            // A crash-custody unit call replays the plain unit call's whole
+            // admission from the seed plus the scalar crash lane's halves:
+            // the carried roster must equal the callee's verifier-owned
+            // contract derivation at the seed arguments — under the
+            // scalar-only predicate gate, since the optimizer-side
+            // reconstruction does not replay the terminal verifier's
+            // canonical structural-path substitution — and the caller's
+            // published ceiling must cover the roster the substituted
+            // arguments produce. `same_relocated_node` re-derives the moved
+            // roster the same way, so a forged continuation spelling rejects
+            // byte-exact.
+            let effects = call_effects
+                .get_or_insert_with(|| crate::validation::invariant_calls::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_calls::invariant_crash_continuation_unit_call_admission(
+                &expected_unit.functions,
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
+                effects,
+            ) {
+                Some((substitution, rewrites)) => {
+                    (substitution, None, rewrites.into_iter().collect())
+                }
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
         } else if crate::validation::invariant_calls::admissible_invariant_structural_scalar_call(
             relocation.expected,
         )
@@ -536,6 +579,40 @@ pub(super) fn validate(
             let effects = call_effects
                 .get_or_insert_with(|| crate::validation::invariant_calls::unit_effect_summaries(expected_unit));
             match crate::validation::invariant_calls::invariant_structural_scalar_call_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
+                effects,
+            ) {
+                Some((substitution, rewrites)) => {
+                    (substitution, None, rewrites.into_iter().collect())
+                }
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
+        } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_structural_scalar_call(
+            relocation.expected,
+        )
+        .is_some()
+        {
+            // A crash-custody scalar-result structural call replays the
+            // plain structural-scalar call's whole admission from the seed
+            // plus the scalar crash lane's halves under the scalar-only
+            // predicate gate: the carried roster must equal the callee's
+            // verifier-owned contract derivation at the seed arguments, and
+            // the caller's published ceiling must cover the roster the
+            // substituted arguments produce. `same_relocated_node`
+            // re-derives the moved roster the same way, so a forged
+            // continuation spelling rejects byte-exact.
+            let effects = call_effects
+                .get_or_insert_with(|| crate::validation::invariant_calls::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_calls::invariant_crash_continuation_structural_scalar_call_admission(
+                &expected_unit.functions,
                 expected,
                 component,
                 relocation.expected,
@@ -575,6 +652,46 @@ pub(super) fn validate(
             let effects = call_effects
                 .get_or_insert_with(|| crate::validation::invariant_calls::unit_effect_summaries(expected_unit));
             match crate::validation::invariant_calls::invariant_structural_call_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
+                effects,
+            ) {
+                Some((substitution, rewrites)) => {
+                    (substitution, None, rewrites.into_iter().collect())
+                }
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
+        } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_structural_call(
+            relocation.expected,
+        )
+        .is_some()
+        {
+            // A crash-custody structural-result call replays the plain
+            // structural call's whole admission from the seed — the pure
+            // transitive callee, the unobservable member roster, the
+            // place-custody bound run with this component's relocated roots
+            // plus the call's own affine result tolerated through the
+            // containment bound, and each argument root's landing — plus the
+            // scalar crash lane's halves under the scalar-only predicate
+            // gate: the carried roster must equal the callee's
+            // verifier-owned contract derivation at the seed arguments, and
+            // the caller's published ceiling must cover the roster the
+            // substituted arguments produce. `same_relocated_node`
+            // re-derives the moved roster the same way, so a forged
+            // continuation spelling rejects byte-exact, and a kept internal
+            // discard or missing exit disposal rejects in the
+            // retained-member normalization.
+            let effects = call_effects
+                .get_or_insert_with(|| crate::validation::invariant_calls::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_calls::invariant_crash_continuation_structural_call_admission(
+                &expected_unit.functions,
                 expected,
                 component,
                 relocation.expected,
@@ -885,31 +1002,95 @@ fn same_relocated_node(
     // the callee's verifier-owned published routes instantiated at the
     // substituted actuals — the same reconstruction the realization
     // performs — so a forged or stale roster in the transformed spelling
-    // rejects byte-exact in the comparison below.
-    if let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
-        callee,
-        crash_continuations,
-        ..
-    } = &operation
-        && !crash_continuations.is_empty()
-    {
-        let callee = *callee;
+    // rejects byte-exact in the comparison below. The structural-signature
+    // variants route through the scalar-only-gated helper: admission
+    // already refused any roster whose predicates read structural evidence
+    // the optimizer-side reconstruction cannot replay, so the scalar
+    // derivation is the exact reconstruction here too.
+    let structural_call = matches!(
+        operation,
+        terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallUnit { .. }
+            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructuralScalar { .. }
+            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructural { .. }
+    );
+    let carries_routes = match &operation {
+        terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
+            crash_continuations,
+            ..
+        }
+        | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallUnit {
+            crash_continuations,
+            ..
+        }
+        | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructuralScalar {
+            crash_continuations,
+            ..
+        }
+        | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructural {
+            crash_continuations,
+            ..
+        } => !crash_continuations.is_empty(),
+        _ => false,
+    };
+    if carries_routes {
+        let callee = match &operation {
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
+                callee,
+                ..
+            }
+            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallUnit {
+                callee,
+                ..
+            }
+            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructuralScalar {
+                callee,
+                ..
+            }
+            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructural {
+                callee,
+                ..
+            } => *callee,
+            _ => return false,
+        };
         let Some(callee_function) = functions.iter().find(|function| function.machine == callee)
         else {
             return false;
         };
-        let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
-            arguments,
-            crash_continuations,
-            ..
-        } = &mut operation
-        else {
-            return false;
+        let (arguments, crash_continuations) = match &mut operation {
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
+                arguments,
+                crash_continuations,
+                ..
+            }
+            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallUnit {
+                arguments,
+                crash_continuations,
+                ..
+            }
+            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructuralScalar {
+                arguments,
+                crash_continuations,
+                ..
+            }
+            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructural {
+                arguments,
+                crash_continuations,
+                ..
+            } => (arguments, crash_continuations),
+            _ => return false,
         };
-        let Some(recomputed) = crate::validation::relocation_rewrites::call_crash_continuations(
-            callee_function,
-            arguments,
-        ) else {
+        let recomputed = if structural_call {
+            crate::validation::relocation_rewrites::structural_call_crash_continuations(
+                callee_function,
+                arguments,
+            )
+        } else {
+            crate::validation::relocation_rewrites::call_crash_continuations(
+                callee_function,
+                arguments,
+            )
+        };
+        let Some(recomputed) = recomputed else {
             return false;
         };
         *crash_continuations = recomputed;

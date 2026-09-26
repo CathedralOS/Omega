@@ -570,10 +570,9 @@ pub(crate) fn substitute_invariant_place_root(
 /// relocated call now
 /// names. Every static-call variant carries the same `structural_arguments`
 /// field shape, so the substitution walks whichever one the operation is —
-/// `CallUnit` and `CallStructuralScalar` are the admitted
-/// structural-signature families today (`CallStructural` stays matched for
-/// shape completeness), and a relocation never reaches here for an
-/// operation the admission refused. A shared-borrow argument whose root a
+/// `CallUnit`, `CallStructuralScalar`, and `CallStructural` are the admitted
+/// structural-signature families, and a relocation never reaches here for
+/// an operation the admission refused. A shared-borrow argument whose root a
 /// node earlier in the same run produced — an `EstablishPrimitiveLocal` or a
 /// byte-literal declaration — needs no rewrite at all: the run keeps the
 /// producer's declared place identity byte-exact. A relocated
@@ -664,4 +663,47 @@ pub(crate) fn call_crash_continuations(
         &contract.crash_routes,
         &substitutions,
     ))
+}
+
+/// The crash continuations a `CallUnit`, `CallStructuralScalar`, or
+/// `CallStructural` to `callee` carries once its actual scalar arguments are
+/// `arguments`: the same verifier-owned route derivation
+/// [`call_crash_continuations`] performs, admitted only when the published
+/// routes are purely scalar — every predicate proposition reads value
+/// identities and literals alone
+/// ([`semantic_vocabulary::Proposition::visit_value_ids`] completing over the
+/// whole proposition is exactly the refusal of every rooted term the
+/// structural substitution rewrites — field, view-extent, and case-subject
+/// roots, IEEE and byte-sequence field leaves, and content-projection
+/// subjects — plus the opaque `Atom`, which neither substitution touches but
+/// this gate conservatively refuses anyway). The terminal verifier
+/// substitutes each callee structural parameter's place by the argument's
+/// place and canonical prefix before the scalar substitution; a scalar-only
+/// roster contains no rooted term for that substitution to touch, so it is
+/// vacuous under this gate and the scalar derivation is the exact
+/// reconstruction at any actuals — including a moved call whose structural
+/// argument roots were rebound through their member-parameter
+/// representatives. A roster whose predicates read a callee structural
+/// parameter would need that canonical-prefix reconstruction, which this
+/// boundary does not carry, so the moved call stays inside instead of
+/// trusting a place spelling it cannot re-derive.
+pub(crate) fn structural_call_crash_continuations(
+    callee: &PsiOptimizationFunction,
+    arguments: &[ValueId],
+) -> Option<Vec<terminal_psi::CrashRouteBucket>> {
+    let contract = callee.verified_contract.as_ref()?;
+    let scalar_only = contract
+        .crash_routes
+        .iter()
+        .flat_map(|bucket| &bucket.alternatives)
+        .all(|guard| match guard {
+            terminal_psi::CrashRouteGuard::Truth => true,
+            terminal_psi::CrashRouteGuard::Predicate(term) => {
+                term.proposition().visit_value_ids(|_| ())
+            }
+        });
+    if !scalar_only {
+        return None;
+    }
+    call_crash_continuations(callee, arguments)
 }

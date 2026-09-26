@@ -9,7 +9,7 @@ use crate::{
 };
 use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_psi_to_abstract_operations::optimization_unit::{
-    ProvenanceDisposition, PsiRealizationSite, recompute_psi_optimization_unit_identity,
+    self, ProvenanceDisposition, PsiRealizationSite, recompute_psi_optimization_unit_identity,
 };
 use terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError;
 

@@ -120,7 +120,12 @@ fn component_candidate(
 /// argument names a root already visible at the preheader, resolved through
 /// an invariant member structural parameter, or produced by a node earlier
 /// in the same run — while a mutable or write-only borrow argument names
-/// only a member-produced root the same run already covers, or a
+/// only a member-produced root the same run already covers — and each of
+/// the three may carry crash-route custody through the same re-derived
+/// roster the scalar call's crash lane spells, provided the callee's
+/// published crash predicates stay scalar-only so the optimizer-side
+/// reconstruction does not need the verifier's canonical structural-path
+/// substitution — or a
 /// computation whose
 /// member-internal operands are all defined by nodes earlier in the same run —
 /// plus the number of countdown-certificate constants already occupying the
@@ -525,6 +530,42 @@ fn admit_member_node(
         }
         argument_rewrites = rewrites;
         substitution.into_iter().collect()
+    } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_unit_call(
+        node,
+    )
+    .is_some()
+    {
+        // A unit call carrying crash-route custody keeps the plain unit
+        // call's whole evidence surface — the non-speculative gate, the pure
+        // transitive callee, the unobservable member roster, the
+        // whole-component place-custody bound, and each argument root's
+        // landing — then adds the scalar crash-custody lane's halves: the
+        // carried roster must equal the callee's verifier-owned contract
+        // derivation at the source actuals, and the caller's published crash
+        // ceiling must cover the roster the substituted actuals produce.
+        // The lane admits only scalar-only crash predicates — the
+        // optimizer-side reconstruction does not replay the verifier's
+        // canonical structural-path substitution — so the moved call's
+        // structural-argument rebind cannot drift the derived roster.
+        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+            return None;
+        }
+        let effects = evidence.call_effects;
+        let (substitution, rewrites) =
+            crate::validation::invariant_calls::invariant_crash_continuation_unit_call_admission(
+                evidence.functions,
+                function,
+                component,
+                node,
+                relocating,
+                relocating_roots,
+                effects,
+            )?;
+        if !evidence.representable(&substitution, relocating) {
+            return None;
+        }
+        argument_rewrites = rewrites;
+        substitution.into_iter().collect()
     } else if crate::validation::invariant_calls::admissible_invariant_structural_scalar_call(node).is_some() {
         // A scalar-result structural call keeps the unit call's whole
         // evidence surface — the non-speculative gate, the pure transitive
@@ -540,6 +581,42 @@ fn admit_member_node(
         let effects = evidence.call_effects;
         let (substitution, rewrites) =
             crate::validation::invariant_calls::invariant_structural_scalar_call_admission(
+                function,
+                component,
+                node,
+                relocating,
+                relocating_roots,
+                effects,
+            )?;
+        if !evidence.representable(&substitution, relocating) {
+            return None;
+        }
+        argument_rewrites = rewrites;
+        substitution.into_iter().collect()
+    } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_structural_scalar_call(
+        node,
+    )
+    .is_some()
+    {
+        // A scalar-result structural call carrying crash-route custody keeps
+        // the plain structural-scalar call's whole evidence surface — the
+        // non-speculative gate, the pure transitive callee, the unobservable
+        // member roster, the whole-component place-custody bound, and every
+        // borrow or copyable-owned argument root landing where the run can
+        // see it — then adds the crash halves: the carried roster equals the
+        // callee's verifier-owned contract derivation at the source actuals,
+        // and the caller's published crash ceiling covers the roster the
+        // substituted actuals produce. The scalar-only predicate gate keeps
+        // the moved call's argument rebind from drifting that roster. The
+        // preserved scalar result joins `relocating`, so a member node
+        // consuming the return value relocates behind it in the same run.
+        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+            return None;
+        }
+        let effects = evidence.call_effects;
+        let (substitution, rewrites) =
+            crate::validation::invariant_calls::invariant_crash_continuation_structural_scalar_call_admission(
+                evidence.functions,
                 function,
                 component,
                 node,
@@ -589,6 +666,44 @@ fn admit_member_node(
             relocating_roots,
             effects,
         )?;
+        if !evidence.representable(&substitution, relocating) {
+            return None;
+        }
+        argument_rewrites = rewrites;
+        substitution.into_iter().collect()
+    } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_structural_call(
+        node,
+    )
+    .is_some()
+    {
+        // A structural-result call carrying crash-route custody keeps the
+        // plain structural call's whole evidence surface — the
+        // non-speculative gate, the pure transitive callee, the unobservable
+        // member roster, the place-custody bound run with the run's
+        // relocating roots plus an affine result's own place tolerated
+        // through the containment bound, and every borrow or copyable-owned
+        // argument root landing where the run can see it — then adds the
+        // crash halves: the carried roster equals the callee's
+        // verifier-owned contract derivation at the source actuals, and the
+        // caller's published crash ceiling covers the roster the substituted
+        // actuals produce. The scalar-only predicate gate keeps the moved
+        // call's argument rebind from drifting that roster. The declared
+        // place joins `relocating_roots`, so a member node anchored on the
+        // persistent result relocates behind it in the same run.
+        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+            return None;
+        }
+        let effects = evidence.call_effects;
+        let (substitution, rewrites) =
+            crate::validation::invariant_calls::invariant_crash_continuation_structural_call_admission(
+                evidence.functions,
+                function,
+                component,
+                node,
+                relocating,
+                relocating_roots,
+                effects,
+            )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
         }
@@ -843,12 +958,20 @@ pub(super) fn component_plan(
                         }
                         AbstractOperation::CallUnit { .. }
                             if crate::validation::invariant_calls::admissible_invariant_unit_call(node)
+                                .is_some()
+                                || crate::validation::invariant_calls::admissible_invariant_crash_continuation_unit_call(
+                                    node,
+                                )
                                 .is_some() =>
                         {
                             LoopInvariantNodeResult::Unit
                         }
                         AbstractOperation::CallStructural { result, .. }
                             if crate::validation::invariant_calls::admissible_invariant_structural_call(node)
+                                .is_some()
+                                || crate::validation::invariant_calls::admissible_invariant_crash_continuation_structural_call(
+                                    node,
+                                )
                                 .is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
