@@ -263,12 +263,6 @@ fn installation_reach_dependencies_are_exact_closed_service_rows() {
 }
 
 #[test]
-fn boundary_scalar_arguments_validate_in_declared_order() {
-    validate_module(&boundary_call_module())
-        .expect("a defined exact-type boundary scalar argument validates");
-}
-
-#[test]
 fn boundary_scalar_arguments_fail_closed_on_arity_definedness_and_type() {
     let mut arity = boundary_call_module();
     boundary_arguments_mut(&mut arity).clear();

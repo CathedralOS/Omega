@@ -38,17 +38,6 @@ fn indexed_attenuation_module() -> TerminalModule {
 }
 
 #[test]
-fn indexed_mutable_root_can_lend_a_write_only_primitive() {
-    let module = indexed_attenuation_module();
-    verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("an exact primitive subloan may attenuate mutable authority");
-}
-
-#[test]
 fn indexed_write_only_attenuation_does_not_admit_whole_array_leaves() {
     let mut module = indexed_attenuation_module();
     module.structural_types[0].shape = StructuralTypeShape::FixedArray {

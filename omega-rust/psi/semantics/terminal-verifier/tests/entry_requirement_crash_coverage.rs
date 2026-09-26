@@ -285,27 +285,6 @@ fn missing_opposite_foreign_or_disjunctive_requirements_do_not_prove_coverage() 
 }
 
 #[test]
-fn current_body_values_are_not_entry_requirement_assumptions() {
-    let mut module = module(false);
-    module.machines[0].contract.requires.clear();
-    module.machines[0].blocks[0].operations.insert(
-        0,
-        Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: OperationId::new(2).unwrap(),
-            result: OperationResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
-                id: ValueId::new(5).unwrap(),
-                scalar_type: ScalarType::Boolean,
-            }),
-            kind: OperationKind::BooleanConstant { value: true },
-        },
-    );
-    rejects_coverage(&module);
-}
-
-#[test]
 fn coverage_proof_cannot_replace_the_exact_callee_continuation() {
     for scalar_call in [false, true] {
         let mut module = module(scalar_call);

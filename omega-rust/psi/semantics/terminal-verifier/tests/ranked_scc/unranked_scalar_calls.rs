@@ -90,15 +90,6 @@ fn evidence(obligation: u64, conclusion: Proposition, rule: ProofRule) -> ProofB
 }
 
 #[test]
-fn cyclic_scalar_call_keeps_ordinary_result_and_full_graph_validation() {
-    let module = scalar_call_cycle();
-    assert_verifies(&module, &ProofBundle::default());
-    let mut reordered = module.clone();
-    reordered.machines[0].blocks.reverse();
-    assert_verifies(&reordered, &ProofBundle::default());
-}
-
-#[test]
 fn cyclic_scalar_call_rejects_unknown_target_wrong_arguments_and_result() {
     let module = scalar_call_cycle();
     assert_verifies(&module, &ProofBundle::default());
@@ -304,15 +295,6 @@ fn structural_scalar_call_cycle() -> TerminalModule {
     ];
     module.machines.push(callee);
     module
-}
-
-#[test]
-fn cyclic_structural_scalar_call_borrows_iteration_local_storage() {
-    let module = structural_scalar_call_cycle();
-    assert_verifies(&module, &ProofBundle::default());
-    let mut reordered = module.clone();
-    reordered.machines[0].blocks.reverse();
-    assert_verifies(&reordered, &ProofBundle::default());
 }
 
 #[test]

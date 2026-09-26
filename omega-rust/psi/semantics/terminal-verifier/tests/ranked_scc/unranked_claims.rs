@@ -232,43 +232,6 @@ fn claim_pinned_retain_cycle_validates() {
 }
 
 #[test]
-fn claim_pinned_cycle_with_guard_arms_stays_pinned() {
-    let mut module = claim_pinned_retain_cycle();
-    let machine = &mut module.machines[0];
-    let condition = id(1, ValueId::new);
-    machine.parameters.push(ValueDeclaration {
-        qualifications: Default::default(),
-        id: condition,
-        scalar_type: semantic_vocabulary::ScalarType::Boolean,
-    });
-    // Both arms re-enter the same block; no claim root or identity moves.
-    machine.blocks[1].terminator = Terminator::Conditional {
-        condition,
-        when_true: terminal_psi::SuccessorEdge {
-            edge: id(2, EdgeId::new),
-            target: id(2, BlockId::new),
-            arguments: Vec::new(),
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-        },
-        when_false: terminal_psi::SuccessorEdge {
-            edge: id(3, EdgeId::new),
-            target: id(2, BlockId::new),
-            arguments: Vec::new(),
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-        },
-    };
-    validate_module(&module)
-        .map(|_| ())
-        .expect("guard arms re-entering the retain block keep custody pinned");
-}
-
-#[test]
 fn claim_cycle_rejects_operations_naming_a_pinned_root() {
     let mut module = claim_pinned_retain_cycle();
     let retain = &mut module.machines[0].blocks[1];

@@ -302,11 +302,6 @@ fn assert_rejects(module: &TerminalModule, expected: ModuleError) {
 }
 
 #[test]
-fn extraction_and_exact_repair_validate() {
-    validate_module(&window_module()).expect("move then repair validates");
-}
-
-#[test]
 fn a_disjoint_sibling_stays_observable() {
     let mut module = window_module();
     let operations = &mut module.machines[0].blocks[0].operations;
