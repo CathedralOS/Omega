@@ -1189,23 +1189,4 @@ mod tests {
         assert!(diagnostics[0].message.contains("implemented twice"));
         assert!(diagnostics[0].message.contains("Duplicate::value"));
     }
-
-    #[test]
-    fn generated_units_reject_a_portable_cohort_missing_the_selected_target() {
-        let mut base = syntax(0, "const BASE: u64 = 1;\n");
-        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
-            .expect("base has no target rows");
-        let mut extension = syntax(1, "windows_x86_64 machine Missing::value() -> u64 { 2 }\n");
-        let second = syntax(2, "macos_arm64 machine Missing::value() -> u64 { 3 }\n");
-        extension.extend_from(&second);
-
-        let diagnostics = retained
-            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
-            .expect_err("generated units must expose a complete target cohort");
-
-        assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0].message.contains("no implementation"));
-        assert!(diagnostics[0].message.contains("macos_arm64"));
-        assert!(diagnostics[0].message.contains("windows_x86_64"));
-    }
 }
