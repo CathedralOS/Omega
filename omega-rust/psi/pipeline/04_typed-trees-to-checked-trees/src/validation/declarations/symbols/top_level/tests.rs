@@ -3,7 +3,7 @@ use crate::validation::front_end;
 
 #[test]
 fn distinct_boundary_token_operand_overloads_are_not_duplicate_machines() {
-    let program = crate::front_end::typed_program_from_texts(&[
+    let program = front_end::typed_program_from_texts(&[
         "boundary machine + Float::add(left: f32, right: f32) -> f32;
          boundary machine + Float::add(left: f64, right: f64) -> f64;",
     ]);
@@ -14,7 +14,7 @@ fn distinct_boundary_token_operand_overloads_are_not_duplicate_machines() {
 
 #[test]
 fn ordinary_operand_overloads_still_reject_as_duplicate_machines() {
-    let program = crate::front_end::typed_program_from_texts(&[
+    let program = front_end::typed_program_from_texts(&[
         "machine Float::add(left: f32, right: f32) -> f32 { left }
          machine Float::add(left: f64, right: f64) -> f64 { left }",
     ]);

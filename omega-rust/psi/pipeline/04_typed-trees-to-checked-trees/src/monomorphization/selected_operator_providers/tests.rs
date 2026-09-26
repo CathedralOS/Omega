@@ -70,6 +70,20 @@ fn distinct_const_tuples_share_a_copy_and_converged_demand_copies_nothing() {
 
 #[test]
 fn token_requirement_calls_retain_distinct_closed_provider_demands() {
+    let checked = checked_token_requirement_applications();
+    let receipts = checked
+        .machine_specializations
+        .iter()
+        .filter(|receipt| !receipt.operator_realizations.is_empty())
+        .collect::<Vec<_>>();
+    assert_eq!(receipts.len(), 2);
+    assert_ne!(
+        receipts[0].const_argument_identities,
+        receipts[1].const_argument_identities
+    );
+}
+
+fn checked_token_requirement_applications() -> crate::checked_trees::CheckedTrees {
     let program = typed_program(
         r#"
         data ArrayOps {}
@@ -90,20 +104,106 @@ fn token_requirement_calls_retain_distinct_closed_provider_demands() {
             .expect("provider")
             .symbol,
     }];
-    let checked = crate::lower_typed_trees(
+    crate::lower_typed_trees(
         program,
         &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&selected),
     )
-    .expect("token calls specialize their selected providers");
-    let receipts = checked
+    .expect("token calls specialize their selected providers")
+}
+
+#[test]
+fn closed_requirement_replay_rejects_substituted_and_ambiguous_receipts() {
+    let checked = checked_token_requirement_applications();
+    let program = &checked.typed;
+    let provider_receipt = program
         .machine_specializations
         .iter()
-        .filter(|receipt| !receipt.operator_realizations.is_empty())
-        .collect::<Vec<_>>();
-    assert_eq!(receipts.len(), 2);
-    assert_ne!(
-        receipts[0].const_argument_identities,
-        receipts[1].const_argument_identities
+        .find(|receipt| !receipt.operator_realizations.is_empty())
+        .expect("closed provider receipt");
+    let provider_symbol = provider_receipt.instance;
+    let requirement_symbol = provider_receipt.operator_realizations[0].requirement_symbol;
+    let requirement_receipt = program
+        .machine_specializations
+        .iter()
+        .position(|receipt| {
+            receipt.template == requirement_symbol
+                && receipt.const_argument_identities == provider_receipt.const_argument_identities
+        })
+        .expect("matching closed requirement");
+    let revalidate = |program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees| {
+        let provider = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == provider_symbol)
+            .expect("provider");
+        let requirement = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == requirement_symbol)
+            .expect("requirement");
+        let conformance = program
+            .machine_trait_conformances(provider)
+            .first()
+            .expect("authored conformance");
+        crate::validation::revalidate_top_level_requirement_realization(
+            program,
+            provider,
+            requirement,
+            conformance,
+        )
+    };
+    revalidate(program).expect("unchanged application replays");
+
+    let mut changed = program.clone();
+    let mut duplicate = changed.machine_specializations[requirement_receipt].clone();
+    duplicate.template = provider_receipt.template;
+    changed.machine_specializations.push(duplicate);
+    assert!(
+        revalidate(&changed).is_err(),
+        "one instance cannot claim two templates"
+    );
+
+    let mut changed = program.clone();
+    changed.machine_specializations[requirement_receipt].const_argument_identities = program
+        .machine_specializations
+        .iter()
+        .find(|receipt| {
+            receipt.template == requirement_symbol
+                && receipt.const_argument_identities != provider_receipt.const_argument_identities
+        })
+        .expect("other valid closed tuple")
+        .const_argument_identities
+        .clone();
+    assert!(
+        revalidate(&changed).is_err(),
+        "signature cannot authorize a different retained tuple"
+    );
+
+    let mut changed = program.clone();
+    changed.machine_specializations[requirement_receipt].normalized_template_identity =
+        provider_receipt.normalized_template_identity.clone();
+    assert!(
+        revalidate(&changed).is_err(),
+        "template identity must replay"
+    );
+
+    let mut changed = program.clone();
+    changed.machine_specializations.remove(requirement_receipt);
+    assert!(
+        revalidate(&changed).is_err(),
+        "closed requirement custody cannot disappear"
+    );
+
+    let mut changed = program.clone();
+    changed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == provider_symbol)
+        .expect("provider")
+        .body_is_present = false;
+    assert!(
+        revalidate(&changed).is_err(),
+        "a receipt cannot supply a missing checked body"
     );
 }
 

@@ -23,14 +23,15 @@ fn token_signature_preserves_machine_requirement_identity_and_intrinsic_meaning(
     let requirement = typed.machines()[0].clone();
     let entry = typed.machine_states(&requirement)[0].clone();
     let parameters = typed.state_parameters(&entry).to_vec();
-    let mut token = typed_trees::operator::OperatorDefinition {
-        is_public: requirement.is_public,
-        is_boundary: true,
-        symbol: requirement.symbol,
-        return_type: entry.return_type,
-        spelling: Some(OperatorSpelling::Add),
-        ..Default::default()
-    };
+    let mut token =
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition {
+            is_public: requirement.is_public,
+            is_boundary: true,
+            symbol: requirement.symbol,
+            return_type: entry.return_type,
+            spelling: Some(OperatorSpelling::Add),
+            ..Default::default()
+        };
     typed.push_operator_path_member(&mut token, "Float".into());
     typed.push_operator_path_member(&mut token, "add".into());
     for parameter in parameters {

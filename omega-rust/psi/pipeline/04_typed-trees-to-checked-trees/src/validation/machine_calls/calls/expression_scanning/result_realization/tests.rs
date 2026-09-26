@@ -26,7 +26,7 @@ machine enter(left: Flags, marker: bool, right: Flags, other: bool) -> bool {
 
 #[test]
 fn state_graph_boundary_scalar_initializers_keep_their_result_destination() {
-    let program = crate::front_end::typed_program(
+    let program = crate::validation::front_end::typed_program(
         "pub data Sink {} data Root {}
          pub boundary requirement Sink::produce(value: u32) -> u32;
          machine identity(value: u32) -> u32 { value }

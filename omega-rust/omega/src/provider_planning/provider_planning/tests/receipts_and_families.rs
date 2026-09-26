@@ -436,7 +436,7 @@ fn token_machine_family_preserves_complete_machine_overload_coordinates() {
             operator_coordinate_plan("first", &coordinates[0], "MathProvider"),
             operator_coordinate_plan("second", &coordinates[1], "MathProvider"),
         ];
-        let mut selection = crate::ProviderSelection::operator_family_for_test(
+        let mut selection = crate::provider_planning::ProviderSelection::operator_family_for_test(
             "Math::select",
             "MathProvider",
             &[&coordinates[0], &coordinates[1]],
