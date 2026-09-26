@@ -31,23 +31,26 @@ fn update_reports_false_reach_and_preserves_accepted_files() {
 }
 
 fn false_reach(command: &str) {
-    // Calls retain the callee's published reach even when its current body is pure.
+    // Ordinary calls propagate reach, but a body that invokes a boundary
+    // operation directly must declare that service, even in a private body.
     rejected_candidate(
         command,
-        r#"pub boundary trait FilesystemHost {
+        r#"use omega::language::core::binding;
+pub boundary trait FilesystemHost {
     machine write(descriptor: i32, bytes: &[u8]) -> i64 reaches FilesystemHost;
 }
 pub boundary trait Console {
     machine exit_process(code: i32) reaches Console;
 }
-machine write() -> u64 reaches FilesystemHost { 7 }
-pub machine value() -> u64 reaches Console {
-    write()
+pub data Journal { files: Binding<FilesystemHost>; }
+machine Journal::append(&mut self) reaches Console {
+    let written: i64 = self.files.write(1, "x");
 }
+pub machine value() -> u64 { 7 }
 "#,
         None,
         &[
-            "machine `value` publishes service reach `Console`",
+            "machine `Journal::append` publishes service reach `Console`",
             "its checked body reaches undeclared service `FilesystemHost`",
         ],
     );
