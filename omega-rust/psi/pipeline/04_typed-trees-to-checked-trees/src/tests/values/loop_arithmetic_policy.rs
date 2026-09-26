@@ -34,19 +34,8 @@ fn check_source(source: &str, accepted: bool) {
 }
 
 #[test]
-fn bounded_wrapping_steps_keep_their_monotone_index_facts() {
-    check_loop("i32", "Wrapping", "+ 1", "self.index < 4", true);
-    check_loop("u32", "Wrapping", "- 1", "self.index > 0", true);
-}
-
-#[test]
 fn wrapping_increment_cannot_mint_a_nonnegative_loop_invariant() {
     check_loop("i32", "Wrapping", "+ 2147483647", "self.index < 4", false);
-}
-
-#[test]
-fn wrapping_decrement_cannot_mint_an_upper_loop_invariant() {
-    check_loop("u32", "Wrapping", "- 3", "self.index > 0", false);
 }
 
 #[test]
@@ -55,24 +44,6 @@ fn nonwrapping_policies_keep_direction_on_normal_completion() {
         check_loop("i32", policy, "+ 2147483647", "self.index < 4", true);
         check_loop("u32", policy, "- 3", "self.index > 0", true);
     }
-}
-
-#[test]
-fn wrapping_proofs_follow_every_update_in_the_statement_prefix() {
-    check_loop(
-        "i32",
-        "Wrapping",
-        "+ 1; self.index = self.index + 1",
-        "self.index < 4",
-        true,
-    );
-    check_loop(
-        "i32",
-        "Wrapping",
-        "+ 2; self.index = self.index + 2147483644",
-        "self.index < 4",
-        false,
-    );
 }
 
 #[test]

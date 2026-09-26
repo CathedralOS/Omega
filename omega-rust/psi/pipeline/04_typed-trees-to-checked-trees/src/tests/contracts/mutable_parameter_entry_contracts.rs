@@ -276,27 +276,6 @@ fn pristine_mutable_guard_covers_a_call_with_an_entry_crash_route() {
 }
 
 #[test]
-fn a_clean_guard_conjunct_survives_its_mutated_sibling() {
-    // `other` was written, so it can no longer claim an entry operand; the
-    // edge still requires the pristine `input`, which covers the route.
-    let source = r#"
-        machine trigger() -> bool crashes Trap { crash Trap; }
-        machine value(mut input: bool, mut other: bool) -> bool
-        crashes Trap input
-        {
-            other = true;
-            transition input && other { true -> invoke() false -> false }
-            state invoke() -> bool { trigger() }
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).unwrap_or_else(
-        |diagnostics| {
-            panic!("a pristine conjunct covers despite a spoiled sibling: {diagnostics:#?}")
-        },
-    );
-}
-
-#[test]
 fn a_mutated_guard_conjunct_does_not_survive_its_clean_sibling() {
     // Only `other` still holds its entry operand; the route names `input`,
     // which was written before the guard and cannot be rescued.

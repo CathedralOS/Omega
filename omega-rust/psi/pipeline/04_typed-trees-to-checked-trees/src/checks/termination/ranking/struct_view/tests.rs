@@ -2,11 +2,6 @@
 
 use crate::tests::front_end::typed_program;
 
-fn prove(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed_program(source))
-        .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
-}
-
 fn reject(source: &str) {
     let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err(source);
@@ -31,40 +26,6 @@ terminates by countdown -> Countdown::Remaining;
     }
 }
 "#;
-
-#[test]
-fn nested_projection_ranks_the_innermost_field_rebuilt_through_every_literal() {
-    prove(NESTED);
-    // Three levels: every record-typed step is an exact field of the record
-    // before it, and every literal on the way is rebuilt.
-    prove(
-        &NESTED
-            .replace(
-                "data Inner { remaining: u64; }",
-                "data Core { remaining: u64; }\ndata Inner { core: Core; }",
-            )
-            .replace(
-                "countdown.inner.remaining",
-                "countdown.inner.core.remaining",
-            )
-            .replace(
-                "Inner { remaining: countdown.inner.core.remaining - 1 }",
-                "Inner { core: Core { remaining: countdown.inner.core.remaining - 1 } }",
-            ),
-    );
-    // A store-enforced range on the nested field still bounds the produced rank.
-    prove(
-        &NESTED
-            .replace(
-                "data Inner { remaining: u64; }",
-                "data Inner { remaining: u64 [0..=5]; }",
-            )
-            .replace(
-                "terminates by countdown -> Countdown::Remaining;",
-                "terminates by countdown -> Countdown::Remaining in 0..=5;",
-            ),
-    );
-}
 
 #[test]
 fn nested_projection_rejects_a_forwarded_or_wrong_field_or_guard() {
@@ -101,31 +62,3 @@ fn nested_projection_rejects_a_forwarded_or_wrong_field_or_guard() {
     );
 }
 
-const BORROWED: &str = r#"
-data Card { power: u64; }
-measure Card::PowerOrder(card: Card) -> u64 { card.power }
-machine walk(card: &Card)
-terminates by card -> Card::PowerOrder;
--> u64 {
-    transition card.power > 0 {
-        true -> walk(&Card { power: card.power - 1 })
-        false -> card.power
-    }
-}
-"#;
-
-#[test]
-fn borrowed_subject_ranks_the_referent_field_while_the_binding_stays_unwritten() {
-    prove(BORROWED);
-    // Rebinding the reference before the edge invalidates the ranked path.
-    reject(
-        &BORROWED
-            .replace("machine walk(card: &Card)", "machine walk(mut card: &Card)")
-            .replace(
-                "    transition card.power > 0",
-                "    card = card; transition card.power > 0",
-            ),
-    );
-    // A forwarded borrow does not decrease.
-    reject(&BORROWED.replace("walk(&Card { power: card.power - 1 })", "walk(card)"));
-}

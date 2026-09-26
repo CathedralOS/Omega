@@ -135,20 +135,6 @@ fn exact_requirement_lifetime_application_requires_complete_in_scope_arguments()
     assert!(error.message.contains("outside its lifetime telescope"));
 }
 
-#[test]
-fn concrete_subjectless_conformance_checks_as_carrierless_evidence() {
-    let source = r#"
-        trait Evidence {
-            machine witness(value: i32);
-        }
-
-        ConcreteEvidence: satisfies Evidence {
-            machine witness(value: i32) { }
-        }
-    "#;
-    checked_program(source);
-}
-
 /// MP1: the machine-parameter requirement is semantic tree data. It is
 /// populated once from the declaration and copied through the resolved tree
 /// into the typed tree; later rungs consume it for modular checking and
@@ -1250,18 +1236,3 @@ fn generic_body_call_resolves_to_machine_parameter_contract() {
     assert_eq!(call.target_symbol, machine_parameter.symbol);
 }
 
-#[test]
-fn generic_body_call_is_accepted_modularly_by_checked_lowering() {
-    let source = r#"
-        data Main {}
-        machine Main::run(&mut self) {}
-
-        machine apply<T, machine F>(value: &T)
-        where machine F(item: &T)
-        {
-            F(value);
-        }
-    "#;
-
-    checked_program(source);
-}

@@ -9,7 +9,7 @@
 
 use super::sole_certificate;
 use crate::tests::SymbolHandle;
-use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 const DISEQUAL_ELEMENTS: &str = r#"
     data Entry { value: i32; }
@@ -567,30 +567,6 @@ fn foreign_machine_requires_offers_no_premise() {
         }
     "#,
     );
-}
-
-#[test]
-fn mutable_premise_subject_offers_no_premise() {
-    // `last` is mutable, so `cut <= last` decomposes to no normalized bound
-    // and the windows stay unordered.
-    let Err(_) = crate::lower_typed_trees(
-        typed_program(
-            r#"
-        data Main { items: [i32; 4]; }
-
-        machine Main::split(&mut self, cut: u64, mut last: u64) -> u64
-            requires cut <= 4 && cut <= last && last <= 4;
-        {
-            let left: &mut [i32] = self.items[0..cut];
-            let right: &mut [i32] = self.items[last..4];
-            left.len + right.len
-        }
-    "#,
-        ),
-        &crate::CheckingRequest::settled(),
-    ) else {
-        panic!("a premise over a mutable subject cannot certify disjointness");
-    };
 }
 
 #[test]

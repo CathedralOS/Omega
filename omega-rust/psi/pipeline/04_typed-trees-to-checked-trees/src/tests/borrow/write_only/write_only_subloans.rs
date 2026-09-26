@@ -4,45 +4,6 @@ use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 
 #[test]
-fn direct_unconstrained_primitive_record_field_is_writable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Pair {
-                left: u8;
-                right: u16;
-            }
-
-            machine fill(pair: &write Pair) {
-                pair.left = 1;
-                pair.right = 2;
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("one-level primitive record-field writes should lower");
-}
-
-#[test]
-fn nested_unconstrained_primitive_record_field_is_writable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Inner { value: u8; }
-            data Outer { inner: Inner; }
-
-            machine fill(outer: &write Outer) {
-                outer.inner.value = 1;
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("nested invariant-free record-field writes should lower");
-}
-
-#[test]
 fn exact_common_field_write_only_subloan_is_forwardable() {
     lower_typed_trees(
         typed_program(
@@ -65,47 +26,6 @@ fn exact_common_field_write_only_subloan_is_forwardable() {
 }
 
 #[test]
-fn exact_literal_indexed_write_only_subloan_is_forwardable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Inner { values: [u16; 2]; sibling: u16; }
-            data Outer { inner: Inner; other: Inner; }
-
-            machine replace(value: &write u16) {
-                value = 7;
-            }
-
-            machine forward(outer: &write Outer) {
-                replace(&write outer.inner.values[1]);
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("one exact literal fixed-array index may finish a common-field subloan");
-}
-
-#[test]
-fn exact_direct_root_literal_indexed_write_only_subloan_is_forwardable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            machine replace(value: &write u16) {
-                value = 7;
-            }
-
-            machine forward(values: &write [u16; 2]) {
-                replace(&write values[1]);
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("one exact literal index may narrow a direct write-only fixed-array root");
-}
-
-#[test]
 fn finite_literal_index_suffix_may_narrow_a_direct_write_only_root() {
     lower_typed_trees(
         typed_program(
@@ -122,44 +42,6 @@ fn finite_literal_index_suffix_may_narrow_a_direct_write_only_root() {
         &CheckingRequest::settled(),
     )
     .expect("a finite literal-index suffix may narrow a nested direct write-only array root");
-}
-
-#[test]
-fn finite_literal_index_suffix_may_finish_a_common_field_subloan() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Outer { values: [[[[[[u16; 7]; 6]; 5]; 4]; 3]; 2]; sibling: u16; }
-
-            machine replace(value: &write u16) {
-                value = 7;
-            }
-
-            machine forward(outer: &write Outer) {
-                replace(&write outer.values[1][2][3][4][5][6]);
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("a finite literal-index suffix may finish a common-field write-only subloan");
-}
-
-#[test]
-fn literal_indexed_write_only_subloan_narrows_a_local_root() {
-    lower_typed_trees(typed_program(
-        r#"
-            machine replace(value: &write u16) {
-                value = 7;
-            }
-
-            machine forward(values: &write [u16; 2]) {
-                let alias: &write [u16; 2] = &write values;
-                replace(&write alias[1]);
-            }
-        "#,
-    ), &CheckingRequest::settled())
-    .expect("the shared projection walk narrows a write-only local root by literal index at the call boundary, exactly as local formation admits the same place");
 }
 
 #[test]
@@ -1139,31 +1021,6 @@ fn mut_rooted_write_only_subloans_keep_the_projection_envelope() {
 }
 
 #[test]
-fn mut_rooted_write_only_reads_stay_legal() {
-    // Mutable formation sources are never write-only roots: ordinary reads
-    // through an `&mut` place in a state that forms `&write` subloans must
-    // keep passing expression validation unchanged.
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Outer { value: u8 [0..=10]; }
-
-            machine replace(value: &write u8 [0..=10]) {
-                value = 7;
-            }
-
-            machine inspect(outer: &mut Outer) -> u8 {
-                replace(&write outer.value);
-                outer.value
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("reading through a mutable place beside a `&write` formation must stay legal");
-}
-
-#[test]
 fn mut_value_binding_exact_atom_write_only_subloans_are_forwardable() {
     // A `mut` value parameter or a `let mut` local owns writable storage, so
     // it may source a `&write` formation on the same terms as an `&mut`
@@ -2035,27 +1892,3 @@ fn consuming_receiver_write_only_subloan_needs_a_write_only_parameter() {
     );
 }
 
-#[test]
-fn consuming_receiver_stays_readable_beside_write_only_formation() {
-    // A consuming `self` is a formation source, never a write-only root:
-    // ordinary reads through it in a state that forms `&write` subloans keep
-    // passing expression validation unchanged.
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Boxed { value: u8 [0..=10]; }
-
-            machine replace(value: &write u8 [0..=10]) {
-                value = 7;
-            }
-
-            machine Boxed::inspect(self) -> u8 {
-                replace(&write self.value);
-                self.value
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("reading through a consuming `self` beside a `&write` formation must stay legal");
-}

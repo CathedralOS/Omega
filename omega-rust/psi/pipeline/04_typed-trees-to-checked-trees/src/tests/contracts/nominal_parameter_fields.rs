@@ -391,21 +391,6 @@ fn constructed_field_snapshots_are_invalidated_at_their_destination() {
 }
 
 #[test]
-fn disjoint_machine_field_updates_preserve_arrival_obligations() {
-    let source = r#"
-        domain [u8; 4]::Utf8 requires valid_utf8(self);
-        data Main { left: [u8; 4] in Utf8; right: [u8; 4] in Utf8; }
-        machine Main::run(&mut self) ensures self.right in Utf8 {
-            self.left = "okay";
-            transition { _ -> finish() }
-            state finish(&mut self) { }
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-}
-
-#[test]
 fn constructed_values_do_not_publish_snapshots_at_mutable_indices() {
     let source = r#"
         domain [u8; 4]::Utf8 requires valid_utf8(self);

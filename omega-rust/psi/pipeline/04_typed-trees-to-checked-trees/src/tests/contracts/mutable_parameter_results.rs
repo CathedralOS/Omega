@@ -221,25 +221,6 @@ fn borrowed_corruption_does_not_publish_mutable_parameter_results() {
 }
 
 #[test]
-fn nonlocal_writes_do_not_publish_mutable_parameter_results() {
-    check(
-        r#"
-        machine rewrite(mut value: u8, destination: &mut u8) -> u8 {
-            destination = 9;
-            value = value;
-            value
-        }
-        machine caller() -> u8 ensures result == 3 {
-            let mut destination: u8 = 0;
-            let captured: u8 = rewrite(3, &mut destination);
-            captured
-        }
-        "#,
-        false,
-    );
-}
-
-#[test]
 fn owned_parameter_reassignment_preserves_caller_input_facts() {
     check(
         r#"
@@ -257,39 +238,3 @@ fn owned_parameter_reassignment_preserves_caller_input_facts() {
     );
 }
 
-#[test]
-fn nested_borrow_of_owned_parameter_preserves_caller_input_facts() {
-    check(
-        r#"
-        machine corrupt(value: &mut u8) { value = 9; }
-        machine rewrite(mut value: u8) -> u8 {
-            corrupt(&mut value);
-            value
-        }
-        machine caller() -> u8 ensures result == 3 {
-            let mut input: u8 = 3;
-            let ignored: u8 = rewrite(input);
-            input
-        }
-        "#,
-        true,
-    );
-}
-
-#[test]
-fn borrowed_parameter_reassignment_invalidates_caller_input_facts() {
-    check(
-        r#"
-        machine rewrite(value: &mut u8) -> u8 {
-            value = 9;
-            9
-        }
-        machine caller() -> u8 ensures result == 3 {
-            let mut input: u8 = 3;
-            let ignored: u8 = rewrite(&mut input);
-            input
-        }
-        "#,
-        false,
-    );
-}

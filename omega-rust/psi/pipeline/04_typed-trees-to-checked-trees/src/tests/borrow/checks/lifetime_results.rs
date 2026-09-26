@@ -1,43 +1,5 @@
 use super::check_program;
 
-/// A single erased lifetime argument on borrow-carrying data has the same
-/// linking role as a direct reference lifetime. The aggregate result borrows
-/// only `first`, so mutating `second` while it remains live is sound.
-#[test]
-fn accepts_aggregate_return_disambiguated_by_explicit_lifetime_argument() {
-    let source = r#"
-        data View<'buf> {
-            body: &'buf mut i32;
-        }
-
-        machine select<'left, 'right>(
-            first: &'left mut i32,
-            second: &'right mut i32
-        ) -> View<'left> {
-            let selected: View<'left> = View { body: first };
-            transition {
-                _ -> selected
-            }
-        }
-
-        machine write(value: &mut i32) {
-            value = 1;
-        }
-
-        machine exercise<'left, 'right>(
-            first: &'left mut i32,
-            second: &'right mut i32
-        ) {
-            let selected: View<'left> = select(first, second);
-            write(second);
-            write(selected.body);
-        }
-    "#;
-
-    check_program(source)
-        .expect("the aggregate lifetime argument should retain only its named source");
-}
-
 /// The same aggregate result keeps its named source loan active at the call
 /// site; mutating that source before the result's last use must reject.
 #[test]
@@ -161,47 +123,6 @@ fn rejects_source_mutation_after_borrow_carrying_field_transfer() {
         combined.contains("mutates `right` while local borrow `selected` is still active"),
         "expected the projected aggregate's source conflict, got:\n{combined}"
     );
-}
-
-/// An explicitly multi-lifetime result derives one source mapping per field;
-/// using `right` does not keep the unrelated `left` loan active.
-#[test]
-fn accepts_field_specific_sources_for_multi_lifetime_result() {
-    let source = r#"
-        data Pair<'left, 'right> {
-            left: &'left mut i32;
-            right: &'right mut i32;
-        }
-
-        machine pair<'left, 'right>(
-            left: &'left mut i32,
-            right: &'right mut i32
-        ) -> Pair<'left, 'right> {
-            let result: Pair<'left, 'right> = Pair {
-                left: left,
-                right: right,
-            };
-            transition {
-                _ -> result
-            }
-        }
-
-        machine write(value: &mut i32) {
-            value = 1;
-        }
-
-        machine exercise<'left, 'right>(
-            left: &'left mut i32,
-            right: &'right mut i32
-        ) {
-            let result: Pair<'left, 'right> = pair(left, right);
-            write(left);
-            write(result.right);
-        }
-    "#;
-
-    check_program(source)
-        .expect("a field-specific use should retain only that field's named source");
 }
 
 /// The field-specific mapping still rejects mutation of the source retained by

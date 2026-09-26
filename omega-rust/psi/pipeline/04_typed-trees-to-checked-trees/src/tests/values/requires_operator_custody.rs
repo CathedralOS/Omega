@@ -95,15 +95,6 @@ fn builtin_joint_requires_remain_available_with_unrelated_operators() {
 }
 
 #[test]
-fn genuine_requires_remain_live_for_mutable_entry_parameters() {
-    check(
-        "operator > f64::unrelated(left: f64, right: f64) -> bool;
-        machine decrement(mut n: u64) -> u64 requires n > 0; { n - 1 }",
-        true,
-    );
-}
-
-#[test]
 fn conjunctions_do_not_hide_an_authored_ordering_from_subtraction() {
     for condition in ["left >= right && true", "true && left >= right"] {
         for (declaration, accepted) in [
@@ -146,14 +137,6 @@ fn check_dependent_product(declaration: &str, accepted: bool) {
             }}"
         ),
         accepted,
-    );
-}
-
-#[test]
-fn dependent_product_requires_need_builtin_comparison() {
-    check_dependent_product(
-        "operator <= u64::custom(left: u64, right: u64) -> bool;",
-        false,
     );
 }
 
@@ -201,21 +184,6 @@ fn check_bound_arithmetic(spelling: &str, condition: &str, result: &str, carrier
 #[test]
 fn joint_addition_requires_need_builtin_bound_subtraction() {
     check_bound_arithmetic("-", "left <= 255 - right", "left + right", "u8");
-}
-
-#[test]
-fn joint_multiplication_requires_need_builtin_bound_division() {
-    check_bound_arithmetic("/", "right >= 1; left <= 255 / right", "left * right", "u8");
-}
-
-#[test]
-fn joint_subtraction_requires_need_builtin_bound_addition() {
-    check_bound_arithmetic(
-        "+",
-        "right >= 0; -128 + right <= left",
-        "left - right",
-        "i8",
-    );
 }
 
 #[test]

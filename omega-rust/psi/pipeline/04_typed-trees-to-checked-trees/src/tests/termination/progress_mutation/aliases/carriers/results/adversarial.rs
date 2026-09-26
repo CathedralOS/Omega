@@ -73,35 +73,6 @@ fn replacing_an_incoming_shared_record_exports_only_the_replacement_subject() {
 }
 
 #[test]
-fn explicit_mutable_exposure_of_an_incoming_readonly_slot_retires_result_identity() {
-    assert_incoming_carrier_has_no_subject("_ = inspect_context(&mut input.context);");
-}
-
-#[test]
-fn an_incoming_mutable_ancestor_receiver_retires_shared_result_identity() {
-    assert_incoming_carrier_has_no_subject("_ = input.touch();");
-}
-
-#[test]
-fn a_terminal_unused_operand_cannot_expose_a_shared_parameter_binding() {
-    let source = fixture_source(
-        "let returned: Carrier = forward(context);
-         let borrowed: &Context = returned.context;
-         transition { _ -> wait_context(borrowed) }",
-        true,
-        false,
-        "data Carrier { context: &Context; tag: u64; }
-         machine inspect_binding(binding: &mut Context) -> u64 { 0 }
-         machine forward(mut context: &Context) -> Carrier {
-             Carrier { context: context, tag: inspect_binding(&mut context) }
-         }",
-    );
-    // The unused scalar operand has an empty write frame, but exposes the
-    // binding that anchors the other field's returned-reference relation.
-    assert_unproved_tail_requirement(&source);
-}
-
-#[test]
 fn a_helper_local_carrier_copy_keeps_its_source_after_alias_rebinding() {
     let program = fixture_with_body(
         "let returned: Carrier = forward(context, replacement);

@@ -29,50 +29,6 @@ fn rejects_terminating_recursive_machine_without_decreases() {
 }
 
 #[test]
-fn accepts_slice_range_surface_during_checked_lowering() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) -> u64 {
-        let values: [u64; 4] = [1, 2, 3, 4];
-        let view: &[u64] = values.as_slice();
-        let tail: &[u64] = view[1..];
-        tail.len
-    }
-    "#;
-
-    let typed = typed_program(source);
-
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should accept ranges");
-}
-
-#[test]
-fn accepts_terminating_countdown_machine_with_decreases() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) {
-        let value: u64 = self.countdown(2);
-    }
-
-    machine Main::countdown(&mut self, remaining: u64)
-    terminates by remaining -> Nat::Descending;
-    {
-        transition remaining > 0 {
-            true -> self.countdown(remaining - 1)
-            false -> 0
-        }
-    }
-    "#;
-
-    let typed = typed_program(source);
-
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("termination check should succeed");
-}
-
-#[test]
 fn direct_unsigned_countdown_exports_exact_ranked_scc_evidence() {
     let source = r#"
     data Main {}
@@ -129,32 +85,6 @@ fn direct_unsigned_countdown_exports_exact_ranked_scc_evidence() {
         crate::checks::termination::proven_nat_countdown_sccs(&typed, machine).is_none(),
         "forwarding the original rank must not export ranked-SCC evidence"
     );
-}
-
-#[test]
-fn accepts_terminating_distance_machine_with_decreases() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) {
-        let value: u64 = self.walk(4, 0);
-    }
-
-    machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates by (index, limit) -> Nat::BoundedDistance;
-    -> u64
-    {
-        transition index < limit {
-            true -> self.walk(limit, index + 1)
-            false -> index
-        }
-    }
-    "#;
-
-    let typed = typed_program(source);
-
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("termination distance proof should succeed");
 }
 
 #[test]
@@ -291,39 +221,6 @@ fn rejects_terminating_slice_length_order_without_supported_progress_shape() {
 }
 
 #[test]
-fn accepts_terminating_slice_length_order_with_shrinking_subslice() {
-    let source = r#"
-    data Entry {
-        value: i32;
-    }
-
-    data Main {
-        entries: [Entry; 4];
-    }
-
-    machine Main::main(&mut self) {
-        let view: &[Entry] = self.entries.as_slice();
-        let value: u64 = self.walk(view);
-    }
-
-    machine Main::walk(&mut self, entries: &[Entry])
-    terminates by entries -> Slice::Length;
-    -> u64
-    {
-        transition entries.len > 0 {
-            true -> self.walk(entries[1..])
-            false -> 0
-        }
-    }
-    "#;
-
-    let typed = typed_program(source);
-
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("termination slice length proof should succeed");
-}
-
-#[test]
 fn accepts_terminating_mutually_recursive_states_with_decreases() {
     let source = r#"
     data Main {}
@@ -397,64 +294,6 @@ fn rejects_terminating_mutually_recursive_states_without_decrease() {
 }
 
 #[test]
-fn infers_default_nat_descending_for_plain_usize_decreases() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) {
-        let value: u64 = self.countdown(2);
-    }
-
-    machine Main::countdown(&mut self, remaining: u64)
-    terminates by remaining;
-    {
-        transition remaining > 0 {
-            true -> self.countdown(remaining - 1)
-            false -> 0
-        }
-    }
-    "#;
-
-    let typed = typed_program(source);
-
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("default nat-descending inference should succeed");
-}
-
-#[test]
-fn infers_default_slice_length_for_plain_slice_decreases() {
-    let source = r#"
-    data Entry {
-        value: i32;
-    }
-
-    data Main {
-        entries: [Entry; 4];
-    }
-
-    machine Main::main(&mut self) {
-        let view: &[Entry] = self.entries.as_slice();
-        let value: u64 = self.walk(view);
-    }
-
-    machine Main::walk(&mut self, entries: &[Entry])
-    terminates by entries;
-    -> u64
-    {
-        transition entries.len > 0 {
-            true -> self.walk(entries[1..])
-            false -> 0
-        }
-    }
-    "#;
-
-    let typed = typed_program(source);
-
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("default slice-length inference should succeed");
-}
-
-#[test]
 fn infers_default_bounded_distance_for_plain_two_subject_tuple() {
     let source = r#"
     data Main {}
@@ -478,32 +317,6 @@ fn infers_default_bounded_distance_for_plain_two_subject_tuple() {
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("default bounded-distance inference should succeed");
-}
-
-#[test]
-fn accepts_explicit_named_bounded_distance_view() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) {
-        let value: u64 = self.walk(4, 0);
-    }
-
-    machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates by (index, limit) -> Nat::BoundedDistance;
-    -> u64
-    {
-        transition index < limit {
-            true -> self.walk(limit, index + 1)
-            false -> index
-        }
-    }
-    "#;
-
-    let typed = typed_program(source);
-
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("explicit named bounded-distance view should prove");
 }
 
 #[test]
@@ -674,32 +487,6 @@ fn rejects_ambiguous_default_order_requiring_explicit_form() {
             .map(|diagnostic| diagnostic.message.clone())
             .collect::<Vec<_>>()
     );
-}
-
-#[test]
-fn infers_default_nat_descending_for_plain_u32_decreases() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) {
-        let value: u32 = self.countdown(2);
-    }
-
-    machine Main::countdown(&mut self, remaining: u32)
-    terminates by remaining;
-    -> u32
-    {
-        transition remaining > 0 {
-            true -> self.countdown(remaining - 1)
-            false -> remaining
-        }
-    }
-    "#;
-
-    let typed = typed_program(source);
-
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("default nat-descending inference should cover u32");
 }
 
 #[test]

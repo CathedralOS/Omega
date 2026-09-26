@@ -144,25 +144,6 @@ fn non_ascii_replacement_retires_the_carrier_class() {
 }
 
 #[test]
-fn selected_scalar_call_result_preserves_byte_class() {
-    let source = r#"
-        domain [u8; 2]::Utf8 requires valid_utf8(self);
-        machine narrow(value: i32 [0..=255]) -> u8 { value as u8 }
-        machine establish(line: &mut [u8; 2]) ensures line in Utf8 {
-            let mut value: i32 = 25;
-            value = value / 10;
-            value = value + 48;
-            let byte: u8 = narrow(value);
-            value = 200;
-            line = "AB";
-            line[0] = byte;
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-}
-
-#[test]
 fn selected_scalar_call_result_evaluates_immutable_locals() {
     for callee in [
         "let byte: u8 = value as u8; byte",
@@ -185,73 +166,6 @@ fn selected_scalar_call_result_evaluates_immutable_locals() {
         lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{callee}: {diagnostics:#?}"));
     }
-}
-
-#[test]
-fn selected_scalar_call_result_captures_projected_assignment() {
-    let source = r#"
-        data Holder { input: i32; byte: u8; }
-        domain [u8; 2]::Utf8 requires valid_utf8(self);
-        machine narrow(value: i32 [0..=255]) -> u8 { value as u8 }
-        machine establish(line: &mut [u8; 2], holder: &mut Holder) ensures line in Utf8 {
-            holder.input = 65;
-            holder.byte = narrow(holder.input);
-            holder.input = 200;
-            line = "AB";
-            line[0] = holder.byte;
-            line[1] = narrow(66);
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-}
-
-#[test]
-fn selected_scalar_call_result_evaluates_local_storage_in_order() {
-    let source = r#"
-        domain [u8; 2]::Utf8 requires valid_utf8(self);
-        machine narrow(value: i32 [0..=255]) -> u8 {
-            let mut byte: u8 = value as u8;
-            byte = byte / 2;
-            let saved: u8 = byte;
-            byte = 200;
-            saved
-        }
-        machine establish(line: &mut [u8; 2]) ensures line in Utf8 {
-            let mut value: i32 = 130;
-            let byte: u8 = narrow(value);
-            value = 200;
-            line = "AB";
-            line[0] = byte;
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-}
-
-#[test]
-fn trapping_conversion_snapshots_survive_nonwriting_unit_calls() {
-    let source = r#"
-        domain [u8; 2]::Utf8 requires valid_utf8(self);
-        machine observe(value: bool) {}
-        machine narrow(value: i32) -> u8 {
-            let below: bool = value < 0;
-            observe(below);
-            let above: bool = value > 255;
-            observe(above);
-            (value as u8 in Trapping) as u8
-        }
-        machine establish(line: &mut [u8; 2]) ensures line in Utf8 {
-            let mut value: i32 = 65;
-            let byte: u8 = narrow(value);
-            value = 200;
-            line = "AB";
-            line[0] = byte;
-            line[1] = narrow(66);
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
 #[test]

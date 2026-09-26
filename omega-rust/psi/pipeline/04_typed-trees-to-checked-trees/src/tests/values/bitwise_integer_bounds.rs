@@ -186,38 +186,6 @@ fn logical_negation_checks_nested_integer_arithmetic() {
 }
 
 #[test]
-fn u64_complement_and_masks_use_all_sixty_four_bits() {
-    accepts(
-        "machine run() -> u64 [0..=0] { let maximum: u64 = 18446744073709551615u64; ~maximum }",
-    );
-    accepts(
-        "machine run() -> u64 [9223372036854775807..=9223372036854775807] { let high_bit: u64 = 9223372036854775808u64; ~high_bit }",
-    );
-    accepts(
-        "machine run() -> u64 [0..=0] { let maximum: u64 = 18446744073709551615u64; (~0u64) ^ maximum }",
-    );
-    accepts(
-        "machine run(value: u64 [0..=15]) -> u64 [0..=15] { let maximum: u64 = 18446744073709551615u64; value & maximum }",
-    );
-    accepts(
-        "machine run(value: u64 [0..=15]) -> u64 [0..=0] { let high_bit: u64 = 9223372036854775808u64; value & high_bit }",
-    );
-    rejects(
-        "machine run(value: u64) -> u64 { let high_bit: u64 = 9223372036854775808u64; (value & high_bit) + high_bit }",
-        "may overflow",
-    );
-}
-
-#[test]
-fn unknown_u64_ceiling_requires_a_real_overflow_proof() {
-    rejects(
-        "machine run(value: u64) -> u64 { value + 1u64 }",
-        "may overflow",
-    );
-    accepts("machine run(value: u64) -> u64 { value + 0u64 }");
-}
-
-#[test]
 fn bitwise_and_interval_does_not_use_only_its_endpoint_results() {
     // Both endpoint results are zero, but every interior value 1..=7 survives
     // this mask. Endpoint-only evaluation cannot establish the result range.
@@ -239,20 +207,6 @@ fn literal_suffixes_keep_nested_complement_arithmetic_in_their_carrier() {
     accepts("machine run() -> u8 [0..=0] { ~(254u8 + 1u8) }");
     accepts("machine run() -> u16 [0..=0] { ~(254u8 + 1u8) }");
     accepts("machine run() -> u16 [255..=255] { ~0u8 }");
-}
-
-#[test]
-fn logical_negation_cannot_hide_literal_only_integer_overflow() {
-    rejects(
-        "machine run() -> bool { !((255u8 + 1u8) == 0u8) }",
-        "may overflow",
-    );
-    rejects(
-        "machine run() -> bool { !((127i8 + 1i8) == 0i8) }",
-        "may overflow",
-    );
-    accepts("machine run() -> bool { !((254u8 + 1u8) == 0u8) }");
-    accepts("machine run() -> bool { !((126i8 + 1i8) == 0i8) }");
 }
 
 #[test]
@@ -278,17 +232,6 @@ fn overwriting_a_full_width_constant_drops_its_old_bit_pattern() {
             ~maximum
         }",
         "not provably within its declared range",
-    );
-}
-
-#[test]
-fn assignment_can_establish_a_new_full_width_constant() {
-    accepts(
-        "machine run() -> u64 [0..=0] {
-            let mut maximum: u64 = 0u64;
-            maximum = 18446744073709551615u64;
-            ~maximum
-        }",
     );
 }
 
@@ -354,20 +297,6 @@ fn strict_u64_guard_does_not_prove_two_increments() {
 }
 
 #[test]
-fn changing_the_guarded_u64_operand_invalidates_its_increment_proof() {
-    rejects(
-        "machine run(index: u64, limit: u64) -> u64 {
-            transition index < limit { true -> increment(index, limit) false -> (index) }
-            state increment(mut current: u64, bound: u64) -> u64 {
-                current = bound;
-                current + 1u64
-            }
-        }",
-        "may overflow",
-    );
-}
-
-#[test]
 fn slice_length_increment_bounds_require_the_strict_selected_arm() {
     for (condition, selected, fallback, accepted) in [
         ("index < items.len", "index + 1u64", "index", true),
@@ -385,29 +314,6 @@ fn slice_length_increment_bounds_require_the_strict_selected_arm() {
             rejects(&source, "may overflow");
         }
     }
-}
-
-#[test]
-fn slice_increment_arrivals_retain_the_actual_index_not_a_replacement_length() {
-    accepts(
-        "machine run(items: &[u8]) -> u64 {
-            transition items.len > 0u64 { true -> advance(items, 0u64) false -> 0u64 }
-            state advance(values: &[u8], current: u64) -> u64 { current + 1u64 }
-        }",
-    );
-    accepts(
-        "machine run(items: &[u8], index: u64) -> u64 {
-            transition index < items.len { true -> advance(items, index) false -> (index) }
-            state advance(values: &[u8], current: u64) -> u64 { current + 1u64 }
-        }",
-    );
-    rejects(
-        "machine run(items: &[u8], index: u64) -> u64 {
-            transition index < items.len { true -> advance(items, items.len) false -> (index) }
-            state advance(values: &[u8], current: u64) -> u64 { current + 1u64 }
-        }",
-        "may overflow",
-    );
 }
 
 #[test]

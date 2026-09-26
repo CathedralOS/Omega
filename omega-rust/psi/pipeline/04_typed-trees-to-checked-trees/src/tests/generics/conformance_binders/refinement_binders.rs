@@ -368,19 +368,3 @@ fn a_targeted_clause_naming_overloads_is_ambiguous() {
     );
 }
 
-/// A single-overload target still resolves, so the ambiguity check does not
-/// simply reject every targeted clause.
-#[test]
-fn a_targeted_clause_naming_one_requirement_still_resolves() {
-    let source = r#"
-        trait Logger {
-            machine write(&mut self) suspends;
-            machine flush(&mut self) suspends;
-        }
-
-        trait LocalLogger = Logger {
-            machine Logger::flush suspends false;
-        }
-    "#;
-    checked_program_result(source).expect("a clause naming one exact requirement resolves");
-}

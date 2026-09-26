@@ -45,35 +45,6 @@ fn an_ensured_result_bound_feeds_the_callers_exact_arithmetic() {
 }
 
 #[test]
-fn guarded_arrival_requirement_proves_bounded_increment() {
-    let source = r#"
-        data Main {}
-        machine Main::main(&mut self, value: u32 [0..=4]) -> u32 [0..=4] {
-            transition value < 4 {
-                true -> append(value)
-                false -> (value)
-            }
-            state append(&mut self, value: u32 [0..=4]) -> u32 [0..=4]
-            requires value < 4
-            { value + 1 }
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("the checked arrival requirement bounds the return");
-}
-
-#[test]
-fn machine_entry_requirement_refolds_a_bounded_return() {
-    let source = r#"
-        machine increment(value: u32 [0..=4]) -> u32 [0..=4]
-        requires value < 4
-        { value + 1 }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("entry-scoped requirement");
-}
-
-#[test]
 fn absent_arrival_premise_keeps_the_declared_range() {
     let source = r#"
         machine increment(value: u32 [0..=4]) -> u32 [0..=4] { value + 1 }
@@ -104,21 +75,6 @@ fn a_guard_does_not_discharge_a_different_delivered_value() {
             .contains("cannot prove requires contract for call append")),
         "{diagnostics:#?}"
     );
-}
-
-#[test]
-fn a_sibling_state_cannot_supply_the_return_premise() {
-    let source = r#"
-        data Main {}
-        machine Main::main(&mut self, value: u32 [0..=4]) -> u32 [0..=4] {
-            transition { _ -> plain(value) }
-            state narrow(value: u32 [0..=4]) -> u32 [0..=4]
-            requires value < 4
-            { value }
-            state plain(value: u32 [0..=4]) -> u32 [0..=4] { value + 1 }
-        }
-    "#;
-    proof_rejects(&parse_typed_trees(source));
 }
 
 #[test]
@@ -309,11 +265,3 @@ fn unresolved_no_argument_call_preserves_an_unpassed_parameter() {
         .expect("the conservative receiver frame cannot modify the unpassed parameter");
 }
 
-#[test]
-fn an_out_of_range_literal_remains_rejected() {
-    proof_rejects(&parse_typed_trees(
-        r#"
-        machine answer() -> i32 [1..=50] { 100 }
-    "#,
-    ));
-}

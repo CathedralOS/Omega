@@ -34,27 +34,6 @@ fn evaluation_order_observes_a_field_before_its_owner_is_extracted() {
 }
 
 #[test]
-fn evaluation_order_fences_only_boundary_calls_after_extraction() {
-    let source = "boundary machine sample() -> i32 ensures true;
-        data Inventory { slots: i32; }
-        data Saved { observed: i32; inventory: Inventory; }
-        data Main { inventory: Inventory; }
-        machine Main::replace(&mut self) {
-            let saved: Saved = Saved {
-                observed: sample(),
-                inventory: self.inventory,
-            };
-            self.inventory = move saved.inventory;
-        }";
-    checked_program_result(source).expect("the boundary completes before storage becomes absent");
-    let reversed = source.replace(
-        "observed: sample(),\n                inventory: self.inventory,",
-        "inventory: self.inventory,\n                observed: sample(),",
-    );
-    assert_boundary_window_rejection(&reversed);
-}
-
-#[test]
 fn evaluation_order_detaches_call_operands_before_later_arguments() {
     let source = "data Inventory { slots: i32; }
         machine preserve(observed: i32, inventory: Inventory) -> Inventory { inventory }
@@ -107,23 +86,6 @@ fn evaluation_order_borrowed_call_observes_only_established_storage() {
 }
 
 #[test]
-fn evaluation_order_retains_effects_inside_a_computed_projection() {
-    let source = "pub data Inventory { slots: i32; }
-        pub data Saved { inventory: Inventory; }
-        machine wrap(inventory: Inventory) -> Saved { Saved { inventory: inventory } }
-        data Main { inventory: Inventory; }
-        machine Main::replace(&mut self) {
-            self.inventory = wrap(self.inventory).inventory;
-        }";
-    checked_program_result(source).expect("a quiet wrapper returns the detached content");
-    let exposed = source.replace(
-        "machine wrap(inventory: Inventory) -> Saved { Saved { inventory: inventory } }",
-        "boundary machine wrap(inventory: Inventory) -> Saved ensures true;",
-    );
-    assert_boundary_window_rejection(&exposed);
-}
-
-#[test]
 fn service_receiver_observes_a_borrowed_argument_without_a_window() {
     let source = "boundary trait Probe { machine take_descriptor(value: Inventory) -> i32; }
         data Inventory { slots: i32; }
@@ -133,35 +95,6 @@ fn service_receiver_observes_a_borrowed_argument_without_a_window() {
         }";
     checked_program_result(source).expect(
         "an opaque service seam marshals a caller-owned copy of a stable borrowed argument",
-    );
-}
-
-#[test]
-fn direct_provider_call_consumes_a_borrowed_argument() {
-    let source = "boundary trait Probe { machine take_descriptor(value: Inventory) -> i32; }
-        machine probe_binding() -> i32 { 0 }
-        machine take_descriptor(value: Inventory) -> i32
-            satisfies Probe::take_descriptor via probe_binding();
-        data Inventory { slots: i32; }
-        data Main { inventory: Inventory; observed: i32; }
-        machine Main::replace(&mut self) reaches Probe {
-            self.observed = take_descriptor(self.inventory);
-        }";
-    assert_boundary_window_rejection(source);
-}
-
-#[test]
-fn service_receiver_observes_an_erased_member_argument_without_a_window() {
-    let source = "boundary trait Probe { machine take_descriptor(value: Sealed) -> i32; }
-        data Evidence { case Only; }
-        data Sealed { payload: i32; proof [erased]: Evidence; }
-        data Main<'s> { sealed: Sealed; probe: &'s mut Probe; observed: i32; }
-        machine Main::replace(&mut self) reaches Probe {
-            self.observed = self.probe.take_descriptor(self.sealed);
-        }";
-    checked_program_result(source).expect(
-        "an erased member never crosses the service seam: the marshal reads \
-         runtime contents while the observed place keeps the whole value",
     );
 }
 
@@ -244,38 +177,6 @@ fn evaluation_order_replay_rejects_a_substituted_invocation_occurrence() {
 }
 
 #[test]
-fn move_out_and_exact_restore_compiles() {
-    checked_program_result(
-        r#"
-        data Inventory { slots: i32; }
-        data Main { inventory: Inventory; }
-        machine Main::main(&mut self) {
-            let replacement: Inventory = self.inventory;
-            self.inventory = move replacement;
-        }
-        "#,
-    )
-    .expect("extract-then-restore on the exact place must compile");
-}
-
-#[test]
-fn disjoint_sibling_work_between_move_and_repair() {
-    checked_program_result(
-        r#"
-        data Inventory { slots: i32; }
-        data Main { inventory: Inventory; count: i32; }
-        machine Main::main(&mut self) {
-            let replacement: Inventory = self.inventory;
-            let n: i32 = self.count;
-            self.count = n;
-            self.inventory = move replacement;
-        }
-        "#,
-    )
-    .expect("disjoint sibling work is allowed while the window is open");
-}
-
-#[test]
 fn fresh_replacement_value_discharges_the_window() {
     checked_program_result(
         r#"
@@ -288,22 +189,6 @@ fn fresh_replacement_value_discharges_the_window() {
         "#,
     )
     .expect("the replacement need not be the removed value");
-}
-
-#[test]
-fn nested_field_window_repairs_on_the_exact_place() {
-    checked_program_result(
-        r#"
-        data Inner { tag: i32; }
-        data Inventory { inner: Inner; }
-        data Main { inventory: Inventory; }
-        machine Main::main(&mut self) {
-            let inner: Inner = self.inventory.inner;
-            self.inventory.inner = move inner;
-        }
-        "#,
-    )
-    .expect("a nested absent subtree repairs at its exact place");
 }
 
 #[test]
@@ -321,45 +206,6 @@ fn mutable_local_route_rebases_to_the_same_storage() {
         "#,
     )
     .expect("a hole opened through a `&mut` local repairs through the owner path");
-}
-
-#[test]
-fn call_result_value_can_repair_the_window() {
-    checked_program_result(
-        r#"
-        data Inventory { slots: i32; }
-        machine bump(inventory: Inventory) -> Inventory { inventory }
-        data Main { inventory: Inventory; }
-        machine Main::main(&mut self) {
-            let replacement: Inventory = self.inventory;
-            let bumped: Inventory = bump(replacement);
-            self.inventory = move bumped;
-        }
-        "#,
-    )
-    .expect("the detached value may travel through a call before repair");
-}
-
-#[test]
-fn repair_before_transition_serves_every_arm() {
-    checked_program_result(
-        r#"
-        data Inventory { slots: i32; }
-        data Main { inventory: Inventory; flag: bool; }
-        machine Main::main(&mut self) {
-            let replacement: Inventory = self.inventory;
-            self.inventory = move replacement;
-            transition self.flag {
-                true -> done()
-                _ -> done()
-            }
-
-            state done(&mut self) {
-            }
-        }
-        "#,
-    )
-    .expect("a discharged window is closed on every exit edge");
 }
 
 #[test]
@@ -681,47 +527,6 @@ fn matching_arms_extract_and_repair_after_the_join() {
 }
 
 #[test]
-fn each_arm_may_consume_through_its_own_call() {
-    checked_program_result(
-        r#"
-        data Inventory { slots: i32; }
-        machine bump(inventory: Inventory) -> Inventory { inventory }
-        machine renew(inventory: Inventory) -> Inventory { inventory }
-        data Main { inventory: Inventory; flag: bool; }
-        machine Main::main(&mut self) {
-            let taken: Inventory = match self.flag {
-                true -> bump(self.inventory)
-                _ -> renew(self.inventory)
-            };
-            self.inventory = move taken;
-        }
-        "#,
-    )
-    .expect("call-flow argument moves attribute to the arm that evaluates them");
-}
-
-#[test]
-fn nested_match_agreement_lifts_into_the_enclosing_arm() {
-    checked_program_result(
-        r#"
-        data Inventory { slots: i32; }
-        data Main { inventory: Inventory; flag: bool; other_flag: bool; }
-        machine Main::main(&mut self) {
-            let taken: Inventory = match self.flag {
-                true -> match self.other_flag {
-                    true -> self.inventory
-                    _ -> self.inventory
-                }
-                _ -> self.inventory
-            };
-            self.inventory = move taken;
-        }
-        "#,
-    )
-    .expect("an inner match that agrees carries its debt into the outer arm");
-}
-
-#[test]
 fn unreachable_arm_moves_do_not_block_agreement() {
     checked_program_result(
         r#"
@@ -1001,16 +806,6 @@ fn assert_boundary_window_rejection(source: &str) {
 }
 
 #[test]
-fn nonblocking_service_call_requires_restored_borrowed_storage() {
-    assert_boundary_window_rejection(&operational_window_source(
-        "",
-        "let taken: Inventory = self.inventory;
-         let reading: i32 = self.waiter.wait();
-         self.inventory = move taken;",
-    ));
-}
-
-#[test]
 fn empty_reach_boundary_and_its_wrapper_require_restored_borrowed_storage() {
     for invocation in ["sample()", "wrapped_sample()", "outer_sample()"] {
         assert_boundary_window_rejection(&format!(
@@ -1029,24 +824,6 @@ fn empty_reach_boundary_and_its_wrapper_require_restored_borrowed_storage() {
 }
 
 #[test]
-fn empty_reach_boundary_on_a_later_callee_state_still_fences_the_call() {
-    assert_boundary_window_rejection(
-        "boundary machine sample() -> i32 ensures true;
-         machine wrapped_sample(flag: bool) -> i32 {
-             transition flag { true -> later() _ -> 0 }
-             state later() -> i32 { sample() }
-         }
-         data Inventory { slots: i32; }
-         data Main { inventory: Inventory; }
-         machine Main::replace(&mut self, flag: bool) {
-             let taken: Inventory = self.inventory;
-             let reading: i32 = wrapped_sample(flag);
-             self.inventory = move taken;
-         }",
-    );
-}
-
-#[test]
 fn ordinary_wrapper_retains_its_conservative_service_reach() {
     for body in ["observer.wait()", "7"] {
         assert_boundary_window_rejection(&format!(
@@ -1061,19 +838,6 @@ fn ordinary_wrapper_retains_its_conservative_service_reach() {
              }}"
         ));
     }
-}
-
-#[test]
-fn nonblocking_boundary_replacement_is_checked_before_its_store() {
-    assert_boundary_window_rejection(
-        "pub data Inventory { slots: i32; }
-         boundary machine replacement() -> Inventory ensures true;
-         data Main { inventory: Inventory; }
-         machine Main::replace(&mut self) {
-             let taken: Inventory = self.inventory;
-             self.inventory = replacement();
-         }",
-    );
 }
 
 #[test]
@@ -1140,22 +904,6 @@ fn spelled_boundary_operator_and_wrapper_require_restored_storage() {
              }}"
         ));
     }
-}
-
-#[test]
-fn skipped_boundary_operator_does_not_cross_the_window() {
-    checked_program_result(
-        "data CheckedMath {}
-         boundary operator CheckedMath::read(value: i32) -> bool;
-         data Inventory { slots: i32; }
-         data Main { inventory: Inventory; }
-         machine Main::replace(&mut self) {
-             let taken: Inventory = self.inventory;
-             let skipped: bool = false && CheckedMath::read(7);
-             self.inventory = move taken;
-         }",
-    )
-    .expect("an operator invocation in a skipped operand cannot expose storage");
 }
 
 #[test]

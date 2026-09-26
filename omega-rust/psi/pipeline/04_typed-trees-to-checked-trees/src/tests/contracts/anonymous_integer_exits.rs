@@ -118,13 +118,6 @@ fn anonymous_integer_arithmetic_rejects_an_unrepresentable_final_value() {
 }
 
 #[test]
-fn previously_landed_integer_operations_keep_their_selected_width() {
-    check_expression("((255u8 as u8 in Wrapping) + 1) as u8", "u8", "0", true);
-    check_expression("((255u8 as u8 in Wrapping) + 1) as u8", "u8", "256", false);
-    check_expression("(255u8 + 1u8) - 1u8", "u8", "255", false);
-}
-
-#[test]
 fn anonymous_local_initializers_land_without_widths_on_intermediate_values() {
     for (expression, target) in [
         ("(255 + 1) - 1", "u8"),

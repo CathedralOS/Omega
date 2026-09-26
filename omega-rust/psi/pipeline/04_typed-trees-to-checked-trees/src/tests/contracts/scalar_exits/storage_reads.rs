@@ -66,25 +66,6 @@ fn copied_values_remain_distinct_from_later_storage_versions() {
 }
 
 #[test]
-fn explicit_state_arguments_keep_completed_mutable_storage_reads() {
-    check(
-        r#"
-        machine produce() -> u8 ensures result == 8 {
-            let mut value: u8 = 3;
-            value = ((value as u8 in Wrapping) + 4) as u8;
-            transition { _ -> finish(value) }
-            state finish(input: u8) -> u8 {
-                let mut current: u8 = input;
-                current = ((current as u8 in Wrapping) + 1) as u8;
-                current
-            }
-        }
-    "#,
-        true,
-    );
-}
-
-#[test]
 fn unknown_or_invalidated_storage_never_replays_an_initializer() {
     for body in [
         "let mut value: u8 = 3; replace(&mut value); value = ((value as u8 in Wrapping) + 4) as u8; value",

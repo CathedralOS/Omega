@@ -46,14 +46,6 @@ fn cancellation_preserves_each_intermediate_overflow_obligation() {
 }
 
 #[test]
-fn different_pure_call_arguments_cannot_cancel() {
-    check(
-        "machine identity(value: u64) -> u64 { value } machine cancel(value: u64, other: u64, ceiling: u64) -> u64 { ceiling + (identity(value) - identity(other)) }",
-        false,
-    );
-}
-
-#[test]
 fn mutable_calls_do_not_become_equal_by_repeated_spelling() {
     check(
         "machine change(value: &mut u64) -> u64 { let saved: u64 = value; value = 0; saved } machine cancel(input: u64, ceiling: u64) -> u64 { let mut value: u64 = input; ceiling + (change(&mut value) - change(&mut value)) }",

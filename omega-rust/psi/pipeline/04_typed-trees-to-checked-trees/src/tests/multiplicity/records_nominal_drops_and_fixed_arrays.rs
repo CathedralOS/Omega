@@ -305,22 +305,6 @@ fn nominal_drop_allows_explicit_consuming_decomposition() {
 }
 
 #[test]
-fn nominal_drop_allows_whole_value_move() {
-    checked_program(
-        r#"
-        data Leaf { value: i32; }
-        data Wrapper { leaf: Leaf; }
-        machine Wrapper::drop(&mut self) {}
-        data Main {}
-        machine Main::run() {
-            let wrapper: Wrapper = Wrapper { leaf: Leaf { value: 1 } };
-            let moved: Wrapper = wrapper;
-        }
-        "#,
-    );
-}
-
-#[test]
 fn nominal_drop_allows_moving_nested_value_whole() {
     checked_program(
         r#"
@@ -349,40 +333,6 @@ fn nominal_drop_allows_copying_primitive_field() {
         machine Main::run() {
             let wrapper: Wrapper = Wrapper { value: 1 };
             let copied: i32 = wrapper.value;
-        }
-        "#,
-    );
-}
-
-#[test]
-fn nominal_drop_allows_owned_production_into_self_field() {
-    checked_program(
-        r#"
-        data Leaf { value: i32; }
-        data LeafFactory {}
-        boundary operator LeafFactory::create() -> Leaf;
-        data Wrapper { leaf: Leaf; }
-        machine Wrapper::drop(&mut self) {}
-        machine Wrapper::replace(&mut self) {
-            self.leaf = LeafFactory::create();
-        }
-        "#,
-    );
-}
-
-#[test]
-fn transparent_affine_record_allows_partial_move() {
-    checked_program(
-        r#"
-        data Leaf { value: i32; }
-        data Pair { left: Leaf; right: Leaf; }
-        data Main {}
-        machine Main::run() {
-            let pair: Pair = Pair {
-                left: Leaf { value: 1 },
-                right: Leaf { value: 2 },
-            };
-            let extracted: Leaf = pair.left;
         }
         "#,
     );

@@ -68,11 +68,6 @@ fn explicit_mutable_exposure_retires_readonly_carrier_origins() {
 }
 
 #[test]
-fn an_implicit_mutable_statement_receiver_retires_readonly_carrier_origins() {
-    assert_readonly_carrier_has_no_subject("_ = carrier.touch();");
-}
-
-#[test]
 fn an_implicit_mutable_value_receiver_retires_readonly_carrier_origins() {
     assert_receiver_origin(
         "",

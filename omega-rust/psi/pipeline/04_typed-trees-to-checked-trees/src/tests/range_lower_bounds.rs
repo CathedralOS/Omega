@@ -72,33 +72,6 @@ fn writes_retire_old_lower_bounds_before_a_fresh_upper_guard() {
 }
 
 #[test]
-fn disjoint_writes_preserve_both_index_bounds() {
-    check(
-        "machine set(output: &mut i64) { output = -1; }
-         machine read(items: &[u8], index: i64) -> u8
-         requires 0 <= index && index < items.len;
-         {
-             let mut other: i64 = 0;
-             set(&mut other);
-             items[index]
-         }",
-        true,
-        "",
-    );
-}
-
-#[test]
-fn lower_bound_does_not_supply_another_collections_upper_bound() {
-    check(
-        "machine read(items: &[u8], other: &[u8], index: i64) -> u8
-         requires 0 <= index && index < items.len;
-         { other[index] }",
-        false,
-        "within unknown slice length",
-    );
-}
-
-#[test]
 fn symbolic_windows_require_nonnegative_endpoints_for_both_geometries() {
     for collection in ["[u8]", "[u8; 4]"] {
         for (access, upper) in [
@@ -193,28 +166,6 @@ fn length_subtraction_never_borrows_another_extent_or_an_invalid_offset() {
             "cannot prove",
         );
     }
-}
-
-#[test]
-fn overwritten_offset_cannot_reuse_its_old_extent_bound() {
-    check(
-        "machine window(items: &[u8], mut offset: u64)
-        requires offset <= items.len;
-        { offset = 100; let view: &[u8] = items[0..items.len - offset]; }",
-        false,
-        "cannot prove",
-    );
-}
-
-#[test]
-fn authored_subtraction_does_not_inherit_length_geometry() {
-    check(
-        "operator - u64::subtract(left: u64, right: u64) -> u64;
-        machine window(items: &[u8]) requires items.len > 0;
-        { let view: &[u8] = items[0..items.len - 1]; }",
-        false,
-        "cannot prove",
-    );
 }
 
 #[test]

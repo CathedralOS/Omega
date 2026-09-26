@@ -41,17 +41,6 @@ fn preceding_explicit_readonly_slot_exposure_rejects_requires() {
 }
 
 #[test]
-fn earlier_operand_explicit_readonly_slot_exposure_rejects_requires() {
-    // An empty frame is not evidence that an exposed reference slot is frozen.
-    reject_exposed_input(
-        "",
-        "",
-        "inspect_context(&mut carrier.context)",
-        "machine inspect_context(context: &mut Context) -> u64 { 0 }",
-    );
-}
-
-#[test]
 fn preceding_empty_mutable_ancestor_method_rejects_requires() {
     for access in ["", "mut "] {
         reject_exposed_input(

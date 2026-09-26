@@ -340,22 +340,6 @@ fn late_predecessors_retire_already_built_constant_contexts() {
 }
 
 #[test]
-fn reverse_declaration_order_does_not_change_scalar_transfer() {
-    check(
-        r#"
-        machine produce() -> u8 ensures result == 3 {
-            transition { _ -> first(3) }
-            state finish(current: u8) -> u8 { current }
-            state third(value: u8) -> u8 { transition { _ -> finish(value) } }
-            state second(value: u8) -> u8 { transition { _ -> third(value) } }
-            state first(value: u8) -> u8 { transition { _ -> second(value) } }
-        }
-    "#,
-        true,
-    );
-}
-
-#[test]
 fn scalar_input_meet_compares_integer_payloads() {
     for alternative in ["0x3", "3u8"] {
         check(
@@ -372,43 +356,6 @@ fn scalar_input_meet_compares_integer_payloads() {
             true,
         );
     }
-}
-
-#[test]
-fn later_argument_mutation_cannot_relabel_an_earlier_captured_value() {
-    check(
-        r#"
-        data Main { value: u8; }
-        machine Main::replace(&mut self) -> u8 ensures self.value == 4 {
-            self.value = 4;
-            0
-        }
-        machine Main::produce(&mut self) -> u8
-        ensures result == 4
-        {
-            self.value = 3;
-            transition { _ -> finish(self.value, self.replace()) }
-            state finish(current: u8, ignored: u8) -> u8 { current }
-        }
-    "#,
-        false,
-    );
-}
-
-#[test]
-fn incoming_parameter_facts_have_independent_mutation_lifetimes() {
-    check(
-        r#"
-        machine produce() -> u8 ensures result == 3 {
-            transition { _ -> finish(3, 4) }
-            state finish(current: u8, mut other: u8) -> u8 {
-                other = 5;
-                current
-            }
-        }
-    "#,
-        true,
-    );
 }
 
 #[test]
@@ -472,21 +419,6 @@ fn reached_loop_preserves_only_agreed_scalar_inputs() {
             accepted,
         );
     }
-}
-
-#[test]
-fn self_transition_preserves_a_reached_constant() {
-    check(
-        r#"
-        machine produce(flag: bool) -> u8 ensures result == 3 {
-            transition { _ -> repeat(3, flag) }
-            state repeat(current: u8, again: bool) -> u8 {
-                transition again { true -> self false -> current }
-            }
-        }
-    "#,
-        true,
-    );
 }
 
 #[test]

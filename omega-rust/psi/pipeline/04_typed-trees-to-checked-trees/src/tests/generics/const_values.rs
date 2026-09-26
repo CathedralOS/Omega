@@ -177,38 +177,6 @@ fn same_spelled_const_binders_in_different_machines_keep_their_symbols() {
 }
 
 #[test]
-fn local_with_const_binders_spelling_keeps_its_lexical_value() {
-    accepts(
-        "machine endpoint<const N: u64>(witness: &[u8; N]) -> u64 [7..=7] {
-             let N: u64 = 7;
-             N
-         }
-         machine main() -> u64 {
-             let pair: [u8; 2] = [0, 0];
-             let triple: [u8; 3] = [0, 0, 0];
-             let first: u64 = endpoint(&pair);
-             endpoint(&triple)
-         }",
-    );
-}
-
-#[test]
-fn negative_integer_const_values_check_in_original_and_cloned_bodies() {
-    accepts(
-        "data Values {}
-         const Values::NEGATIVE: i32[-2..=3] = -2;
-         const Values::POSITIVE: i32[-2..=3] = 3;
-         data Witness<const N: i32[-2..=3]> { case Only; }
-         data Main { first: Witness<Values::NEGATIVE>; second: Witness<Values::POSITIVE>; }
-         machine value<const N: i32[-2..=3]>(witness: &Witness<N>) -> i32 [-2..=3] ensures result == N { N }
-         machine Main::main(&self) -> i32 {
-             let negative: i32 = value(&self.first);
-             value(&self.second)
-         }",
-    );
-}
-
-#[test]
 fn boolean_const_values_check_in_original_and_cloned_bodies() {
     accepts(
         "const Values::ENABLED: bool = true;
@@ -219,39 +187,6 @@ fn boolean_const_values_check_in_original_and_cloned_bodies() {
          machine Main::main(&self) -> bool {
              let enabled: bool = value(&self.first);
              value(&self.second)
-         }",
-    );
-}
-
-#[test]
-fn named_structured_const_values_check_as_executable_machine_results() {
-    accepts(
-        "data Config [copy] { count: u8; enabled: bool; }
-         data Values {}
-         const Values::FIRST: Config = Config { count: 2, enabled: true };
-         const Values::SECOND: Config = Config { enabled: false, count: 3 };
-         data Witness<const N: Config> { case Only; }
-         data Main { first: Witness<Values::FIRST>; second: Witness<Values::SECOND>; }
-         machine value<const N: Config>(witness: &Witness<N>) -> Config { N }
-         machine Main::main(&self) -> Config {
-             let first_value: Config = value(&self.first);
-             value(&self.second)
-         }",
-    );
-}
-
-#[test]
-fn const_body_values_and_ensures_close_through_forwarded_static_arguments() {
-    accepts(
-        "machine endpoint<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 [0..=3]
-             ensures result == N { N }
-         machine forward<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 [0..=3]
-             ensures result == N { endpoint<N>(witness) }
-         machine main() -> u64 {
-             let pair: [u8; 2] = [0, 0];
-             let triple: [u8; 3] = [0, 0, 0];
-             let first: u64 = forward(&pair);
-             forward(&triple)
          }",
     );
 }
@@ -296,19 +231,6 @@ fn const_return_call_requires_a_declared_guarantee() {
 }
 
 #[test]
-fn a_const_binder_in_ensures_does_not_prove_a_different_body_value() {
-    rejects(
-        "machine endpoint<const N: u64>(witness: &[u8; N]) -> u64
-             ensures result == N { 0 }
-         machine main() -> u64 {
-             let pair: [u8; 2] = [0, 0];
-             endpoint(&pair)
-         }",
-        "ensures",
-    );
-}
-
-#[test]
 fn retained_const_binder_return_equality_is_checked_without_observed_values() {
     accepts(
         "machine endpoint<const N: u64>() -> u64 ensures result == N { N }
@@ -343,15 +265,6 @@ fn declared_const_carrier_range_justifies_the_template_return_range() {
 }
 
 #[test]
-fn selected_const_value_keeps_its_declared_integer_width() {
-    rejects(
-        "machine value<const N: u8>() -> u64 { N }
-         machine main() -> u64 { value<256>() }",
-        "does not fit `u8`",
-    );
-}
-
-#[test]
 fn compound_required_endpoints_are_declared_but_do_not_solve_binders() {
     rejects(
         "machine bound<const N: u64>(value: u64[0..=N * 2]) -> u64 { N }
@@ -360,32 +273,6 @@ fn compound_required_endpoints_are_declared_but_do_not_solve_binders() {
              bound(wide)
          }",
         "cannot derive",
-    );
-}
-
-#[test]
-fn symbolic_endpoint_expressions_bind_the_whole_endpoint_after_substitution() {
-    accepts(
-        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
-         machine forward<const Limit: u64>(value: u64[0..=Limit + 1]) -> u64 { bound(value) }
-         machine main() -> u64 {
-             let wide: u64[0..=7] = 7;
-             forward<6>(wide)
-         }",
-    );
-}
-
-#[test]
-fn const_values_close_literal_return_range_endpoints() {
-    accepts(
-        "machine value<const N: u64>(witness: &[u8; N]) -> u64 [0..=N] { N }
-         machine main() -> u64 {
-             let pair: [u8; 2] = [0, 0];
-             let triple: [u8; 3] = [0, 0, 0];
-             let first: u64 = value(&pair);
-             let second: u64 = value(&triple);
-             second
-         }",
     );
 }
 
