@@ -51,7 +51,6 @@ fn lower(
                 realization: crate::target_operations::HostedWriteByteI32Realization.into(),
             }],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )

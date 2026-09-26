@@ -167,7 +167,6 @@ fn lower(
                 realization: BoundarySettlementRealization::NormalizedForeignCall(binding),
             }],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )

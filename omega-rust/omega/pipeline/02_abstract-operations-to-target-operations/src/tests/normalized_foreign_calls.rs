@@ -393,7 +393,6 @@ fn lower(
             target: native,
             settlements: &settlements,
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )
@@ -1128,7 +1127,6 @@ fn registrar_callback_slot_replays_from_the_retained_roster() {
                 target: native,
                 settlements: &settlements,
                 installation: None,
-                ieee_float_fma: &[],
                 native_callbacks: &[admission],
             },
         )
@@ -1292,7 +1290,6 @@ fn mixed_registrar_callback_preserves_authored_formals_around_its_private_slot()
                     target: native,
                     settlements: &settlements,
                     installation: None,
-                    ieee_float_fma: &[],
                     native_callbacks: &[admission],
                 },
             )

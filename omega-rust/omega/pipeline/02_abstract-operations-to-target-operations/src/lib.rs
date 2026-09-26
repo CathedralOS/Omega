@@ -17,15 +17,14 @@
 pub mod calling_conventions;
 pub mod function_identity;
 mod lowering;
+pub mod provider_admission;
 pub mod target_operations;
 pub mod task_plans;
-pub mod provider_admission;
 mod validation;
 
 pub use lowering::model::{
-    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedIeeeFloatFmaSettlement,
-    AdmittedNativeCallbackArgument, LoweringError, PlacedViewInputTranslationError,
-    SelectedPlacedViewInputPlan,
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
+    LoweringError, PlacedViewInputTranslationError, SelectedPlacedViewInputPlan,
 };
 pub use lowering::optimized::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
@@ -39,9 +38,6 @@ pub use validation::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
     AbstractToTargetTranslationValidationReceipt, validate_abstract_to_target_translation,
 };
-// The settlement-aware validator has no caller outside the crate; the
-// optimized lowering entrance reaches it through the root.
-pub(crate) use validation::validate_abstract_to_target_translation_with_ieee_float_fma_settlements;
 
 pub mod effects;
 #[cfg(test)]

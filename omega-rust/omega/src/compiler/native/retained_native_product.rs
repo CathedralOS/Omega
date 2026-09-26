@@ -277,7 +277,6 @@ pub fn realize_retained_native_artifact(
                 settlements: &native_settlements,
                 compiler_builtins: &compiler_builtins,
                 boundary_application_coverage: Some(proposal.boundary_application_coverage()),
-                ieee_float_fma: &[],
                 native_callbacks: &native_callbacks,
                 callback_thunks: &callback_thunks,
                 behavior_exclusions: proposal.behavior_exclusions(),

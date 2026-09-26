@@ -132,13 +132,6 @@ pub struct NativeRealizationRequest<'request> {
     /// `None` never means an exact empty demand set.
     pub boundary_application_coverage:
         Option<&'request resolved_layout_to_resolved_layout::boundary_applications::TerminalBoundaryApplicationCoverage>,
-    /// Exact retained nearest-FMA occurrences admitted by the source/Terminal
-    /// proposal. The ordinary Abstract-to-Target stage consumes these rows;
-    /// they are never inferred from a selected-plan report coordinate.
-    pub ieee_float_fma:
-        &'request [abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement<
-            'request,
-        >],
     /// Exact target-owned callback arguments rejoined by Terminal operation.
     /// This custody is consumed only by ordinary target lowering and physical
     /// assignment; machine emission remains a later, explicitly fenced rung.

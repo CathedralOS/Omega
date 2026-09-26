@@ -26,7 +26,7 @@ use semantic_vocabulary::MachineId;
 /// record, preserving the request's placement order.
 ///
 /// A thunk is a self-contained module: it carries no boundary settlements,
-/// provider installations, FMA custody, or callback arguments of its own, so
+/// provider installations or callback arguments of its own, so
 /// the shared stages run with empty auxiliary rosters. Any decode, lowering,
 /// or shape violation rejects here with the thunk's placement index in the
 /// diagnostic rather than surfacing as an unrelated program-stage failure.

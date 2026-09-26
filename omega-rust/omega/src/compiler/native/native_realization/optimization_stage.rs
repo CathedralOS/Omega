@@ -17,19 +17,13 @@ pub(crate) fn lower_realization_optimization_stage(
     request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeOptimizationStageResult, Vec<Diagnostic>> {
     let input = input.into_optimization_input();
-    if !request.optimization_selections.is_empty() {
-        if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
-            return Err(realization_error(
-                "optimized native callback custody",
-                "retained callbacks require the ordinary custody-preserving pipeline",
-            ));
-        }
-        if !request.ieee_float_fma.is_empty() {
-            return Err(realization_error(
-                "optimized nearest-FMA custody",
-                "retained nearest-FMA occurrences require the ordinary custody-preserving pipeline",
-            ));
-        }
+    if !request.optimization_selections.is_empty()
+        && (!request.native_callbacks.is_empty() || !request.callback_thunks.is_empty())
+    {
+        return Err(realization_error(
+            "optimized native callback custody",
+            "retained callbacks require the ordinary custody-preserving pipeline",
+        ));
     }
     let program = run_abstract_optimization_stage(input, request)?;
     if request.optimization_selections.is_empty()

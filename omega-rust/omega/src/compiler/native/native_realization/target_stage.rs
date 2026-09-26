@@ -24,7 +24,6 @@ pub(crate) fn lower_realization_target_stage(
             target: request.target,
             settlements,
             installation: provider_installation,
-            ieee_float_fma: request.ieee_float_fma,
             native_callbacks: request.native_callbacks,
         },
     )

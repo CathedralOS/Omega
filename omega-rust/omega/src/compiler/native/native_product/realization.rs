@@ -171,7 +171,6 @@ pub(super) fn realize(
         settlements: &import_settlements,
         compiler_builtins: &compiler_builtins,
         boundary_application_coverage: Some(&boundary_application_coverage),
-        ieee_float_fma: &[],
         native_callbacks: &[],
         callback_thunks: &[],
         behavior_exclusions: &behavior_exclusions,

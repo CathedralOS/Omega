@@ -199,7 +199,6 @@ fn lower(
             target: NativeTarget::linux_x64(),
             settlements: &bindings,
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )
@@ -427,7 +426,6 @@ fn lower_owned(
                 realization: crate::target_operations::HostedWriteByteI32Realization.into(),
             }],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )
@@ -716,7 +714,6 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
                 target: native,
                 settlements: &bindings,
                 installation: None,
-                ieee_float_fma: &[],
                 native_callbacks: &[],
             },
         )

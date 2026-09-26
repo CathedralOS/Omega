@@ -33,49 +33,65 @@ fn unit_functions_require_explicit_graph_blocks() {
 }
 
 #[test]
-fn common_graph_cannot_bypass_fma_occurrence_settlement() {
-    let mut source = parameter_return_plan(1);
-    let function = &mut source.functions[0];
-    function.parameters.clear();
-    function.result = AbstractFunctionResult::Unit;
-    function.operations = vec![AbstractOperation::ReturnUnit {
-        psi_edge: EdgeId::new(10).unwrap(),
-        cleanup_actions: Vec::new(),
-    }];
-    let target = NativeTarget::linux_x64();
-    let lowered = lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
-    let value = ValueId::new(1).unwrap();
-    let operation = OperationId::new(2).unwrap();
-    source.functions[0].operations.splice(
-        0..0,
-        [
-            AbstractOperation::IeeeFloatConstant {
-                psi_operation: OperationId::new(1).unwrap(),
-                result: value,
-                value: semantic_vocabulary::IeeeFloatValue::Binary32(0),
-            },
-            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
-                psi_operation: operation,
-                result: ValueId::new(2).unwrap(),
-                format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                left: value,
-                right: value,
-                addend: value,
-            },
-        ],
-    );
-    assert_eq!(
-        lower_to_target_operations(&source, TargetLoweringRequest::new(target)),
-        Err(LoweringError::MissingIeeeFloatFmaSettlement(operation))
-    );
-    assert_eq!(
-        crate::validate_abstract_to_target_translation(&source, target, &lowered),
-        Err(
-            crate::AbstractToTargetTranslationValidationError::MissingIeeeFloatFmaSettlement(
-                operation
-            )
-        )
-    );
+fn common_graph_rejects_unsupported_ieee_float_fma_realization() {
+    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        for (format, constant) in [
+            (IeeeFloatFormat::Binary32, IeeeFloatValue::Binary32(0)),
+            (IeeeFloatFormat::Binary64, IeeeFloatValue::Binary64(0)),
+        ] {
+            let mut source = parameter_return_plan(1);
+            let function = &mut source.functions[0];
+            function.parameters.clear();
+            function.result = AbstractFunctionResult::Unit;
+            function.operations = vec![AbstractOperation::ReturnUnit {
+                psi_edge: EdgeId::new(10).unwrap(),
+                cleanup_actions: Vec::new(),
+            }];
+            let lowered =
+                lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
+            let value = ValueId::new(1).unwrap();
+            let operation = OperationId::new(2).unwrap();
+            source.functions[0].operations.splice(
+                0..0,
+                [
+                    AbstractOperation::IeeeFloatConstant {
+                        psi_operation: OperationId::new(1).unwrap(),
+                        result: value,
+                        value: constant,
+                    },
+                    AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
+                        psi_operation: operation,
+                        result: ValueId::new(2).unwrap(),
+                        format,
+                        left: value,
+                        right: value,
+                        addend: value,
+                    },
+                ],
+            );
+            assert_eq!(
+                lower_to_target_operations(&source, TargetLoweringRequest::new(target)),
+                Err(LoweringError::UnsupportedIeeeFloatFmaRealization(operation))
+            );
+            // A target graph that omits the unsupported source occurrence
+            // cannot turn independently replayed translation into admission.
+            assert_eq!(
+                crate::validate_abstract_to_target_translation(&source, target, &lowered),
+                Err(
+                    crate::AbstractToTargetTranslationValidationError::UnsupportedIeeeFloatFmaRealization(
+                        operation
+                    )
+                )
+            );
+        }
+    }
 }
 
 #[test]

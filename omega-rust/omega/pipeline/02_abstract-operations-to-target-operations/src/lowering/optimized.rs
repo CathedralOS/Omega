@@ -5,9 +5,8 @@ use target::NativeTarget;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
 use crate::{
-    AbstractToTargetTranslationValidationReceipt, AdmittedBoundarySettlement,
-    AdmittedIeeeFloatFmaSettlement, LoweringError,
-    validate_abstract_to_target_translation_with_ieee_float_fma_settlements,
+    AbstractToTargetTranslationValidationReceipt, AdmittedBoundarySettlement, LoweringError,
+    validate_abstract_to_target_translation,
 };
 
 /// Target lowering with independently retained abstract and translation evidence.
@@ -59,7 +58,6 @@ fn lower_validated_abstract_to_target_operations(
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],
     installation: Option<AdmittedProviderInstallation>,
-    ieee_float_fma: &[AdmittedIeeeFloatFmaSettlement<'_>],
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
     let installed = installation
@@ -71,7 +69,6 @@ fn lower_validated_abstract_to_target_operations(
             target,
             settlements,
             installation: installed,
-            ieee_float_fma,
             native_callbacks,
         },
     )?;
@@ -80,12 +77,7 @@ fn lower_validated_abstract_to_target_operations(
     // independently supplied admitted installation before sealing this owner.
     crate::validation::installed_calls::validate(&program, installed)?;
     let translation_validation =
-        validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
-            optimized.plan(),
-            target,
-            &program,
-            ieee_float_fma,
-        )?;
+        validate_abstract_to_target_translation(optimized.plan(), target, &program)?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
         current_program: Arc::new(program),
@@ -103,7 +95,6 @@ pub struct OptimizedTargetLoweringRequest<'a> {
     /// The exact installation retained beside the target operations it
     /// authorized.
     pub installation: Option<AdmittedProviderInstallation>,
-    pub ieee_float_fma: &'a [AdmittedIeeeFloatFmaSettlement<'a>],
     pub native_callbacks: &'a [crate::AdmittedNativeCallbackArgument],
 }
 
@@ -114,7 +105,6 @@ impl OptimizedTargetLoweringRequest<'_> {
             target,
             settlements: &[],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         }
     }
@@ -131,7 +121,6 @@ pub fn lower_optimized_to_target_operations(
         target,
         settlements,
         installation,
-        ieee_float_fma,
         native_callbacks,
     } = request;
     lower_validated_abstract_to_target_operations(
@@ -139,7 +128,6 @@ pub fn lower_optimized_to_target_operations(
         target,
         settlements,
         installation,
-        ieee_float_fma,
         native_callbacks,
     )
 }

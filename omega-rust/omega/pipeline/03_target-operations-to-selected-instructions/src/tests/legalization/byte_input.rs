@@ -121,7 +121,6 @@ pub(crate) fn fixture(
                 realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
             }],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )
@@ -211,7 +210,6 @@ pub(crate) fn two_results_fixture(
                 realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
             }],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )
@@ -380,7 +378,6 @@ fn read_byte_rejects_same_width_unsigned_payload() {
                 realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
             }],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     );
@@ -425,7 +422,6 @@ fn read_byte_requires_produced_octets_to_fit_retained_bounds_at_each_native_gate
                     realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
                 }],
                 installation: None,
-                ieee_float_fma: &[],
                 native_callbacks: &[],
             },
         );

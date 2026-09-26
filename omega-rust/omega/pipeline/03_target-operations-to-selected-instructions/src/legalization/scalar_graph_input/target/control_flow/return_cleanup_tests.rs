@@ -139,7 +139,6 @@ fn target(plan: &AbstractOperationPlan, native: ::target::NativeTarget) -> Targe
                 realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
             }],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )

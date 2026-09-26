@@ -62,7 +62,6 @@ fn fixture(
                 realization: abstract_operations_to_target_operations::target_operations::HostedWriteByteI32Realization.into(),
             }],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )

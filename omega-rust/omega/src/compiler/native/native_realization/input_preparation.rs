@@ -12,7 +12,7 @@ use terminal_psi_to_abstract_operations::TerminalPlacedViewEstablishment;
 ///
 /// Construction binds the full artifact identity, exact proof-admission
 /// profile, and exact post-Terminal optimization selection. Target selection,
-/// provider settlement, authority policy, callbacks, FMA admission, and every
+/// provider settlement, authority policy, callbacks, and every
 /// physical lowering input remain in each realization request.
 #[derive(Debug, Clone)]
 pub struct PreparedNativeRealizationInput {

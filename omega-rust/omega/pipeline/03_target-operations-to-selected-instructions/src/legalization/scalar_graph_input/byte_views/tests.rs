@@ -93,7 +93,6 @@ fn mixed_case_fixture() -> (
             target: native,
             settlements: &settlements,
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )

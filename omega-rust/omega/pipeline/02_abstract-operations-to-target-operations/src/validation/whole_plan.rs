@@ -1,6 +1,6 @@
 //! Whole-plan identity, evidence-roster, and function-roster replay.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use crate::target_operations::{TargetOperationPlan, TargetUnitOperation};
 use target::NativeTarget;
@@ -19,24 +19,27 @@ pub fn validate_abstract_to_target_translation(
     target: &TargetOperationPlan,
 ) -> Result<AbstractToTargetTranslationValidationReceipt, AbstractToTargetTranslationValidationError>
 {
-    validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
-        source,
-        expected_target,
-        target,
-        &[],
-    )
-}
-
-pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
-    source: &AbstractOperationPlan,
-    expected_target: NativeTarget,
-    target: &TargetOperationPlan,
-    ieee_float_fma: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
-) -> Result<AbstractToTargetTranslationValidationReceipt, AbstractToTargetTranslationValidationError>
-{
     validate_plan_identity(source, expected_target, target)?;
     validate_native_callback_roster(target)?;
-    validate_fma_settlement_roster(source, ieee_float_fma)?;
+    // Independent replay must reject raw FMA even when target rows omit it.
+    if let Some(operation) = source
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .filter_map(|operation| match operation {
+            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. } => {
+                Some(*psi_operation)
+            }
+            _ => None,
+        })
+        .min()
+    {
+        return Err(
+            AbstractToTargetTranslationValidationError::UnsupportedIeeeFloatFmaRealization(
+                operation,
+            ),
+        );
+    }
 
     let canonical_structural_types = if source
         .structural_types
@@ -177,46 +180,6 @@ fn validate_native_callback_roster(
                 ),
             );
         }
-    }
-    Ok(())
-}
-
-fn validate_fma_settlement_roster(
-    source: &AbstractOperationPlan,
-    settlements: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
-) -> Result<(), AbstractToTargetTranslationValidationError> {
-    let expected = source
-        .functions
-        .iter()
-        .flat_map(|function| &function.operations)
-        .filter_map(|operation| match operation {
-            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. } => {
-                Some(*psi_operation)
-            }
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
-    let mut supplied = BTreeSet::new();
-    for settlement in settlements {
-        if !supplied.insert(settlement.terminal_operation) {
-            return Err(
-                AbstractToTargetTranslationValidationError::DuplicateIeeeFloatFmaSettlement(
-                    settlement.terminal_operation,
-                ),
-            );
-        }
-        if !expected.contains(&settlement.terminal_operation) {
-            return Err(
-                AbstractToTargetTranslationValidationError::UnknownIeeeFloatFmaSettlement(
-                    settlement.terminal_operation,
-                ),
-            );
-        }
-    }
-    if let Some(missing) = expected.difference(&supplied).next() {
-        return Err(
-            AbstractToTargetTranslationValidationError::MissingIeeeFloatFmaSettlement(*missing),
-        );
     }
     Ok(())
 }
