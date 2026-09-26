@@ -1178,10 +1178,50 @@ fn statement_sample(program: &TypedTrees, state: &State, position: usize) -> usi
     }
 }
 
+/// `None` outside a [`RootCurrencyScope`]; inside one, the index built for
+/// the state last consulted. The owner is an address, and a later check pass
+/// can place a different state with matching samples at the same address, so
+/// an index never outlives the pass that built it.
+type RootCurrencySlot = Option<Option<(*const State, usize, RootCurrencyIndex)>>;
+
 thread_local! {
-    static ROOT_CURRENCY: std::cell::RefCell<
-        Option<(*const State, usize, RootCurrencyIndex)>,
-    > = const { std::cell::RefCell::new(None) };
+    static ROOT_CURRENCY: std::cell::RefCell<RootCurrencySlot> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// The root-currency memo scope for one check pass; the cache is empty when
+/// it opens and restored to the enclosing scope when it drops.
+pub(crate) struct RootCurrencyScope(RootCurrencySlot);
+
+impl Drop for RootCurrencyScope {
+    fn drop(&mut self) {
+        ROOT_CURRENCY.with(|cell| *cell.borrow_mut() = self.0.take());
+    }
+}
+
+pub(crate) fn enter_root_currency_scope() -> RootCurrencyScope {
+    RootCurrencyScope(ROOT_CURRENCY.with(|cell| cell.borrow_mut().replace(None)))
+}
+
+fn build_root_currency_index(program: &TypedTrees, state: &State) -> RootCurrencyIndex {
+    let mut index = RootCurrencyIndex {
+        parameters: std::collections::HashSet::new(),
+        local_first: symbols::SymbolKeyMap::default(),
+    };
+    for parameter in program.state_parameters(state) {
+        index.parameters.insert(parameter.symbol);
+    }
+    for (position, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement {
+            index.local_first.entry(local.symbol).or_insert(position);
+        }
+    }
+    index
 }
 
 fn with_root_currency<R>(
@@ -1199,31 +1239,22 @@ fn with_root_currency<R>(
         );
     ROOT_CURRENCY.with(|cell| {
         let mut slot = cell.borrow_mut();
-        let stale = match slot.as_ref() {
+        let Some(scope) = &mut *slot else {
+            drop(slot);
+            return read(&build_root_currency_index(program, state));
+        };
+        let stale = match scope.as_ref() {
             Some((owner, seen, _)) => !std::ptr::eq(*owner, state) || *seen != fingerprint,
             None => true,
         };
         if stale {
-            let mut index = RootCurrencyIndex {
-                parameters: std::collections::HashSet::new(),
-                local_first: symbols::SymbolKeyMap::default(),
-            };
-            for parameter in program.state_parameters(state) {
-                index.parameters.insert(parameter.symbol);
-            }
-            for (position, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-            {
-                if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement {
-                    index.local_first.entry(local.symbol).or_insert(position);
-                }
-            }
-            *slot = Some((state, fingerprint, index));
+            *scope = Some((
+                state,
+                fingerprint,
+                build_root_currency_index(program, state),
+            ));
         }
-        read(&slot.as_ref().unwrap().2)
+        read(&scope.as_ref().unwrap().2)
     })
 }
 

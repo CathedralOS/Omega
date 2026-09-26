@@ -14,7 +14,6 @@ use crate::validation::machine_calls::calls::validate_proof_machine_recursion;
 use crate::validation::machine_calls::calls::validate_self_recursive_call_positions;
 use crate::validation::machine_calls::calls::validate_value_position_calls;
 use crate::validation::machine_calls::machine_data::validate_owned_data;
-use crate::validation::proof_contracts::contract_entailment::validate_machine_contract_entailment;
 use crate::validation::proof_contracts::domains::validate_domain_definitions;
 use crate::validation::proof_contracts::proof_facts::validate_proposition_definitions;
 use crate::validation::proof_contracts::quotients::QuotientRequestAdmission;
@@ -75,6 +74,12 @@ pub struct ProgramValidationFacts {
     /// Canonical proof-only call SCCs accepted by the structural-subterm
     /// validator. Every exact internal call site retains its own witness.
     pub proof_recursive_components: Vec<ValidatedProofRecursiveComponent>,
+    /// For each checked-body machine whose contract entailment this pass
+    /// judged, the postconditions it proved: what
+    /// [`crate::validation::proven_machine_contract_expressions`] would rejudge for the
+    /// same program, empty when the machine's entailment raised a diagnostic
+    /// or does not cover every exit.
+    pub proven_machine_contracts: Vec<(symbols::SymbolHandle, Vec<ExpressionHandle>)>,
 }
 
 /// Whether opaque property claims must be backed now or remain pending during
@@ -198,8 +203,7 @@ fn validate(
     // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
     // spelled); every runtime consumption face refuses with the
     // classification named.
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let proof_only = crate::validation::proof_only_classification(program);
     proof_embeddings::validate_proof_embeddings(program, &proof_only, &mut diagnostics);
     let integer_embedding_calls =
         proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics);
@@ -250,6 +254,7 @@ fn validate(
     // handle travels with it: downstream scopes shorten their program
     // borrow below what a fresh catalog could be built from.
     let mut bound_lookup = (program, None);
+    let mut proven_machine_contracts = Vec::new();
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
@@ -281,7 +286,34 @@ fn validate(
                                     || specialization.instance == machine.symbol)
                         }));
         if !generic_contract_was_prevalidated {
-            validate_machine_contract_entailment(program, machine, &mut diagnostics);
+            let mut machine_diagnostics = Vec::new();
+            let mut proven = Vec::new();
+            crate::validation::proof_contracts::contract_entailment::validate_machine_contract_entailment_with_outcomes(
+                program,
+                machine,
+                &mut machine_diagnostics,
+                &mut Vec::new(),
+                &mut proven,
+            );
+            // The same judgment `proven_machine_contract_expressions` makes:
+            // a checked body's proved postconditions count only when its
+            // entailment raised nothing and covers every exit.
+            if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                && !proven_machine_contracts
+                    .iter()
+                    .any(|(symbol, _)| *symbol == machine.symbol)
+            {
+                let judged = if machine_diagnostics.is_empty()
+                    && crate::validation::proof_contracts::contract_entailment::entailment_covers_all_exits(
+                        program, machine,
+                    ) {
+                    proven
+                } else {
+                    Vec::new()
+                };
+                proven_machine_contracts.push((machine.symbol, judged));
+            }
+            diagnostics.append(&mut machine_diagnostics);
         }
         validate_machine_trait_conformances(
             program,
@@ -370,7 +402,6 @@ fn validate(
                     language_semantics::MachineSupplyMode::AdmissionClaim
                         | language_semantics::MachineSupplyMode::TopLevelRequirement
                         | language_semantics::MachineSupplyMode::Boundary
-                        | language_semantics::MachineSupplyMode::TargetSibling
                 )
                 // PRV4: an EXTERNAL LEAF's body IS its binding -- the
                 // realization produces the value at the seam.
@@ -575,6 +606,7 @@ fn validate(
             fact_call_projections,
             integer_embedding_calls,
             proof_recursive_components,
+            proven_machine_contracts,
         },
     })
 }

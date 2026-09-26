@@ -46,7 +46,7 @@ pub(crate) fn validate_linear_permission_events(
     program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let call_frames = validation::CallFrameResolver::new(program);
+    let call_frames = crate::validation::CallFrameResolver::new(program);
     let incoming_guards =
         crate::checks::ranges::incoming_guards::IncomingGuardIndexCache::default();
     validate_linear_permission_events_with_incoming_guards(
@@ -57,7 +57,7 @@ pub(crate) fn validate_linear_permission_events(
 }
 
 pub(crate) fn validate_linear_permission_events_with_incoming_guards(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {

@@ -12,6 +12,8 @@ pub(super) struct ProvenExitExpressions<'program, 'frames> {
     program: &'program TypedTrees,
     classification: &'program symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
     resolver: Option<&'frames crate::validation::CallFrameResolver<'program>>,
+    /// Postconditions validation already proved on this program, by machine.
+    validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
     machines: Vec<MachineEntailmentOutcome>,
 }
 
@@ -29,11 +31,13 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
         program: &'program TypedTrees,
         classification: &'program symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
         resolver: Option<&'frames crate::validation::CallFrameResolver<'program>>,
+        validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
     ) -> Self {
         Self {
             program,
             classification,
             resolver,
+            validated,
             machines: Vec::new(),
         }
     }
@@ -56,10 +60,17 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
                     self.resolver,
                 );
                 let mut expressions = if entry_premises_preserved {
-                    crate::validation::proven_machine_contract_expressions(
-                        self.program,
-                        machine_symbol,
-                    )
+                    match self
+                        .validated
+                        .iter()
+                        .find(|(symbol, _)| *symbol == machine_symbol)
+                    {
+                        Some((_, proven)) => proven.clone(),
+                        None => crate::validation::proven_machine_contract_expressions(
+                            self.program,
+                            machine_symbol,
+                        ),
+                    }
                 } else {
                     Vec::new()
                 };
@@ -255,8 +266,7 @@ pub(super) fn structural_call_requirement(
     expression: ExpressionHandle,
     resolver: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let classification =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
+    let classification = crate::validation::proof_only_classification(program);
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };

@@ -77,6 +77,8 @@ use exits::{CyclicHeaderInvariants, check_exit_ensures};
 pub(crate) use exits::{
     is_readable_mutable_reference, result_domain_type, scalar_result_domains, value_provable_domain,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbols::SymbolHandle;
 use writes::check_domain_field_writes;
 
 pub(super) fn check_flow_call_contracts(
@@ -84,9 +86,10 @@ pub(super) fn check_flow_call_contracts(
     facts: &CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
     call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    proven_machine_contracts: &[(SymbolHandle, Vec<ExpressionHandle>)],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let content_plans = crate::validation::build_content_conservation_plans(program);
+    let content_plans = crate::validation::content_conservation_plans(program);
     let nominal_requirements = nominal_inputs::DeclaredFieldRequirements::new(&facts.semantic);
     let mut owned_call_frames = None;
     let call_frames =
@@ -97,9 +100,13 @@ pub(super) fn check_flow_call_contracts(
     // Mathematical applications owe the same substituted premises as runtime
     // calls, even when their result is erased or no guarantee is consumed.
     // Recursive descent establishes termination, not a call's preconditions.
-    let proof_only =
-        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
-    let mut entailment = entailment::ProvenExitExpressions::new(program, &proof_only, call_frames);
+    let proof_only = crate::validation::proof_only_classification(program);
+    let mut entailment = entailment::ProvenExitExpressions::new(
+        program,
+        &proof_only,
+        call_frames,
+        proven_machine_contracts,
+    );
     let mut cyclic_headers = CyclicHeaderInvariants::new();
     // Call targets carry the callee's ENTRY-STATE symbol (sub-state targets
     // carry that state's); resolve through states as well as the machine

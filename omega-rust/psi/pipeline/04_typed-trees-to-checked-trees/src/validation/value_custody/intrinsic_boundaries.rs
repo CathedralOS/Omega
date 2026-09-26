@@ -1,6 +1,7 @@
 //! Exact typed identity of compiler-intrinsic boundary realizations.
 
 use language_semantics::MachineSupplyMode;
+use symbol_resolved_trees_to_typed_trees::typed_trees;
 use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbol_resolved_trees_to_typed_trees::typed_trees::types::{PrimitiveType, TypeReferenceNode};
 use symbols::SymbolHandle;

@@ -5,12 +5,6 @@
 //! graph, including calls whose result becomes known only at a later selection.
 //! Keep exact source occurrences on retained applications and selections so
 //! folding an enclosing guard does not change their operand custody.
-use crate::values::operator_is_builtin;
-use crate::values::scalar::expression_facts::is_integer;
-use crate::values::scalar::expression_plans::ScalarLocal;
-use crate::values::scalar::scalar_lowering::lower_return_expression;
-use crate::values::scalar::semantic_casts;
-use crate::values::scalar_expression_type;
 use crate::checked_trees::CheckedBooleanExpression;
 use crate::checked_trees::CheckedOperatorFacts;
 use crate::checked_trees::CheckedOperatorResolutionStatus;
@@ -21,8 +15,14 @@ use crate::checked_trees::{
     CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarComputationPlans, CheckedScalarComputationRoot, FlowFacts, ProofFacts,
 };
+use crate::validation;
+use crate::values::operator_is_builtin;
+use crate::values::scalar::expression_facts::is_integer;
+use crate::values::scalar::expression_plans::ScalarLocal;
+use crate::values::scalar::scalar_lowering::lower_return_expression;
+use crate::values::scalar::semantic_casts;
+use crate::values::scalar_expression_type;
 use numerics::arithmetic::ArithmeticDomain;
-use symbols::SymbolHandle;
 use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
 use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
@@ -33,6 +33,7 @@ use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode;
 use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
+use symbols::SymbolHandle;
 
 mod call_arguments;
 mod cases;
@@ -208,16 +209,16 @@ pub(crate) fn build_checked_value_computation_plans(
                     && let Some(root) =
                         builder.structural_value(expression, expected, &mut structural_values, pure)
                 {
-                    structural_values
-                        .roots
-                        .append(crate::checked_trees::CheckedStructuralValueRoot {
+                    structural_values.roots.append(
+                        crate::checked_trees::CheckedStructuralValueRoot {
                             machine: machine.symbol,
                             state: state.symbol,
                             statement_ordinal,
                             expression,
                             type_reference: expected,
                             root,
-                        });
+                        },
+                    );
                 }
                 if let Some((expression, expected)) = construction_destination
                     && let Some(elements) = validation::scalar_array_elements(
@@ -237,7 +238,8 @@ pub(crate) fn build_checked_value_computation_plans(
                             pure,
                             statement_ordinal,
                             CheckedScalarExpressionRole::ArrayElement {
-                                source: crate::checked_trees::CheckedArrayConstructionSource::Statement,
+                                source:
+                                    crate::checked_trees::CheckedArrayConstructionSource::Statement,
                                 element_ordinal,
                             },
                             element,
@@ -451,16 +453,16 @@ pub(crate) fn build_checked_value_computation_plans(
                             pure,
                         )
                     {
-                        structural_values
-                            .roots
-                            .append(crate::checked_trees::CheckedStructuralValueRoot {
+                        structural_values.roots.append(
+                            crate::checked_trees::CheckedStructuralValueRoot {
                                 machine: machine.symbol,
                                 state: state.symbol,
                                 statement_ordinal,
                                 expression: assignment.value,
                                 type_reference: expected,
                                 root,
-                            });
+                            },
+                        );
                     }
                     if matches!(
                         program.expression_table.expression(assignment.target),
@@ -848,7 +850,7 @@ impl Builder<'_, '_> {
                 )
                 || cast.domain != ArithmeticDomain::Exact
                 || !cast.semantic_domain_id.is_valid()
-                || !crate::crate::fact_plan::domain_is_vacuous(
+                || !crate::facts::domain_is_vacuous(
                     self.program,
                     cast.semantic_domain_symbol,
                     &mut Vec::new(),

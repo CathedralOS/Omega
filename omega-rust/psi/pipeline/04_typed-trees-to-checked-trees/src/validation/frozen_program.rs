@@ -6,16 +6,16 @@
 //! and check facts, crash contracts and package evidence each rebuild the
 //! content-conservation table. Inside a scope they share one copy.
 
-use crate::declarations::symbols::CallerSiteCaches;
-use crate::machine_calls::calls::CallFrameCaches;
-use crate::proof_contracts::contract_entailment::structural_judgment::{
+use crate::validation::declarations::symbols::CallerSiteCaches;
+use crate::validation::machine_calls::calls::CallFrameCaches;
+use crate::validation::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
 };
-use crate::value_custody::content_conservation::ContentConservationSourcePlan;
+use crate::validation::value_custody::content_conservation::ContentConservationSourcePlan;
 use std::cell::RefCell;
 use std::sync::{Arc, OnceLock};
-use typed_trees::TypedTrees;
-use typed_trees::proof_only::ProofOnlyClassification;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification;
 
 thread_local! {
     static FROZEN_PROGRAM: RefCell<Option<FrozenProgramSlot>> = const { RefCell::new(None) };
@@ -90,11 +90,11 @@ pub(crate) fn frozen_memo<T>(
     }
 }
 
-/// `typed_trees::proof_only::classify`, computed once per frozen program.
+/// `symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify`, computed once per frozen program.
 pub fn proof_only_classification(program: &TypedTrees) -> Arc<ProofOnlyClassification> {
     frozen_memo(
         program,
         |memos| &memos.proof_only,
-        || typed_trees::proof_only::classify(program),
+        || symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program),
     )
 }

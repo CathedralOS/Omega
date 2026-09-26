@@ -331,6 +331,14 @@ stage is cheap.
   with no crate resurrected outside `pipeline/`, `psi/foundation/`, the flat
   `psi/` boundary layer, or the `omega` binary.
 
+  Remaining stage-04 build dependencies in `src/validation/`: restore
+  `LicenseCandidates` and crate-visible `EntryMachines` in
+  `proof_contracts/contract_entailment/structural_judgment.rs`, `struct_trace`
+  in `proof_contracts/contract_entailment.rs`, and the moved `frozen_program`
+  reference in `machine_calls/calls/write_frames/demand.rs`. These are
+  published pre-fold definitions, not new semantic decisions. Recheck with
+  `mbx check -p typed-trees-to-checked-trees --all-targets` before the workspace gate.
+
   SILENT REVERSIONS. Compile-green is not the whole tail: the fold kept older
   copies of files that 44 commits between `74902921fe` and `5d93a065f5`
   changed, so about 1,100 of their added lines are absent from the folded

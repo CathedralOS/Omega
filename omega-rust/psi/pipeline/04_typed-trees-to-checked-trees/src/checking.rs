@@ -115,7 +115,7 @@ pub fn lower_typed_trees(
 }
 
 fn lower_typed_trees_uncached(
-    program: typed_trees::TypedTrees,
+    program: symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let CheckingRequest {
@@ -251,7 +251,7 @@ fn lower_typed_trees_uncached(
     // classification. The only mutation in the scope, contract-identity
     // binding, rewrites specialization fingerprints neither reads; the scope
     // closes before authored-selection finalization rewrites call targets.
-    let frozen_program_scope = ::validation::enter_frozen_program_scope(&program);
+    let frozen_program_scope = crate::validation::enter_frozen_program_scope(&program);
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
     let mut validated = validate_typed_program(
         &program,

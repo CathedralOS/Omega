@@ -68,8 +68,8 @@ impl std::fmt::Debug for IncomingGuardIndexCache {
 impl IncomingGuardIndexCache {
     pub(crate) fn index(
         &self,
-        program: &typed_trees::TypedTrees,
-        call_frames: Option<&validation::CallFrameResolver<'_>>,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     ) -> &IncomingGuardIndex {
         let cell = if call_frames.is_some() {
             &self.with_call_frames

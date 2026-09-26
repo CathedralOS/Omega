@@ -1,14 +1,15 @@
 //! Nested structural operands retain captured call coordinates and source scope.
-use crate::values::scalar::call_lowering::lower_call_arguments;
-use crate::values::scalar::call_lowering::retain_call_arguments;
-use crate::values::scalar::expression_plans::ScalarLocal;
-use crate::values::scalar::scalar_lowering::lower_return_expression;
 use crate::checked_trees::CheckedLocatedScalarExpression;
 use crate::checked_trees::CheckedOperatorFacts;
 use crate::checked_trees::CheckedScalarExpressionBindings;
 use crate::checked_trees::CheckedScalarExpressionPlans;
 use crate::checked_trees::CheckedScalarExpressionRole;
 use crate::checked_trees::FlowFacts;
+use crate::validation;
+use crate::values::scalar::call_lowering::lower_call_arguments;
+use crate::values::scalar::call_lowering::retain_call_arguments;
+use crate::values::scalar::expression_plans::ScalarLocal;
+use crate::values::scalar::scalar_lowering::lower_return_expression;
 use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;

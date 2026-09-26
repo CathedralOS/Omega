@@ -74,7 +74,7 @@ impl<'program> TopLevelSymbols<'program> {
             machines: Vec::with_capacity(machine_count),
             traits: Vec::with_capacity(trait_count),
             types: builtin_type_symbols(program),
-            caller_sites: crate::frozen_program::frozen_memo(
+            caller_sites: crate::validation::frozen_program::frozen_memo(
                 program,
                 |memos| &memos.caller_sites,
                 CallerSiteCaches::default,
