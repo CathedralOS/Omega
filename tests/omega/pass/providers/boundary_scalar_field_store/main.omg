@@ -1,0 +1,36 @@
+// Boundary scalar call result stored directly into a structural field inside a
+// composed-control state: `self.stored = self.echoer.echo(41)` plans a
+// BoundaryScalarCall whose ScalarResult feeds a StructuralScalarFieldStore at
+// the same authored statement. The authored-statement walk must see the call
+// as the statement's producer so the store continuation pairs (regression:
+// "Unit graph continuation lost its producing statement" from the Squalr
+// native probe, machine probe_control).
+
+use omega::language::core::binding;
+
+pub boundary trait Echo {
+    machine echo(value: i32) -> i32;
+}
+
+data EchoProvider {}
+
+machine EchoProvider::echo(value: i32) -> i32 satisfies Echo::echo {
+    transition { _ -> (41) }
+}
+
+data Main {
+    echoer: Binding<Echo>;
+    stored: i32;
+}
+
+machine Main::main(&mut self) reaches Echo {
+    transition { _ -> store() }
+    state store(&mut self) {
+        self.stored = self.echoer.echo(41);
+        transition self.stored == 41 { true -> done() _ -> fail() }
+    }
+    state done(&mut self) {
+    }
+    state fail(&mut self) {
+    }
+}
