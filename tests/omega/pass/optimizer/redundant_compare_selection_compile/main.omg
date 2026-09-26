@@ -1,0 +1,31 @@
+// `SelectedRedundantCompareRemovalV1` removes a compare whose flag
+// publication a same-form, same-operands shadow already publishes on every
+// reaching path. `left < right && left < right` selects two `CompareI64`
+// pairs over the same registers; the second compare's last flag event on
+// its only incoming path is the first compare's identical publication, so
+// the removal leaves the second branch reading the shadow's flag state.
+// `Main::main` keeps a runtime `==` compare with no reaching shadow that
+// the same pass must decline.
+
+data Main {
+}
+
+machine probe(left: i64, right: i64) -> i64 {
+    transition left < right && left < right {
+        true -> yes()
+        _ -> no()
+    }
+
+    state yes() -> i64 { 1i64 }
+    state no() -> i64 { 0i64 }
+}
+
+machine Main::main(&mut self) {
+    let observed: i64 = probe(7i64, 9i64);
+    transition observed == 0i64 {
+        true -> done()
+        _ -> done()
+    }
+
+    state done(&mut self) { }
+}

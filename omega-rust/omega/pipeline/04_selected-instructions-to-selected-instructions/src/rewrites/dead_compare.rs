@@ -1,4 +1,7 @@
-//! Dead flag-publisher removal on the selected CFG.
+//! Dead flag-publisher removal on the selected CFG — the `PreAllocation`
+//! slice's `SelectedDeadCompareRemovalV1` family, with its sibling
+//! `SelectedRedundantCompareRemovalV1` and `SelectedEquivalentCompareRemovalV1`
+//! rules in [`redundant`] and [`equivalent`].
 //!
 //! The three compare forms — `CompareI64`, `CompareI64Immediate`, and
 //! `CompareI64Zero` — exist only to publish target condition state: they
@@ -76,19 +79,22 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    DeadCompareIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use equivalent::{
-    EquivalentCompareError, EquivalentCompareReceipt, ValidatedEquivalentCompare,
-    remove_equivalent_compare, validate_equivalent_compare,
+pub use equivalent::{EquivalentCompareError, ValidatedEquivalentCompare};
+pub(crate) use equivalent::{
+    measured_steps as equivalent_compare_measured_steps, remove_equivalent_compare,
 };
-pub use redundant::{
-    RedundantCompareError, RedundantCompareReceipt, ValidatedRedundantCompare,
-    remove_redundant_compare, validate_redundant_compare,
+pub use redundant::{RedundantCompareError, ValidatedRedundantCompare};
+pub(crate) use redundant::{
+    measured_steps as redundant_compare_measured_steps, remove_redundant_compare,
 };
-pub use rewrite::remove_dead_compare;
-pub use validation::validate_dead_compare;
+pub(crate) use rewrite::remove_dead_compare;
+pub(crate) use validation::{measured_steps, validate_dead_compare};
 
 #[cfg(test)]
 mod tests;
@@ -120,6 +126,8 @@ pub struct DeadCompareReceipt {
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
+    function_index: usize,
+    compare: SelectedInstructionId,
 }
 
 impl DeadCompareReceipt {
@@ -135,6 +143,40 @@ impl DeadCompareReceipt {
     pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
         self.fuel_schedule
     }
+    /// The transformed function index that carried the removed compare.
+    pub const fn function_index(&self) -> usize {
+        self.function_index
+    }
+    /// The removed compare instruction.
+    pub const fn compare(&self) -> SelectedInstructionId {
+        self.compare
+    }
+    /// The durable transformation identity the post-allocation manifest
+    /// ledger records: the receipt's exact fields under the dead-compare
+    /// domain separator.
+    pub fn identity(&self) -> DeadCompareIdentity {
+        dead_compare_identity(self)
+    }
+}
+
+/// Canonical identity of one validated dead-compare removal: every receipt
+/// field — the coordinate, both plan identities, and the proof inputs — is
+/// part of the durable record, so two removals of the same compare under
+/// different sources stay distinct transformations.
+pub(crate) fn dead_compare_identity(receipt: &DeadCompareReceipt) -> DeadCompareIdentity {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-dead-compare-removal.v1\0");
+    bytes.extend_from_slice(&receipt.source_selected.bytes());
+    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
+    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
+    bytes.extend_from_slice(&receipt.fuel_schedule.marker().to_le_bytes());
+    bytes.extend_from_slice(
+        &u64::try_from(receipt.function_index)
+            .expect("dead-compare function index fits u64")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&receipt.compare.0.to_le_bytes());
+    DeadCompareIdentity::from_canonical_bytes(&bytes)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

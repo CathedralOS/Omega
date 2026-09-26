@@ -7,12 +7,17 @@
 //! restarts over the transformed plan: an extension removal publishes a
 //! `CopyI64` the copy-removal pass then owns, so families share the joint
 //! fixed point rather than each converging alone.
+use std::collections::BTreeSet;
+
 use crate::AddressFoldError;
 use crate::ConstantBooleanError;
 use crate::ConstantBranchError;
 use crate::CopyRemovalError;
+use crate::DeadCompareError;
+use crate::EquivalentCompareError;
 use crate::OptimizedPreAllocationCustodyError;
 use crate::PreAllocationPolicy;
+use crate::RedundantCompareError;
 use crate::RedundantExtensionError;
 use crate::SelectedProgramRef;
 use crate::StagedOptimizedAllocationLegality;
@@ -33,9 +38,11 @@ use crate::rewrites::block_edges::terminator_instruction;
 use crate::rewrites::condition_state::adjacency;
 use crate::rewrites::{
     address_fold_measured_steps, constant_boolean_measured_steps, constant_branch_measured_steps,
-    constant_branch_surface_sizes, copy_removal_measured_steps, fold_selected_address,
-    fold_selected_constant_boolean, fold_selected_constant_branch,
-    redundant_extension_measured_steps, remove_selected_copy, remove_selected_redundant_extension,
+    constant_branch_surface_sizes, copy_removal_measured_steps, dead_compare_measured_steps,
+    equivalent_compare_measured_steps, fold_selected_address, fold_selected_constant_boolean,
+    fold_selected_constant_branch, redundant_compare_measured_steps,
+    redundant_extension_measured_steps, remove_dead_compare, remove_equivalent_compare,
+    remove_redundant_compare, remove_selected_copy, remove_selected_redundant_extension,
 };
 use crate::validate_optimized_allocation_legality_custody;
 use optimization_core::{
@@ -129,6 +136,34 @@ fn is_branch_reader(kind: SelectedInstructionKind) -> bool {
     )
 }
 
+/// Whether the instruction kind is one of the flag-publisher compares the
+/// dead-, redundant-, and equivalent-compare families consider:
+/// `CompareI64`, `CompareI64Immediate`, or `CompareI64Zero`. Admission
+/// decides removability — the canonical operand shape, the constraint
+/// surface, the unit-wise audits, and the roster exclusions; this is only
+/// the source-bound candidate surface, scanned in function/block/
+/// instruction order.
+fn is_compare_publisher(kind: SelectedInstructionKind) -> bool {
+    matches!(
+        kind,
+        SelectedInstructionKind::CompareI64
+            | SelectedInstructionKind::CompareI64Immediate { .. }
+            | SelectedInstructionKind::CompareI64Zero
+    )
+}
+
+/// The distinct condition-state units a compare-shaped instruction
+/// publishes — the `implicit_defs`/`clobbers` union size the compare
+/// families' measured-step contracts charge per published unit.
+fn published_flag_units(instruction: &SelectedInstruction) -> usize {
+    instruction
+        .implicit_defs
+        .iter()
+        .chain(instruction.clobbers.iter())
+        .collect::<BTreeSet<&register_model::RegisterUnitId>>()
+        .len()
+}
+
 /// The operand-0 definition-chain length one fold-shaped consumer adds to
 /// the joint measure: the number of in-block definitions reached by
 /// following each defining instruction's own operand-0 `Use` backward from
@@ -165,15 +200,17 @@ fn operand0_chain_length(instructions: &[SelectedInstruction], consumer_index: u
 /// summed operand-0 definition-chain lengths of the fold-shaped consumers,
 /// plus every flag unit the remaining `MaterializeBoolean*` readers still
 /// observe, plus every implicit use the remaining `ConditionalBranch*`
-/// terminators carry. A copy removal drops the copy and its destination's
-/// roster row and can only shorten chains; an extension removal retires
-/// one extension while keeping every register and chain; an address fold
-/// keeps both but skips a producer node in its consumer's chain; a
-/// constant-boolean fold keeps registers, chains, and instruction count
-/// while dropping the flag uses the folded reader carried; a
-/// constant-branch fold keeps registers, chains, and instruction count
-/// while the `Jump` row that replaces the branch carries none of its flag
-/// uses.
+/// terminators carry, plus one per remaining flag-publisher compare. A
+/// copy removal drops the copy and its destination's roster row and can
+/// only shorten chains; an extension removal retires one extension while
+/// keeping every register and chain; an address fold keeps both but skips
+/// a producer node in its consumer's chain; a constant-boolean fold keeps
+/// registers, chains, and instruction count while dropping the flag uses
+/// the folded reader carried; a constant-branch fold keeps registers,
+/// chains, and instruction count while the `Jump` row that replaces the
+/// branch carries none of its flag uses; a compare removal drops one
+/// compare-publisher term while a compare carries no register definitions
+/// or flag uses the other terms charge.
 fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
     let mut total = virtual_registers;
     for function in &plan.functions {
@@ -187,6 +224,9 @@ fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
                 }
                 if is_boolean_reader(instruction.kind) {
                     total += instruction.implicit_uses.len();
+                }
+                if is_compare_publisher(instruction.kind) {
+                    total += 1;
                 }
             }
             let terminator = terminator_instruction(&block.terminator);
@@ -544,6 +584,222 @@ fn constant_branch_pass(
     })
 }
 
+/// Source-bound candidate discovery for the dead-compare family: every
+/// `CompareI64`/`CompareI64Immediate`/`CompareI64Zero` in the current
+/// validated plan, in function/block/instruction order, evaluated until
+/// the first admissible one commits. Declines and hard failures follow the
+/// copy pass's contract exactly, and the measured-step contract is the
+/// removal family's own — its per-candidate cost includes the published
+/// unit count, so the audit charge is computed per evaluated instruction.
+fn dead_compare_pass(
+    current: SelectedProgramRef<'_>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+    let mut evaluated = 0usize;
+    let mut declined = 0usize;
+    let mut validation_steps = 0u64;
+    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                if !is_compare_publisher(instruction.kind) {
+                    continue;
+                }
+                evaluated += 1;
+                let audit_cost = dead_compare_measured_steps(
+                    current.selected_plan(),
+                    function,
+                    published_flag_units(instruction),
+                )
+                .map_err(OptimizedPreAllocationCustodyError::DeadCompare)?;
+                validation_steps = validation_steps
+                    .checked_add(audit_cost)
+                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                match remove_dead_compare(
+                    &current,
+                    function_index,
+                    instruction.id,
+                    environment,
+                    budget,
+                ) {
+                    Ok(removal) => {
+                        validation_steps = validation_steps
+                            .checked_add(audit_cost)
+                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        return Ok(PreAllocationPass::Applied {
+                            transformation: ValidatedPreAllocationTransformation::DeadCompare(
+                                removal,
+                            ),
+                            declined,
+                            evaluated,
+                            validation_steps,
+                        });
+                    }
+                    Err(
+                        error @ (DeadCompareError::WorkBudgetExceeded
+                        | DeadCompareError::IdentityOverflow
+                        | DeadCompareError::ReplayMismatch),
+                    ) => {
+                        return Err(OptimizedPreAllocationCustodyError::DeadCompare(error));
+                    }
+                    Err(_) => declined += 1,
+                }
+            }
+        }
+    }
+    Ok(PreAllocationPass::Clean {
+        candidates: evaluated,
+        declined,
+        validation_steps,
+    })
+}
+
+/// Source-bound candidate discovery for the redundant-compare family:
+/// every flag-publisher compare in the current validated plan, in
+/// function/block/instruction order, evaluated until the first admissible
+/// one commits. Declines and hard failures follow the copy pass's contract
+/// exactly, and the measured-step contract is the family's own — its
+/// per-candidate cost includes the published unit count over the
+/// function's successor adjacency, so the audit charge is computed per
+/// evaluated instruction.
+fn redundant_compare_pass(
+    current: SelectedProgramRef<'_>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+    let mut evaluated = 0usize;
+    let mut declined = 0usize;
+    let mut validation_steps = 0u64;
+    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
+        let (successors, _) = adjacency(function);
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                if !is_compare_publisher(instruction.kind) {
+                    continue;
+                }
+                evaluated += 1;
+                let audit_cost = redundant_compare_measured_steps(
+                    current.selected_plan(),
+                    function,
+                    &successors,
+                    published_flag_units(instruction),
+                )
+                .map_err(OptimizedPreAllocationCustodyError::RedundantCompare)?;
+                validation_steps = validation_steps
+                    .checked_add(audit_cost)
+                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                match remove_redundant_compare(
+                    &current,
+                    function_index,
+                    instruction.id,
+                    environment,
+                    budget,
+                ) {
+                    Ok(removal) => {
+                        validation_steps = validation_steps
+                            .checked_add(audit_cost)
+                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        return Ok(PreAllocationPass::Applied {
+                            transformation: ValidatedPreAllocationTransformation::RedundantCompare(
+                                removal,
+                            ),
+                            declined,
+                            evaluated,
+                            validation_steps,
+                        });
+                    }
+                    Err(
+                        error @ (RedundantCompareError::WorkBudgetExceeded
+                        | RedundantCompareError::IdentityOverflow
+                        | RedundantCompareError::ReplayMismatch),
+                    ) => {
+                        return Err(OptimizedPreAllocationCustodyError::RedundantCompare(error));
+                    }
+                    Err(_) => declined += 1,
+                }
+            }
+        }
+    }
+    Ok(PreAllocationPass::Clean {
+        candidates: evaluated,
+        declined,
+        validation_steps,
+    })
+}
+
+/// Source-bound candidate discovery for the equivalent-compare family:
+/// every flag-publisher compare in the current validated plan, in
+/// function/block/instruction order, evaluated until the first admissible
+/// one commits. Declines and hard failures follow the copy pass's contract
+/// exactly, and the measured-step contract is the family's own — its
+/// per-candidate cost includes the published unit count over the
+/// function's successor adjacency, so the audit charge is computed per
+/// evaluated instruction.
+fn equivalent_compare_pass(
+    current: SelectedProgramRef<'_>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+    let mut evaluated = 0usize;
+    let mut declined = 0usize;
+    let mut validation_steps = 0u64;
+    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
+        let (successors, _) = adjacency(function);
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                if !is_compare_publisher(instruction.kind) {
+                    continue;
+                }
+                evaluated += 1;
+                let audit_cost = equivalent_compare_measured_steps(
+                    current.selected_plan(),
+                    function,
+                    &successors,
+                    published_flag_units(instruction),
+                )
+                .map_err(OptimizedPreAllocationCustodyError::EquivalentCompare)?;
+                validation_steps = validation_steps
+                    .checked_add(audit_cost)
+                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                match remove_equivalent_compare(
+                    &current,
+                    function_index,
+                    instruction.id,
+                    environment,
+                    budget,
+                ) {
+                    Ok(removal) => {
+                        validation_steps = validation_steps
+                            .checked_add(audit_cost)
+                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        return Ok(PreAllocationPass::Applied {
+                            transformation: ValidatedPreAllocationTransformation::EquivalentCompare(
+                                removal,
+                            ),
+                            declined,
+                            evaluated,
+                            validation_steps,
+                        });
+                    }
+                    Err(
+                        error @ (EquivalentCompareError::WorkBudgetExceeded
+                        | EquivalentCompareError::IdentityOverflow
+                        | EquivalentCompareError::ReplayMismatch),
+                    ) => {
+                        return Err(OptimizedPreAllocationCustodyError::EquivalentCompare(error));
+                    }
+                    Err(_) => declined += 1,
+                }
+            }
+        }
+    }
+    Ok(PreAllocationPass::Clean {
+        candidates: evaluated,
+        declined,
+        validation_steps,
+    })
+}
+
 /// The measured work of one discovery pass. `rule_evaluations` counts the
 /// candidates the pass reached; `validation_steps` carries the summed
 /// measured-step cost each admit — and, for a commit, the independent
@@ -696,6 +952,15 @@ fn run_passes(
                 }
                 Optimization::SelectedConstantBranchFoldV1 => {
                     constant_branch_pass(current, environment, budget)?
+                }
+                Optimization::SelectedDeadCompareRemovalV1 => {
+                    dead_compare_pass(current, environment, budget)?
+                }
+                Optimization::SelectedRedundantCompareRemovalV1 => {
+                    redundant_compare_pass(current, environment, budget)?
+                }
+                Optimization::SelectedEquivalentCompareRemovalV1 => {
+                    equivalent_compare_pass(current, environment, budget)?
                 }
                 // The catalog is closed over this phase's owned rules.
                 _ => continue,
@@ -961,7 +1226,7 @@ fn pre_allocation_completion_identity(
     receipt: &StagedPreAllocationOptimizationCustodyReceipt,
 ) -> PreAllocationOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v5\0");
+    canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v6\0");
     let source = receipt.source;
     for identity in [
         source.optimization().bytes(),
@@ -1009,6 +1274,18 @@ fn pre_allocation_completion_identity(
             }
             crate::PreAllocationTransformationIdentity::ConstantBranch(identity) => {
                 canonical.push(5);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            crate::PreAllocationTransformationIdentity::DeadCompare(identity) => {
+                canonical.push(6);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            crate::PreAllocationTransformationIdentity::RedundantCompare(identity) => {
+                canonical.push(7);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            crate::PreAllocationTransformationIdentity::EquivalentCompare(identity) => {
+                canonical.push(8);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

@@ -7,8 +7,9 @@ use optimization_core::{
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
     AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, CopyRemovalIdentity,
-    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
-    PressureRematerializationIdentity, RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
+    DeadCompareIdentity, EquivalentCompareIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
+    LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
+    RedundantCompareIdentity, RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -21,7 +22,7 @@ use super::{
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 13;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 14;
 
 impl PostAllocationOptimizationManifest {
     pub fn encode(&self) -> Vec<u8> {
@@ -111,6 +112,15 @@ impl PostAllocationOptimizationManifest {
                 ),
                 10 => PostAllocationSelectedTransformation::ConstantBranch(
                     ConstantBranchIdentity::from_bytes(cursor.array()?),
+                ),
+                11 => PostAllocationSelectedTransformation::DeadCompare(
+                    DeadCompareIdentity::from_bytes(cursor.array()?),
+                ),
+                12 => PostAllocationSelectedTransformation::RedundantCompare(
+                    RedundantCompareIdentity::from_bytes(cursor.array()?),
+                ),
+                13 => PostAllocationSelectedTransformation::EquivalentCompare(
+                    EquivalentCompareIdentity::from_bytes(cursor.array()?),
                 ),
                 tag => {
                     return Err(
@@ -242,6 +252,18 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
             }
             PostAllocationSelectedTransformation::ConstantBranch(identity) => {
                 canonical.push(10);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::DeadCompare(identity) => {
+                canonical.push(11);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::RedundantCompare(identity) => {
+                canonical.push(12);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::EquivalentCompare(identity) => {
+                canonical.push(13);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

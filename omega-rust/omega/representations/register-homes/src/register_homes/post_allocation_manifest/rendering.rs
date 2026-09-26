@@ -79,6 +79,15 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::ConstantBranch(identity) => {
                     ("constant-branch", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::DeadCompare(identity) => {
+                    ("dead-compare", identity.bytes())
+                }
+                PostAllocationSelectedTransformation::RedundantCompare(identity) => {
+                    ("redundant-compare", identity.bytes())
+                }
+                PostAllocationSelectedTransformation::EquivalentCompare(identity) => {
+                    ("equivalent-compare", identity.bytes())
+                }
             };
             writeln!(
                 output,

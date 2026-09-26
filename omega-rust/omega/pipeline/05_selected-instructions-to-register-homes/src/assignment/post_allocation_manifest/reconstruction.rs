@@ -54,6 +54,15 @@ pub(super) fn expected_record(
             PostAllocationSelectedTransformation::ConstantBranch(identity) => {
                 (10_u8, identity.bytes())
             }
+            PostAllocationSelectedTransformation::DeadCompare(identity) => {
+                (11_u8, identity.bytes())
+            }
+            PostAllocationSelectedTransformation::RedundantCompare(identity) => {
+                (12_u8, identity.bytes())
+            }
+            PostAllocationSelectedTransformation::EquivalentCompare(identity) => {
+                (13_u8, identity.bytes())
+            }
         };
         !unique_transformations.insert(key)
     }) {

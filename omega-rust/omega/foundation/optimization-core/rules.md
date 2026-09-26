@@ -50,6 +50,9 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SelectedAddressOffsetFoldV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedAddressOffsetFoldV1` | Required |
 | `SelectedConstantBooleanFoldV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedConstantBooleanFoldV1` | Required |
 | `SelectedConstantBranchFoldV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedConstantBranchFoldV1` | Required |
+| `SelectedDeadCompareRemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedDeadCompareRemovalV1` | Required |
+| `SelectedRedundantCompareRemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedRedundantCompareRemovalV1` | Required |
+| `SelectedEquivalentCompareRemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedEquivalentCompareRemovalV1` | Required |
 <!-- exact-rule-inventory:end -->
 
 The architecture test derives exact names and phases from `Optimization::ALL`'s

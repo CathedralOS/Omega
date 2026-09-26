@@ -105,6 +105,17 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         },
     },
     RewriteModuleRow {
+        module: "dead_compare",
+        // The pre-allocation executor: its discovery passes call
+        // `remove_dead_compare`, `remove_redundant_compare`, and
+        // `remove_equivalent_compare` for the exact rules the catalog
+        // admits.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs",
+            evidence: "remove_dead_compare",
+        },
+    },
+    RewriteModuleRow {
         module: "fixed_view",
         // Register allocation stages `stage_optimized_fixed_precolored_
         // segment_homes` and `stage_optimized_fixed_view_copies` from its
@@ -208,10 +219,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     },
     RewriteModuleRow {
         module: "confluence_relocation",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
-        module: "dead_compare",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {

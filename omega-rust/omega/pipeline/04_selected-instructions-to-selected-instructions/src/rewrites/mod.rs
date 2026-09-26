@@ -14,7 +14,8 @@
 //! `AddressOffset` result), `constant_boolean` (a `MaterializeBoolean*`
 //! whose reached compare is compile-time constant), and `constant_branch`
 //! (a conditional-branch terminator whose reached compare is compile-time
-//! constant);
+//! constant), and `dead_compare` (a flag-publisher compare whose
+//! publication dies unread, or repeats a shadow's equivalent publication);
 //! `runtime_spill` and `runtime_rematerialization`
 //! are the recovery rewrites register assignment replays. `block_edges`,
 //! `condition_state` and `window_hazards` are the block-boundary,
@@ -34,6 +35,7 @@ mod condition_state;
 mod constant_boolean;
 mod constant_branch;
 mod copy_removal;
+mod dead_compare;
 mod fixed_view;
 mod literal_folds;
 #[cfg(test)]
@@ -85,6 +87,15 @@ pub(crate) use catalog::{selected_stage_catalog_contains, selected_stage_rule_ro
 pub use copy_removal::{CopyRemovalError, ValidatedCopyRemoval};
 pub(crate) use copy_removal::{
     measured_steps as copy_removal_measured_steps, remove_selected_copy,
+};
+pub use dead_compare::{
+    DeadCompareError, EquivalentCompareError, RedundantCompareError, ValidatedDeadCompare,
+    ValidatedEquivalentCompare, ValidatedRedundantCompare,
+};
+pub(crate) use dead_compare::{
+    equivalent_compare_measured_steps, measured_steps as dead_compare_measured_steps,
+    redundant_compare_measured_steps, remove_dead_compare, remove_equivalent_compare,
+    remove_redundant_compare,
 };
 pub use fixed_view::{
     FixedPrecoloredSegmentHomeDecline, OptimizedFixedPrecoloredSegmentHomeCustodyError,

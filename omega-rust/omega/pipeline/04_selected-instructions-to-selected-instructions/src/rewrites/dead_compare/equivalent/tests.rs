@@ -1,11 +1,9 @@
+use super::super::{DeadCompareError, remove_dead_compare};
+use super::{
+    EquivalentCompareError, EquivalentCompareReceipt, ValidatedEquivalentCompare,
+    remove_equivalent_compare, validate_equivalent_compare,
+};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::unexecuted::DeadCompareError;
-use crate::rewrites::unexecuted::EquivalentCompareError;
-use crate::rewrites::unexecuted::EquivalentCompareReceipt;
-use crate::rewrites::unexecuted::ValidatedEquivalentCompare;
-use crate::rewrites::unexecuted::remove_dead_compare;
-use crate::rewrites::unexecuted::remove_equivalent_compare;
-use crate::rewrites::unexecuted::validate_equivalent_compare;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
@@ -243,6 +241,8 @@ fn fixture(target: NativeTarget) -> ValidatedEquivalentCompare {
             transformed_selected: identity,
             optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
             fuel_schedule: plan.fuel_schedule,
+            function_index: 0,
+            compare: EQUIVALENT,
         },
         transformed: std::sync::Arc::new(plan),
     }

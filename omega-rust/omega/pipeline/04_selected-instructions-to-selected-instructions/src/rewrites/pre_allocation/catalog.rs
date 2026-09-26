@@ -27,9 +27,10 @@ pub type PreAllocationRuleCatalogEntry =
 /// deterministic discovery order inside one joint fixed-point sweep: the
 /// copy-removal pass scans first, then the extension pass, then the
 /// address-fold pass, then the constant-boolean pass, then the
-/// constant-branch pass, and a commit by any of them restarts the whole
-/// sweep over the transformed program.
-pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 5] = [
+/// constant-branch pass, then the dead-, redundant-, and
+/// equivalent-compare passes, and a commit by any of them restarts the
+/// whole sweep over the transformed program.
+pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 8] = [
     PreAllocationRuleCatalogEntry::new(
         Optimization::SelectedSameBlockCopyI64RemovalV1,
         PreAllocationRuleCatalogPayload {
@@ -63,6 +64,27 @@ pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 5] = [
         PreAllocationRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
             policy: PreAllocationPolicy::CONSTANT_BRANCH_V1,
+        },
+    ),
+    PreAllocationRuleCatalogEntry::new(
+        Optimization::SelectedDeadCompareRemovalV1,
+        PreAllocationRuleCatalogPayload {
+            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            policy: PreAllocationPolicy::DEAD_COMPARE_V1,
+        },
+    ),
+    PreAllocationRuleCatalogEntry::new(
+        Optimization::SelectedRedundantCompareRemovalV1,
+        PreAllocationRuleCatalogPayload {
+            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            policy: PreAllocationPolicy::REDUNDANT_COMPARE_V1,
+        },
+    ),
+    PreAllocationRuleCatalogEntry::new(
+        Optimization::SelectedEquivalentCompareRemovalV1,
+        PreAllocationRuleCatalogPayload {
+            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            policy: PreAllocationPolicy::EQUIVALENT_COMPARE_V1,
         },
     ),
 ];
