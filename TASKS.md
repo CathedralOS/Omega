@@ -3231,20 +3231,6 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   tests agree on linear and affine receiver disposition without silent custody
   removal. Do not merely repin the tests.
 
-- **CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT.** (new-scope) The closed-sum
-  arm's answer is stated in lowering: the case dispatch is the subject's
-  explicit terminal consumption, so an arm's no-code discards are its cleanup
-  evidence without the subject
-  (`composed_control/state_graph/edges.rs::validate_bindings`, fed the
-  subject's authored position by `cases.rs`). The three
-  `optimization-unit-semantics structural_cases::owned_results` tests pass
-  again. Remaining: the evidence producer,
-  `04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs::build_state_plan`,
-  still names the subject on each arm because a dispatch moves no place.
-  Treat a closed-sum `transition subject { .. }` over an owned parameter as
-  that statement's consumption there, then drop the subtraction in lowering
-  so the two facts agree by construction. Keep the equality check itself.
-
 - **FILTERED-CALLEE-CALL-SITES.** (new-scope) A source-authored statement call
   whose callee has no declaration in the selected program is dropped from the
   checked call facts with no diagnostic. `checked_statement_call_target`
