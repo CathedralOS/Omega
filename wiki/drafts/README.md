@@ -99,9 +99,6 @@ Inventories of an existing surface and what each row still owes.
 - [Replacement rejection inventory](audits/replacement_rejection_inventory.md): catalog
   of every spec-named component-replacement rejection obligation mapped to its
   enforcement site or residual owner; delete once the residual rows land.
-- [Reseal-elimination scope review](audits/scope_review_reseal_elimination.md): which
-  identity recomputations are contract-required and which are redundant; delete
-  once the wrapper-object plan is sealed once per produced artifact.
 - [Stage-crate ownership audit](audits/stage_crate_ownership_audit.md): module
   inventory of all 21 stage crates against the ownership rules; delete once its
   five findings are boarded or repaired.
@@ -207,9 +204,6 @@ A proposed shape for work that has not landed.
   target multiplicity data — set-valued assembly/checking, named spine, retiring
   the per-target loops and reuse structures; delete once
   TARGET-SET-COMPILATION closes.
-- [Toolchain-settled plan provenance replay](designs/toolchain_settled_plan_provenance_replay.md):
-  diagnosis of why minted toolchain-settled plans fail candidate provenance;
-  delete once the settlement lane makes them pass replay.
 - [Unused `self` receiver pin](designs/unused_self_receiver_signature.md): the verified
   admission and the fixture that will pin it; delete once the fixture and its
   roster seat land.
