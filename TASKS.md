@@ -4219,16 +4219,30 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   so the name denotes one place for its scope and the write is the ordinary
   store of that place; it adds no authority over the checked loan.
 
-  Still omitting: a shared loan (`let r: &bool = &self.flag;`), a structural
-  referent (`let r: &Inner = &self.inner;`), and any *read* through a loan
-  name, which `resolve_contextual_name_path_root` roots at the local's own
-  symbol. Do not close those by making the local alias its place in that
-  resolver: it roots a local at its own symbol so borrow facts, write frames
-  and releases keep a loan identity to key on. `EstablishReference` and its
-  Terminal operation exist for a `(place)` return target, at
-  `Multiplicity::Affine` with a returned-carrier release; a `let` loan of a
-  known place needs no such value, and minting one is dropped by
+  Still omitting: every shared loan, and any *read* through a loan name.
+  Do not close those by making the local alias its place in
+  `resolve_contextual_name_path_root`: it roots a local at its own symbol so
+  borrow facts, write frames and releases keep a loan identity to key on.
+  `EstablishReference` and its Terminal operation exist for a `(place)` return
+  target, at `Multiplicity::Affine` with a returned-carrier release; a `let`
+  loan of a known place needs no such value, and minting one is dropped by
   `composed_control`'s state graph as an added body effect.
+
+  The shared half is one consumer away, and the consumer is named. Admitting
+  `shared_borrowed_parts` beside `parts` in the producer and its
+  `composed_control` marker is corpus-clean over 1119 fixtures and makes
+  `let r: &Inner = &self.inner; transition r.v == 0` check; realization then
+  stops at "computed shared argument lost its established local".
+  `expression_preparation/bindings`'s `shared_structural_argument` resolves a
+  `StructuralLocal { symbol }` through the `structural_locals` registry, which
+  a loan planning no operation never enters. Enter it there, with the loaned
+  place and the borrow's access: that registry already states a `&T` local
+  "is itself a shared-borrow join result". Do not instead rejoin at the
+  argument sites, the way the store destination does -- `StructuralLocal`
+  sources are built at ten sites across `values/scalar/computations/` and
+  `execution/terminal_cleanup.rs`. A bare scalar read through the name
+  (`let r: &bool = &self.flag; transition r`) stops earlier still, at
+  `state graph: terminator: conditional successors: guard expression`.
 
   That shape now executes. `let seen: &mut u8 = &mut self.raw; seen = 0;`
   realizes to a Mach-O product on macOS AArch64 and exits 70, pinned by
