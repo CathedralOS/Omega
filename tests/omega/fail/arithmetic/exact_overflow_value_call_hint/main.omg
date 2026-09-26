@@ -15,14 +15,15 @@ data Main {
 
 machine Main::triple(&self, x: i32 in Wrapping) -> i32 {
     let t: i32 in Wrapping = x * 3;
-    transition { _ -> t }
+    // Erase the policy explicitly so only the caller's Exact addition rejects.
+    transition { _ -> (t as i32) }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // `self.triple(4)` returns an unconstrained `i32`; `+ 100` is Exact -> unprovable.
     self.s = self.triple(4) + 100;
     transition { _ -> done() }
     state done(&mut self) {
-        self.console.exit_process(self.s);
+        self.console.exit_process(self.s as i32);
     }
 }

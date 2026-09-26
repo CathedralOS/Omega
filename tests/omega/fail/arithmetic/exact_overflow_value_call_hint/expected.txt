@@ -1,0 +1,2 @@
+exact arithmetic in machine `Main::main` state `main` assignment may overflow `i32`
+Here the operand `triple(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain

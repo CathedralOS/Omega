@@ -22,10 +22,10 @@ data Bar { b: i32 in Wrapping; c: i32 in Wrapping; }
 data Main { console: Binding<Console>; foo: Foo; bar: Bar; }
 
 machine Main::take_foo(&mut self, f: &Foo) -> i32 {
-    transition { _ -> (f.a) }
+    transition { _ -> (f.a as i32) }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.bar.b = 7;
     let r: i32 = self.take_foo(&self.bar); // &Bar where &Foo expected -- incompatible data types
     self.console.exit_process(r);

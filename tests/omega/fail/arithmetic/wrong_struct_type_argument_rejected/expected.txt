@@ -1,0 +1,2 @@
+argument `f` for state `Main::take_foo::take_foo` expects the `Foo` data type but got `Bar`
+these are incompatible data types
