@@ -77,11 +77,6 @@ pub struct CheckedOperatorUseFact {
     pub occurrence: CheckedOperatorOccurrence,
     pub spelling: OperatorSpelling,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
-    /// Compact report coordinate for the selected ProviderPlan. Authority uses
-    /// the adjacent exact commitment. Zero with an empty commitment means the
-    /// operator still uses bootstrap lowering.
-    pub provider_plan_report_fingerprint: u64,
-    pub provider_plan_commitment: CheckedProviderPlanCommitment,
     pub selected_operator_symbol: SymbolHandle,
     pub candidates: HandleSpan<CheckedOperatorCandidateFact>,
     pub candidate_count: usize,
@@ -181,16 +176,15 @@ pub struct CheckedNamedOperatorUseFact {
     pub origin: CheckedValueOrigin,
     pub selected_operator_symbol: SymbolHandle,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
-    pub provider_plan_report_fingerprint: u64,
-    pub provider_plan_commitment: CheckedProviderPlanCommitment,
 }
 
 /// One direct call to a public receiver-free top-level `boundary requirement`
 /// retained as checked evidence: the requirement's checked identity plus the
-/// arithmetic-policy result adapter its arguments select. Provider planning
-/// stamps the selected ProviderPlan onto the fact exactly as it does for a
-/// named boundary-operator use, so the compiler-intrinsic execution bridge
-/// resolves both use kinds through one requirement view.
+/// arithmetic-policy result adapter its arguments select. Like a named
+/// boundary-operator use it carries no provider selection: each target joins
+/// its selected ProviderPlan by requirement identity, so the
+/// compiler-intrinsic execution bridge resolves both use kinds through one
+/// requirement view.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CheckedNamedRequirementUseFact {
     pub expression: ExpressionHandle,
@@ -199,8 +193,6 @@ pub struct CheckedNamedRequirementUseFact {
     /// state, which is what the typed call targets).
     pub requirement_symbol: SymbolHandle,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
-    pub provider_plan_report_fingerprint: u64,
-    pub provider_plan_commitment: CheckedProviderPlanCommitment,
 }
 
 /// One checked boundary-operator application at one exact use. The empty
@@ -276,8 +268,6 @@ impl Default for CheckedOperatorUseFact {
             occurrence: CheckedOperatorOccurrence::Expression,
             spelling: OperatorSpelling::Index,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
-            provider_plan_report_fingerprint: 0,
-            provider_plan_commitment: CheckedProviderPlanCommitment::default(),
             selected_operator_symbol: SymbolHandle::invalid(),
             candidates: HandleSpan::empty(),
             candidate_count: 0,
@@ -934,7 +924,7 @@ mod tests {
         Arena, CheckedArithmeticPolicyAdapter, CheckedNamedOperatorUseFact,
         CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorOccurrence,
         CheckedOperatorResolutionStatus, CheckedOperatorResolutionSummary, CheckedOperatorUseFact,
-        CheckedProviderPlanCommitment, CheckedValueOrigin, ExpressionHandle, HandleSpan,
+        CheckedValueOrigin, ExpressionHandle, HandleSpan,
         OperatorSpelling, SignatureContract, SymbolHandle, TypeReferenceHandle,
     };
     use numerics::float_semantics::FloatFormat;
@@ -966,8 +956,6 @@ mod tests {
             occurrence: CheckedOperatorOccurrence::Expression,
             spelling: OperatorSpelling::Index,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
-            provider_plan_report_fingerprint: 0,
-            provider_plan_commitment: CheckedProviderPlanCommitment::default(),
             selected_operator_symbol: SymbolHandle::from_arena_index(2),
             candidates: resolved_candidates,
             candidate_count: 1,
@@ -979,8 +967,6 @@ mod tests {
             occurrence: CheckedOperatorOccurrence::Expression,
             spelling: OperatorSpelling::Range,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
-            provider_plan_report_fingerprint: 0,
-            provider_plan_commitment: CheckedProviderPlanCommitment::default(),
             selected_operator_symbol: SymbolHandle::invalid(),
             candidates: ambiguous_candidates,
             candidate_count: 2,
@@ -996,8 +982,6 @@ mod tests {
             policy_adapter: CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
                 format: FloatFormat::BINARY64,
             },
-            provider_plan_report_fingerprint: 0,
-            provider_plan_commitment: CheckedProviderPlanCommitment::default(),
         });
 
         let facts =

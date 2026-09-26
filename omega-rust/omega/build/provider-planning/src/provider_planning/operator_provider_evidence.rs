@@ -9,25 +9,14 @@ use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use typed_trees::TypedTrees;
 
-pub(crate) fn plan_selected_operator_provider_evidence(
+/// Validate every selected boundary-operator plan and every checked use it
+/// serves. Uses carry no selection; each target's consumers join their plan
+/// through `selected_use_plan`, which reads only plans this gate accepted.
+pub(crate) fn validate_selected_operator_provider_evidence(
     checked: &checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
-) -> Result<
-    (
-        Vec<(
-            arena::Handle<checked_trees::CheckedOperatorUseFact>,
-            u64,
-            checked_trees::CheckedProviderPlanCommitment,
-        )>,
-        Vec<(
-            arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
-            u64,
-            checked_trees::CheckedProviderPlanCommitment,
-        )>,
-    ),
-    Vec<diagnostics::Diagnostic>,
-> {
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     // Validate selected operator plans independently of use-site discovery.
     // A malformed realization is invalid policy even when dead code happens
     // not to mention its requirement, and later annotation may consume only
@@ -63,9 +52,8 @@ pub(crate) fn plan_selected_operator_provider_evidence(
         .operators
         .uses
         .iter()
-        .map(|(handle, operator_use)| {
+        .map(|(_, operator_use)| {
             (
-                handle,
                 operator_use.application_site(),
                 operator_use.selected_operator_symbol,
             )
@@ -76,29 +64,23 @@ pub(crate) fn plan_selected_operator_provider_evidence(
         .operators
         .named_uses
         .iter()
-        .map(|(handle, operator_use)| {
+        .map(|(_, operator_use)| {
             (
-                handle,
                 operator_use.expression,
                 operator_use.origin,
                 operator_use.selected_operator_symbol,
             )
         })
         .collect::<Vec<_>>();
-    let mut spelled_updates = Vec::new();
-    for (handle, site, symbol) in spelled {
-        match selected_operator_provider_evidence(checked, candidates, selected, symbol, Some(site))
+    for (site, symbol) in spelled {
+        if let Err(diagnostic) =
+            selected_operator_provider_evidence(checked, candidates, selected, symbol, Some(site))
         {
-            Ok(Some((report_fingerprint, commitment))) => {
-                spelled_updates.push((handle, report_fingerprint, commitment));
-            }
-            Ok(None) => {}
-            Err(diagnostic) => diagnostics.push(diagnostic),
+            diagnostics.push(diagnostic);
         }
     }
-    let mut named_updates = Vec::new();
-    for (handle, expression, origin, symbol) in named {
-        match selected_operator_provider_evidence(
+    for (expression, origin, symbol) in named {
+        if let Err(diagnostic) = selected_operator_provider_evidence(
             checked,
             candidates,
             selected,
@@ -110,63 +92,45 @@ pub(crate) fn plan_selected_operator_provider_evidence(
                 },
             ),
         ) {
-            Ok(Some((report_fingerprint, commitment))) => {
-                named_updates.push((handle, report_fingerprint, commitment));
-            }
-            Ok(None) => {}
-            Err(diagnostic) => diagnostics.push(diagnostic),
+            diagnostics.push(diagnostic);
         }
     }
 
     if diagnostics.is_empty() {
-        Ok((spelled_updates, named_updates))
+        Ok(())
     } else {
         Err(diagnostics)
     }
 }
 
-/// Stamp the selected plan onto each direct call to a public receiver-free
-/// top-level requirement, the requirement-spelling twin of the named
-/// operator-use stamping above. A checked-adapter plan is the direct-call
+/// Validate the selected plan serving each direct call to a public
+/// receiver-free top-level requirement, the requirement-spelling twin of the
+/// operator-use validation above. A checked-adapter plan is the direct-call
 /// adapter route; a compiler-intrinsic plan must name a compiler-known
 /// realization that satisfies exactly this requirement as an external leaf.
 /// An evaluated `via` binding keeps the call on the requirement's retained
 /// boundary seam: native realization joins the selected row's normalized
 /// import or syscall to the demanded boundary by requirement identity. Only
-/// mechanisms with a freestanding host-ABI route can serve a direct call —
+/// mechanisms with a freestanding host-ABI route can serve a direct call;
 /// vtable and table rows have no receiver table here.
-pub(crate) fn plan_selected_requirement_provider_evidence(
+pub(crate) fn validate_selected_requirement_provider_evidence(
     checked: &checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
-) -> Result<
-    Vec<(
-        arena::Handle<checked_trees::CheckedNamedRequirementUseFact>,
-        u64,
-        checked_trees::CheckedProviderPlanCommitment,
-    )>,
-    Vec<diagnostics::Diagnostic>,
-> {
-    let mut updates = Vec::new();
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let uses = checked
-        .facts
-        .operators
-        .named_requirement_uses
-        .iter()
-        .map(|(handle, requirement_use)| (handle, requirement_use.requirement_symbol))
-        .collect::<Vec<_>>();
-    for (handle, symbol) in uses {
-        match selected_requirement_provider_evidence(checked, candidates, selected, symbol) {
-            Ok(Some((report_fingerprint, commitment))) => {
-                updates.push((handle, report_fingerprint, commitment));
-            }
-            Ok(None) => {}
-            Err(diagnostic) => diagnostics.push(diagnostic),
+    for (_, requirement_use) in checked.facts.operators.named_requirement_uses.iter() {
+        if let Err(diagnostic) = selected_requirement_provider_evidence(
+            checked,
+            candidates,
+            selected,
+            requirement_use.requirement_symbol,
+        ) {
+            diagnostics.push(diagnostic);
         }
     }
     if diagnostics.is_empty() {
-        Ok(updates)
+        Ok(())
     } else {
         Err(diagnostics)
     }
@@ -177,21 +141,21 @@ fn selected_requirement_provider_evidence(
     candidates: &[ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
     requirement_symbol: symbols::SymbolHandle,
-) -> Result<Option<(u64, checked_trees::CheckedProviderPlanCommitment)>, diagnostics::Diagnostic> {
+) -> Result<(), diagnostics::Diagnostic> {
     let Some(requirement) =
         crate::IntrinsicRequirement::by_symbol(&checked.typed, requirement_symbol)
     else {
-        return Ok(None);
+        return Ok(());
     };
     if requirement.kind != crate::IntrinsicRequirementKind::TopLevelRequirement {
-        return Ok(None);
+        return Ok(());
     }
     let slot = requirement.display();
     if !candidates
         .iter()
         .any(|candidate| requirement.schema_binds(&checked.typed, &candidate.schema))
     {
-        return Ok(None);
+        return Ok(());
     }
     let matching_selected = selected
         .plans()
@@ -238,12 +202,7 @@ fn selected_requirement_provider_evidence(
             )));
         }
     }
-    Ok(Some((
-        plan.report_fingerprint(),
-        checked_trees::CheckedProviderPlanCommitment::from_digest(
-            *plan.identity_digest().as_bytes(),
-        ),
-    )))
+    Ok(())
 }
 
 fn selected_operator_provider_evidence(
@@ -252,14 +211,14 @@ fn selected_operator_provider_evidence(
     selected: &effects::SelectedProviderPlanFacts,
     operator_symbol: symbols::SymbolHandle,
     use_site: Option<checked_trees::CheckedBoundaryOperatorApplicationUseSite>,
-) -> Result<Option<(u64, checked_trees::CheckedProviderPlanCommitment)>, diagnostics::Diagnostic> {
+) -> Result<(), diagnostics::Diagnostic> {
     let Some(operator) = checked
         .typed
         .operators()
         .iter()
         .find(|operator| operator.symbol == operator_symbol)
     else {
-        return Ok(None);
+        return Ok(());
     };
     let slot =
         typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
@@ -274,7 +233,7 @@ fn selected_operator_provider_evidence(
         candidate.schema.trait_name == slot
             && candidate.schema.trait_package_identity == operator_package
     }) {
-        return Ok(None);
+        return Ok(());
     }
     let matching_selected = selected
         .plans()
@@ -332,7 +291,7 @@ fn selected_operator_provider_evidence(
                     // binder. Concrete clones are annotated independently
                     // after final substitution. An emitted non-generic use
                     // still requires exactly one closed demand below.
-                    return Ok(None);
+                    return Ok(());
                 }
                 let matching = checked
                     .facts
@@ -441,12 +400,7 @@ fn selected_operator_provider_evidence(
                 plan.name,
             )));
         }
-        return Ok(Some((
-            plan.report_fingerprint(),
-            checked_trees::CheckedProviderPlanCommitment::from_digest(
-                *plan.identity_digest().as_bytes(),
-            ),
-        )));
+        return Ok(());
     }
     let ProviderBinding::CompilerIntrinsic { machine, .. } = &row.binding else {
         return Err(diagnostics::Diagnostic::error(format!(
@@ -466,12 +420,88 @@ fn selected_operator_provider_evidence(
             plan.name,
         )));
     }
-    Ok(Some((
-        plan.report_fingerprint(),
-        checked_trees::CheckedProviderPlanCommitment::from_digest(
-            *plan.identity_digest().as_bytes(),
-        ),
-    )))
+    Ok(())
+}
+
+/// The selected ProviderPlan serving one checked use of a boundary operator
+/// or receiver-free top-level requirement, with its index in `plans`.
+/// Checked uses carry no selection: each target joins its own selected plans
+/// here by requirement identity (slot and declaring package), after
+/// `bind_selected_provider_plan_facts` rejected ambiguous or malformed plans.
+/// A use inside a pruned target-sibling body has no provider, and a checked
+/// adapter never serves a generic template's use (its concrete clones are
+/// served instead).
+pub fn selected_use_plan<'a>(
+    checked: &checked_trees::CheckedTrees,
+    plans: &'a [ProviderPlan],
+    requirement: symbols::SymbolHandle,
+    origin: checked_trees::CheckedValueOrigin,
+) -> Option<(usize, &'a ProviderPlan)> {
+    if let checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } = origin
+        && !checked
+            .typed
+            .machines()
+            .iter()
+            .any(|machine| machine.symbol == machine_symbol)
+    {
+        return None;
+    }
+    let (index, plan) = selected_requirement_plan(&checked.typed, plans, requirement)?;
+    let is_operator = checked
+        .typed
+        .operators()
+        .iter()
+        .any(|operator| operator.symbol == requirement);
+    if is_operator
+        && matches!(
+            plan.rows.as_slice(),
+            [row] if matches!(row.binding, ProviderBinding::CheckedAdapter { .. })
+        )
+        && use_site_is_generic_template(checked, origin)
+    {
+        return None;
+    }
+    Some((index, plan))
+}
+
+/// The one selected ProviderPlan whose schema binds `requirement` — a boundary
+/// operator's requirement identity or a top-level requirement — in its exact
+/// declaring package, with its index in `plans`.
+pub fn selected_requirement_plan<'a>(
+    typed: &TypedTrees,
+    plans: &'a [ProviderPlan],
+    requirement: symbols::SymbolHandle,
+) -> Option<(usize, &'a ProviderPlan)> {
+    let mut matching: Vec<(usize, &'a ProviderPlan)> =
+        match typed.operators().iter().find(|operator| operator.symbol == requirement) {
+            Some(operator) => {
+                let slot = typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
+                let package = typed.symbols.symbol_package_identity(operator.symbol);
+                plans
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, plan)| {
+                        plan.schema.trait_name == slot
+                            && plan.schema.trait_package_identity == package
+                    })
+                    .collect()
+            }
+            None => {
+                let requirement = crate::IntrinsicRequirement::by_symbol(typed, requirement)?;
+                if requirement.kind != crate::IntrinsicRequirementKind::TopLevelRequirement {
+                    return None;
+                }
+                plans
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, plan)| requirement.schema_binds(typed, &plan.schema))
+                    .collect()
+            }
+        };
+    match matching.len() {
+        1 => matching.pop(),
+        _ => None,
+    }
 }
 
 fn use_site_is_generic_template(

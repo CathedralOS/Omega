@@ -50,8 +50,6 @@ pub(super) fn replay(
         };
         if operator_use.application_site() != comparison.application_site
             || operator_use.selected_operator_symbol != comparison.requirement_operator
-            || operator_use.provider_plan_commitment != comparison.provider_plan_commitment
-            || comparison.provider_plan_commitment.is_empty()
             || operator_use.operands(&checked.typed).is_none()
             || selected_meaning != Some((comparison.comparison, expected_primitive))
         {

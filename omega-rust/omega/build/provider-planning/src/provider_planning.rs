@@ -61,7 +61,7 @@ pub use intrinsic_execution::{
 };
 pub use operator_provider_evidence::{
     compiler_intrinsic_diagnostic_label, compiler_intrinsic_diagnostic_label_for,
-    intrinsic_realization_matches_operator,
+    intrinsic_realization_matches_operator, selected_requirement_plan, selected_use_plan,
 };
 #[cfg(test)]
 pub(crate) use provenance_replay::exact_checked_adapter_invocations;
@@ -87,7 +87,6 @@ use trust_model::ProviderGrantSelectorKind;
 use trust_model::resolve_selected_provider_grants;
 use typed_trees::TypedTrees;
 
-use crate::provider_planning::operator_provider_evidence::plan_selected_operator_provider_evidence;
 use crate::provider_planning::selected_plan_bindings::SelectedProviderProgramUpdates;
 use crate::provider_planning::selection_provenance::select_provider_plan_indices;
 use installation_reach::derive_selected_installation_reach_resolutions;
@@ -118,21 +117,18 @@ pub fn bind_selected_provider_plan_facts(
     .map_err(|diagnostic| vec![diagnostic])?;
     let receipt_updates =
         receipt_binding::plan_admitted_receipt_updates(checked, &facts, &provider_grants)?;
-    let (spelled_operator_uses, named_operator_uses) =
-        plan_selected_operator_provider_evidence(checked, candidates, &facts)?;
-    let named_requirement_uses =
-        operator_provider_evidence::plan_selected_requirement_provider_evidence(
-            checked, candidates, &facts,
-        )?;
+    operator_provider_evidence::validate_selected_operator_provider_evidence(
+        checked, candidates, &facts,
+    )?;
+    operator_provider_evidence::validate_selected_requirement_provider_evidence(
+        checked, candidates, &facts,
+    )?;
     let installation_reach_resolutions =
         derive_selected_installation_reach_resolutions(checked, &facts)?;
     let selected = facts
         .with_installation_reach_resolutions(installation_reach_resolutions)
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     let updates = SelectedProviderProgramUpdates {
-        spelled_operator_uses,
-        named_operator_uses,
-        named_requirement_uses,
         admitted_receipts: receipt_updates,
     };
     let mut bound_program = Arc::clone(program);

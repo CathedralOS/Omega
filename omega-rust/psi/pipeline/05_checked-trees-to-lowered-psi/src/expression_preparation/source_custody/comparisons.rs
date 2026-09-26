@@ -26,13 +26,6 @@ pub(crate) fn occurrence(
     {
         return unsupported("selected comparison lost its exact source owner");
     }
-    // Omega rejoins the opaque commitment to the actual selected ProviderPlan;
-    // a use that reached lowering without one has no provider to rejoin.
-    if selected.provider_plan_commitment.is_empty()
-        || selected.provider_plan_report_fingerprint == 0
-    {
-        return unsupported("selected comparison has no complete provider plan evidence");
-    }
     if checked
         .facts
         .operators
@@ -51,8 +44,6 @@ pub(crate) fn occurrence(
         operator_use: handle,
         application_site: selected.application_site(),
         requirement_operator: selected.selected_operator_symbol,
-        provider_plan_report_fingerprint: selected.provider_plan_report_fingerprint,
-        provider_plan_commitment: selected.provider_plan_commitment,
         meaning,
     })
 }

@@ -6,23 +6,7 @@ use checked_trees::expression::ExpressionNode;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn checked(source: &str) -> CheckedTrees {
-    let mut checked = crate::front_end::checked_program(source);
-    // This unit boundary tests source-to-Terminal custody. Omega separately
-    // rejoins these opaque commitments to actual selected ProviderPlans.
-    let handles = checked
-        .facts
-        .operators
-        .uses
-        .iter()
-        .map(|(handle, _)| handle)
-        .collect::<Vec<_>>();
-    for handle in handles {
-        let selected = checked.facts.operators.uses.get_mut(handle);
-        selected.provider_plan_report_fingerprint = 7;
-        selected.provider_plan_commitment =
-            checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]);
-    }
-    checked
+    crate::front_end::checked_program(source)
 }
 
 #[test]
@@ -272,16 +256,6 @@ fn match_comparison_custody_rejects_arm_and_provider_substitution() {
     let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
         .expect("saved subject and ordered patterns");
     assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 2);
-    let original = lowered.selected_ieee_float_comparison_occurrences[0];
-    let selected = *checked.facts.operators.uses.get(original.operator_use);
-    checked
-        .facts
-        .operators
-        .uses
-        .get_mut(original.operator_use)
-        .provider_plan_commitment = Default::default();
-    assert!(crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err());
-    *checked.facts.operators.uses.get_mut(original.operator_use) = selected;
     let arms = checked
         .facts
         .values

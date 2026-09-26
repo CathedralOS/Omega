@@ -1,7 +1,7 @@
 //! Canonical-empty D29 applications outside the attached-`Unit` plan lane.
 
 use super::super::{
-    exact_operator_definition, resolve_checked_adapter_for_operator, resolve_exact_selected_plan,
+    exact_operator_definition, resolve_checked_adapter_for_operator, selected_use_plan,
 };
 use super::{CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind};
 use checked_trees::{
@@ -90,12 +90,7 @@ fn derive_checked_expression_operator_application_realization(
             (operator_use.expression == expression
                 && operator_use.origin == origin
                 && operator_use.selected_operator_symbol == application.requirement_symbol)
-                .then_some((
-                    CheckedOperatorAuthoredUseKind::Named,
-                    operator_use.provider_plan_report_fingerprint,
-                    operator_use.provider_plan_commitment,
-                    true,
-                ))
+                .then_some((CheckedOperatorAuthoredUseKind::Named, true))
         })
         .chain(
             checked
@@ -111,8 +106,6 @@ fn derive_checked_expression_operator_application_realization(
                         && operator_use.selected_operator_symbol == application.requirement_symbol)
                         .then_some((
                             CheckedOperatorAuthoredUseKind::FixedToken(operator_use.spelling),
-                            operator_use.provider_plan_report_fingerprint,
-                            operator_use.provider_plan_commitment,
                             operator_use.status == CheckedOperatorResolutionStatus::Resolved
                                 && operator.spelling == Some(operator_use.spelling)
                                 && checked
@@ -127,8 +120,7 @@ fn derive_checked_expression_operator_application_realization(
                 }),
         )
         .collect::<Vec<_>>();
-    let [(authored_use_kind, plan_report, plan_commitment, exact_authored_use)] =
-        authored_uses.as_slice()
+    let [(authored_use_kind, exact_authored_use)] = authored_uses.as_slice()
     else {
         return Err(Diagnostic::error(format!(
             "canonical-empty boundary application at expression {expression:?} retains {} exact authored uses; expected one",
@@ -148,12 +140,17 @@ fn derive_checked_expression_operator_application_realization(
     ) {
         return Ok(None);
     }
-    if *plan_report == 0 && plan_commitment.is_empty() {
+    let Some(plan) = selected_use_plan(
+        checked,
+        selected_provider_plans,
+        application.requirement_symbol,
+        origin,
+    ) else {
         // Checking also retains declaration/conformance application shapes.
-        // Without selected-plan custody they are not executable D29 uses and
+        // Without a selected plan they are not executable D29 uses and
         // cannot publish realization coverage.
         return Ok(None);
-    }
+    };
     if !operator.lifetime_parameters.is_empty()
         || !checked.typed.operator_type_parameters(operator).is_empty()
     {
@@ -162,12 +159,7 @@ fn derive_checked_expression_operator_application_realization(
         )));
     }
 
-    let report_matches = selected_provider_plans
-        .iter()
-        .filter(|plan| plan.report_fingerprint() == *plan_report)
-        .collect::<Vec<_>>();
-    if let [plan] = report_matches.as_slice()
-        && !matches!(
+    if !matches!(
             plan.rows.as_slice(),
             [row]
                 if matches!(
@@ -182,12 +174,6 @@ fn derive_checked_expression_operator_application_realization(
         return Ok(None);
     }
 
-    let plan = resolve_exact_selected_plan(
-        selected_provider_plans,
-        *plan_report,
-        *plan_commitment,
-        "canonical-empty operator application",
-    )?;
     let Some((realization_machine, _, realization_state)) =
         resolve_checked_adapter_for_operator(checked, operator, plan, expression)?
     else {
@@ -269,8 +255,8 @@ fn derive_checked_expression_operator_application_realization(
         authored_use_kind: *authored_use_kind,
         requirement_operator: application.requirement_symbol,
         requirement_overload_identity,
-        provider_plan_report_fingerprint: *plan_report,
-        provider_plan_commitment: *plan_commitment,
+        provider_plan_report_fingerprint: plan.report_fingerprint(),
+        provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes()),
         realization_machine,
         realization_state,
         realization_contract_report_fingerprint: contract.report_fingerprint,

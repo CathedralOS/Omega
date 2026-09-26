@@ -88,16 +88,17 @@ fn derive_one(
 
     let authored_uses =
         exact_authored_uses(checked, expression, origin, application.requirement_symbol);
-    let [(authored_use_kind, plan_report, plan_commitment)] = authored_uses.as_slice() else {
+    let [authored_use_kind] = authored_uses.as_slice() else {
         return Err(Diagnostic::error(format!(
             "nonempty boundary application at expression {expression:?} retains {} exact selected uses; expected one",
             authored_uses.len(),
         )));
     };
     let plan = resolve_exact_selected_plan(
+        checked,
         selected_provider_plans,
-        *plan_report,
-        *plan_commitment,
+        application.requirement_symbol,
+        origin,
         "specialized operator application",
     )?;
     let Some((realization_machine, _, realization_state)) =
@@ -234,8 +235,8 @@ fn derive_one(
         authored_use_kind: *authored_use_kind,
         requirement_operator: application.requirement_symbol,
         requirement_overload_identity,
-        provider_plan_report_fingerprint: *plan_report,
-        provider_plan_commitment: *plan_commitment,
+        provider_plan_report_fingerprint: plan.report_fingerprint(),
+        provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes()),
         realization_template: specialization.template,
         realization_machine,
         realization_state,
@@ -250,11 +251,7 @@ fn exact_authored_uses(
     expression: typed_trees::expression::ExpressionHandle,
     origin: checked_trees::CheckedValueOrigin,
     requirement: SymbolHandle,
-) -> Vec<(
-    CheckedOperatorAuthoredUseKind,
-    u64,
-    checked_trees::CheckedProviderPlanCommitment,
-)> {
+) -> Vec<CheckedOperatorAuthoredUseKind> {
     let operator = checked
         .typed
         .operators()
@@ -269,11 +266,7 @@ fn exact_authored_uses(
             (operator_use.expression == expression
                 && operator_use.origin == origin
                 && operator_use.selected_operator_symbol == requirement)
-                .then_some((
-                    CheckedOperatorAuthoredUseKind::Named,
-                    operator_use.provider_plan_report_fingerprint,
-                    operator_use.provider_plan_commitment,
-                ))
+                .then_some(CheckedOperatorAuthoredUseKind::Named)
         })
         .chain(
             checked
@@ -300,10 +293,8 @@ fn exact_authored_uses(
                                             && candidate.is_boundary
                                     })
                         }))
-                    .then_some((
-                        CheckedOperatorAuthoredUseKind::FixedToken(operator_use.spelling),
-                        operator_use.provider_plan_report_fingerprint,
-                        operator_use.provider_plan_commitment,
+                    .then_some(CheckedOperatorAuthoredUseKind::FixedToken(
+                        operator_use.spelling,
                     ))
                 }),
         )
