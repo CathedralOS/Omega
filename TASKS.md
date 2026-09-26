@@ -4476,7 +4476,14 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   not a new producer family.
 
   Four gates stand between, and the first two were demonstrated movable
-  before being reverted. `CheckedStructuralControlTransferSourcePlan::
+  before being reverted. The third's obstacle is not effort: by the time
+  `outer_calls_before_traced` runs, a transition's successor arguments are
+  already normalized, so `report(self.make_change(10), 17)` presents two
+  arguments of the same node kind and neither is the authored
+  `self.make_change(10)`. `collect_argument_calls`, which every other
+  statement family uses to mark a nested call consumed, matches on that
+  authored expression and so finds nothing. Relate the nested call's own fact
+  to the normalized argument instead of reaching for its source spelling. `CheckedStructuralControlTransferSourcePlan::
   StructuralResult` already exists for "an earlier state-local call result",
   so the transfer route can name a planned call instead of requiring a
   forwarded parameter. `operation_end` in `state_graph/mod.rs` deliberately
