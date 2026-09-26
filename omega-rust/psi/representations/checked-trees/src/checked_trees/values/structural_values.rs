@@ -75,6 +75,9 @@ pub enum CheckedStructuralValueKind {
     /// borrow, with `type_identity` naming the projected (leaf) case type.
     ScalarCasePlace {
         source: crate::CheckedUnitStructuralArgumentPlan,
+        /// The projected leaf's type reference: lowering registers it with the
+        /// unit's structural catalog so the leaf's `type_identity` resolves.
+        leaf: TypeReferenceHandle,
     },
     /// An `Unrestricted` leaf read through shared-borrowed storage
     /// (`self.scan_compare_type` on a `&self` receiver): the borrowed place's
@@ -83,6 +86,9 @@ pub enum CheckedStructuralValueKind {
     /// borrow, with `type_identity` naming the projected (leaf) type.
     CopiedStructuralPlace {
         source: crate::CheckedUnitStructuralArgumentPlan,
+        /// The projected leaf's type reference: lowering registers it with the
+        /// unit's structural catalog so the leaf's `type_identity` resolves.
+        leaf: TypeReferenceHandle,
     },
     /// One `[copy]` record element copied out of an established borrowed
     /// view (`let chosen: Entry = tail[index]`). `reads` are the element's

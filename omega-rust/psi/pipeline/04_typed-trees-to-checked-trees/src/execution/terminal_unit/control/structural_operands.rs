@@ -236,11 +236,16 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
                 pending.extend(elements.iter().rev().copied());
             }
+            // A borrowed leaf read projects a type no signature owns; its
+            // identity must exist in the unit's structural catalog for the
+            // leaf observation to resolve a structural type id downstream.
+            checked_trees::CheckedStructuralValueKind::ScalarCasePlace { leaf, .. }
+            | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { leaf, .. } => {
+                let _ = shapes.add_type(*leaf, &machine_binders(program, machine), &[])?;
+            }
             checked_trees::CheckedStructuralValueKind::Reference { .. }
             | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_)
-            | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { .. }
-            | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
             | checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
             | checked_trees::CheckedStructuralValueKind::Place(_) => {}
