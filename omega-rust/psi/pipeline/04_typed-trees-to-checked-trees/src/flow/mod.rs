@@ -104,7 +104,7 @@ use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::relative_place_segments_from_expression;
 use exits::append_state_exit_facts;
 use fact_rows::borrow_state_fact;
-pub(crate) use fact_rows::proof_contract_call;
+pub(crate) use fact_rows::{enter_fact_row_scope, proof_contract_call};
 pub(crate) use mutation::close_storage_places_over_aliases_with_resolver;
 pub(crate) use mutation::origin_place;
 pub(crate) use mutation::rebase_exact_local_place;
