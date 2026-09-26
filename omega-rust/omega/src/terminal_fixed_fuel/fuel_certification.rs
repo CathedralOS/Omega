@@ -41,7 +41,7 @@ pub fn derive_fixed_entry_fuel(
         // premise. When `requires` clauses cap the rank arriving at a
         // `Natural` component's first entry — directly, through a
         // relational chain the clauses themselves state, through an
-        // `IntegerMath*` affine bound solved over unbounded integers, or
+        // `IntegerMath*` linear bound solved over unbounded integers, or
         // through a conditional row whose disjunctive arms all bound the
         // rank or whose implication premise the ambient rows discharge —
         // the visit bound rests on them and the certificate binds the
