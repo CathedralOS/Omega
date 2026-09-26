@@ -384,10 +384,12 @@ impl TypedTrees {
 
     /// The machine whose state list stores `state_symbol`. A state's
     /// retained parent names its owning machine, so the common case is one
-    /// symbol read, one machines-row scan, and one membership check; the
-    /// whole-program scan still runs when the retained parent disagrees
-    /// with storage. State spans are disjoint append-only ranges, so at
-    /// most one machine can contain a given state symbol.
+    /// symbol read, one machines-row scan, and one membership check. The
+    /// whole-program scan still runs when the retained parent disagrees with
+    /// storage, but only for a symbol that `may_name_stored_state`: call
+    /// targets naming a machine head, builtin, parameter or trait
+    /// requirement skip it. State spans are disjoint append-only ranges, so
+    /// at most one machine can contain a given state symbol.
     pub fn machine_holding_state(
         &self,
         state_symbol: symbols::SymbolHandle,
@@ -395,7 +397,8 @@ impl TypedTrees {
         if !state_symbol.is_valid() {
             return None;
         }
-        let parent = self.symbols.get(state_symbol).parent;
+        let symbol = self.symbols.get(state_symbol);
+        let parent = symbol.parent;
         if let Some(machine) = self
             .machines()
             .iter()
@@ -407,6 +410,9 @@ impl TypedTrees {
         {
             return Some(machine);
         }
+        if !self.may_name_stored_state(symbol) {
+            return None;
+        }
         self.machines()
             .iter()
             .filter(|candidate| candidate.symbol != parent)
@@ -415,6 +421,16 @@ impl TypedTrees {
                     .iter()
                     .any(|state| state.symbol == state_symbol)
             })
+    }
+
+    /// Whether a symbol can name a stored state row: a state symbol, or one
+    /// the table cannot resolve, and not a state under a trait, which is a
+    /// requirement signature no machine stores.
+    pub fn may_name_stored_state(&self, symbol: &symbols::Symbol) -> bool {
+        matches!(
+            symbol.kind,
+            symbols::SymbolKind::State | symbols::SymbolKind::Unknown
+        ) && self.symbols.get(symbol.parent).kind != symbols::SymbolKind::Trait
     }
 
     /// The state `state_symbol` names, resolved through its owning
