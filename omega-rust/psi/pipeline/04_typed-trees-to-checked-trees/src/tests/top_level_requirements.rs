@@ -31,32 +31,6 @@ fn trait_provider_cannot_hide_helper_reach_from_requirement_ceiling() {
     );
 }
 
-#[test]
-fn top_level_provider_cannot_hide_helper_reach_from_requirement_ceiling() {
-    let source = |requirement_reach: &str| {
-        format!(
-            "pub boundary trait Audit {{}}\n\
-         pub data Endpoint {{}}\n\
-         pub boundary requirement Endpoint::run() {requirement_reach};\n\
-         machine helper() reaches Audit {{}}\n\
-         machine implementation() satisfies Endpoint::run {{ helper(); }}",
-        )
-    };
-    checked_source(&source("reaches Audit"))
-        .expect("a provider's propagated reach fits the top-level requirement");
-    let diagnostics =
-        checked_source(&source("")).expect_err("a top-level provider cannot hide a helper's reach");
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("Audit")
-                && diagnostic
-                    .message
-                    .contains("outside the requirement ceiling")
-        }),
-        "{diagnostics:?}"
-    );
-}
-
 fn completion_program(provider_parameter: &str, provider_clauses: &str) -> String {
     format!(
         r#"

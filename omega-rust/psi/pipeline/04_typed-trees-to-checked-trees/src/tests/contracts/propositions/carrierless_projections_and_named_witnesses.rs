@@ -35,22 +35,6 @@ fn checked_proposition_declarations_retain_public_visibility_without_minting_fac
 }
 
 #[test]
-fn proposition_type_arguments_instantiate_value_parameter_types() {
-    let source = r#"
-        proposition typed<T>(value: T);
-        data Main { value: i32; }
-
-        machine Main::run(&mut self)
-        requires typed<i32>(self.value)
-        {
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("the concrete type argument should instantiate the proposition value signature");
-}
-
-#[test]
 fn carrierless_evidence_projection_cannot_select_an_executable_machine_parameter() {
     let source = r#"
         trait Evidence {

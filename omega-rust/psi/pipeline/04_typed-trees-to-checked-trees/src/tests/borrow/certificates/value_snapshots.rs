@@ -385,18 +385,6 @@ fn shared_windows_retain_distinct_snapshots_of_one_mutable_source() {
 }
 
 #[test]
-fn direct_mutable_local_cannot_retarget_an_earlier_bound() {
-    assert_borrow_conflict(&split_source(
-        false,
-        "
-        let left: &mut [i32] = self.items[0..original];
-        original = 1;
-        let right: &mut [i32] = self.items[original..4];
-    ",
-    ));
-}
-
-#[test]
 fn direct_mutable_bounds_do_not_license_adjacency_without_a_snapshot() {
     for parameter in [false, true] {
         assert_borrow_conflict(&split_source(

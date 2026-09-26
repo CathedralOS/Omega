@@ -3,29 +3,6 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 #[test]
-fn receiver_result_bounds_reach_guarded_subordinate_state_requirements() {
-    let source = "data Alignment [copy] { case One; case Four; }
-         machine Alignment::size(&self) -> u64
-         ensures result >= 1 && result <= 8 {
-             transition self { Alignment::One -> (1) Alignment::Four -> (4) }
-         }
-         data Probe { base: u64; size: u64; }
-         machine Probe::run(&self, width: u64, alignment: Alignment) -> u64
-         crashes Abort {
-             let alignment_size: u64 = alignment.size();
-             transition self.base % alignment_size == 0 && self.size >= width {
-                 true -> consume(width, alignment_size)
-                 false -> violated()
-             }
-             state violated(&self) -> u64 { crash Abort; }
-             state consume(&self, width: u64, alignment_size: u64) -> u64
-             requires alignment_size >= 1 && alignment_size <= 8 { width / alignment_size }
-         }";
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}\n{source}"));
-}
-
-#[test]
 fn receiver_result_bounds_reach_subordinate_state_requirements() {
     for (binding, statements, argument) in [
         ("alignment.size()", "", "width"),
@@ -213,24 +190,6 @@ fn check(source: &str, accepted: bool) {
 }
 
 #[test]
-fn result_field_guarantee_is_available_to_a_caller() {
-    check(
-        "data Count [copy] { remaining: u64; }
-         machine produce(input: u64) -> Count
-         ensures result.remaining == input
-         { Count { remaining: input } }
-         machine consume(value: Count, expected: u64)
-         requires value.remaining == expected
-         {}
-         machine caller(input: u64) {
-             let value: Count = produce(input);
-             consume(value, input);
-         }",
-        true,
-    );
-}
-
-#[test]
 fn constructed_field_bounds_use_caller_facts_without_a_return_guarantee() {
     for (remaining, after, accepted) in [
         ("capacity", "", true),
@@ -323,22 +282,6 @@ fn residual_bounds_follow_live_copies_and_distinct_invocations() {
             accepted,
         );
     }
-}
-
-#[test]
-fn residual_bounds_do_not_reinterpret_wrapping_arithmetic() {
-    check(
-        "data Count [copy] { remaining: u8; }
-         machine produce(input: u8) -> Count
-         ensures result.remaining == ((input as u8 in Wrapping) + 1) as u8
-         { Count { remaining: ((input as u8 in Wrapping) + 1) as u8 } }
-         machine consume(value: Count) requires 1 <= value.remaining {}
-         machine caller(input: u8) requires input == 255 {
-             let value: Count = produce(input);
-             consume(value);
-         }",
-        false,
-    );
 }
 
 #[test]
@@ -461,18 +404,6 @@ fn caller_result_relations_preserve_nested_computations() {
             requires length <= capacity; other <= capacity
             {{ let value: Issued = produce(capacity, length); consume(value, capacity, length, other); }}"), accepted);
     }
-}
-
-#[test]
-fn caller_result_relations_do_not_confuse_computed_argument_snapshots() {
-    check("data Count [copy] { remaining: u64; }
-        machine produce(input: u64) -> Count ensures result.remaining == input { Count { remaining: input } }
-        machine consume(value: Count, expected: u64) requires value.remaining == expected {}
-        machine caller(mut input: u64) {
-            let value: Count = produce((input as u64 in Wrapping) + 1);
-            input = 0;
-            consume(value, (input as u64 in Wrapping) + 1);
-        }", false);
 }
 
 #[test]

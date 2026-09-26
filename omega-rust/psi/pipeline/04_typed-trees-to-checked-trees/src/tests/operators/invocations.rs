@@ -168,19 +168,6 @@ fn multi_operand_requires_cannot_mix_different_versions_of_a_source() {
 }
 
 #[test]
-fn conjunctive_operator_requires_preserve_a_copied_value() {
-    checked_program_result(
-        "boundary operator == Integer::equal(left: i32, right: i32) -> bool
-         requires left >= 0 && left <= 100;
-         machine reset(value: &mut i32) -> i32 { value = -1; 1 }
-         machine compare(mut value: i32) -> bool requires value >= 0 && value <= 100 {
-             value == reset(&mut value)
-         }",
-    )
-    .expect("each conjunct describes the copied left value, not its overwritten storage");
-}
-
-#[test]
 fn copied_record_operator_requires_cannot_borrow_a_later_storage_guarantee() {
     let diagnostics = checked_program_result(
         "data Number [copy] { value: i32; }

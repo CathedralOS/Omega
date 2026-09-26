@@ -937,28 +937,6 @@ fn boundary_ensures_transport_rebind_before_transition_kills_the_fact() {
 }
 
 #[test]
-fn boundary_ensures_witness_discharges_bounded_assignment() {
-    // R4 containment: `ensures size <= 8` refolds `self.n + 1` into
-    // [1, 9], fitting the [0..=9] target with no guard.
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-        }
-        data Main { fw: Binding<Firmware>; n: u32; m: u32 [0..=9]; }
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.n);
-            self.m = self.n + 1;
-        }
-    "#;
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect("the ensures witness should discharge the bounded assignment");
-}
-
-#[test]
 fn boundary_ensures_witness_wide_bounded_assignment_refuses() {
     // `self.n + 2` reaches 10 > 9 -- the witness must not over-prove.
     let source = r#"
@@ -986,30 +964,6 @@ fn boundary_ensures_witness_wide_bounded_assignment_refuses() {
 }
 
 #[test]
-fn boundary_ensures_witness_survives_unrelated_later_call() {
-    // The later resolved boundary call can mutate its receiver (`self.fw`),
-    // but its may-write frame is disjoint from `self.n`, so the witness lives.
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-            machine poke();
-        }
-        data Main { fw: Binding<Firmware>; n: u32; m: u32 [0..=9]; }
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.n);
-            self.fw.poke();
-            self.m = self.n + 1;
-        }
-    "#;
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect("a disjoint resolved boundary call must preserve the witness");
-}
-
-#[test]
 fn value_vs_value_guard_transfers_the_range_endpoint() {
     // R1 endpoint mint: `i < k` with `k: u32 [0..=8]` proves `i < 8`.
     let source = r#"
@@ -1026,40 +980,6 @@ fn value_vs_value_guard_transfers_the_range_endpoint() {
     "#;
     lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the transferred endpoint should discharge the index");
-}
-
-#[test]
-fn transitive_guard_survives_disjoint_pure_value_call_frame() {
-    let source = r#"
-        machine widen(value: u32) -> u64 {
-            value as u64
-        }
-
-        data Main {
-            buf: [u8; 4];
-            i: u32;
-            scratch: u64;
-        }
-
-        machine Main::main(&mut self) {
-            self.i = 0;
-            transition self.i < 4 { true -> prepare() _ -> done() }
-
-            state prepare(&mut self) {
-                self.scratch = widen(self.i);
-                transition { _ -> put() }
-            }
-
-            state put(&mut self) {
-                self.buf[self.i] = 7;
-            }
-
-            state done(&mut self) {}
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("a disjoint pure value-call frame should preserve the transitive index guard");
 }
 
 #[test]

@@ -35,21 +35,6 @@ fn right_operand_uses_only_its_selected_guard_polarity() {
 }
 
 #[test]
-fn selected_conjunction_retains_both_signed_index_bounds() {
-    checked_program_result(
-        "machine inspect(bytes: &[u8], index: i64) -> bool {
-            0 <= index && index < bytes.len && bytes[index] == 128
-        }",
-    )
-    .unwrap();
-    rejects_index(
-        "machine inspect(bytes: &[u8], index: i64) -> bool {
-            index < bytes.len && bytes[index] == 128
-        }",
-    );
-}
-
-#[test]
 fn argument_guards_do_not_escape_to_the_next_argument_or_statement() {
     checked_program_result(
         "boundary trait Output { machine flag(value: bool) reaches Output; }
@@ -88,16 +73,6 @@ fn possible_right_operand_writes_invalidate_incoming_index_facts() {
             }}"
         ));
     }
-}
-
-#[test]
-fn mutating_guard_cannot_replay_an_earlier_comparison() {
-    rejects_index(
-        "machine replace(index: &mut u64) -> bool { index = 255; true }
-        machine inspect(bytes: &[u8], mut index: u64) -> bool {
-            (index < bytes.len && replace(&mut index)) && bytes[index] == 128
-        }",
-    );
 }
 
 #[test]

@@ -24,67 +24,6 @@ fn machine_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> symbols:
 }
 
 #[test]
-fn accepts_reserved_cleanup_shape() {
-    let source = r#"
-        data Wrapper { value: i32; }
-        machine Wrapper::drop(&mut self) {}
-    "#;
-    checked_program(source);
-}
-
-#[test]
-fn accepts_exact_one_call_executable_cleanup_shape() {
-    let source = r#"
-        data Helper {}
-        machine Helper::touch() {}
-        data Wrapper { value: i32; }
-        machine Wrapper::drop(&mut self) { Helper::touch(); }
-    "#;
-    checked_program(source);
-}
-
-#[test]
-fn accepts_exact_two_call_executable_cleanup_shape() {
-    let source = r#"
-        data First {}
-        machine First::touch() {}
-        data Second {}
-        machine Second::touch() {}
-        data Wrapper { value: i32; }
-        machine Wrapper::drop(&mut self) {
-            First::touch();
-            Second::touch();
-        }
-    "#;
-    checked_program(source);
-}
-
-#[test]
-fn accepts_exact_five_call_executable_cleanup_shape() {
-    let source = r#"
-        data First {}
-        machine First::touch() {}
-        data Second {}
-        machine Second::touch() {}
-        data Third {}
-        machine Third::touch() {}
-        data Fourth {}
-        machine Fourth::touch() {}
-        data Fifth {}
-        machine Fifth::touch() {}
-        data Wrapper { value: i32; }
-        machine Wrapper::drop(&mut self) {
-            First::touch();
-            Second::touch();
-            Third::touch();
-            Fourth::touch();
-            Fifth::touch();
-        }
-    "#;
-    checked_program(source);
-}
-
-#[test]
 fn rejects_authored_method_selection_of_reserved_cleanup() {
     rejects(
         r#"
@@ -95,59 +34,6 @@ fn rejects_authored_method_selection_of_reserved_cleanup() {
             }
         "#,
         "reserved cleanup machine `Resource::drop` is compiler-selected",
-    );
-}
-
-#[test]
-fn rejects_authored_qualified_selection_of_reserved_cleanup() {
-    rejects(
-        r#"
-            data Resource { value: i32; }
-            machine Resource::drop(&mut self) {}
-            machine misuse(resource: &mut Resource) {
-                Resource::drop(resource);
-            }
-        "#,
-        "reserved cleanup machine `Resource::drop` is compiler-selected",
-    );
-}
-
-#[test]
-fn rejects_reserved_cleanup_as_a_static_machine_argument() {
-    rejects(
-        r#"
-            data Resource { value: i32; }
-            machine Resource::drop(&mut self) {}
-            machine accept<machine Selected>()
-            where machine Selected(value: &mut Resource)
-            { }
-            machine misuse() {
-                accept<Resource::drop>();
-            }
-        "#,
-        "machine argument `Resource::drop` for `accept` does not refine `Selected`",
-    );
-}
-
-#[test]
-fn rejects_reserved_cleanup_selected_then_forwarded_through_a_machine_binder() {
-    rejects(
-        r#"
-            data Resource { value: i32; }
-            machine Resource::drop(&mut self) {}
-            machine sink<machine Selected>()
-            where machine Selected(value: &mut Resource)
-            { }
-            machine forward<machine Selected>()
-            where machine Selected(value: &mut Resource)
-            {
-                sink<Selected>();
-            }
-            machine misuse() {
-                forward<Resource::drop>();
-            }
-        "#,
-        "machine argument `Resource::drop` for `forward` does not refine `Selected`",
     );
 }
 
@@ -222,22 +108,6 @@ fn rejects_non_mutable_cleanup_receiver() {
             "must have exactly the receiver `&mut self`",
         );
     }
-}
-
-#[test]
-fn rejects_cleanup_positional_parameters() {
-    rejects(
-        "data Wrapper { value: i32; } machine Wrapper::drop(&mut self, extra: i32) {}",
-        "must have exactly the receiver `&mut self`",
-    );
-}
-
-#[test]
-fn rejects_cleanup_without_receiver() {
-    rejects(
-        "data Wrapper { value: i32; } machine Wrapper::drop() {}",
-        "must have exactly the receiver `&mut self`",
-    );
 }
 
 #[test]

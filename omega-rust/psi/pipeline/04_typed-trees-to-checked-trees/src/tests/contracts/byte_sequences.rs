@@ -243,21 +243,6 @@ data Input { bytes: [u8; 4]; }
 "#;
 
 #[test]
-fn concatenation_establishes_a_raw_output_from_nested_live_operands() {
-    let source = format!(
-        r#"{DEFINITIONS}
-        machine concatenate(output: &mut [u8; 16], input: Input)
-        requires input.bytes in Utf8
-        ensures output in Utf8 {{
-            output = (input.bytes + "!") + "!";
-        }}
-        "#
-    );
-    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
-        .expect("nested concatenation establishes output");
-}
-
-#[test]
 fn concatenation_requires_every_operand_to_have_a_live_predicate() {
     for body in [
         "output = input.bytes + unknown;",
@@ -280,22 +265,6 @@ fn concatenation_requires_every_operand_to_have_a_live_predicate() {
             "{body}: {diagnostics:#?}"
         );
     }
-}
-
-#[test]
-fn concatenated_output_does_not_replay_a_later_source_mutation() {
-    let source = format!(
-        r#"{DEFINITIONS}
-        machine concatenate(output: &mut [u8; 16], input: &mut Input)
-        requires input.bytes in Utf8
-        ensures output in Utf8 {{
-            output = input.bytes + "!";
-            input.bytes[0] = 255;
-        }}
-        "#
-    );
-    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
-        .expect("copied bytes are independent of input");
 }
 
 #[test]

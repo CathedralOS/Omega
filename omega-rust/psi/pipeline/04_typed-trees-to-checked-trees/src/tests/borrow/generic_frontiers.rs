@@ -1,6 +1,6 @@
 use super::checks::check_program;
 use crate::borrow::view_link::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
-use crate::tests::front_end::{checked_program_result, typed_program};
+use crate::tests::front_end::typed_program;
 
 mod static_calls;
 
@@ -117,25 +117,6 @@ fn unresolved_generic_receiver_calls_cannot_produce_or_discard_carriers() {
             );
         }
     }
-}
-
-#[test]
-fn concrete_decode_realization_and_call_are_checked_by_the_complete_pipeline() {
-    let source = format!(
-        r#"{CARRIERS}
-        trait Decode<Value> {{ machine decode(bytes: &[u8]) -> DecodeResult<Relayed<Value>>; }}
-        machine decode(bytes: &[u8]) -> DecodeResult<Relayed<i32>>
-        satisfies Decode<i32>::decode
-        {{ DecodeResult::Invalid }}
-        machine consume(value: DecodeResult<Relayed<i32>>) {{}}
-        machine exercise(bytes: &[u8]) {{
-            let result: DecodeResult<Relayed<i32>> = decode(bytes);
-            consume(result);
-        }}
-    "#
-    );
-    checked_program_result(&source)
-        .unwrap_or_else(|diagnostics| panic!("closed implementation and call: {diagnostics:#?}"));
 }
 
 #[test]

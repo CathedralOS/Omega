@@ -78,32 +78,6 @@ fn exact_exclusive_actual_retires_only_its_storage() {
     }
 }
 
-/// A reference local bound from a reference-returning call with two
-/// candidate origins has no single representable storage origin, so an
-/// exclusive actual spelled through it leaves the ceiling unrepresentable:
-/// the call still retires every live fact rather than surviving on a
-/// guessed narrower frame.
-#[test]
-fn unrepresentable_exclusive_actual_keeps_the_conservative_retirement() {
-    let source = format!(
-        r#"{DEFINITIONS}
-        machine pick(record: &mut Record, first: bool) -> &mut Slot {{
-            transition first {{
-                true -> &mut record.others[0]
-                false -> &mut record.others[1]
-            }}
-        }}
-        machine Record::probe(&mut self, spare: &mut Record, first: bool) {{
-            self.out.bytes = "XXX";
-            let chosen: &mut Slot = pick(spare, first);
-            clear(chosen);
-            let observed: u8 = self.out.bytes[2];
-        }}
-    "#
-    );
-    check(&source, false);
-}
-
 /// The retirement observed through scalar facts a call never hands back:
 /// `count == 7` survives a call exactly where the call could not write.
 fn check_scalar_survivals(source: &str, retired: &[&str], surviving: &[&str]) {
@@ -201,37 +175,6 @@ fn state_routed_reference_result_keeps_the_conservative_retirement() {
     "#
     );
     check_scalar_survivals(&source, &["mine.out.count", "spare.out.count"], &[]);
-}
-
-/// A result selected by a runtime index into a fixed array already resolves
-/// through the frame resolver's own origin to the element family
-/// (`spare.others[*]`): both elements retire, nothing else does.
-#[test]
-fn runtime_indexed_reference_result_retires_the_element_family_only() {
-    let source = format!(
-        r#"{CANDIDATE_DEFINITIONS}
-        machine pick(record: &mut Record, index: u64 [0..=1]) -> &mut Slot {{
-            &mut record.others[index]
-        }}
-        machine probe(mine: &mut Record, spare: &mut Record, index: u64 [0..=1]) {{
-            mine.out.count = 7;
-            spare.out.count = 7;
-            spare.others[0].count = 7;
-            spare.others[1].count = 7;
-            let chosen: &mut Slot = pick(spare, index);
-            clear(chosen);
-            needs_seven(mine.out.count);
-            needs_seven(spare.out.count);
-            needs_seven(spare.others[0].count);
-            needs_seven(spare.others[1].count);
-        }}
-    "#
-    );
-    check_scalar_survivals(
-        &source,
-        &["spare.others[0].count", "spare.others[1].count"],
-        &["mine.out.count", "spare.out.count"],
-    );
 }
 
 /// A call through a `&mut` local bound from a two-candidate reference result

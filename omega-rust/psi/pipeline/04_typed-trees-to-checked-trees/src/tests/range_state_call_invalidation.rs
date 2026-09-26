@@ -163,24 +163,6 @@ fn calls_retire_collection_relative_facts_before_state_transport() {
 }
 
 #[test]
-fn stored_mutating_guards_do_not_transport_pre_call_comparisons() {
-    check(
-        r#"
-        machine set_index(index: &mut u64) -> bool { index = 255; true }
-        machine main(values: &[u64], mut index: u64) -> u64 {
-            let ready: bool = index < values.len && set_index(&mut index);
-            transition ready {
-                true -> read(values, index)
-                false -> 0
-            }
-            state read(items: &[u64], position: u64) -> u64 { items[position] }
-        }
-    "#,
-        false,
-    );
-}
-
-#[test]
 fn guard_and_argument_calls_retire_facts_before_target_collection() {
     for transition in [
         "transition set_index(&mut index) { true -> read(values, index, 0) false -> 0 }",

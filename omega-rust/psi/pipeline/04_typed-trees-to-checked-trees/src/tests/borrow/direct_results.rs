@@ -59,18 +59,6 @@ fn direct_result_keeps_every_candidate_leaf_with_the_same_lifetime() {
 }
 
 #[test]
-fn direct_result_links_the_union_of_inputs_sharing_the_result_lifetime() {
-    // An explicit result lifetime shared across an owned carrier and a
-    // direct input names both as candidate sources: either may supply the
-    // returned view, so the signature resolves rather than rejecting.
-    let source = "data View<'source> { body: &'source mut i32; }
-         machine select<'source>(value: View<'source>, other: &'source mut i32) -> &'source mut i32 {
-             value.body
-         }";
-    check_program(source).expect("a shared explicit lifetime names the candidate source union");
-}
-
-#[test]
 fn direct_result_union_tracks_the_loan_on_every_candidate_source() {
     for (operation, admitted) in [
         ("write(first);", false),

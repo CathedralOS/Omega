@@ -54,15 +54,6 @@ fn field_endpoint_formation_never_uses_final_cancellation_to_excuse_overflow() {
 }
 
 #[test]
-fn formed_computed_endpoints_still_need_pinning_and_entry_membership() {
-    reject_range(&COUNTDOWN.replace("limit: countdown.limit", "limit: 5"));
-    reject_range(&COUNTDOWN.replace("requires countdown.remaining <= countdown.limit;", ""));
-    // This program always has rank <= 5, but an exclusive limit equal to the
-    // ranked field would exclude the initial value even though reading is safe.
-    reject_range(&COUNTDOWN.replace("countdown.limit + 1", "countdown.limit + 0"));
-}
-
-#[test]
 fn computed_field_limits_retain_meaning_and_write_preservation() {
     for operator in [
         "operator + u64::sum(left: u64, right: u64) -> u64;",

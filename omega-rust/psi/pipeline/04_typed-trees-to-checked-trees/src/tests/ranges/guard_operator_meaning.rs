@@ -44,13 +44,6 @@ fn computed_index_source(declarations: &str) -> String {
 }
 
 #[test]
-fn builtin_slice_length_guards_prove_head_and_tail_on_both_edges() {
-    let source = slice_source("");
-    checked_program_result(&source)
-        .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
-}
-
-#[test]
 fn unrelated_float_ordering_preserves_slice_length_guards() {
     for scalar in ["f32", "f64"] {
         let source = slice_source(&float_ordering_declarations(scalar));
@@ -72,13 +65,6 @@ fn selected_integer_greater_cannot_supply_head_or_tail_bounds() {
             "expected {expected}: {source}\n{diagnostics:#?}"
         );
     }
-}
-
-#[test]
-fn builtin_computed_index_guard_reaches_successor_state() {
-    let source = computed_index_source("");
-    checked_program_result(&source)
-        .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 #[test]

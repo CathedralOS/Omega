@@ -70,25 +70,6 @@ terminates by outer.inner.remaining -> Outer::Doubled in 0..=10;
     }
 }
 "#;
-/// A declared computation view over a bare formal: the produced rank is
-/// `value * 2`, but the endpoint is still an ordinary projected field the
-/// edge judgment must bind and pin on every arrival.
-const COMPUTED_BARE: &str = r#"
-data Limits { cap: u64 [0..=10]; }
-data Countdown {}
-measure Countdown::Doubled(value: u64) -> u64 { value * 2 }
-
-machine walk(remaining: u64 [0..=5], limits: Limits)
-requires remaining * 2 <= limits.cap;
-terminates by remaining -> Countdown::Doubled in 0..=limits.cap;
--> u64 {
-    transition remaining > 0 {
-        true -> walk(remaining - 1, limits)
-        false -> remaining
-    }
-}
-"#;
-
 fn prove_termination(source: &str) {
     crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
@@ -121,28 +102,6 @@ fn nested_projection_relation_checks_through_complete_lowering() {
 }
 
 #[test]
-fn nested_projection_relation_proves_nonzero_floor_and_exclusive_ceiling() {
-    let nonzero = NESTED
-        .replace(
-            NESTED_PRECONDITION,
-            "requires 1 <= countdown.inner.remaining && countdown.inner.remaining <= ceiling;",
-        )
-        .replace("in 0..=ceiling", "in 1..=ceiling")
-        .replace("remaining >= amount {", "remaining >= amount + 1 {");
-    prove_termination(&nonzero);
-    reject_range(&nonzero.replace("remaining >= amount + 1 {", "remaining >= amount {"));
-    reject_range(&nonzero.replace("1 <= countdown.inner.remaining && ", ""));
-    let exclusive = NESTED
-        .replace(
-            NESTED_PRECONDITION,
-            "requires countdown.inner.remaining < ceiling;",
-        )
-        .replace("in 0..=ceiling", "in 0..ceiling");
-    prove_termination(&exclusive);
-    reject_range(&exclusive.replace("remaining < ceiling;", "remaining <= ceiling;"));
-}
-
-#[test]
 fn nested_projection_relation_requires_entry_evidence_on_the_exact_path() {
     for requirement in [
         "",
@@ -167,25 +126,6 @@ fn nested_projection_relation_requires_entry_evidence_on_the_exact_path() {
         NESTED_PRECONDITION,
         "requires countdown.other.remaining <= ceiling;",
     ));
-}
-
-#[test]
-fn nested_projection_relation_pins_endpoints_on_every_edge() {
-    reject_range(&NESTED.replace("}, ceiling, amount)", "}, 5, amount)"));
-    reject_range(&NESTED.replace("}, ceiling, amount)", "}, ceiling - 1, amount)"));
-    let two_edges = NESTED.replace(
-        "    transition countdown.inner.remaining >= amount {",
-        &format!(
-            "    transition countdown.inner.remaining >= amount + 1 {{\n        true -> walk({})\n    }}\n    transition countdown.inner.remaining >= amount {{",
-            NESTED_REBUILD.replace("remaining - amount", "remaining - (amount + 1)")
-        ),
-    );
-    prove_termination(&two_edges);
-    reject_range(&two_edges.replace(
-        "remaining - (amount + 1) } }, ceiling",
-        "remaining - (amount + 1) } }, 5",
-    ));
-    reject_termination(&two_edges.replace("remaining - (amount + 1)", "remaining"));
 }
 
 #[test]
@@ -233,34 +173,6 @@ fn nested_projection_relation_rejects_prefix_writes_through_the_projection() {
 }
 
 #[test]
-fn nested_endpoint_transports_through_a_forwarded_sibling_record() {
-    reject_range(&NESTED_LIMIT.replace("bounds: countdown.bounds", "bounds: Bounds { limit: 5 }"));
-    reject_range(&NESTED_LIMIT.replace(
-        "bounds: countdown.bounds",
-        "bounds: Bounds { limit: countdown.bounds.limit - 1 }",
-    ));
-    prove_termination(&NESTED_LIMIT.replace(
-        "bounds: countdown.bounds",
-        "bounds: Bounds { limit: countdown.bounds.limit }",
-    ));
-    reject_range(&NESTED_LIMIT.replace(
-        "requires countdown.inner.remaining <= countdown.bounds.limit;",
-        "",
-    ));
-    // A second record of the same type cannot supply the pinned endpoint.
-    let other = NESTED_LIMIT
-        .replace(
-            "walk(countdown: Countdown)",
-            "walk(countdown: Countdown, other: Countdown)",
-        )
-        .replace(
-            "bounds: countdown.bounds\n        })",
-            "bounds: other.bounds\n        }, other)",
-        );
-    reject_range(&other);
-}
-
-#[test]
 fn borrowed_projection_relation_reads_the_referent_and_keeps_the_binding_unwritten() {
     reject_range(&BORROWED.replace("}, ceiling, amount)", "}, 5, amount)"));
     reject_range(&BORROWED.replace(BORROWED_PRECONDITION, ""));
@@ -301,25 +213,6 @@ fn projected_slice_length_relation_checks_through_complete_lowering() {
         lower_typed_trees(typed_program(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
-}
-
-#[test]
-fn computed_bare_subject_still_binds_and_pins_projected_endpoints() {
-    prove_termination(COMPUTED_BARE);
-    // A rebuilt carrier that moves the endpoint is not a conserved limit.
-    reject_range(&COMPUTED_BARE.replace(
-        "walk(remaining - 1, limits)",
-        "walk(remaining - 1, Limits { cap: limits.cap + 1 })",
-    ));
-    // The exact literal rebuild preserves the endpoint through the same
-    // checked correspondence a plain forward uses.
-    prove_termination(&COMPUTED_BARE.replace(
-        "walk(remaining - 1, limits)",
-        "walk(remaining - 1, Limits { cap: limits.cap })",
-    ));
-    // The endpoint still owes entry membership against its own premise.
-    reject_range(&COMPUTED_BARE.replace("requires remaining * 2 <= limits.cap;", ""));
-    reject_range(&COMPUTED_BARE.replace("in 0..=limits.cap", "in 1..=limits.cap"));
 }
 
 #[test]

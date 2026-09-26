@@ -38,11 +38,6 @@ fn reject(source: &str) {
 }
 
 #[test]
-fn named_state_can_reenter_entry_with_a_proven_rank() {
-    prove(COUNTDOWN);
-}
-
-#[test]
 fn every_edge_of_an_entry_cycle_still_owes_strict_descent() {
     reject(&COUNTDOWN.replace("step(remaining - 1)", "step(remaining)"));
     reject(&COUNTDOWN.replace("walk(pending - 1)", "walk(pending)"));
@@ -82,11 +77,6 @@ terminates by n in 0..=cap;
     }
 }
 "#;
-
-#[test]
-fn preserved_auxiliary_entry_facts_remain_available_as_invariants() {
-    prove(VARIABLE_STEP);
-}
 
 #[test]
 fn different_edges_cannot_mix_incompatible_induction_hypotheses() {

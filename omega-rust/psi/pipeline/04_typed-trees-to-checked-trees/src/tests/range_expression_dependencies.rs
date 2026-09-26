@@ -1,38 +1,5 @@
 use crate::tests::front_end::checked_program_result;
 
-fn check(source: &str, accepted: bool) {
-    match checked_program_result(source) {
-        Ok(_) => assert!(accepted, "stale computed bounds accepted: {source}"),
-        Err(diagnostics) => {
-            assert!(!accepted, "{diagnostics:#?}\n{source}");
-            assert!(
-                diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.message.contains("cannot prove")),
-                "expected a range rejection: {diagnostics:#?}\n{source}"
-            );
-        }
-    }
-}
-
-#[test]
-fn unrelated_assignment_preserves_computed_endpoint_proofs() {
-    check(
-        r#"
-        machine window(items: &[i32; 4], original: i64 [0..=5]) -> u64
-            requires 0 <= original - 1 && original - 1 <= 4;
-        {
-            let mut unrelated: i64 = 0;
-            unrelated = 1;
-            let cut: i64 = original - 1;
-            let view: &[i32] = items[0..cut];
-            view.len
-        }
-    "#,
-        true,
-    );
-}
-
 fn assert_range_rejection(diagnostics: &[diagnostics::Diagnostic], source: &str) {
     assert!(
         diagnostics

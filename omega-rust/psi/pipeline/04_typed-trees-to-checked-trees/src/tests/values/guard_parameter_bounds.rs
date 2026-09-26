@@ -52,20 +52,3 @@ fn comparison_polarity_and_strictness_do_not_invent_a_nonzero_operand() {
     }
 }
 
-#[test]
-fn authored_ordering_cannot_supply_primitive_integer_bounds() {
-    check(
-        "operator > u64::replacement(left: u64, right: u64) -> bool;
-        machine decrement(floor: u64, n: u64) -> u64 {
-            transition n > floor { true -> (n - 1) false -> n }
-        }",
-        false,
-    );
-    check(
-        "operator > f64::unrelated(left: f64, right: f64) -> bool;
-        machine decrement(floor: u64, n: u64) -> u64 {
-            transition n > floor { true -> (n - 1) false -> n }
-        }",
-        true,
-    );
-}

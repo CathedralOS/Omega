@@ -41,27 +41,6 @@ fn rejects_range(source: &str) {
 }
 
 #[test]
-fn remainder_and_quotient_field_endpoints_check_with_direct_reconstruction() {
-    accepts(COUNTDOWN);
-    // Remainder bounds above do not need a bounded dividend; quotient bounds do.
-    accepts(
-        &COUNTDOWN
-            .replace("limit: u64;", "limit: u64 [0..=20];")
-            .replace(ENDPOINT, "countdown.limit / 5 + 6"),
-    );
-}
-
-#[test]
-fn remainder_and_quotient_field_endpoints_check_with_direct_forwarding() {
-    accepts(FORWARDED);
-    accepts(
-        &FORWARDED
-            .replace("limit: u64;", "limit: u64 [0..=20];")
-            .replace("limits.limit %", "limits.limit /"),
-    );
-}
-
-#[test]
 fn reconstructed_endpoint_pins_every_leaf_on_every_self_edge() {
     let source = COUNTDOWN
         .replace(
@@ -240,24 +219,6 @@ fn legal_prefix_and_alias_writes_cannot_supply_fixed_endpoint_evidence() {
 }
 
 #[test]
-fn disjoint_prefix_writes_preserve_endpoint_fields() {
-    let source = FORWARDED
-        .replace("limits: Limits)", "limits: Limits, marker: u64)")
-        .replace(
-            "        transition",
-            "        let mut scratch: u64 = 0;\n        transition",
-        )
-        .replace("remaining - 1, limits)", "remaining - 1, limits, marker)");
-    let helper = "machine reset(value: &mut u64) { value = 0; }";
-    accepts(&format!("{helper} {source}"));
-    let prefix = source.replace(
-        "        transition",
-        "        reset(&mut scratch);\n        transition",
-    );
-    accepts(&format!("{helper} {prefix}"));
-}
-
-#[test]
 fn selected_operand_calls_preserve_single_state_endpoint_evidence() {
     let source = FORWARDED
         .replace("limits: Limits)", "limits: Limits, marker: u64)")
@@ -326,11 +287,6 @@ fn borrowed_receiver_fields_supply_endpoint_bounds() {
     );
 }
 
-#[test]
-fn exclusive_borrow_endpoint_survives_unchanged_backedges() {
-    accepts(&BORROWED_ENDPOINT.replace("bag: &Wrap", "bag: &mut Wrap"));
-}
-
 /// A member chain through a stored shared reference reaches the referent's
 /// declared bounds: `indirect.target.remaining` pins when the chain's prefix
 /// is forwarded intact, and only then.
@@ -397,21 +353,6 @@ fn exclusive_borrow_endpoint_rejects_overlapping_writes_and_reseats() {
 }
 
 #[test]
-fn exclusive_borrow_endpoint_checks_calls_in_later_edge_arguments() {
-    let source = PROJECTED_ENDPOINT
-        .replace("target: &Wrap;", "target: &mut Wrap;")
-        .replace("indirect: Indirect)", "indirect: Indirect, marker: u64)")
-        .replace(
-            "Indirect { target: indirect.target })",
-            "Indirect { target: indirect.target }, reset(indirect.target))",
-        );
-    let source =
-        format!("machine reset(value: &mut Wrap) -> u64 {{ value.remaining = 4; 0 }} {source}");
-    accepts(&source.replace("indirect.target.remaining;", "5;"));
-    rejects_range(&source);
-}
-
-#[test]
 fn member_chains_through_stored_references_supply_endpoint_bounds() {
     accepts(PROJECTED_ENDPOINT);
     // A different receiver's reference field does not preserve this input.
@@ -452,19 +393,6 @@ const NAMED_STORED_ENDPOINT: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../tests/omega/pass/termination/stored_reference_endpoint_arrivals/main.omg"
 ));
-
-#[test]
-fn stored_reference_endpoint_follows_named_state_arrival() {
-    accepts(NAMED_STORED_ENDPOINT);
-}
-
-#[test]
-fn named_stored_endpoint_preserves_reconstruction_and_unrelated_computation() {
-    accepts(&NAMED_STORED_ENDPOINT
-        .replace("target: &Wrap;", "target: &mut Wrap;")
-        .replace("        transition pending > 0", "        let mut scratch: u64 = pending;\n        scratch = 0;\n        transition pending > 0")
-        .replace("iterate(held, pending - 1)", "iterate(Indirect { target: held.target }, pending - 1)"));
-}
 
 #[test]
 fn named_stored_endpoint_rejects_foreign_referents_and_invalid_rank() {

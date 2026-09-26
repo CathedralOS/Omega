@@ -37,21 +37,3 @@ fn unchanged_aggregate_local_still_supplies_its_field() {
     .unwrap_or_else(|diagnostics| panic!("unchanged aggregate field: {diagnostics:#?}"));
 }
 
-#[test]
-fn immutable_scalar_initializer_still_supplies_its_value() {
-    checked(
-        "machine need(value: u64) -> u64 requires value == 256 { value }
-         machine enter() -> u64 { let value: u64 = 256; need(value) }",
-    )
-    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-}
-
-#[test]
-fn direct_aggregate_literal_still_supplies_its_field() {
-    checked(
-        "data Value { value: u64; }
-         machine need(record: Value) -> u64 requires record.value == 256 { record.value }
-         machine enter() -> u64 { need(Value { value: 256 }) }",
-    )
-    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-}

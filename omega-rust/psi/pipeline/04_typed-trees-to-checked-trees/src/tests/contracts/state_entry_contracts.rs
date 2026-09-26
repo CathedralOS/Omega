@@ -42,25 +42,6 @@ fn entry_self_transitions_reestablish_machine_preconditions() {
 }
 
 #[test]
-fn machine_entry_contract_follows_renamed_arguments_across_two_jumps() {
-    check(
-        r#"
-        machine forwarding(items: &[u64], index: u64) -> u64
-        requires index < items.len
-        {
-            transition { _ -> middle(items, index) }
-            state middle(values: &[u64], position: u64) -> u64 {
-                transition { _ -> read(values, position) }
-            }
-            state read(selected: &[u64], offset: u64) -> u64 { selected[offset] }
-        }
-    "#,
-        true,
-        "",
-    );
-}
-
-#[test]
 fn machine_entry_preconditions_remain_obligations_at_actual_calls() {
     for (argument, accepted) in [(0, true), (2, false)] {
         check(

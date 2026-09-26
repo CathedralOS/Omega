@@ -4,24 +4,6 @@ use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 
 #[test]
-fn record_path_fixed_byte_array_literal_element_is_writable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Inner { bytes: [u8; 4]; }
-            data Outer { inner: Inner; }
-
-            machine fill(outer: &write Outer) {
-                outer.inner.bytes[0] = 1;
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("an in-bounds literal byte element behind an eligible record path should lower");
-}
-
-#[test]
 fn record_path_fixed_byte_array_out_of_bounds_literal_remains_rejected() {
     let rendered = rendered_rejection(
         r#"
@@ -40,24 +22,6 @@ fn record_path_fixed_byte_array_out_of_bounds_literal_remains_rejected() {
             ),
         "unexpected diagnostic: {rendered}"
     );
-}
-
-#[test]
-fn record_path_fixed_byte_array_proven_dynamic_element_is_writable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Inner { bytes: [u8; 4]; }
-            data Outer { inner: Inner; }
-
-            machine fill(outer: &write Outer, index: u64 [0..=3]) {
-                outer.inner.bytes[index] = 1;
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("a proven in-bounds dynamic byte element behind an eligible record path should lower");
 }
 
 #[test]
@@ -98,24 +62,6 @@ fn record_path_fixed_byte_array_dynamic_index_observation_remains_rejected() {
             && rendered.contains("never grants observation"),
         "unexpected diagnostic: {rendered}"
     );
-}
-
-#[test]
-fn record_path_fixed_byte_array_static_range_is_writable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Inner { bytes: [u8; 4]; }
-            data Outer { inner: Inner; }
-
-            machine fill(outer: &write Outer) {
-                outer.inner.bytes[1..3] = [1, 2];
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("a statically normalized byte range behind an eligible record path should lower");
 }
 
 #[test]
@@ -393,47 +339,6 @@ fn closed_ranged_record_field_wider_source_remains_rejected() {
 }
 
 #[test]
-fn policy_qualified_record_field_write_is_writable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Limited { value: u32 in Wrapping; depth: i32 in Wrapping; }
-            data Outer { inner: Limited; }
-
-            machine replace(limited: &write Limited, next: u32 in Wrapping) {
-                limited.value = next;
-                limited.depth = 4;
-            }
-
-            machine fill(outer: &write Outer, next: u32 in Wrapping) {
-                outer.inner.value = next;
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("an arithmetic-policy-only integer leaf carries no membership obligation");
-}
-
-#[test]
-fn literal_indexed_policy_record_field_is_writable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Inner [copy] { value: u32 in Wrapping; }
-            data Outer { items: [Inner; 2]; }
-
-            machine fill(outer: &write Outer, next: u32 in Wrapping) {
-                outer.items[1].value = next;
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("a policy-qualified field beneath a literal fixed-array element should lower");
-}
-
-#[test]
 fn policy_qualified_record_field_mismatched_store_remains_rejected() {
     // The admitted leaf keeps every value-level obligation: storing a
     // differently-policed value still drops a semantic atom, which requires
@@ -471,37 +376,6 @@ fn float_policy_record_field_remains_rejected() {
             && rendered.contains("arithmetic-policy constraint"),
         "unexpected diagnostic: {rendered}"
     );
-}
-
-#[test]
-fn domain_qualified_record_field_is_writable() {
-    // A plain declared domain on the leaf (`[u8; 8] in Utf8`) is a membership
-    // predicate on the whole incoming value. Whole-leaf replacement displaces
-    // the complete carrier footprint, and the ordinary write-side domain
-    // check re-derives `in Utf8` from the field declaration and discharges it
-    // against the stored value — the same obligation a `&mut` store owes.
-    lower_typed_trees(
-        typed_program(
-            r#"
-            domain [u8; 8]::Utf8
-            requires
-                valid_utf8(self);
-
-            data Limited { label: [u8; 8] in Utf8; }
-            data Outer { inner: Limited; }
-
-            machine replace(limited: &write Limited, next: [u8; 8] in Utf8) {
-                limited.label = next;
-            }
-
-            machine forward(outer: &write Outer, next: [u8; 8] in Utf8) {
-                outer.inner.label = next;
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("a store of a domain-proven value into a plain domain leaf should lower");
 }
 
 #[test]

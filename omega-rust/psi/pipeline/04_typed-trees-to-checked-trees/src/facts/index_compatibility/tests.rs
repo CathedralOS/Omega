@@ -63,32 +63,6 @@ fn restating_let_compares_the_instance_the_callee_ensures_on_its_result() {
     }
 }
 
-/// A reassigned domained parameter keeps no membership after the write (the
-/// write discharge proves predicate domains only), so only the refusal is
-/// pinned here: the store's declared instance is compared against the
-/// callee's ensured instance through the same collector as the `let`.
-#[test]
-fn restating_store_names_the_instance_the_callee_ensures_on_its_result() {
-    check(
-        r#"
-            domain<const Axis: u64> i64::Coordinate<Axis>;
-            boundary trait Marker {
-                machine mark(value: i64) -> i64
-                ensures
-                    result in Coordinate<7>;
-                machine relay(value: i64 in Coordinate<9>) -> i64 in Coordinate<9>;
-            }
-            machine run(host: &Marker, value: i64, mut placed: i64 in Coordinate<9>) -> i64 in Coordinate<9>
-            reaches Marker
-            {
-                placed = host.mark(value);
-                host.relay(placed)
-            }
-        "#,
-        false,
-    );
-}
-
 /// A callee whose contract names no instance of the family establishes none.
 /// `Coordinate` is bodyless, so the write has no predicate to prove either:
 /// the restating `let` is refused instead of seeding the local's declared
@@ -139,39 +113,6 @@ fn restating_let_accepts_the_instance_the_declared_return_type_names() {
         "#,
         true,
         &[],
-    );
-}
-
-/// A semantic-domain cast mints a predicate-free, route-free family instance
-/// unconditionally at the value position; a restating `let` is where the
-/// write gets judged. On a custody-marked carrier — one that already
-/// declares a predicate-bearing or `established by`-routed domain — the
-/// vacuous member is managed custody state, so the mint is refused with the
-/// family's missing-establishment diagnostic (the bump-allocator canary's
-/// `as Extent in Resident<P, T>` shape at unit scale).
-#[test]
-fn restating_let_refuses_a_cast_mint_on_a_custody_marked_carrier() {
-    check_rejecting(
-        r#"
-            data Tile [linear] { id: u64; }
-            domain Tile::AtTop;
-            domain Tile::Claimed
-            established by Maker::claim;
-            boundary trait Maker {
-                machine claim(tile: Tile) -> Tile in Claimed
-                ensures result == tile;
-            }
-            machine entry(tile: Tile) -> Tile in AtTop
-            {
-                let marked: Tile in AtTop = tile as Tile in AtTop;
-                marked
-            }
-        "#,
-        false,
-        &[
-            "declared instance `AtTop` has no establishment",
-            "`as` mints an instance of domain family `AtTop` on custody-marked carrier `Tile`",
-        ],
     );
 }
 

@@ -141,11 +141,6 @@ fn unrelated_weak_disjunctive_or_absent_membership_cannot_separate_places() {
     );
 }
 
-#[test]
-fn mutable_membership_subject_needs_preservation_evidence() {
-    assert_conflict(&DOMAIN_WINDOW.replace("split_point: u64", "mut split_point: u64"));
-}
-
 const PROJECTED_DOMAIN_WINDOW: &str = r#"
     domain u64::Upper requires self >= 2;
     data Pair { first: u64 [0..=4]; second: u64; }

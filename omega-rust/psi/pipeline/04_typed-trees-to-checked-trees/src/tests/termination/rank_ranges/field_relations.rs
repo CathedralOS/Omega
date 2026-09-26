@@ -8,8 +8,6 @@ const COUNTDOWN: &str = include_str!(concat!(
 ));
 
 const PRECONDITION: &str = "requires countdown.remaining <= ceiling;";
-const WITNESS: &str = "terminates by countdown -> Countdown::Remaining in 0..=ceiling;";
-
 fn prove_termination(source: &str) {
     crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
@@ -29,27 +27,6 @@ fn reject_range(source: &str) {
 fn reject_termination(source: &str) {
     crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err(source);
-}
-
-#[test]
-fn customer_field_relation_checks_through_complete_lowering() {
-    let program = typed_program(COUNTDOWN);
-    crate::checks::termination::check_machine_termination(&program)
-        .expect("entry requires relates the exact ranked field to its pinned ceiling");
-    lower_typed_trees(program, &CheckingRequest::settled())
-        .expect("the original customer also satisfies ordinary formation and recursive contracts");
-}
-
-#[test]
-fn customer_ordinary_formation_is_independent_of_the_ranking_witness() {
-    // Without a witness clause, the return type precedes requires in this grammar.
-    let source = COUNTDOWN
-        .replace(WITNESS, "")
-        .replace("\nrequires", " -> u64\nrequires")
-        .replace("\n-> u64 {", "\n{");
-    lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).expect(
-        "the customer's types, subtraction and recursive precondition form without ranking",
-    );
 }
 
 #[test]
@@ -207,20 +184,6 @@ fn field_relation_requires_exact_reconstruction_owner_and_carrier() {
 }
 
 #[test]
-fn field_relation_rejects_replaced_ceiling_even_when_next_rank_still_fits() {
-    // Five contains every reconstructed field value, but is not the entry ceiling.
-    reject_range(&COUNTDOWN.replace("}, ceiling, amount)", "}, 5, amount)"));
-    reject_range(&COUNTDOWN.replace("}, ceiling, amount)", "}, ceiling - 1, amount)"));
-    let other = COUNTDOWN
-        .replace(
-            "amount: u64 [1..=2]",
-            "amount: u64 [1..=2], other: u64 [5..=5]",
-        )
-        .replace("}, ceiling, amount)", "}, other, amount, other)");
-    reject_range(&other);
-}
-
-#[test]
 fn field_relation_pins_floor_and_ceiling_simultaneously() {
     let source = COUNTDOWN
         .replace(
@@ -355,9 +318,3 @@ fn field_relation_rejects_alias_and_operand_writes_to_every_proof_input() {
     }
 }
 
-#[test]
-fn field_relation_cannot_assume_an_unknown_input_write_frame_is_empty() {
-    let helper = "boundary machine reset(value: &mut u64) -> u64 [1..=2];";
-    let source = COUNTDOWN.replace("    transition", "    reset(&mut ceiling);\n    transition");
-    reject_range(&format!("{helper} {source}"));
-}

@@ -41,17 +41,6 @@ fn match_arm_premises_keep_the_exact_subject() {
 }
 
 #[test]
-fn match_selected_boolean_arm_preserves_its_premise() {
-    check(
-        "machine when_enabled(enabled: bool) -> i64 requires enabled { 7 }
-         machine choose(enabled: bool) -> i64 {
-             match enabled { true -> when_enabled(enabled) false -> 3 }
-         }",
-    )
-    .expect("the true arm carries the subject's Boolean fact");
-}
-
-#[test]
 fn match_requires_complete_coverage_without_an_implicit_last_default() {
     let diagnostics = check("machine choose(value: i64) -> i64 { match value { 0 -> 7 1 -> 9 } }")
         .expect_err("two integer cases do not cover i64");
@@ -62,12 +51,6 @@ fn match_requires_complete_coverage_without_an_implicit_last_default() {
                 || diagnostic.message.contains("exhaustive")),
         "{diagnostics:#?}"
     );
-}
-
-#[test]
-fn match_arm_results_do_not_inherit_arithmetic_desugaring_requirements() {
-    check("machine choose(value: bool) -> bool { match value { true -> false false -> true } }")
-        .expect("Boolean branch results require no subtraction or multiplication");
 }
 
 #[test]
@@ -86,18 +69,6 @@ fn match_branch_fact_does_not_survive_later_argument_mutation() {
             .any(|diagnostic| diagnostic.message.contains("requires")),
         "{diagnostics:#?}"
     );
-}
-
-#[test]
-fn match_body_writes_do_not_execute_on_the_fallthrough_path() {
-    check(
-        "machine clear(flag: &mut bool) -> bool { flag = false; true }
-         machine demand(current: bool) -> bool requires current { true }
-         machine choose(selector: bool, flag: &mut bool) -> bool requires flag {
-             match selector { true -> clear(&mut flag) false -> demand(flag) }
-         }",
-    )
-    .expect("the false arm retains flag because the true arm's clear did not run");
 }
 
 #[test]

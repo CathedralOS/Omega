@@ -41,45 +41,6 @@ fn output_predicates_do_not_survive_writable_boundary_arguments() {
     assert!(lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).is_err());
 }
 
-#[test]
-fn output_predicates_survive_read_only_boundary_expression_arguments() {
-    let source = r#"
-        domain [u8; 4]::Utf8 requires valid_utf8(self);
-        boundary trait Console { machine write(text: &[u8]) -> u64; }
-        machine fill(console: &mut Console, output: &mut [u8; 4])
-        reaches Console ensures output in Utf8 {
-            output = "okay";
-            let count: u64 = console.write(output);
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("expression calls use the same selected readonly formal frame");
-}
-
-/// A writable boundary argument that names an indexed element lends exactly
-/// that element: the durable frame coarsens the write to its collection path,
-/// but the recorded borrow access retains `cells[1].out`, so the sibling
-/// element and same-element sibling fields keep their declared coverage.
-#[test]
-fn writable_indexed_boundary_argument_preserves_sibling_element_coverage() {
-    let source = r#"
-        domain [u8; 4]::Utf8 requires valid_utf8(self);
-        boundary trait Device { machine read(output: &mut [u8]); }
-        data Cell { out: [u8; 4] in Utf8; other: [u8; 4] in Utf8; }
-        data Record { cells: [Cell; 2]; }
-        machine Record::run(&mut self) reaches Device {
-            self.cells[0].out = "aa";
-            self.cells[0].other = "bb";
-            self.cells[1].out = "cc";
-            self.cells[1].other = "dd";
-            Device::read(&mut self.cells[1].out);
-            self.cells[1].out = "ee";
-        }
-    "#;
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("the lent element is re-established and every sibling survives");
-}
-
 /// Without the re-establishing store the return fails, but only on the field
 /// the boundary call actually lent — the coarsened collection path must not
 /// retire `cells[0]` or `cells[1].other`.

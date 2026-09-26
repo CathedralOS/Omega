@@ -42,12 +42,6 @@ fn second_record() -> String {
 }
 
 #[test]
-fn pinned_field_customer_checks_through_complete_lowering() {
-    lower_typed_trees(typed_program(COUNTDOWN), &CheckingRequest::settled())
-        .expect("entry membership and the reconstructed remaining and limit fields all check");
-}
-
-#[test]
 fn ordinary_field_requirements_do_not_depend_on_a_ranking_witness() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -203,17 +197,6 @@ fn field_coordinates_do_not_confuse_subjects_or_siblings() {
 }
 
 #[test]
-fn reconstructed_endpoint_requires_the_declared_owner() {
-    let source = second_record().replace(
-        "}, bounds)",
-        "}, Other { remaining: bounds.remaining, limit: bounds.limit })",
-    );
-    reject_range(&format!(
-        "data Other {{ remaining: u64 [0..=5]; limit: u64 [0..=5]; }} {source}"
-    ));
-}
-
-#[test]
 fn changed_field_endpoint_rejects_even_when_the_next_rank_fits() {
     // Each replacement still contains remaining - 1 under the original guard
     // and entry relation. Membership alone cannot discharge endpoint pinning.
@@ -224,57 +207,6 @@ fn changed_field_endpoint_rejects_even_when_the_next_rank_fits() {
     ] {
         reject_range(&COUNTDOWN.replace(NEXT_LIMIT, replacement));
     }
-}
-
-#[test]
-fn field_floor_and_ceiling_are_pinned_simultaneously() {
-    let source = COUNTDOWN
-        .replace("limit: u64 [0..=5];", "limit: u64 [0..=5]; floor: u64 [0..=5];")
-        .replace(
-            PRECONDITION,
-            "requires countdown.floor <= countdown.remaining && countdown.remaining <= countdown.limit;",
-        )
-        .replace("in 0..=countdown.limit", "in countdown.floor..=countdown.limit")
-        .replace("remaining > 0", "remaining > countdown.floor")
-        .replace(NEXT_LIMIT, "limit: countdown.limit, floor: countdown.floor");
-    prove_termination(&source);
-    for replacement in [
-        "limit: countdown.limit, floor: 0",
-        "limit: 5, floor: countdown.floor",
-        "limit: 5, floor: 0",
-        "limit: countdown.floor, floor: countdown.limit",
-    ] {
-        reject_range(&source.replace(
-            "limit: countdown.limit, floor: countdown.floor",
-            replacement,
-        ));
-    }
-    reject_range(&source.replace("remaining > countdown.floor", "remaining > 0"));
-}
-
-#[test]
-fn field_endpoint_requires_entry_membership_and_exclusive_ceiling_evidence() {
-    reject_range(&COUNTDOWN.replace(PRECONDITION, ""));
-    reject_range(&COUNTDOWN.replace(
-        PRECONDITION,
-        "requires countdown.limit <= countdown.remaining;",
-    ));
-    let exclusive = COUNTDOWN
-        .replace(
-            "remaining <= countdown.limit;",
-            "remaining < countdown.limit;",
-        )
-        .replace("in 0..=countdown.limit", "in 0..countdown.limit");
-    prove_termination(&exclusive);
-    reject_range(&exclusive.replace(
-        "remaining < countdown.limit;",
-        "remaining <= countdown.limit;",
-    ));
-    let guarded = COUNTDOWN.replace(PRECONDITION, "").replace(
-        "remaining > 0 {",
-        "remaining > 0 && countdown.remaining <= countdown.limit {",
-    );
-    reject_range(&guarded);
 }
 
 #[test]

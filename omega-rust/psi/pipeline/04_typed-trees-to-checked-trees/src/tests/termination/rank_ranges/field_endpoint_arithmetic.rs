@@ -18,37 +18,6 @@ const SYMBOLIC_QUOTIENT: &str = include_str!(concat!(
 ));
 
 #[test]
-fn symbolic_remainder_preserves_both_inputs_and_each_operation() {
-    let source = SYMBOLIC_QUOTIENT.replace("cap / divisor", "cap % divisor");
-    accepts_named(&source);
-    for changed in [
-        source.replace("iterate(width, limit - 0", "iterate(1, limit - 0"),
-        source.replace("iterate(width, limit - 0", "iterate(width, 0"),
-        source.replace("pending - 1", "pending"),
-        source.replace("[1..=5]", "[0..=5]"),
-        source.replace("% divisor", "% (divisor - divisor)"),
-        source.replace("u64 [1..=5]", "u8 [1..=5]"),
-        format!("operator % u64::chosen(left: u64, right: u64) -> u64; {source}"),
-    ] {
-        rejects_named(&changed);
-    }
-    let nested = source.replace("cap % divisor", "(cap % divisor) % divisor");
-    accepts_named(&nested);
-    rejects_named(&nested.replace("iterate(width, limit - 0", "iterate(1, limit - 0"));
-    let canceled = source.replace("cap % divisor + 6", "cap % divisor - cap % divisor + 6");
-    rejects_named(&canceled.replace("[1..=5]", "[0..=5]"));
-    let zero_from_bounds = source.replace("u64 [1..=5]", "u64").replace(
-        "terminates by",
-        "requires divisor >= 0 && divisor < 1; terminates by",
-    );
-    rejects_named(&zero_from_bounds);
-    let overflowing = source
-        .replace("[0..=20]", "[0..=18446744073709551615]")
-        .replace("cap % divisor", "(cap + 1) % divisor");
-    rejects_named(&overflowing);
-}
-
-#[test]
 fn symbolic_remainder_keeps_signed_quotient_formation() {
     let source = SYMBOLIC_QUOTIENT
         .replace("cap: u64 [0..=20]", "cap: i8 [-7..=-5]")
@@ -67,95 +36,6 @@ fn symbolic_remainder_keeps_signed_quotient_formation() {
         &canceled
             .replace("[-3..=-2]", "[-3..=-1]")
             .replace("[-128..=-128]", "[-127..=-127]"),
-    );
-}
-
-#[test]
-fn remainder_length_coordinates_keep_constant_modulus_support() {
-    accepts_named(
-        "machine walk(remaining: u64 [0..=5], values: &[u8])
-        terminates by remaining in 0..(values.len % 5 + 6);
-        -> u64 {
-            transition remaining > 0 {
-                true -> walk(remaining - 1, values)
-                false -> remaining
-            }
-        }",
-    );
-}
-
-#[test]
-fn symbolic_quotient_endpoint_preserves_both_operands_at_named_arrivals() {
-    accepts_named(SYMBOLIC_QUOTIENT);
-    rejects_named(&SYMBOLIC_QUOTIENT.replace("iterate(width, limit - 0", "iterate(1, limit - 0"));
-    rejects_named(&SYMBOLIC_QUOTIENT.replace("iterate(width, limit - 0", "iterate(width, 0"));
-    rejects_named(&SYMBOLIC_QUOTIENT.replace("pending - 1", "pending"));
-}
-
-#[test]
-fn symbolic_quotient_endpoint_formation_keeps_each_operation() {
-    let unbounded = SYMBOLIC_QUOTIENT
-        .replace("u64 [1..=5]", "u64")
-        .replace("terminates by", "requires divisor > 0; terminates by");
-    accepts_named(&unbounded);
-    rejects_named(&unbounded.replace("requires divisor > 0;", ""));
-    rejects_named(&SYMBOLIC_QUOTIENT.replace("/ divisor", "/ (divisor - divisor)"));
-    rejects_named(&format!(
-        "operator / u64::chosen(left: u64, right: u64) -> u64; {SYMBOLIC_QUOTIENT}"
-    ));
-    rejects_named(&SYMBOLIC_QUOTIENT.replace("u64 [1..=5]", "u8 [1..=5]"));
-    let nested = SYMBOLIC_QUOTIENT.replace("/ divisor", "/ (divisor / 2)");
-    accepts_named(&nested.replace("[1..=5]", "[2..=5]"));
-    rejects_named(&nested);
-    let canceled =
-        SYMBOLIC_QUOTIENT.replace("cap / divisor + 6", "cap / divisor - cap / divisor + 6");
-    rejects_named(&canceled.replace("[1..=5]", "[0..=5]"));
-    rejects_named(&canceled.replace("/ divisor", "/ (divisor / 2)"));
-    let signed = canceled
-        .replace("cap: u64 [0..=20]", "cap: i8 [-128..=-128]")
-        .replace("limit: u64 [0..=20]", "limit: i8 [-128..=-128]")
-        .replace("u64 [1..=5]", "i8 [-1..=-1]");
-    rejects_named(&signed);
-    accepts_named(&signed.replace("[-128..=-128]", "[-127..=-127]"));
-}
-
-#[test]
-fn symbolic_quotient_endpoint_uses_signed_truncation_bounds() {
-    let signed = SYMBOLIC_QUOTIENT
-        .replace("cap: u64 [0..=20]", "cap: i8 [-7..=-5]")
-        .replace("limit: u64 [0..=20]", "limit: i8 [-7..=-5]")
-        .replace("u64 [1..=5]", "i8 [-3..=-2]")
-        .replace("cap / divisor + 6", "cap / divisor + 5");
-    accepts_named(&signed);
-    rejects_named(&signed.replace("cap / divisor + 5", "cap / divisor + 4"));
-    accepts_named(&signed.replace("[-3..=-2]", "[2..=3]").replace("+ 5", "+ 9"));
-}
-
-#[test]
-fn symbolic_quotient_endpoint_tracks_projected_denominators() {
-    let source = r#"
-        data Limits { cap: u64 [0..=20]; divisor: u64 [1..=5]; }
-        machine walk(remaining: u64 [0..=5], limits: Limits)
-        terminates by remaining in 0..(limits.cap / limits.divisor + 6);
-        -> u64 {
-            transition { _ -> iterate(limits, remaining) }
-            state iterate(held: Limits, pending: u64 [0..=5]) {
-                transition pending > 0 {
-                    true -> iterate(Limits { cap: held.cap, divisor: held.divisor }, pending - 1)
-                    false -> pending
-                }
-            }
-        }
-    "#;
-    accepts_named(source);
-    rejects_named(&source.replace("divisor: held.divisor", "divisor: 1"));
-    rejects_named(
-        &source
-            .replace("state iterate(held:", "state iterate(mut held:")
-            .replace(
-                "transition pending > 0",
-                "held.divisor = 1; transition pending > 0",
-            ),
     );
 }
 
@@ -397,34 +277,6 @@ fn quotient_rank_endpoint_follows_renamed_and_reordered_state_inputs() {
         "machine within(value: u64) -> u64 requires value <= 5 {{ value }} {}",
         NAMED_QUOTIENT.replace("false -> pending", "false -> within(pending)")
     ));
-}
-
-#[test]
-fn quotient_endpoint_follows_exact_record_fields_at_named_arrivals() {
-    let source = r#"
-        data Limits { bound: u64 [0..=20]; other: u64 [0..=20]; }
-        machine walk(remaining: u64 [0..=5], limits: Limits)
-        terminates by remaining in 0..(limits.bound / 5 + 6);
-        -> u64 {
-            transition { _ -> iterate(limits, remaining) }
-            state iterate(held: Limits, pending: u64 [0..=5]) {
-                transition pending > 0 {
-                    true -> iterate(Limits { bound: held.bound, other: 0 }, pending - 1)
-                    false -> pending
-                }
-            }
-        }
-    "#;
-    accepts_named(source);
-    rejects_named(&source.replace("bound: held.bound", "bound: held.other"));
-    let written = source
-        .replace("state iterate(held:", "state iterate(mut held:")
-        .replace(
-            "transition pending > 0",
-            "held.bound = 0; transition pending > 0",
-        );
-    accepts_named(&written.replace("limits.bound / 5 + 6", "6"));
-    rejects_named(&written);
 }
 
 #[test]

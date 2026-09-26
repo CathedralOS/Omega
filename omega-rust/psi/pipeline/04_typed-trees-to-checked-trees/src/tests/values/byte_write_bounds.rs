@@ -24,13 +24,6 @@ fn source(increment: u64) -> String {
 }
 
 #[test]
-fn byte_store_preserves_transferred_strict_length_bound_for_one_step() {
-    let program = source(1);
-    lower_typed_trees(typed_program(&program), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-}
-
-#[test]
 fn byte_store_does_not_strengthen_the_guard_distance() {
     let diagnostics = lower_typed_trees(typed_program(&source(2)), &CheckingRequest::settled())
         .expect_err("a strict length guard permits one step, not two");

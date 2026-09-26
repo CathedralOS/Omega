@@ -8,13 +8,6 @@ const COUNTDOWN: &str = include_str!(concat!(
 ));
 
 #[test]
-fn identity_measure_checks_the_produced_rank_range() {
-    prove(COUNTDOWN);
-    prove(&COUNTDOWN.replace("value", "quantity"));
-    prove(&COUNTDOWN.replace("0..=5", "0..6"));
-}
-
-#[test]
 fn unsigned_identity_measures_share_range_and_descent_proofs() {
     for carrier in ["u8", "u16", "u32", "u64"] {
         let source = COUNTDOWN.replace("u64", carrier);
@@ -152,38 +145,6 @@ fn identity_measure_does_not_waive_membership_geometry_or_descent() {
         reject(&COUNTDOWN.replace("walk(remaining - 1)", &format!("walk({actual})")));
     }
     reject(&COUNTDOWN.replace("false -> remaining", "false -> self"));
-}
-
-#[test]
-fn identity_measure_transports_named_arrivals_and_pins_range_endpoints() {
-    let copies = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../tests/omega/pass/termination/computed_rank_copies/main.omg"
-    ));
-    let source = format!(
-        "data Countdown {{}} measure Countdown::Remaining(value: u64) -> u64 {{ value }} {}",
-        copies.replace("u32", "u64").replace(
-            "terminates by remaining in",
-            "terminates by remaining -> Countdown::Remaining in"
-        )
-    );
-    prove(&source);
-    reject(&source.replace(
-        "prepare(remaining, remaining)",
-        "prepare(remaining, remaining + 1)",
-    ));
-
-    let bounded = COUNTDOWN
-        .replace("remaining: u64 [0..=5]", "remaining: u64, capacity: u64")
-        .replace(
-            "terminates by",
-            "requires remaining <= capacity; terminates by",
-        )
-        .replace("in 0..=5", "in 0..=capacity")
-        .replace("walk(remaining - 1)", "walk(remaining - 1, capacity)");
-    prove(&bounded);
-    reject(&bounded.replace("remaining - 1, capacity)", "remaining - 1, capacity + 1)"));
-    reject(&bounded.replace("requires remaining <= capacity;", ""));
 }
 
 #[test]

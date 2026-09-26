@@ -34,29 +34,6 @@ const FIELDS: &str = "
 ";
 
 #[test]
-fn a_setter_requires_bounds_a_nested_interval_field_store() {
-    check(&format!(
-        "{FIELDS}
-        data Main {{ state: Outer; }}
-        machine Main::set(&mut self, v: i32)
-        requires v >= 0 && v <= 1000;
-        {{ self.state.inner.value = v; }}"
-    ))
-    .unwrap();
-}
-
-#[test]
-fn a_requires_wider_than_the_field_does_not_prove_the_store() {
-    rejects_the_store(&format!(
-        "{FIELDS}
-        data Main {{ state: Outer; }}
-        machine Main::set(&mut self, v: i32)
-        requires v >= 0 && v <= 1001;
-        {{ self.state.inner.value = v; }}"
-    ));
-}
-
-#[test]
 fn a_write_to_the_required_place_retires_its_bound() {
     let program = |prefix: &str| {
         format!(

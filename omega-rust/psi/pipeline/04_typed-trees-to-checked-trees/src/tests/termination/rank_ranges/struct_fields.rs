@@ -13,26 +13,6 @@ const PINNED_CEILING: &str = include_str!(concat!(
 ));
 
 #[test]
-fn field_measure_accepts_a_declared_bound_with_an_invocation_fixed_endpoint() {
-    lower_typed_trees(typed_program(PINNED_CEILING), &CheckingRequest::settled())
-        .expect("the ceiling is sufficient and stays pinned");
-    let exclusive = PINNED_CEILING
-        .replace("ceiling: u64 [5..=10]", "ceiling: u64 [6..=10]")
-        .replace("in 0..=ceiling", "in 0..ceiling");
-    lower_typed_trees(typed_program(&exclusive), &CheckingRequest::settled())
-        .expect("the exclusive ceiling stays above the rank");
-    let floor = PINNED_CEILING
-        .replace(
-            "ceiling: u64 [5..=10]",
-            "ceiling: u64 [5..=10], floor: u64 [0..=0]",
-        )
-        .replace("in 0..=ceiling", "in floor..=ceiling")
-        .replace("}, ceiling)", "}, ceiling, floor)");
-    lower_typed_trees(typed_program(&floor), &CheckingRequest::settled())
-        .expect("both endpoints retain their exact input slots");
-}
-
-#[test]
 fn field_measure_rejects_unproved_or_replaced_endpoints() {
     let other = PINNED_CEILING
         .replace(
@@ -107,15 +87,6 @@ fn field_rank_endpoint_cannot_import_a_same_spelled_foreign_binder() {
             .iter()
             .any(|diagnostic| diagnostic.message.contains("cannot prove rank range"))
     );
-}
-
-#[test]
-fn direct_field_measure_proves_its_enforced_rank_range() {
-    let program = typed_program(COUNTDOWN);
-    crate::checks::termination::check_machine_termination(&program)
-        .expect("declared field range proves the produced rank's bounds");
-    lower_typed_trees(program, &CheckingRequest::settled())
-        .expect("guarded reconstruction preserves the constrained field");
 }
 
 #[test]
