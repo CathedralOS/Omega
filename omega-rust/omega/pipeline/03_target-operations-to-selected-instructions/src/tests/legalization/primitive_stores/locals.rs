@@ -77,6 +77,97 @@ fn fixture(scalar: ScalarType) -> AbstractOperationPlan {
 }
 
 #[test]
+fn boolean_field_store_replays_the_exact_dominating_scalar_home() {
+    let mut source = fixture(ScalarType::Boolean);
+    let record = StructuralTypeId::new(2).unwrap();
+    let field = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: record,
+            identity: "BooleanDestination".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: field,
+                    identity: "flag".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean),
+                }],
+            },
+        });
+    let destination = terminal_psi::StructuralParameterDeclaration {
+        place: PlaceId::new(2).unwrap(),
+        position: 0,
+        is_self: false,
+        structural_type: record,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: terminal_psi::StructuralAccess::MutableBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    source.functions[0]
+        .structural_parameters
+        .push(destination.clone());
+    source.functions[0].operations[3] = AbstractOperation::StructuralScalarFieldStore {
+        psi_operation: OperationId::new(4).unwrap(),
+        destination,
+        path: Vec::new(),
+        field,
+        value: AbstractResult {
+            value: ValueId::new(2).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        },
+        range_obligation: None,
+    };
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
+        for mutation in 0..5 {
+            let mut changed = target.clone();
+            let TargetUnitOperation::StructuralScalarFieldStore {
+                source: target_operations::TargetUnitScalarArgumentSource::Home(home),
+                ..
+            } = &mut changed.functions[0].graph.blocks[0].operations[3]
+            else {
+                panic!("field store keeps the read's scalar home");
+            };
+            match mutation {
+                0 => home.defining_operation = OperationId::new(1).unwrap(),
+                1 => home.source_value = ValueId::new(1).unwrap(),
+                2 => home.scalar_type = integer(IntegerSign::Unsigned, 8),
+                3 => home.shape.byte_size = 4,
+                _ => changed.functions[0].graph.blocks[0].operations.swap(2, 3),
+            }
+            assert!(
+                legalize_target_operations(&changed, &source, &unit).is_err(),
+                "target {native:?}, scalar home mutation {mutation}"
+            );
+            assert!(
+                validate_legalized_operations(&changed, &source, &unit, legalized.plan().clone(),)
+                    .is_err(),
+                "independent replay, target {native:?}, mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn local_establishment_store_and_read_reject_target_and_legalized_corruption() {
     let source = fixture(integer(IntegerSign::Unsigned, 64));
     for native in [

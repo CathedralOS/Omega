@@ -1,13 +1,11 @@
-//! Exact projected integer store and structural-scalar call lowering for an
+//! Exact projected scalar store and structural-scalar call lowering for an
 //! attached Unit body.
 
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
-use semantic_vocabulary::{
-    IeeeFloatFormat, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
-};
+use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
@@ -17,7 +15,7 @@ use terminal_psi::StructuralAccess;
 mod dynamic_arguments;
 
 use super::super::scalar::scalar_shape;
-use super::super::scalar_abi::fixed_native_integer_shape;
+use super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::structural_layout::{
     direct_boolean_field_offset, direct_integer_field_offset, direct_scalar_field_offset,
     resolve_structural_field_path, runtime_projection,
@@ -33,9 +31,6 @@ pub(in crate::lowering) fn lower_field_store(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
-    boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
-    ieee_float_constants: &BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
     scalar_sources: &crate::lowering::control_flow::scalar_sources::ScalarSources<'_>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -81,129 +76,49 @@ pub(in crate::lowering) fn lower_field_store(
         ))?;
     // The retained destination and its exact parameter placement select the
     // write. Additional borrowed inputs do not change that storage authority.
-    let (source, field_byte_size) = match value.scalar_type {
-        ScalarType::Integer(integer_type) => {
-            let known_value = scalar_values
-                .get(&value.value)
-                .copied()
-                .ok_or(LoweringError::UnknownValue(value.value))?;
-            let exact_source = match known_value {
-                KnownUnitInteger::BlockParameter {
-                    block,
-                    value: source,
-                    scalar_type,
-                } => {
-                    source == value.value
-                        && scalar_type == integer_type
-                        && function.block_entries.iter().any(|entry| {
-                            entry.block == block
-                                && entry.parameters.iter().any(|parameter| {
-                                    parameter.value == source
-                                        && parameter.scalar_type == value.scalar_type
-                                })
-                        })
-                }
-                KnownUnitInteger::Parameter {
-                    parameter_index,
-                    scalar_type,
-                } => {
-                    let parameter_index = usize::try_from(parameter_index).ok();
-                    scalar_type == integer_type
-                        && parameter_index
-                            .and_then(|index| function.parameters.get(index))
-                            .is_some_and(|parameter| {
-                                parameter.value == value.value
-                                    && parameter.scalar_type == value.scalar_type
-                            })
-                }
-                KnownUnitInteger::Immediate { scalar_type, .. } => scalar_type == integer_type,
-                KnownUnitInteger::Home(home) => {
-                    home.scalar_type == value.scalar_type
-                        && home.source_value == value.value
-                        && home.shape
-                            == fixed_native_integer_shape(integer_type).ok_or(
-                                LoweringError::UnsupportedOperationInUnitFunction(function.machine),
-                            )?
-                }
-            };
-            if !exact_source {
-                return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                    function.machine,
-                ));
-            }
-            (
-                known_value.into_target_source(value.value),
-                integer_type.bits().div_ceil(8),
-            )
+    // A field consumes the same dominating scalar source as a call or edge:
+    // Boolean and IEEE results can have homes or block parameters just as
+    // integers do. Do not rediscover a narrower producer family by type.
+    let source = crate::lowering::control_flow::scalar_sources::resolved_source(
+        value.value,
+        function,
+        scalar_sources,
+    )?;
+    let source_shape = scalar_shape(value.value, value.scalar_type, false)?;
+    let exact_source = match source {
+        TargetUnitScalarArgumentSource::BlockParameter(parameter) => {
+            function.block_entries.iter().any(|entry| {
+                entry.block == parameter.block
+                    && entry.parameters.iter().any(|declared| {
+                        declared.value == parameter.value
+                            && declared.scalar_type == parameter.scalar_type
+                    })
+            })
         }
-        ScalarType::Boolean => {
-            let source = if let Some((parameter_index, _)) = function
-                .parameters
-                .iter()
-                .enumerate()
-                .find(|(_, parameter)| {
-                    parameter.value == value.value && parameter.scalar_type == ScalarType::Boolean
-                }) {
-                TargetUnitScalarArgumentSource::Parameter {
-                    parameter_index: u32::try_from(parameter_index).map_err(|_| {
-                        LoweringError::UnitFunctionHasScalarParameters(function.machine)
-                    })?,
-                    source_value: value.value,
-                    scalar_type: ScalarType::Boolean,
-                }
-            } else {
-                let (defining_operation, immediate) = boolean_constants
-                    .get(&value.value)
-                    .copied()
-                    .ok_or(LoweringError::UnknownValue(value.value))?;
-                TargetUnitScalarArgumentSource::BooleanImmediate {
-                    defining_operation,
-                    source_value: value.value,
-                    value: immediate,
-                }
-            };
-            (source, 1)
+        TargetUnitScalarArgumentSource::Parameter {
+            parameter_index, ..
+        } => usize::try_from(parameter_index)
+            .ok()
+            .and_then(|position| function.parameters.get(position))
+            .is_some_and(|parameter| {
+                parameter.value == value.value && parameter.scalar_type == value.scalar_type
+            }),
+        TargetUnitScalarArgumentSource::Home(home) => {
+            Some(home.shape) == fixed_native_scalar_shape(value.scalar_type)
         }
-        ScalarType::IeeeFloat(format) => {
-            let source = if let Some((parameter_index, _)) = function
-                .parameters
-                .iter()
-                .enumerate()
-                .find(|(_, parameter)| {
-                    parameter.value == value.value && parameter.scalar_type == value.scalar_type
-                }) {
-                TargetUnitScalarArgumentSource::Parameter {
-                    parameter_index: u32::try_from(parameter_index).map_err(|_| {
-                        LoweringError::UnitFunctionHasScalarParameters(function.machine)
-                    })?,
-                    source_value: value.value,
-                    scalar_type: value.scalar_type,
-                }
-            } else {
-                let (defining_operation, immediate) = ieee_float_constants
-                    .get(&value.value)
-                    .copied()
-                    .ok_or(LoweringError::UnknownValue(value.value))?;
-                if immediate.format() != format {
-                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                        function.machine,
-                    ));
-                }
-                TargetUnitScalarArgumentSource::IeeeFloatImmediate {
-                    defining_operation,
-                    source_value: value.value,
-                    value: immediate,
-                }
-            };
-            (
-                source,
-                match format {
-                    IeeeFloatFormat::Binary32 => 4,
-                    IeeeFloatFormat::Binary64 => 8,
-                },
-            )
-        }
+        TargetUnitScalarArgumentSource::IntegerImmediate { .. }
+        | TargetUnitScalarArgumentSource::BooleanImmediate { .. }
+        | TargetUnitScalarArgumentSource::IeeeFloatImmediate { .. } => true,
     };
+    if !exact_source
+        || source.source_value() != value.value
+        || source.scalar_type() != value.scalar_type
+    {
+        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+            function.machine,
+        ));
+    }
+    let field_byte_size = source_shape.byte_size;
     // The carrier composes fields and literal or runtime elements in any
     // order: static steps fold into the offset, and each runtime element is
     // an `(index, stride)` run over its selector's dominating source. The
