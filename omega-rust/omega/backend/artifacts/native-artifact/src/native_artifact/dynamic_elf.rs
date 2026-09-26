@@ -8,8 +8,7 @@ use super::{
     NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderClosureDigest,
     NativeSelectedProviderPlan, boundary_application_coverage_identity, derive_physical_evidence,
     mixed_structural_scalar, validate_boundary_application_coverage,
-    validate_foreign_stack_contribution, validate_ieee_float_fma_occurrences,
-    validate_provider_execution_reports,
+    validate_ieee_float_fma_occurrences,
 };
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use effects::{
@@ -17,7 +16,6 @@ use effects::{
     TerminalAuthorityPolicyIdentity,
 };
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
 
 const DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] =
     b"omega.dynamic-elf-native-artifact.sha256.v1\0";
@@ -278,80 +276,14 @@ impl DynamicElfNativeArtifact {
             );
         }
 
-        let mut required_executions = BTreeSet::new();
-        for installed in self.object.boundary_settlements() {
-            let boundary = module
-                .boundary_machines
-                .iter()
-                .find(|boundary| boundary.id == installed.settlement.boundary)
-                .ok_or("dynamic native artifact settlement names an absent boundary requirement")?;
-            let image_emission::BoundaryExecutionRecord::AdmittedProvider(execution) =
-                installed.settlement.execution
-            else {
-                continue;
-            };
-            required_executions.insert((
-                boundary.identity.clone(),
-                execution.provider_plan_report_identity,
-                execution.provider_execution_report_identity,
-                execution.provider_execution_report_fingerprint,
-                execution.normalized_root_report_identity,
-                execution.boundary_contract_report_fingerprint,
-            ));
-        }
-        for foreign in self.object.foreign_calls() {
-            let target_operations::CallSiteOwner::Operation(owner) = foreign.owner else {
-                return Err(
-                    "dynamic native artifact foreign provider execution has no semantic operation owner",
-                );
-            };
-            let matching_operations = module
-                .machines
-                .iter()
-                .filter(|machine| machine.id == foreign.machine)
-                .flat_map(|machine| &machine.blocks)
-                .flat_map(|block| &block.operations)
-                .filter(|operation| operation.id == owner)
-                .collect::<Vec<_>>();
-            let [operation] = matching_operations.as_slice() else {
-                return Err(
-                    "dynamic native artifact foreign execution does not rejoin one semantic operation",
-                );
-            };
-            let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
-                return Err(
-                    "dynamic native artifact foreign execution owner is not a boundary call",
-                );
-            };
-            let boundary = module
-                .boundary_machines
-                .iter()
-                .find(|candidate| candidate.id == *boundary)
-                .ok_or("dynamic native artifact foreign execution names an absent boundary")?;
-            let execution = foreign.provider_execution;
-            let contribution = &foreign.same_stack_contribution;
-            validate_foreign_stack_contribution(
-                &boundary.identity,
-                execution,
-                contribution.requirement_identity(),
-                contribution.provider_plan_report_identity(),
-                contribution.provider_plan_commitment().as_bytes(),
-                &self.selected_provider_plans,
-            )?;
-            required_executions.insert((
-                boundary.identity.clone(),
-                execution.provider_plan_report_identity,
-                execution.provider_execution_report_identity,
-                execution.provider_execution_report_fingerprint,
-                execution.normalized_root_report_identity,
-                execution.boundary_contract_report_fingerprint,
-            ));
-        }
-        validate_provider_execution_reports(
+        super::provider_execution::replay_provider_executions(
+            &module,
+            self.object.boundary_settlements(),
+            self.object.foreign_calls(),
             &self.selected_provider_plans,
             &self.provider_executions,
-            &required_executions,
-        )?;
+        )
+        .map_err(super::provider_execution::ProviderExecutionReplayError::dynamic_message)?;
         let final_image_symbol_digest =
             *image::final_image_symbol_digest(self.image.emission().admitted().image()).as_bytes();
         let (expected_physical_evidence, expected_physical_evidence_gap) =
