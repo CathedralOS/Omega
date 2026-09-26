@@ -3745,11 +3745,24 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
 
   `target_machines`'s own tests pin both halves against typed trees:
   `an_unscoped_caller_of_a_foreign_only_machine_rejects` and
-  `a_caller_scoped_to_the_same_foreign_target_goes_inert_with_it`. A corpus
-  fail canary is still owed once `tests/omega` clears its claim; the witness
-  is `linux_x86_64 machine Legs::bump` called from an unscoped `Main::main`,
-  which rejects, against the same source with `macos_arm64`, which compiles
-  and exits 70.
+  `a_caller_scoped_to_the_same_foreign_target_goes_inert_with_it`. The corpus
+  fail canary is `fail/targets/single_target_internal_caller_rejected`, the
+  caller half of `pass/targets/single_target_internal_machine_skipped`.
+
+  Its scope must name a REAL target. The `demo_target` those sibling fixtures
+  use resolves to nothing, so the declaration is dropped before resolution and
+  the call fails as an ordinary unresolved name, never reaching this rule; an
+  inert sibling is a declaration that SURVIVES typing while its target goes
+  unrealized. `uefi_x86_64` is the portable choice -- a real profile that is
+  nobody's development host -- and the expected fragment stays clear of the
+  `This build realizes ...` clause that names the host. The rule also runs at
+  the end of product-target selection, so the fixture needs a `build.omg`
+  root rather than a bare `--check`.
+
+  With that canary landed the item's own remaining work is discharged: both
+  scope halves are pinned, the dependency-scope witness no longer exists, and
+  the legitimately-filtered sibling still checks. It is a deletion candidate
+  on the next board pass.
 
   Acceptance: a statement call whose callee no declaration in the selected
   program supplies rejects, naming the callee and the selected target, and the

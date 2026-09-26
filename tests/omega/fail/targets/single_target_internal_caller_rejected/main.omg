@@ -1,0 +1,42 @@
+// The CALLER half of pass/targets/single_target_internal_machine_skipped. A
+// target-scoped machine implemented by exactly ONE non-selected target is
+// that target's paradigm internal, and the target filter drops it silently
+// "with its callers" -- but a caller is only filtered when it is scoped to
+// that same target and goes inert alongside it. A surviving portable caller
+// is by definition not filtered, so its call names a body this build never
+// realizes: it must reject loudly rather than compile as if the statement
+// were absent, which is what it used to do (no checked call row, no
+// diagnostic, the body compiling around the hole).
+//
+// The scope must be a REAL target, unlike the `demo_target` its pass sibling
+// and fail/targets/target_machine_missing_rejected use. A name that resolves
+// to no target at all is dropped before resolution, so the call fails as an
+// ordinary unresolved name ("does not resolve to any machine state, attached
+// machine, platform state, or boundary-trait method") and never reaches this
+// rule. An inert sibling is a declaration that SURVIVES into typed trees
+// while its target goes unrealized, which only a real target produces.
+// `uefi_x86_64` is the portable choice: it is a real profile that is nobody's
+// development host, so the body is inert on every host this canary runs on,
+// and the expected fragment stays clear of the `This build realizes ...`
+// clause that names the host.
+//
+// The other direction -- a caller scoped to `uefi_x86_64` too, which vanishes
+// with the callee -- is pinned beside the rule in build-evaluation's
+// `admission::target_machines` tests.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Helper { seed: i32; }
+
+uefi_x86_64 machine Helper::paradigm_internal(&self) -> i32 {
+    transition { _ -> 63 }
+}
+
+data Main { console: Binding<Console>; helper: Helper; }
+
+machine Main::main(&mut self) reaches Console {
+    let a: i32 = self.helper.paradigm_internal();
+    transition a == 63 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code2: i32) { self.console.exit_process(code2); }
+}
