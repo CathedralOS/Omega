@@ -88,11 +88,6 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             .any(|machine| has_receipt(&machine.structural_parameters))
         || flow
             .terminal_structural_scalar_returns
-            .selected_operator_machines
-            .iter()
-            .any(|machine| has_receipt(&machine.structural_parameters))
-        || flow
-            .terminal_structural_scalar_returns
             .trait_operator_machines
             .iter()
             .any(|machine| has_receipt(&machine.structural_parameters))

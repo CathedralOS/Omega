@@ -269,7 +269,16 @@ pub fn data_requires_establishment(
     program: &TypedTrees,
     definition: &typed_trees::data::DataDefinition,
 ) -> bool {
-    data_requires_establishment_inner(program, definition, &mut EstablishmentIndex::new())
+    if definition.zero_gated {
+        return true;
+    }
+    // A fresh index answers each top-level query, so the answer depends only
+    // on the program and the definition and memoizes for the checked build.
+    crate::machine_calls::effect_inference::plan_scope::memoized_data_requires_establishment(
+        program,
+        definition,
+        || data_requires_establishment_inner(program, definition, &mut EstablishmentIndex::new()),
+    )
 }
 
 fn data_requires_establishment_inner(

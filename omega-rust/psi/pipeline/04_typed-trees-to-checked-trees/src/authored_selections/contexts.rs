@@ -43,8 +43,49 @@ struct TypeEnvironment {
 /// expression for `checked_machine_call_target_from_executable_owner`.
 #[derive(Default)]
 struct ExactOwnerEntry {
-    environments: Vec<TypeEnvironment>,
+    environments: Vec<usize>,
     executable_sites: Vec<ExecutableSite>,
+}
+
+/// Every indexed environment once, and each expression's rows naming them by
+/// position. A statement's environment covers every expression in its tree,
+/// so rows hold positions rather than a copy of its bindings apiece.
+#[derive(Default)]
+struct OwnerIndex {
+    environments: Vec<TypeEnvironment>,
+    entries: HashMap<ExpressionHandle, ExactOwnerEntry>,
+}
+
+impl OwnerIndex {
+    fn intern(&mut self, environment: TypeEnvironment) -> usize {
+        self.environments.push(environment);
+        self.environments.len() - 1
+    }
+
+    fn add(&mut self, expression: ExpressionHandle, environment: usize) {
+        self.entries
+            .entry(expression)
+            .or_default()
+            .environments
+            .push(environment);
+    }
+
+    /// Record `environment` for each expression, storing it only when at
+    /// least one expression reaches it.
+    fn add_all(
+        &mut self,
+        expressions: impl IntoIterator<Item = ExpressionHandle>,
+        environment: impl FnOnce() -> TypeEnvironment,
+    ) {
+        let mut expressions = expressions.into_iter().peekable();
+        if expressions.peek().is_none() {
+            return;
+        }
+        let environment = self.intern(environment());
+        for expression in expressions {
+            self.add(expression, environment);
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -61,9 +102,7 @@ struct ExecutableSite {
 /// instead. Callers outside such a walk pass `None` and keep the per-query
 /// rescan — building the index costs more than one scan.
 #[derive(Default)]
-pub(crate) struct OwnerEnvironmentIndex(
-    RefCell<Option<HashMap<ExpressionHandle, ExactOwnerEntry>>>,
-);
+pub(crate) struct OwnerEnvironmentIndex(RefCell<Option<OwnerIndex>>);
 
 impl OwnerEnvironmentIndex {
     fn environments(
@@ -72,9 +111,17 @@ impl OwnerEnvironmentIndex {
         facts: &CheckFacts,
         expression: ExpressionHandle,
     ) -> Option<Vec<TypeEnvironment>> {
-        self.index(program, facts)
+        let index = self.index(program, facts);
+        index
+            .entries
             .get(&expression)
-            .map(|entry| entry.environments.clone())
+            .map(|entry| {
+                entry
+                    .environments
+                    .iter()
+                    .map(|environment| index.environments[*environment].clone())
+                    .collect::<Vec<_>>()
+            })
             .filter(|environments| !environments.is_empty())
     }
 
@@ -85,6 +132,7 @@ impl OwnerEnvironmentIndex {
         expression: ExpressionHandle,
     ) -> Vec<ExecutableSite> {
         self.index(program, facts)
+            .entries
             .get(&expression)
             .map(|entry| entry.executable_sites.clone())
             .unwrap_or_default()
@@ -94,7 +142,7 @@ impl OwnerEnvironmentIndex {
         &'a self,
         program: &TypedTrees,
         facts: &CheckFacts,
-    ) -> std::cell::Ref<'a, HashMap<ExpressionHandle, ExactOwnerEntry>> {
+    ) -> std::cell::Ref<'a, OwnerIndex> {
         {
             let mut borrow = self.0.borrow_mut();
             if borrow.is_none() {
@@ -1301,38 +1349,26 @@ fn collection_element_type(
 /// Build the whole-program exact-owner index in one pass, preserving the
 /// collectors' per-expression ordering: contracts, domains, propositions,
 /// measures, parameter constraints, rankings, then executable sites.
-fn build_owner_environment_index(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-) -> HashMap<ExpressionHandle, ExactOwnerEntry> {
-    let mut index: HashMap<ExpressionHandle, ExactOwnerEntry> = HashMap::new();
+fn build_owner_environment_index(program: &TypedTrees, facts: &CheckFacts) -> OwnerIndex {
+    let mut index = OwnerIndex::default();
     for (_, contract) in facts.proof.contract_facts.iter() {
         let Some(environment) = contract_owner_environment(program, contract.owner) else {
             continue;
         };
-        for expression in proof_fact_handle_reachable_expressions(program, contract.fact) {
-            index
-                .entry(expression)
-                .or_default()
-                .environments
-                .push(environment.clone());
-        }
+        index.add_all(
+            proof_fact_handle_reachable_expressions(program, contract.fact),
+            || environment,
+        );
     }
     for domain in program.domain_definitions() {
         let mut reached = HashSet::new();
         for fact in program.proof_facts(domain) {
             reached.extend(proof_fact_reachable_expressions(program, fact));
         }
-        for expression in reached {
-            index
-                .entry(expression)
-                .or_default()
-                .environments
-                .push(TypeEnvironment {
-                    self_type: Some(InferredType::TypeReference(domain.target_type)),
-                    ..Default::default()
-                });
-        }
+        index.add_all(reached, || TypeEnvironment {
+            self_type: Some(InferredType::TypeReference(domain.target_type)),
+            ..Default::default()
+        });
     }
     index_proposition_environments(program, &mut index);
     index_measure_environments(program, &mut index);
@@ -1468,10 +1504,7 @@ fn collect_type_reference_expressions(
     }
 }
 
-fn index_proposition_environments(
-    program: &TypedTrees,
-    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
-) {
+fn index_proposition_environments(program: &TypedTrees, index: &mut OwnerIndex) {
     use typed_trees::proposition::{PropositionBody, PropositionFormula};
 
     for proposition in program.propositions() {
@@ -1500,25 +1533,17 @@ fn index_proposition_environments(
                 );
             }
         }
-        let environment = environment_from_parameters(
-            program.proposition_parameters(proposition),
-            TypeReferenceHandle::invalid(),
-            None,
-        );
-        for expression in reached {
-            index
-                .entry(expression)
-                .or_default()
-                .environments
-                .push(environment.clone());
-        }
+        index.add_all(reached, || {
+            environment_from_parameters(
+                program.proposition_parameters(proposition),
+                TypeReferenceHandle::invalid(),
+                None,
+            )
+        });
     }
 }
 
-fn index_measure_environments(
-    program: &TypedTrees,
-    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
-) {
+fn index_measure_environments(program: &TypedTrees, index: &mut OwnerIndex) {
     for measure in program.measures() {
         let Some(parameter) = measure.parameter.as_ref() else {
             continue;
@@ -1529,48 +1554,33 @@ fn index_measure_environments(
                 crate::authored_selections::member_targets::reachable_expressions(program, *root),
             );
         }
-        let environment =
-            environment_from_parameters(std::slice::from_ref(parameter), measure.return_type, None);
-        for expression in reached {
-            index
-                .entry(expression)
-                .or_default()
-                .environments
-                .push(environment.clone());
-        }
+        index.add_all(reached, || {
+            environment_from_parameters(std::slice::from_ref(parameter), measure.return_type, None)
+        });
     }
 }
 
-fn index_parameter_constraint_environments(
-    program: &TypedTrees,
-    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
-) {
+fn index_parameter_constraint_environments(program: &TypedTrees, index: &mut OwnerIndex) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let parameters = program.state_parameters(state);
             for (parameter_index, parameter) in parameters.iter().enumerate() {
-                let environment = TypeEnvironment {
-                    self_type: machine
-                        .attached_data_symbol
-                        .is_valid()
-                        .then_some(InferredType::Nominal(machine.attached_data_symbol)),
-                    bindings: environment_from_parameters(
-                        &parameters[..parameter_index],
-                        TypeReferenceHandle::invalid(),
-                        None,
-                    )
-                    .bindings,
-                    ..Default::default()
-                };
-                for expression in
-                    type_reference_reachable_expressions(program, parameter.type_reference)
-                {
-                    index
-                        .entry(expression)
-                        .or_default()
-                        .environments
-                        .push(environment.clone());
-                }
+                index.add_all(
+                    type_reference_reachable_expressions(program, parameter.type_reference),
+                    || TypeEnvironment {
+                        self_type: machine
+                            .attached_data_symbol
+                            .is_valid()
+                            .then_some(InferredType::Nominal(machine.attached_data_symbol)),
+                        bindings: environment_from_parameters(
+                            &parameters[..parameter_index],
+                            TypeReferenceHandle::invalid(),
+                            None,
+                        )
+                        .bindings,
+                        ..Default::default()
+                    },
+                );
             }
         }
     }
@@ -1599,28 +1609,23 @@ fn index_parameter_constraint_environments(
 fn index_telescope_parameters(
     program: &TypedTrees,
     parameters: &[StateParameter],
-    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
+    index: &mut OwnerIndex,
 ) {
     for (parameter_index, parameter) in parameters.iter().enumerate() {
-        let environment = environment_from_parameters(
-            &parameters[..parameter_index],
-            TypeReferenceHandle::invalid(),
-            None,
+        index.add_all(
+            type_reference_reachable_expressions(program, parameter.type_reference),
+            || {
+                environment_from_parameters(
+                    &parameters[..parameter_index],
+                    TypeReferenceHandle::invalid(),
+                    None,
+                )
+            },
         );
-        for expression in type_reference_reachable_expressions(program, parameter.type_reference) {
-            index
-                .entry(expression)
-                .or_default()
-                .environments
-                .push(environment.clone());
-        }
     }
 }
 
-fn index_ranking_environments(
-    program: &TypedTrees,
-    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
-) {
+fn index_ranking_environments(program: &TypedTrees, index: &mut OwnerIndex) {
     for custody in &program.ranking_expression_custody {
         let Some(machine) = crate::lookup::machine_by_symbol(program, custody.machine) else {
             continue;
@@ -1637,27 +1642,21 @@ fn index_ranking_environments(
                 crate::authored_selections::member_targets::reachable_expressions(program, root),
             );
         }
-        let environment =
-            machine_environment(program, machine, program.machine_states(machine).first());
-        for expression in reached {
-            index
-                .entry(expression)
-                .or_default()
-                .environments
-                .push(environment.clone());
-        }
+        index.add_all(reached, || {
+            machine_environment(program, machine, program.machine_states(machine).first())
+        });
     }
 }
 
-fn index_executable_environments(
-    program: &TypedTrees,
-    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
-) {
+fn index_executable_environments(program: &TypedTrees, index: &mut OwnerIndex) {
+    // One buffer serves every statement; a fresh vector per statement spent
+    // most of this walk growing it.
+    let mut expressions = Vec::new();
     for (machine_index, machine) in program.machines().iter().enumerate() {
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
             let statements = program.statement_table.statements(state.statement_nodes);
             for (statement_index, statement) in statements.iter().enumerate() {
-                let mut expressions = Vec::new();
+                expressions.clear();
                 crate::monomorphization::collect_statement_expression_trees(
                     program,
                     statement,
@@ -1666,16 +1665,16 @@ fn index_executable_environments(
                 if expressions.is_empty() {
                     continue;
                 }
-                let environment = executable_site_environment(
+                let environment = index.intern(executable_site_environment(
                     program,
                     machine,
                     state,
                     statements,
                     statement_index,
-                );
-                for expression in expressions {
-                    let entry = index.entry(expression).or_default();
-                    entry.environments.push(environment.clone());
+                ));
+                for &expression in &expressions {
+                    index.add(expression, environment);
+                    let entry = index.entries.entry(expression).or_default();
                     entry.executable_sites.push(ExecutableSite {
                         machine: machine_index,
                         state: state_index,

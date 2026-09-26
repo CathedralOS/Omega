@@ -273,14 +273,6 @@ pub(super) fn admit(
                     CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. } => {
                         "state graph: operation custody: scalar call"
                     }
-                    CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
-                        ..
-                    } => "state graph: operation custody: selected operator call",
                     CheckedUnitEffectOperationPlan::EstablishReference { .. }
                     | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
                         "state graph: operation custody: reference custody"

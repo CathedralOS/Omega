@@ -113,7 +113,7 @@ offline from its audited root and repository bytes. No alternate compiler,
 compatibility adapter, or machine-readable sidecar remains without a consumer.
 This is an acceptance condition, not a claim that the chain is complete.
 
-Apply the [repository scope checkpoints](../AGENTS.md#scope-checkpoints) before
+Apply the [repository scope checkpoints](../CONTRIBUTING.md#scope-checkpoints) before
 expanding support machinery. A paused strategy does not block independent
 bootstrap work, authorize abandoning proof obligations, or permit a replacement
 rung. Comparative background belongs in

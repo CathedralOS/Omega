@@ -3,10 +3,8 @@
 
 Supply a previously verified commit as --base. Git compares its tree with the
 current working files (including staged and untracked files). Rust files under
-a known crate's src/ select dependents; audited documentation selects its source
-checks. Other inputs run all library tests. Architecture tests always run because
-they read source trees
-without Cargo dependency edges.
+a known crate's src/ select dependents; audited documentation is reported in the
+plan's documentation_paths. Other inputs run all library tests.
 
 Routine-diff selections also exclude the measured slow tail in SLOW_TEST_OWNERS:
 a listed test is skipped unless its owning package's own src/ files changed or
@@ -39,10 +37,9 @@ SOURCE_READERS = {
 }
 
 # Audited Markdown locations, not a blanket extension exclusion: Markdown in
-# tests/fixtures is executable test input. Architecture reads the optimizer rule
-# inventory; the compiler corpus audit below reads prose across the repository.
+# tests/fixtures is executable test input.
 DOCUMENTATION_FILES = {
-    "AGENTS.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
+    "AGENTS.md", "CONTRIBUTING.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
     "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
     "tools/claims.md", "tools/landing.md", "tools/release_matrix.md",
     "tools/rust_producer_omission.md", "tools/testing.md",
@@ -204,7 +201,6 @@ def jev_api_key(root):
 
 def jev_payload(paths, affected, candidates):
     baseline = [
-        "the full omega-architecture-test suite (always runs on every diff)",
         "library tests of every changed crate and its reverse dependencies: "
         + (", ".join(affected) if affected
            else "all crates — the diff touched shared or unknown inputs so "
@@ -356,8 +352,7 @@ def make_plan(root, runner, base, full=False, with_slow_tail=False):
         else:
             selected = set(packages)
         direct = changed_source_crates(owners, paths)
-    commands = [[runner, "nextest", "run", "--locked", "-p",
-                 "omega-architecture-test", "--all-targets", "--no-fail-fast"]]
+    commands = []
     slow_tail = [
         {"package": owner, "test": name, "measured_seconds": seconds}
         for owner, tests in SLOW_TEST_OWNERS.items()

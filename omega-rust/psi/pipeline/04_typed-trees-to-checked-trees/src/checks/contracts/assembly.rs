@@ -230,7 +230,11 @@ fn expression_place_may_overlap(
 ) -> bool {
     canonical_place_from_expression_in_state(program, state_symbol, statement_index, expression)
         .is_some_and(|read_place| {
-            read_place.root == written_place.root
+            // Compare on STORAGE identity: a callee's mutation summary roots
+            // `self` writes at the machine symbol while an authored `self.x`
+            // read roots at the state's `&mut self` parameter.
+            crate::flow::normalized_event_place_root(program, read_place.root)
+                == crate::flow::normalized_event_place_root(program, written_place.root)
                 && canonical_place_segments_may_overlap(
                     program,
                     &read_place.segments,

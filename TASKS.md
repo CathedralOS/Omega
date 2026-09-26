@@ -27,7 +27,7 @@ item's acceptance names one of those tests, the acceptance is the named
 fixture's corpus-gate outcome, plus its `--native` outcome where the item needs
 a native build or run. Rewrite such an item's acceptance when you next touch it.
 
-[AGENTS.md](AGENTS.md#workflow) governs task provenance, scoped checks, claims,
+[CONTRIBUTING.md](CONTRIBUTING.md#workflow) governs task provenance, scoped checks, claims,
 strategy pauses and publication. Live assignments belong in the
 [claims registry](tools/claims.md), not the board. A paused strategy is not a
 blocked language feature. Genuine owner decisions belong in
@@ -60,21 +60,15 @@ deletes the side doors it replaces. Validate with `tools/corpus_gate.py
 --filter` over the affected groups plus `--native --filter` for anything
 backend-visible; full corpus runs only at the end of an item.
 
-- **DEAD-SELECTED-OPERATOR-PLANS.** (new-scope) 089bd3290c stopped producing
-  the selected-operator Unit plans; delete their vocabulary and consumers:
-  `CheckedUnitEffectOperationPlan::{SelectedOperatorScalarCall,
-  SelectedOperatorStructuralScalarCall, SelectedOperatorStructuralCall,
-  SelectedIeeeFloatFusedMultiplyAdd}`,
-  `CheckedStructuralScalarReturnPlans::selected_operator_machines` and
-  `CheckedSelectedOperatorStructuralScalarReturnMachinePlan`, their arms in
-  stage 05 (`unit/attached_unit/selected_operator.rs`,
-  `returns/structural_scalar_return/selected_operator.rs`, source custody),
-  stage 07 `boundary_operator_custody`, `validate_selected_operator_terminal_custody`,
-  terminal-artifact `float_fma` and the native FMA occurrence joins.
-  Acceptance: none of those names remain and the corpus goldens are unchanged.
-
 - **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
-  A boundary-operator application lowers as a requirement-level `BoundaryCall`
+  Depends on OPERATOR-MACHINE-SUPPLY's declaration migration: a bodyless
+  token-bearing `boundary machine - Owner::name(...);` lowers in stage 02
+  (`lowering/operator.rs`) to an operator declaration, not a machine, so
+  neither a spelled nor a named use reaches the requirement lane's
+  `BoundaryCall` (both stop at Unit local construction, "call: flow call" and
+  "local data: scalar local: pure initializer"). The 22 core float operators
+  (`Float::add` and siblings) use the same form, so migrating it routes every
+  float `+` through installation as well. A boundary-operator application lowers as a requirement-level `BoundaryCall`
   on the operator's requirement, exactly like a direct top-level requirement
   call, and Omega stage 00 installs the selected provider. A `boundary machine
   - Owner::name(...);` operator is a token-bearing machine whose operator view
@@ -85,7 +79,10 @@ backend-visible; full corpus runs only at the end of an item.
   the operator-adapter and float-intrinsic resolution it uses. Compiler-known
   float realizations (`F32::negate`, directed arithmetic, conversions,
   `square_root`, FMA) install as Omega builtins beside the hosted process
-  builtins in native provider settlement. Acceptance: the eight native builds
+  builtins in native provider settlement. Stage 02's
+  `AdmittedIeeeFloatFmaSettlement` and the native realization request's
+  `ieee_float_fma` slice survive with no producer (every caller passes an empty
+  slice): reuse them for FMA installation or delete them. Acceptance: the eight native builds
   089bd3290c regressed build again with their golden exits
   (`providers/checked_fixed_operator_dispatch_exit` exits 70,
   `checked_boundary_operator_physical_custody`,
@@ -106,20 +103,21 @@ backend-visible; full corpus runs only at the end of an item.
 
 - **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
   is target-neutral: one union of physical sources, every target's program-entry
-  contract source, package imports (`resolve_for_exact_target`) and dependency
-  generated sources (`append_dependency_generated_sources_to_storage` selects
-  per target). `source_assembly::entry_contract_seed` now seeds every
-  catalogued profile's contract on both routes; what remains is the rest of
-  the union. Delete `ImmutableSourceParseCheckpoint::for_exact_target`,
-  `assemble_targetless` and `ExactTargetSourceAssembly`; one `assemble`. A
-  dependency build that generates target-specific content emits target-tagged
-  declarations, never a different file per target; dependency builds still
-  run per target, so their generated sources move with BUILD-EVALUATES-ONCE.
-  Cost frontier: `omega --check --timings samples/cli/basics/cli_mvp/main.omg`
-  loads 22 sources and takes 102 s on the Windows host, of which the itemized
-  Psi stages are 15 s; the rest is the per-target dependency package compile.
-  Acceptance: `PreparedCheckedSource` assembles once for any target set and
-  the `Step: assemble` timing row appears once per compilation.
+  contract source, package imports and dependency-generated sources. Assembly
+  takes no target (`ImmutableSourceParseCheckpoint::assemble`); a child's
+  generated bundles are validated against its target at admission, and within
+  one `CompileRequest` targets whose dependencies generated the same sources
+  share one assembly (`compiler.rs` `SharedAssemblies`). Remaining: the CLI and
+  package manager compile each `--target` as a separate project compile, so a
+  two-target `omega --check --timings` still assembles twice; one request with
+  a target set (ONE-DRIVER-PER-STAGE) removes that. Dependency builds still
+  run per target and generate per-target bundles; a dependency that generates
+  target-specific content must instead emit target-tagged declarations so the
+  union holds one copy (BUILD-EVALUATES-ONCE). Cost frontier: `omega --check
+  --timings samples/cli/basics/cli_mvp/main.omg` loads 22 sources and takes
+  102 s on the Windows host, of which the itemized Psi stages are 15 s; the
+  rest is the per-target dependency package compile. Acceptance: a two-target
+  compile prints one `Step: assemble` row.
 
 - **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
   (`linux_x86_64 machine StatLayout::plan(...)`) survive as data through every
@@ -139,9 +137,17 @@ backend-visible; full corpus runs only at the end of an item.
   record (one path, bodies keyed by target) that lowering and Terminal Psi
   retain, so `omega inspect-terminal` shows each body under its family with
   its target tag and Omega selects the body at realization
-  (PROVIDER-SELECTION-AFTER-TERMINAL owns the selection move). Known cost:
-  each std check pass now checks six target trees (`cli_mvp` check 36 s ->
-  81 s on the Windows host); BUILD-EVALUATES-ONCE removes the duplicate passes.
+  (PROVIDER-SELECTION-AFTER-TERMINAL owns the selection move). Lowering
+  coverage limits the family record: on `samples/cli/basics/cli_mvp` (Windows
+  host) 714 of the 732 std target-sibling bodies have no Unit plan (for
+  example `Filesystem::read_at::macos_arm64` stops at "state graph: result
+  custody accounting"), so Terminal Psi can carry only the family bodies an
+  artifact's entry closure reaches, and each of those must lower for every
+  target before its family can publish. The family record has no consumer
+  until Omega selects the body per target, so it lands with that selection
+  move rather than ahead of it. Known cost: each std check pass now checks
+  six target trees (`cli_mvp` check 36 s -> 81 s on the Windows host);
+  BUILD-EVALUATES-ONCE removes the duplicate passes.
 
 - **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
   compilation and its evaluated configuration carries rows keyed by target:
@@ -177,7 +183,24 @@ backend-visible; full corpus runs only at the end of an item.
   (`bind_selected_provider_plan_facts`), selected float-comparison executions,
   boundary-dispatch settlement (`selected_dispatch::settle_selected_execution_dispatch`),
   callback materialization, task activations, component progress, the x86 FMA
-  plan association and fused program-entry establishments. Invert the layering
+  plan association and fused program-entry establishments. Measured on the
+  Windows host with `omega inspect-terminal --target windows_x86_64` against
+  `--target linux_x86_64`: the Terminal module is already identical for
+  `pass/arithmetic/const_fold_unsigned_landed_ops_exit`,
+  `pass/expressions/match_float_patterns` and
+  `pass/providers/checked_boundary_requirement_dispatch_exit`, so the
+  per-target Psi runs duplicate work rather than produce different Terminal
+  semantics; target dependence enters through the checked sidecars and
+  through selection inputs to checking. Two of those inputs change what Psi
+  checks and must move first: fused service erasure
+  (`provider_settlement` calls `TypedTrees::bind_fused_service_erasures`
+  before checking, while [entry roots](wiki/spec/build/entry_roots.md) and
+  [component publication](wiki/spec/build/component_publication.md) place
+  erasure in lowering and Terminal replay) and stage 04's selected generic
+  operator providers and boundary families (`CheckingRequest`). Moving the
+  provider-body const folds waits on OWNER_QUESTIONS.md Q10
+  (`provider-dependent-constants`): a const application folded through a
+  selected provider gives a type that varies by target. Invert the layering
   guard `omega_provider_selection_consumes_psi_frontend_directly` so
   `provider-planning` may not depend on `typed-trees` or `validation`. Scalar
   `ensures` of a requirement are not yet retained on its Terminal
@@ -545,7 +568,7 @@ the complete product bar; focused successes below do not establish that baseline
 
 - **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and
   `compiler/tests/canary_suite/` to their promised checked/native stages.
-  Use the [focused selectors](AGENTS.md#running-one-test); full closure is
+  Use the [focused selectors](tools/testing.md#running-one-test); full closure is
   `mbx nextest run -p compiler --test canary_suite --no-fail-fast` on one
   revision with filters unset. Keep detailed logs outside the board; do not
   migrate fixtures during a measured run.
@@ -1046,6 +1069,33 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   declarations only through methods, owns the symbol-to-declaration indexes
   those methods invalidate, and the address-keyed caches are deleted with no
   loss on the CHECK-CLOSURE-ONCE timings.
+
+  Seven of those caches now key on `TypedTrees::identity` instead of the
+  program's address: `write_frames/isolation.rs`, the four in
+  `lookup/symbols.rs`, `values/scalar/structural_fields.rs`, validation's
+  `service_reach.rs` and `facts/field_domain.rs`'s `DOMAIN_SYMBOL_INDEX`. The
+  address was never an identity -- it is reused as soon as a program is
+  dropped -- and a cached MISS is returned without the validation a cached hit
+  gets, so a replacement program was told a machine or a definition it owns is
+  absent. `OWNED_FIELD_DOMAIN_SLOT` in that same file needs nothing: its outer
+  `None` means no checked build is open and the program is borrowed for the
+  whole scope, so its address cannot be recycled under it. The remaining
+  thread-local caches key on other programs, not on `TypedTrees`.
+
+  `-p typed-trees-to-checked-trees --lib` failed intermittently under nextest's
+  default threading and never single-threaded: 2 of 4 runs at base f5561114db
+  with 2 failures each, 1 of 6 after the first six caches, and 10 of 10 clean
+  once the domain index followed. The failures moved between
+  `tests::contracts::assigned_values`,
+  `tests::contracts::scalar_storage_results` and `range_*` run to run, which is
+  what a cache serving another program's verdict looks like.
+
+  Keep the discriminating samples when re-keying one of these. Trimming
+  `DOMAIN_SYMBOL_INDEX`'s slice and name-text terms to lengths while adding the
+  identity took the crate from 1 of 6 runs failing to 10 of 10, because a clone
+  shares its source's tag and only the fingerprint separates two states of it.
+  With the owner an identity those terms can no longer produce a false hit, so
+  there is no reason to drop them.
 
 - **BUILD-PRODUCT-REFERENCES.** Finish executable follow-through for
   [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).
@@ -1682,7 +1732,7 @@ syntax and other terminal services are not prerequisites.
   reusable-fragment identity, guard bytes, and atomic rejection before writes.
   Move and run the relevant `layout-plans` writer/fragment controls with their
   owners, `compiler --test layout_plans`'s `writer_lowering` cases, affected-crate
-  checks/Clippy, and architecture tests. Verify bytes and execution on available
+  checks/Clippy. Verify bytes and execution on available
   matching hosts; keep **SYMBOLIC-MATERIALIZATION**'s missing Linux AArch64 runtime
   evidence open until that host runs. Do not add a new IR or interpreter subsystem
   merely to relocate the existing machinery.
@@ -1897,8 +1947,8 @@ syntax and other terminal services are not prerequisites.
 - **PSIIR.** Complete source-free Terminal execution and logical-work bounds
   across canonical encoding, independent reconstruction, interpretation,
   resource analysis, native realization and installation.
-  The [encoding contract](wiki/spec/terminal-psi/encoding.md) and
-  `tests/architecture/encoding_contract.rs` already cover the codec's closed
+  The [encoding contract](wiki/spec/terminal-psi/encoding.md)
+  already covers the codec's closed
   vocabulary, envelopes and mathematical certificates; maintain that coverage
   as the operation owners extend it, not another wire-format project.
 
@@ -2270,7 +2320,7 @@ syntax and other terminal services are not prerequisites.
   its unchanged cycle certificate still answers the same termination question.
   Missing arrival evidence and an unestablished guarantee reject. Retain
   `terminal-verifier/tests/ranked_scc/`, `ranked_value_guarantees`,
-  `compiler/tests/pcc_publication.rs` and architecture layering controls.
+  `compiler/tests/pcc_publication.rs`.
 
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace trusted fusion of artifact
   traversal and proof search with a total canonical-ledger generator and an
@@ -3008,8 +3058,27 @@ syntax and other terminal services are not prerequisites.
     passes `&mut self` beside a view of its own field).
     A distance bounded by a slice length (`terminates by (i, path.len)`: the
     pass canary `calls/runtime_value_call_statement_recursive_walk_exit`, std
-    `Filesystem::mkall_walk`) still gets no shared rank: `nat::state_rank`
-    wants a plain upper parameter, though `MAX - lower` never reads the bound.
+    `Filesystem::mkall_walk`) still gets no shared rank: `nat::state_rank`'s
+    `DecreaseMeasure::Distance` arm runs both endpoints through `plain`, which
+    demands an `ExpressionNode::Name` resolving to a non-self state parameter,
+    and `path.len` is a member access.
+
+    Admitting it is not a local widening, because the upper survives into the
+    checked measure. `CheckedNaturalRankMeasure::UnsignedDistance` carries
+    `upper` and `upper_position`; stage 05's `ranking.rs` re-proves the plan
+    against the graph through `upper_parameter.symbol == upper` and
+    `upper_parameter.name == bound.name`, and its emission comments that "the
+    bound stays a checked scalar lane though the ceiling distance does not read
+    it". So the rank arithmetic genuinely ignores the bound while three
+    consumers still require it to be a scalar parameter. Closing this wants a
+    measure that names the sequence rather than a scalar upper -- beside the
+    existing `ByteSequenceLength`, which a separate machine-level route already
+    produces -- carried through stage 04, stage 05 and the verifier.
+
+    The canary is not a check-level failure: it records `checked` in the corpus
+    today. The missing rank shows only in native execution, which the pass tier
+    does not reach, so a corpus run cannot witness this repair and the run-tier
+    or a native build has to.
   - `state graph: prefix initializers: short-circuit boolean` (2,
     `Store::check`), `guarded jump successors: receiver transfer` (1,
     `runtime_tuple_transition_exit`), and `conditional successors` (2).
@@ -3847,7 +3916,41 @@ syntax and other terminal services are not prerequisites.
   Consolidate receiver and named mutable-argument domain obligations across
   call admission, entry assumptions, return checks, and fact handback. Remove
   receiver-only ZII filtering and superseded special cases rather than adding
-  stronger facts alongside the old path. Keep ZII seeding for actual zeroed
+  stronger facts alongside the old path.
+
+  Measured direction, which is the opposite of "the receiver is exempt". Two
+  bodies differing only in receiver against named argument -- a guarded
+  `buf.line[buf.i] = 46` into a `[u8; 4] in Utf8` followed by a call taking the
+  same place -- split: the `&mut self` form is ACCEPTED, and the
+  `&mut Holder` form reports "cannot prove default-domain field requirement for
+  call done from run::put: parameter buf.line requires `[u8; N]::Utf8`".
+  Changing the receiver form's literal to 200 rejects it, so the receiver path
+  is discharging a provable ASCII byte rather than skipping the obligation. The
+  named path is the deficient one, and consolidation has to adopt the
+  receiver's discharge, not delete it.
+
+  `append_state_parameter_domain_facts` skips `parameter.is_self` when seeding
+  entry field-domain premises, so the receiver reaches its call without them
+  and is still admitted; the named parameter has them and is refused after the
+  write. The asymmetry is therefore in how a write's effect on the domain is
+  evaluated per place, not in the entry seeding.
+
+  Probing `checks/contracts/nominal_inputs.rs` narrows it further: both forms
+  raise the same requirement at the same place (`self.line` and `buf.line`,
+  `owner_kind` Machine against Parameter), and every receiver call site reports
+  `satisfied=true` while the named form satisfies its pre-write sites and fails
+  only the call that follows the element store. So the obligation is raised
+  identically and only the post-write discharge differs. The receiver-only
+  filter the first paragraph asks about is
+  `checks/contracts/writes.rs::expression_is_self_relative`, which admits a
+  domain's zero value only when the fact's name path starts at the receiver;
+  start there rather than in the entry seeding or the obligation loop.
+
+  `samples/cli/rendering/dungeon_render` is the sample customer and needs more
+  than this: its glyph reaches the carrier as `put(ch: u8)` -> `self.lab` ->
+  `self.line[self.c]`, and `u8` carries no range, so no ASCII fact exists to
+  discharge even once the paths agree. The literal cases above are the ones
+  this item can close. Keep ZII seeding for actual zeroed
   storage establishment; never infer incoming value validity from allocation.
   Reuse nominal-input and whole-extent collection-field checking. Update comments
   and tests that encode the receiver exception without removing real construction,
@@ -4987,7 +5090,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
 
 - **RC-REPOSITORY-CLOSURE.** Establish one clean-commit pass of the repository
   gate: whole-workspace formatting, all-target Clippy with warnings denied,
-  architecture tests, all-target check, and workspace library tests. Use the
+  all-target check, and workspace library tests. Use the
   completion contract's full scope and current portable formatting route;
   do not exclude failing crates. Owners: repository gates and each failing
   crate. Repair attributed failures through their capability owners, then
@@ -5028,7 +5131,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   version of this note, which blamed a gate: the documented full baseline is
   GREEN. `mbx nextest run --workspace --lib --no-fail-fast` is **17265 passed,
   0 failed, 3 skipped** at `a934945572b` on macOS arm64. Nothing is wrong with
-  the gate, and `--lib` is deliberate -- AGENTS.md puts integration tests
+  the gate, and `--lib` is deliberate -- tools/testing.md puts integration tests
   outside the portable subset and requires that "platform integration tests
   are separate and must report an explicit skip when the host cannot run
   them".

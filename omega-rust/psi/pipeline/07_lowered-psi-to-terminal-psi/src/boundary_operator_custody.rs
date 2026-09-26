@@ -3,8 +3,6 @@
 mod dynamic_calls;
 mod float_comparisons;
 mod integer_comparisons;
-mod local_initializers;
-mod structural_returns;
 
 use checked_trees::CheckedTrees;
 use lowered_psi::LoweredPsi;
@@ -172,8 +170,6 @@ fn checked_boundary_operator_occurrences(
     lowered: &LoweredPsi,
 ) -> Result<Vec<CheckedBoundaryOperatorApplicationOccurrence>, &'static str> {
     let mut occurrences = Vec::new();
-    let matched_ieee_float_fmas = local_initializers::replay(checked, lowered, &mut occurrences)?;
-    structural_returns::replay(checked, lowered, &mut occurrences)?;
     float_comparisons::replay(checked, lowered, &mut occurrences)?;
     integer_comparisons::replay(checked, lowered, &mut occurrences)?;
     occurrences.sort_by_key(|occurrence| occurrence.terminal_operation.get());
@@ -190,11 +186,6 @@ fn checked_boundary_operator_occurrences(
     {
         return unsupported(
             "checked boundary-operator applications do not map one-to-one onto Terminal operations",
-        );
-    }
-    if matched_ieee_float_fmas != lowered.selected_ieee_float_fma_occurrences.len() {
-        return unsupported(
-            "selected IEEE FMA Terminal occurrences do not all rejoin checked boundary applications",
         );
     }
     Ok(occurrences)

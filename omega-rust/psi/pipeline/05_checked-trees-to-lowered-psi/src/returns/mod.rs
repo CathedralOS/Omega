@@ -16,18 +16,18 @@ use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
     CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedReturnPlan, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedSelectedOperatorStructuralScalarReturnMachinePlan,
-    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarReturnCleanupAction,
-    CheckedStructuralScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+    CheckedScalarExpressionRole, CheckedStructuralReturnMachinePlan,
+    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
+    ClosedScalarContractValue,
 };
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
     ServiceReachSummary,
 };
-use lowered_psi::{LoweredPsi, LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence};
+use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use semantic_vocabulary::{
     BoundaryMachineId, ContractId, DomainSemanticId, IeeeFloatFormat, IntegerSign, MachineId,
     PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
@@ -72,7 +72,6 @@ use crate::returns::boundary_scalar_return::lower_boundary_scalar_return_machine
 use crate::returns::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
 use crate::returns::structural_return::lower_structural_return_machine;
 use crate::returns::structural_scalar_return::{
-    lower_selected_operator_structural_scalar_return_machine,
     lower_structural_scalar_return_machine, lower_trait_operator_scalar_return_machine,
 };
 use crate::returns::structural_types::{
@@ -117,9 +116,6 @@ pub(crate) fn lower_return_machine(
 ) -> Result<LoweredSelectedMachine, LoweringError> {
     let mut completion = LoweringCompletion::default();
     let terminal = match plan {
-        CheckedReturnPlan::SelectedOperator(plan) => {
-            lower_selected_operator_structural_scalar_return_machine(checked, plan)?
-        }
         CheckedReturnPlan::PayloadlessGuardedCall(plan) => {
             lower_payloadless_guarded_call_return_machine(checked, plan)?
         }

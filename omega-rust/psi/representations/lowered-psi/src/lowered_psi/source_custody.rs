@@ -158,19 +158,3 @@ pub struct LoweredSourceCallOccurrence {
     /// this lowering route does not expose an exact scalar frontier mapping.
     pub source_values_before_call: Vec<ValueDeclaration>,
 }
-
-/// One exact selected checked IEEE FMA use joined to its emitted Terminal
-/// operation. This sidecar is target-neutral custody, not hardware admission:
-/// native realization must independently rejoin its plan evidence to an
-/// admitted target provider before selecting an instruction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LoweredSelectedIeeeFloatFmaOccurrence {
-    pub source_state: symbols::SymbolHandle,
-    pub statement_index: usize,
-    pub call_ordinal: usize,
-    pub terminal_operation: OperationId,
-    pub requirement_operator: symbols::SymbolHandle,
-    pub provider_plan_report_fingerprint: u64,
-    pub provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment,
-    pub format: semantic_vocabulary::IeeeFloatFormat,
-}

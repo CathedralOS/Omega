@@ -8,7 +8,7 @@
 
 use crate::checked::{CheckedCompilation, OptimizationRollback};
 use crate::terminal::{
-    application_coverage, float_comparisons, float_fma, integer_comparisons, native_proposal,
+    application_coverage, float_comparisons, integer_comparisons, native_proposal,
 };
 use artifacts::allocations::AllocationDelta;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
@@ -273,10 +273,7 @@ fn produce_retained_terminal_artifact(
     })?;
     let entry_machine_symbol = selected_program_entry.source_signature().machine_symbol();
     let source_signature_identity = selected_program_entry.source_signature().identity().bytes();
-    selected_dispatch::validate_selected_operator_terminal_custody(
-        checked,
-        checked.selected_provider_plans(),
-    )?;
+    selected_dispatch::validate_selected_operator_terminal_custody(checked)?;
     selected_dispatch::validate_fused_service_terminal_custody(
         checked,
         checked.selected_provider_provenance(),
@@ -301,7 +298,6 @@ fn produce_retained_terminal_artifact(
         checked_boundary_operator_scope,
         callback_placements,
         source_call_occurrences,
-        selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     ) = produced.into_parts();
@@ -318,7 +314,6 @@ fn produce_retained_terminal_artifact(
                 checked_boundary_operator_scope,
                 &callback_placements,
                 &source_call_occurrences,
-                &selected_ieee_float_fma_occurrences,
                 &selected_ieee_float_comparison_occurrences,
                 &selected_integer_comparison_occurrences,
                 selections,
@@ -343,7 +338,6 @@ pub struct ProgramEntryTerminalArtifact {
     checked_boundary_operator_scope:
         lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
-    ieee_float_fma_occurrences: Vec<crate::report::TerminalIeeeFloatFmaOccurrenceProposal>,
     /// The stage measurements this artifact's production recorded; the caller
     /// owns merging them back into the checked accumulator it cloned from.
     stage_timings: CompileTimings,
@@ -357,15 +351,6 @@ impl ProgramEntryTerminalArtifact {
     /// The stage measurements recorded during this artifact's production.
     pub const fn stage_timings(&self) -> &CompileTimings {
         &self.stage_timings
-    }
-
-    /// Every selected nearest fused multiply-add the artifact executes,
-    /// rejoined to its exact selected plan (and x86 deployment admission)
-    /// before the direct native route realizes the operation.
-    pub fn ieee_float_fma_occurrences(
-        &self,
-    ) -> &[crate::report::TerminalIeeeFloatFmaOccurrenceProposal] {
-        &self.ieee_float_fma_occurrences
     }
 
     /// The artifact, its checked program-entry receipt, the checked
@@ -418,7 +403,6 @@ pub fn produce_program_entry_terminal_artifact(
         checked_boundary_operator_scope,
         (),
         _source_call_occurrences,
-        selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     ) = produced.into_parts();
@@ -445,17 +429,6 @@ pub fn produce_program_entry_terminal_artifact(
         checked.selected_provider_provenance(),
         &selected_integer_comparison_occurrences,
     )?;
-    // The direct route carries the same nearest-FMA custody the retained
-    // product's proposal carries: each Terminal occurrence rejoins exactly one
-    // selected plan that binds its requirement, so realizing the operation
-    // never drops the provider the checked program selected.
-    let native_target = checked.selected_native_target().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "native-artifact production requires one selected native target",
-        )]
-    })?;
-    let ieee_float_fma_occurrences =
-        float_fma::associate(checked, native_target, &selected_ieee_float_fma_occurrences)?;
     let boundary_application_coverage =
         application_coverage::project_terminal_boundary_application_coverage(
             checked,
@@ -467,7 +440,6 @@ pub fn produce_program_entry_terminal_artifact(
         checked_program_entry,
         checked_boundary_operator_scope,
         boundary_application_coverage,
-        ieee_float_fma_occurrences,
         stage_timings,
     })
 }

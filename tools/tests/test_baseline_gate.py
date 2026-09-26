@@ -24,10 +24,6 @@ class BaselineCommandTests(unittest.TestCase):
             ["mbx", "clippy", "--workspace", "--all-targets", "--",
              "-D", "warnings"])
         self.assertEqual(
-            commands["architecture"],
-            ["mbx", "nextest", "run", "-p", "omega-architecture-test",
-             "--all-targets", "--no-fail-fast"])
-        self.assertEqual(
             commands["corpus"],
             [sys.executable, "tools/corpus_gate.py"])
         self.assertEqual(
@@ -39,8 +35,7 @@ class BaselineCommandTests(unittest.TestCase):
 
     def test_gate_names_are_stable_and_ordered(self):
         names = [name for name, _ in gate.baseline_commands("cargo")]
-        self.assertEqual(names, ["fmt", "clippy", "architecture",
-                                 "corpus", "check", "libraries"])
+        self.assertEqual(names, ["fmt", "clippy", "corpus", "check", "libraries"])
 
     def test_runner_prefers_mbx_then_cargo_then_errors(self):
         with patch.object(gate.shutil, "which",
@@ -57,7 +52,7 @@ class BaselineCommandTests(unittest.TestCase):
 class RunGateTests(unittest.TestCase):
     def test_all_gates_run_despite_earlier_failures(self):
         calls = []
-        returncodes = [0, 3, 0, 0, 0, 0]
+        returncodes = [0, 3, 0, 0, 0]
 
         def fake_run(command, cwd, check):
             calls.append(command)
@@ -66,8 +61,8 @@ class RunGateTests(unittest.TestCase):
 
         with patch.object(gate.subprocess, "run", side_effect=fake_run):
             results = gate.run_gates(Path("/repo"), gate.baseline_commands("cargo"), "linux x86_64")
-        self.assertEqual(len(calls), 6)
-        self.assertEqual([r[2] for r in results], [0, 3, 0, 0, 0, 0])
+        self.assertEqual(len(calls), 5)
+        self.assertEqual([r[2] for r in results], [0, 3, 0, 0, 0])
 
     def test_report_is_nonzero_only_when_a_gate_fails(self):
         ok = [("fmt", ["cargo", "fmt"], 0, 1.0)]

@@ -13,6 +13,6 @@ pub mod source;
 mod source_assembly;
 
 pub use source_assembly::{
-    AssembledSyntax, ExactTargetSourceAssembly, ImmutableSourceParseCheckpoint,
-    RetainedGeneratedSyntaxExtension, retain_generated_syntax_extension,
+    AssembledSyntax, ImmutableSourceParseCheckpoint, RetainedGeneratedSyntaxExtension,
+    retain_generated_syntax_extension,
 };

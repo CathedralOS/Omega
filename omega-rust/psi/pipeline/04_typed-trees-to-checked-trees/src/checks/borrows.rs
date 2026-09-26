@@ -59,8 +59,8 @@ use self::escape::check_view_return_escape;
 use self::persistent::check_persistent_borrow_assignments;
 use self::statements::check_statement_borrows;
 
-pub(crate) fn check_flow_call_borrows<'p>(
-    program: &'p typed_trees::TypedTrees,
+pub(crate) fn check_flow_call_borrows(
+    program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,

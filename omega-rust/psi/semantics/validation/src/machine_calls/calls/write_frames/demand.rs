@@ -84,6 +84,15 @@ pub struct CallFrameResolver<'program> {
     /// frames. Retain them across resolver queries; opaque and cycle fallback
     /// results remain one-shot so the conservative frontier is unchanged.
     complete_state_summaries: Mutex<HashMap<SymbolHandle, Vec<String>>>,
+    /// Every assignment's target and prefix origins per (machine, state),
+    /// from one recorded walk of the state instead of one prefix walk per
+    /// assignment statement and per query kind.
+    state_assignments: Mutex<
+        HashMap<
+            (SymbolHandle, SymbolHandle),
+            std::sync::Arc<Vec<(usize, super::state_write_walk::AssignmentPrefix)>>,
+        >,
+    >,
     /// Whole-program operational and service-reach plans an operand Call node
     /// consumes to test call-candidate totality. Both are pure over this
     /// resolver's immutable program, so one lazy pair serves every operand
@@ -263,7 +272,34 @@ impl<'program> CallFrameResolver<'program> {
         memoized(
             &self.assignment_targets,
             (current_machine.symbol, std::ptr::from_ref(statement).addr()),
-            || assignment_write_target(self.program, current_machine, &self.symbols, statement),
+            || {
+                assignment_write_target(
+                    self.program,
+                    current_machine,
+                    &self.symbols,
+                    statement,
+                    &|state| self.state_assignments(current_machine, state),
+                )
+            },
+        )
+    }
+
+    fn state_assignments(
+        &self,
+        machine: &Machine,
+        state: &typed_trees::state::State,
+    ) -> std::sync::Arc<Vec<(usize, super::state_write_walk::AssignmentPrefix)>> {
+        memoized(
+            &self.state_assignments,
+            (machine.symbol, state.symbol),
+            || {
+                std::sync::Arc::new(super::state_write_walk::walk_state_assignments(
+                    self.program,
+                    machine,
+                    state,
+                    &self.symbols,
+                ))
+            },
         )
     }
 
@@ -282,6 +318,7 @@ impl<'program> CallFrameResolver<'program> {
                     current_machine,
                     &self.symbols,
                     statement,
+                    &|state| self.state_assignments(current_machine, state),
                 )
                 .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
             },
@@ -334,6 +371,7 @@ impl<'program> CallFrameResolver<'program> {
             inferred_state_frames: Mutex::new(HashMap::default()),
             inferred_machine_frames: Mutex::new(HashMap::default()),
             complete_state_summaries: Mutex::new(HashMap::default()),
+            state_assignments: Mutex::new(HashMap::default()),
             call_plans: Mutex::new(None),
             machine_symbols: program
                 .machines()

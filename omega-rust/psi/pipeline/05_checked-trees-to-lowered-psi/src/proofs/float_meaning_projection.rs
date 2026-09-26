@@ -209,7 +209,6 @@ pub(crate) fn resolve_direct_float_source_binding(
     terminal_machines: &[TerminalMachine],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
-    fma_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence],
     projection: CheckedFloatMeaningProjection,
 ) -> Result<Option<FloatMeaningSource>, LoweringError> {
     let owner_machine = match &projection.source {
@@ -323,34 +322,10 @@ pub(crate) fn resolve_direct_float_source_binding(
                 true,
             )
         }
-        CheckedFloatProjectionSource::DirectOperationResult(result) => {
-            let format = match result.fallback.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(invalid_source()),
-            };
-            let mut occurrences = fma_occurrences.iter().filter(|occurrence| {
-                occurrence.source_state == result.use_site.owner_state
-                    && occurrence.statement_index == result.use_site.statement_index
-                    && occurrence.call_ordinal == result.use_site.call_ordinal
-            });
-            let Some(occurrence) = occurrences.next() else {
-                return Ok(None);
-            };
-            if occurrences.next().is_some() {
-                return Err(invalid_source());
-            }
-            if occurrence.format != format {
-                return Err(invalid_source());
-            }
-            resolve_float_operation_result_source(
-                terminal_machine,
-                *terminal_owner,
-                occurrence.terminal_operation,
-                format,
-                false,
-            )
-        }
+        // An operation result resolved only through a selected IEEE FMA
+        // occurrence, and settlement no longer produces one; the checked
+        // fallback stands.
+        CheckedFloatProjectionSource::DirectOperationResult(_) => Ok(None),
         CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) => {
             let format = match leaf.fallback.primitive {
                 PrimitiveType::F32 => IeeeFloatFormat::Binary32,

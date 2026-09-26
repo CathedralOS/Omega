@@ -48,7 +48,6 @@ completion surface. Unaccepted experiments are not counted as accepted features.
 ```bash
 python tools/fmt.py --check
 mbx clippy --workspace --all-targets -- -D warnings
-mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
 mbx check --workspace --all-targets
 mbx nextest run --workspace --lib --no-fail-fast
 ```
@@ -61,7 +60,7 @@ mbx test --doc -p build-declarations -p build-evaluation -p package-compilation 
 ```
 
 Commands work in PowerShell and a POSIX shell as written. Use Cargo if `mbx` is
-unavailable; follow [testing prerequisites](../../../AGENTS.md#cargo-wrapper).
+unavailable; follow [testing prerequisites](../../../AGENTS.md#commands).
 Unset canary/sample filters for release coverage and retain the exact selected
 test set. Nextest does not run doctests; the separate invocations above preserve
 that coverage. A filtered or empty run cannot satisfy a full gate.

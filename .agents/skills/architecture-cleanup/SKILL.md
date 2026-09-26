@@ -6,8 +6,10 @@ description: Find and repair high-impact Omega architecture problems, including 
 # Architecture Cleanup
 
 Remove unnecessary mechanisms and make necessary work easier to follow and
-extend. Apply [AGENTS.md](../../../AGENTS.md), especially discoverability,
-compositional lowering, ownership, scope checkpoints and validation. For Rust
+extend. Apply [AGENTS.md](../../../AGENTS.md) and
+[omega-rust/pipeline.md](../../../omega-rust/pipeline.md), especially
+discoverability, compositional lowering, ownership, scope checkpoints and
+validation. For Rust
 inspection or changes, read the repository's
 [Rust systems skill](../rust-systems-programmer/SKILL.md) and its relevant
 references. Those documents own the coding rules; this skill owns the cleanup

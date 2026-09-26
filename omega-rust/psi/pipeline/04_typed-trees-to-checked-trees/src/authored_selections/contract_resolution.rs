@@ -15,18 +15,21 @@ pub(crate) enum CheckedContractOperatorResolution {
     Builtin,
 }
 
+/// `owner_index` is the caller's exact-owner index, when it holds one for this
+/// program and these facts; without it each operand query rescans the program.
 pub(super) fn checked_operator_resolution(
     program: &TypedTrees,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
+    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> Option<CheckedContractOperatorResolution> {
-    if checked_float_meaning_equality(program, facts, expression, node)
+    if checked_float_meaning_equality(program, facts, expression, node, owner_index)
         || checked_resultless_law_equality(program, facts, expression, node)
     {
         return Some(CheckedContractOperatorResolution::Builtin);
     }
-    checked_spelled_operator_resolution(program, facts, expression, node)
+    checked_spelled_operator_resolution(program, facts, expression, node, owner_index)
 }
 
 pub(super) fn checked_operand_type(
@@ -34,6 +37,7 @@ pub(super) fn checked_operand_type(
     facts: &CheckFacts,
     containing_expression: typed_trees::expression::ExpressionHandle,
     operand: typed_trees::expression::ExpressionHandle,
+    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     crate::authored_selections::operator_targets::authored_operand_type(program, operand)
         .or_else(|| {
@@ -42,7 +46,7 @@ pub(super) fn checked_operand_type(
                 facts,
                 containing_expression,
                 operand,
-                None,
+                owner_index,
             )
         })
         .or_else(|| {
@@ -57,6 +61,7 @@ pub(super) fn checked_operand_type(
                         operand,
                         call,
                         program.expression_table.source_span(operand),
+                        owner_index,
                     )
                 })
                 .map(|operator| operator.return_type)
@@ -69,6 +74,7 @@ pub(super) fn checked_named_operator_call<'program>(
     expression: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     source_span: source::SourceSpan,
+    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
     let arguments = program.expression_table.expression_handles(call.arguments);
     let operand_types = arguments
@@ -77,7 +83,11 @@ pub(super) fn checked_named_operator_call<'program>(
             crate::authored_selections::operator_targets::authored_operand_type(program, *argument)
                 .or_else(|| {
                     super::contexts::checked_expression_type_reference_from_exact_owner(
-                        program, facts, expression, *argument, None,
+                        program,
+                        facts,
+                        expression,
+                        *argument,
+                        owner_index,
                     )
                 })
         })
@@ -123,6 +133,7 @@ fn checked_spelled_operator_resolution(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
+    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> Option<CheckedContractOperatorResolution> {
     use language_core::OperatorSpelling;
     use typed_trees::expression::BinaryOperator;
@@ -152,8 +163,8 @@ fn checked_spelled_operator_resolution(
         | BinaryOperator::CaseMembership => return None,
     };
     let operand_types = [
-        checked_operand_type(program, facts, expression, binary.left),
-        checked_operand_type(program, facts, expression, binary.right),
+        checked_operand_type(program, facts, expression, binary.left, owner_index),
+        checked_operand_type(program, facts, expression, binary.right, owner_index),
     ];
     if operand_types.iter().all(Option::is_none) {
         return None;
@@ -180,6 +191,7 @@ fn checked_float_meaning_equality(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
+    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> bool {
     let ExpressionNode::Binary(binary) = node else {
         return false;
@@ -188,9 +200,11 @@ fn checked_float_meaning_equality(
         return false;
     }
     [binary.left, binary.right].into_iter().all(|operand| {
-        checked_operand_type(program, facts, expression, operand).is_some_and(|type_reference| {
-            validation::is_exact_toolchain_float_meaning_type(program, type_reference)
-        })
+        checked_operand_type(program, facts, expression, operand, owner_index).is_some_and(
+            |type_reference| {
+                validation::is_exact_toolchain_float_meaning_type(program, type_reference)
+            },
+        )
     })
 }
 

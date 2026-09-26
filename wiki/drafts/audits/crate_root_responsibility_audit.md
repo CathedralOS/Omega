@@ -3,7 +3,7 @@
 Sweep of every workspace crate root (`omega-rust/**/src/{lib.rs,main.rs}`) at
 `4dbdaa9bc3` against the responsibility rule — `omega-rust/README.md`: "Public
 crate roots map responsibilities; test families and implementation details
-belong in named modules, not giant entrypoint files" — and AGENTS.md's
+belong in named modules, not giant entrypoint files" — and omega-rust/pipeline.md's
 discoverability contract: every crate has an obvious starting point that
 explains its responsibility through code.
 

@@ -85,5 +85,6 @@ pattern warrants action, say so and identify only useful missing evidence.
 Use the conversation or a user-requested report for review evidence. Do not append
 run history to execution boards, copy raw reasoning into source comments, or create
 a new trace ledger. Preserve verified design rationale at its existing owner when
-an authorized change needs it. Follow [AGENTS.md](../../../AGENTS.md) for repository
+an authorized change needs it. Follow [AGENTS.md](../../../AGENTS.md) and
+[CONTRIBUTING.md](../../../CONTRIBUTING.md) for repository
 ownership, validation, and landing; this skill does not invoke advance.

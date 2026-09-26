@@ -387,6 +387,9 @@ impl Lowerer<'_> {
         crate::declarations::machine::settle_satisfied_declarations(&mut self.typed_trees)?;
         crate::lowerer::progress::normalize_progress_premises(&mut self.typed_trees)?;
         let TypedTrees {
+            // The tag identifies the instance being taken apart, not any
+            // piece of it, so it does not travel with the fields.
+            identity: _,
             roots,
             tables,
             symbols,

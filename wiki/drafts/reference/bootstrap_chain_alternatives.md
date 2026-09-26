@@ -54,7 +54,7 @@ complete resource behavior is feasible must be answered before selection.
 Readable checker source alone does not prove its evaluator or compiler.
 
 The [owner-escalation rules](../../../bootstrap/MINIMIZATION.md#owner-escalation)
-and [new-language approval boundary](../../../AGENTS.md#scope-checkpoints) remain
+and [new-language approval boundary](../../../CONTRIBUTING.md#scope-checkpoints) remain
 binding, including for experimental replacement languages. A comparison is
 not advance permission for an opcode, axiom, accelerator, weakened observation,
 or parallel accepted chain. Rejected implementations and measurement diaries

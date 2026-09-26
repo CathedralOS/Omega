@@ -49,7 +49,7 @@ use terminal_psi::{
     ValueDeclaration, VocabularyMarker,
     program_local_root_introduction_compatibility_report_identity,
 };
-use terminal_verifier::{ObligationEvidence, ProofBundle};
+use terminal_verifier::ProofBundle;
 
 use crate::emission::boolean_control::{
     boolean_decision_block_count, emit_reserved_boolean_tuple_stage_blocks,

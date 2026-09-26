@@ -385,18 +385,19 @@ impl PreparedCheckedSource {
         child: CheckedChildExecution<'_>,
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         let root_path = self.root_path.clone();
-        let assembled = self.assemble(&child)?;
+        self.admit_child(&child)?;
+        let assembled = self.assemble(child.package_inputs)?;
         compile_assembled_checked_child(&root_path, child, assembled)
     }
 
-    /// Assemble this target's source set: the shared parsed sources plus the
-    /// target's package imports and dependency-generated sources. Generated
-    /// build results belong to their execution profile, so a dependency's
-    /// generated declarations are validated against it first.
-    pub(crate) fn assemble(
-        self,
+    /// Admit one child's package inputs against this source frontier. Parsing
+    /// is shared, but generated build results belong to their execution
+    /// profile and each dependency-generated bundle to one target, so both are
+    /// validated per child before any assembly uses them.
+    pub(crate) fn admit_child(
+        &self,
         child: &CheckedChildExecution<'_>,
-    ) -> Result<AssembledSource, Vec<Diagnostic>> {
+    ) -> Result<(), Vec<Diagnostic>> {
         // Validate on every child, including prepared-source reuse: parsing is
         // shared, but generated build results belong to their execution profile.
         // This must precede assembly of the dependency's generated declarations.
@@ -420,20 +421,34 @@ impl PreparedCheckedSource {
                         .collect::<Vec<_>>()
                 })?;
         }
-        let target_name = child
-            .selected_target_profile
-            .map(target::TargetProfile::target_name);
+        // Each dependency-generated bundle was produced for one target; a
+        // product bundle must belong to this child's target and a build bundle
+        // to its build execution profile.
+        if let Some(inputs) = child.package_inputs {
+            inputs
+                .validate_dependency_generated_source_target(child.selected_target_profile)
+                .map_err(|errors| {
+                    errors
+                        .into_iter()
+                        .map(|error| Diagnostic::error(error.to_string()))
+                        .collect::<Vec<_>>()
+                })?;
+        }
+        Ok(())
+    }
+
+    /// Assemble the source set for package inputs an admitted child carries:
+    /// the shared parsed sources plus the package imports and
+    /// dependency-generated sources those inputs carry.
+    pub(crate) fn assemble(
+        self,
+        package_inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<AssembledSource, Vec<Diagnostic>> {
         let mut timings = self.shared_timings;
         let assembly_started = std::time::Instant::now();
-        let (source_file_count, syntax) = match target_name {
-            Some(target_name) => self
-                .source_checkpoint
-                .for_exact_target(target_name, child.package_inputs)?
-                .assemble(&mut timings)?,
-            None => self
-                .source_checkpoint
-                .assemble_targetless(child.package_inputs, &mut timings)?,
-        };
+        let (source_file_count, syntax) = self
+            .source_checkpoint
+            .assemble(package_inputs, &mut timings)?;
         timings.add_completed(
             artifacts::compile_timings::SOURCE_ASSEMBLY,
             assembly_started.elapsed().as_micros(),
@@ -521,6 +536,7 @@ fn compile_checked_worker(
 
 /// One target's assembled syntax, its physical source count and the timing
 /// ladder the rest of its compile extends.
+#[derive(Clone)]
 pub(crate) struct AssembledSource {
     pub(crate) source_file_count: usize,
     pub(crate) syntax: crate::sources::AssembledSyntax,

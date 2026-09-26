@@ -400,7 +400,10 @@ impl EntryMachines {
             return None;
         }
         let key = (target.arena_index(), target.generation());
-        let found = self.0.binary_search_by_key(&key, |(symbol, _)| *symbol).ok()?;
+        let found = self
+            .0
+            .binary_search_by_key(&key, |(symbol, _)| *symbol)
+            .ok()?;
         program.machines().get(self.0[found].1 as usize)
     }
 }
@@ -2547,13 +2550,13 @@ fn compute_ring_licenses(
                         continue;
                     }
                     if slot_satisfier_exists(
-                        &slot_carriers,
+                        slot_carriers,
                         program,
                         trait_definition.symbol,
                         comm_law,
                         carrier,
                     ) && slot_satisfier_exists(
-                        &slot_carriers,
+                        slot_carriers,
                         program,
                         trait_definition.symbol,
                         assoc_law,

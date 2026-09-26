@@ -1380,18 +1380,21 @@ fn seed_ensures_conjunct(
 }
 
 /// Join the evaluated arguments and stable facts of every incoming path.
+/// Every state's incoming guard environment. `frames` is the caller's
+/// program-wide resolver: building one costs a symbol table per machine, so a
+/// resolver per queried machine made validation quadratic in machine count.
 pub(crate) fn incoming_guard_environments(
     program: &TypedTrees,
     machine: &Machine,
+    frames: Option<&crate::CallFrameResolver>,
 ) -> Vec<(symbols::SymbolHandle, ValueEnvironment)> {
-    let mut environments = arrivals::incoming_environments(program, machine);
-    let frames = crate::CallFrameResolver::new(program);
+    let mut environments = arrivals::incoming_environments(program, machine, frames);
     for (state, (_, environment)) in program
         .machine_states(machine)
         .iter()
         .zip(&mut environments)
     {
-        arrivals::seed_state_requirements(program, machine, state, frames.as_ref(), environment);
+        arrivals::seed_state_requirements(program, machine, state, frames, environment);
     }
     environments
 }
@@ -1401,12 +1404,12 @@ pub(crate) fn incoming_guard_environment(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
+    frames: Option<&crate::CallFrameResolver>,
 ) -> ValueEnvironment {
-    let mut environment = arrivals::incoming_environments(program, machine)
+    let mut environment = arrivals::incoming_environments(program, machine, frames)
         .into_iter()
         .find_map(|(symbol, environment)| (symbol == state.symbol).then_some(environment))
         .unwrap_or_default();
-    let frames = crate::CallFrameResolver::new(program);
-    arrivals::seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
+    arrivals::seed_state_requirements(program, machine, state, frames, &mut environment);
     environment
 }

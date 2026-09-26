@@ -537,37 +537,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
         match operation {
-            CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                realization_machine,
-                realization_state,
-                ..
-            } => {
-                let Some(realization) =
-                    scalar_callees
-                        .structural_returns
-                        .machines
-                        .iter()
-                        .find(|plan| {
-                            plan.machine == *realization_machine && plan.state == *realization_state
-                        })
-                else {
-                    continue;
-                };
-                retained_type_identities.extend(realization.attachment_type_identity.as_deref());
-                retained_type_identities.extend(
-                    realization
-                        .structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity.as_str()),
-                );
-            }
-            CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                realization_machine,
-                realization_state,
-                result,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
+            CheckedUnitEffectOperationPlan::StructuralCall {
                 target_machine: realization_machine,
                 target_state: realization_state,
                 result,

@@ -26,14 +26,12 @@ pub(super) use state_graph::case_emission::result as state_graph_result;
 pub(crate) use state_graph::live;
 
 /// Occurrence rows one composed machine publishes beside its Terminal
-/// operations. Every selected comparison or FMA its states emit keeps the row
+/// operations. Every selected comparison its states emit keeps the row
 /// that joins it to its checked application; none may be dropped between a
 /// state's operation buffer and the closure's published roster.
 #[derive(Default)]
 pub(in crate::unit::attached_unit) struct ComposedOccurrences {
     pub(in crate::unit::attached_unit) source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
-    pub(in crate::unit::attached_unit) selected_ieee_float_fmas:
-        Vec<lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence>,
     pub(in crate::unit::attached_unit) selected_ieee_float_comparisons:
         Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(in crate::unit::attached_unit) selected_integer_comparisons:
@@ -44,8 +42,6 @@ impl ComposedOccurrences {
     /// Retain every occurrence row one state's completed buffer recorded.
     fn retain(&mut self, operations: crate::emission::operation_emission::buffer::OperationBuffer) {
         self.source_calls.extend(operations.source_calls);
-        self.selected_ieee_float_fmas
-            .extend(operations.selected_ieee_float_fmas);
         self.selected_ieee_float_comparisons
             .extend(operations.selected_ieee_float_comparisons);
         self.selected_integer_comparisons

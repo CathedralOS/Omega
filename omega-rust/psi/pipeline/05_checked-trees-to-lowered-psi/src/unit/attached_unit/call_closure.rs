@@ -267,21 +267,6 @@ pub(super) fn validate_unit_operation_sequence(
             }
             | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
                 coordinate, result, ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-                coordinate,
-                result,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                coordinate,
-                result,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
-                coordinate,
-                result,
-                ..
             } => {
                 if result.statement_index != coordinate.statement_index
                     || coordinate.call_ordinal != 0
@@ -345,23 +330,6 @@ pub(super) fn validate_unit_operation_sequence(
                     statement_index: result.statement_index,
                     call_ordinal: 0,
                 }
-            }
-            CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                coordinate,
-                result,
-                discard_result_on_return,
-                ..
-            } => {
-                if result.statement_index != coordinate.statement_index
-                    || coordinate.call_ordinal != 0
-                    || result.binding_ordinal != 0
-                    || !discard_result_on_return
-                {
-                    return unsupported(
-                        "Unit structural result local or call coordinate is not canonical",
-                    );
-                }
-                *coordinate
             }
             CheckedUnitEffectOperationPlan::StructuralCall {
                 coordinate, result, ..
@@ -572,7 +540,6 @@ pub(super) fn validate_unit_operation_sequence(
             }
         };
         if let CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }

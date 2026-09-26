@@ -10,8 +10,7 @@
 //! boundary call to `operation_frame::OperationFrame`, the emitter
 //! composed-graph states share. It keeps one method per remaining
 //! ordinary-only kind in `locals` (primitive, reference, array and trivial
-//! affine establishments) and `selected_operators` (selected structural
-//! operator realizations and the selected IEEE FMA).
+//! affine establishments).
 
 use super::bodies::{UnitBody, UnitPlans};
 use super::catalog::lower_provider_candidate_service_ceiling;
@@ -48,8 +47,8 @@ use crate::unit::{
 };
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 use lowered_psi::{
-    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIeeeFloatFmaOccurrence,
-    LoweredSelectedIntegerComparisonOccurrence, LoweredSourceCallOccurrence,
+    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
+    LoweredSourceCallOccurrence,
 };
 
 /// What the closure keeps for every ordinary machine emitter: the identity
@@ -73,7 +72,6 @@ pub(super) struct ClosureCatalog<'a> {
 
 mod locals;
 mod projected_moves;
-mod selected_operators;
 
 /// One ordinary machine's emission in flight: the shared catalog it resolves
 /// against, the identity counters it advances, and the places, values and
@@ -144,7 +142,6 @@ pub(super) struct StepInputs {
 pub(super) struct EmittedMachine {
     pub(super) machine: TerminalMachine,
     pub(super) source_calls: Vec<LoweredSourceCallOccurrence>,
-    pub(super) selected_ieee_float_fmas: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     pub(super) selected_ieee_float_comparisons: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(super) selected_integer_comparisons: Vec<LoweredSelectedIntegerComparisonOccurrence>,
 }
@@ -724,7 +721,6 @@ pub(super) fn emit(
         .collect::<Vec<_>>();
     let OperationBuffer {
         source_calls,
-        selected_ieee_float_fmas,
         selected_ieee_float_comparisons,
         selected_integer_comparisons,
         ..
@@ -849,7 +845,6 @@ pub(super) fn emit(
     Ok(EmittedMachine {
         machine,
         source_calls,
-        selected_ieee_float_fmas,
         selected_ieee_float_comparisons,
         selected_integer_comparisons,
     })
@@ -1152,7 +1147,6 @@ impl MachineEmission<'_> {
             CheckedUnitEffectOperationPlan::CallUnit { .. }
             | CheckedUnitEffectOperationPlan::StructuralCall { .. }
             | CheckedUnitEffectOperationPlan::ScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
             | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
@@ -1172,15 +1166,6 @@ impl MachineEmission<'_> {
             }
             CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {
                 self.establish_trivial_affine_local(operation)?
-            }
-            CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. } => {
-                self.selected_operator_structural_scalar_call(operation)?
-            }
-            CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. } => {
-                self.selected_operator_structural_call(operation)?
-            }
-            CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. } => {
-                self.selected_ieee_float_fused_multiply_add(operation)?
             }
             CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_) => {
                 return unsupported("Unit structural case field store has no lowered operation");

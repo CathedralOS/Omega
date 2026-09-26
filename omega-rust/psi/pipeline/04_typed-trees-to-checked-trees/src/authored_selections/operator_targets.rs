@@ -156,6 +156,7 @@ fn checked_operator_target(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
+    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> Option<CheckedResolutionTarget> {
     // These operators have no authored declaration/spelling surface. Once
     // ordinary checking accepts their operand types, their exact meaning is
@@ -213,17 +214,23 @@ fn checked_operator_target(
                 ))
         })
         .or_else(|| {
-            contract_resolution::checked_operator_resolution(program, facts, expression, node)
-                .and_then(|resolution| match resolution {
-                    contract_resolution::CheckedContractOperatorResolution::Declaration(symbol) => {
-                        declaration_target(symbol)
-                    }
-                    contract_resolution::CheckedContractOperatorResolution::Builtin => {
-                        Some(CheckedResolutionTarget::Intrinsic(
-                            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
-                        ))
-                    }
-                })
+            contract_resolution::checked_operator_resolution(
+                program,
+                facts,
+                expression,
+                node,
+                owner_index,
+            )
+            .and_then(|resolution| match resolution {
+                contract_resolution::CheckedContractOperatorResolution::Declaration(symbol) => {
+                    declaration_target(symbol)
+                }
+                contract_resolution::CheckedContractOperatorResolution::Builtin => {
+                    Some(CheckedResolutionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                    ))
+                }
+            })
         })
         .or_else(|| {
             resolve_authored_operator_without_use_fact(program, expression, node)
@@ -235,9 +242,15 @@ fn checked_operator_target(
                 ExpressionNode::Unary(unary) => unary.operand,
                 _ => return None,
             };
-            (contract_resolution::checked_operand_type(program, facts, expression, operand)
-                .and_then(|type_reference| program.primitive_type_reference(type_reference))
-                .is_some()
+            (contract_resolution::checked_operand_type(
+                program,
+                facts,
+                expression,
+                operand,
+                owner_index,
+            )
+            .and_then(|type_reference| program.primitive_type_reference(type_reference))
+            .is_some()
                 || expression_is_intrinsic_primitive_without_origin(program, operand)
                 || checked_operator_expression_is_intrinsic_primitive(facts, operand)
                 || expression_is_contextual_domain_primitive(program, expression, operand)
@@ -261,8 +274,9 @@ pub(crate) fn checked_operator_target_for_occurrence(
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
     occurrence: AuthoredDeclarationSelectionOccurrenceId,
+    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> Option<CheckedResolutionTarget> {
-    checked_operator_target(program, facts, expression, node).or_else(|| {
+    checked_operator_target(program, facts, expression, node, owner_index).or_else(|| {
         program
             .expression_table
             .iter_expressions()
@@ -274,7 +288,7 @@ pub(crate) fn checked_operator_target_for_occurrence(
                     .any(|retained| retained == occurrence)
             })
             .find_map(|(candidate, candidate_node)| {
-                checked_operator_target(program, facts, candidate, candidate_node)
+                checked_operator_target(program, facts, candidate, candidate_node, owner_index)
             })
     })
 }
