@@ -99,6 +99,19 @@ pub(super) fn analyze(
                 None
             }
         });
+    // The difference of two addresses is a distance, and the address model
+    // calls a distance a count: it names no referent, and no width equality
+    // relates counts to addresses, so it lands `u64` rather than its operands'
+    // carrier. `addr - count` still offsets an address and keeps `addr`.
+    // `reject_address_arithmetic` admits exactly the shapes separated here.
+    let primitive = if operator == BinaryOperator::Subtract
+        && operation.left.primitive == Some(PrimitiveType::Addr)
+        && operation.right.primitive == Some(PrimitiveType::Addr)
+    {
+        Some(PrimitiveType::U64)
+    } else {
+        primitive
+    };
     let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
     let mut exact_result_proven = false;
     if effective_domain == ArithmeticDomain::Exact {
