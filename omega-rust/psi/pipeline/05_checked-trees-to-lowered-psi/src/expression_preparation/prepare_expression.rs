@@ -314,81 +314,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             primitive_type,
             left,
             right,
-        } => Ok(LoweredDirectExpression::IntegerBinary {
-            kind: match kind {
-                CheckedIntegerBinaryKind::ExactAdd => LoweredIntegerBinaryKind::ExactAdd,
-                CheckedIntegerBinaryKind::ExactSubtract => LoweredIntegerBinaryKind::ExactSubtract,
-                CheckedIntegerBinaryKind::ExactMultiply => LoweredIntegerBinaryKind::ExactMultiply,
-                CheckedIntegerBinaryKind::ExactDivide => LoweredIntegerBinaryKind::ExactDivide,
-                CheckedIntegerBinaryKind::ExactRemainder => {
-                    LoweredIntegerBinaryKind::ExactRemainder
-                }
-                CheckedIntegerBinaryKind::WrappingDivide => {
-                    LoweredIntegerBinaryKind::WrappingDivide
-                }
-                CheckedIntegerBinaryKind::WrappingRemainder => {
-                    LoweredIntegerBinaryKind::WrappingRemainder
-                }
-                CheckedIntegerBinaryKind::SaturatingDivide => {
-                    LoweredIntegerBinaryKind::SaturatingDivide
-                }
-                CheckedIntegerBinaryKind::SaturatingRemainder => {
-                    LoweredIntegerBinaryKind::SaturatingRemainder
-                }
-                CheckedIntegerBinaryKind::WrappingAdd => LoweredIntegerBinaryKind::WrappingAdd,
-                CheckedIntegerBinaryKind::SaturatingAdd => LoweredIntegerBinaryKind::SaturatingAdd,
-                CheckedIntegerBinaryKind::WrappingSubtract => {
-                    LoweredIntegerBinaryKind::WrappingSubtract
-                }
-                CheckedIntegerBinaryKind::SaturatingSubtract => {
-                    LoweredIntegerBinaryKind::SaturatingSubtract
-                }
-                CheckedIntegerBinaryKind::WrappingMultiply => {
-                    LoweredIntegerBinaryKind::WrappingMultiply
-                }
-                CheckedIntegerBinaryKind::SaturatingMultiply => {
-                    LoweredIntegerBinaryKind::SaturatingMultiply
-                }
-                CheckedIntegerBinaryKind::BitwiseAnd => LoweredIntegerBinaryKind::BitwiseAnd,
-                CheckedIntegerBinaryKind::BitwiseOr => LoweredIntegerBinaryKind::BitwiseOr,
-                CheckedIntegerBinaryKind::BitwiseXor => LoweredIntegerBinaryKind::BitwiseXor,
-                CheckedIntegerBinaryKind::WrappingShiftLeft => {
-                    LoweredIntegerBinaryKind::WrappingShiftLeft
-                }
-                CheckedIntegerBinaryKind::WrappingShiftRight => {
-                    LoweredIntegerBinaryKind::WrappingShiftRight
-                }
-                CheckedIntegerBinaryKind::ExactShiftLeft => {
-                    LoweredIntegerBinaryKind::ExactShiftLeft
-                }
-                CheckedIntegerBinaryKind::ExactShiftRight => {
-                    LoweredIntegerBinaryKind::ExactShiftRight
-                }
-                // Each Trapping primitive keeps its own Terminal operation and
-                // operation-level crash site; it is never weakened into the
-                // Exact, Wrapping, or Saturating sibling.
-                CheckedIntegerBinaryKind::TrappingShiftLeft => {
-                    LoweredIntegerBinaryKind::TrappingShiftLeft
-                }
-                CheckedIntegerBinaryKind::TrappingShiftRight => {
-                    LoweredIntegerBinaryKind::TrappingShiftRight
-                }
-                CheckedIntegerBinaryKind::TrappingAdd => LoweredIntegerBinaryKind::TrappingAdd,
-                CheckedIntegerBinaryKind::TrappingSubtract => {
-                    LoweredIntegerBinaryKind::TrappingSubtract
-                }
-                CheckedIntegerBinaryKind::TrappingMultiply => {
-                    LoweredIntegerBinaryKind::TrappingMultiply
-                }
-                CheckedIntegerBinaryKind::TrappingDivide => {
-                    LoweredIntegerBinaryKind::TrappingDivide
-                }
-                CheckedIntegerBinaryKind::TrappingRemainder => {
-                    LoweredIntegerBinaryKind::TrappingRemainder
-                }
-            },
-            scalar_type: terminal_scalar_type(*primitive_type)?,
-            left: Box::new(lower_checked_scalar_expression_with_parameters(
+        } => {
+            let scalar_type = terminal_scalar_type(*primitive_type)?;
+            let left = lower_checked_scalar_expression_with_parameters(
                 left,
                 structural_parameters,
                 structural_fields,
@@ -396,8 +324,8 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
-            )?),
-            right: Box::new(lower_checked_scalar_expression_with_parameters(
+            )?;
+            let right = lower_checked_scalar_expression_with_parameters(
                 right,
                 structural_parameters,
                 structural_fields,
@@ -405,8 +333,97 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
-            )?),
-        }),
+            )?;
+            Ok(LoweredDirectExpression::IntegerBinary {
+                kind: match kind {
+                    CheckedIntegerBinaryKind::ExactAdd => LoweredIntegerBinaryKind::ExactAdd,
+                    CheckedIntegerBinaryKind::ExactSubtract => {
+                        LoweredIntegerBinaryKind::ExactSubtract
+                    }
+                    CheckedIntegerBinaryKind::ExactMultiply => {
+                        LoweredIntegerBinaryKind::ExactMultiply
+                    }
+                    CheckedIntegerBinaryKind::ExactDivide => LoweredIntegerBinaryKind::ExactDivide,
+                    CheckedIntegerBinaryKind::ExactRemainder => {
+                        LoweredIntegerBinaryKind::ExactRemainder
+                    }
+                    CheckedIntegerBinaryKind::WrappingDivide => {
+                        LoweredIntegerBinaryKind::WrappingDivide
+                    }
+                    CheckedIntegerBinaryKind::WrappingRemainder => {
+                        LoweredIntegerBinaryKind::WrappingRemainder
+                    }
+                    CheckedIntegerBinaryKind::SaturatingDivide => {
+                        LoweredIntegerBinaryKind::SaturatingDivide
+                    }
+                    CheckedIntegerBinaryKind::SaturatingRemainder => {
+                        LoweredIntegerBinaryKind::SaturatingRemainder
+                    }
+                    CheckedIntegerBinaryKind::WrappingAdd => LoweredIntegerBinaryKind::WrappingAdd,
+                    CheckedIntegerBinaryKind::SaturatingAdd => {
+                        LoweredIntegerBinaryKind::SaturatingAdd
+                    }
+                    CheckedIntegerBinaryKind::WrappingSubtract => {
+                        LoweredIntegerBinaryKind::WrappingSubtract
+                    }
+                    CheckedIntegerBinaryKind::SaturatingSubtract => {
+                        LoweredIntegerBinaryKind::SaturatingSubtract
+                    }
+                    CheckedIntegerBinaryKind::WrappingMultiply => {
+                        LoweredIntegerBinaryKind::WrappingMultiply
+                    }
+                    CheckedIntegerBinaryKind::SaturatingMultiply => {
+                        LoweredIntegerBinaryKind::SaturatingMultiply
+                    }
+                    CheckedIntegerBinaryKind::BitwiseAnd => LoweredIntegerBinaryKind::BitwiseAnd,
+                    CheckedIntegerBinaryKind::BitwiseOr => LoweredIntegerBinaryKind::BitwiseOr,
+                    CheckedIntegerBinaryKind::BitwiseXor => LoweredIntegerBinaryKind::BitwiseXor,
+                    CheckedIntegerBinaryKind::WrappingShiftLeft => {
+                        LoweredIntegerBinaryKind::WrappingShiftLeft
+                    }
+                    CheckedIntegerBinaryKind::WrappingShiftRight => {
+                        LoweredIntegerBinaryKind::WrappingShiftRight
+                    }
+                    CheckedIntegerBinaryKind::ExactShiftLeft => {
+                        LoweredIntegerBinaryKind::ExactShiftLeft
+                    }
+                    CheckedIntegerBinaryKind::ExactShiftRight => {
+                        LoweredIntegerBinaryKind::ExactShiftRight
+                    }
+                    CheckedIntegerBinaryKind::SaturatingShiftRight => {
+                        LoweredIntegerBinaryKind::ExactShiftRight
+                    }
+                    CheckedIntegerBinaryKind::SaturatingShiftLeft => {
+                        return super::saturating_shift::left(scalar_type, left, right);
+                    }
+                    // Each Trapping primitive keeps its own Terminal operation and
+                    // operation-level crash site; it is never weakened into the
+                    // Exact, Wrapping, or Saturating sibling.
+                    CheckedIntegerBinaryKind::TrappingShiftLeft => {
+                        LoweredIntegerBinaryKind::TrappingShiftLeft
+                    }
+                    CheckedIntegerBinaryKind::TrappingShiftRight => {
+                        LoweredIntegerBinaryKind::TrappingShiftRight
+                    }
+                    CheckedIntegerBinaryKind::TrappingAdd => LoweredIntegerBinaryKind::TrappingAdd,
+                    CheckedIntegerBinaryKind::TrappingSubtract => {
+                        LoweredIntegerBinaryKind::TrappingSubtract
+                    }
+                    CheckedIntegerBinaryKind::TrappingMultiply => {
+                        LoweredIntegerBinaryKind::TrappingMultiply
+                    }
+                    CheckedIntegerBinaryKind::TrappingDivide => {
+                        LoweredIntegerBinaryKind::TrappingDivide
+                    }
+                    CheckedIntegerBinaryKind::TrappingRemainder => {
+                        LoweredIntegerBinaryKind::TrappingRemainder
+                    }
+                },
+                scalar_type,
+                left: Box::new(left),
+                right: Box::new(right),
+            })
+        }
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,
             operand,

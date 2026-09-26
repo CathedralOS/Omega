@@ -99,6 +99,13 @@ pub(crate) enum LoweredDirectExpression {
         left: Box<LoweredDirectExpression>,
         right: Box<LoweredDirectExpression>,
     },
+    /// Composite arithmetic whose operands must be evaluated once before
+    /// the count is reused by the two positive scale factors.
+    SaturatingShiftLeft {
+        scalar_type: ScalarType,
+        left: Box<LoweredDirectExpression>,
+        right: Box<LoweredDirectExpression>,
+    },
     IntegerBitwiseNot {
         scalar_type: ScalarType,
         operand: Box<LoweredDirectExpression>,
@@ -169,6 +176,7 @@ impl LoweredDirectExpression {
             | Self::Local { scalar_type, .. }
             | Self::IntegerLiteral { scalar_type, .. }
             | Self::IntegerBinary { scalar_type, .. }
+            | Self::SaturatingShiftLeft { scalar_type, .. }
             | Self::IntegerBitwiseNot { scalar_type, .. }
             | Self::IntegerWiden { scalar_type, .. }
             | Self::IntegerExactCast { scalar_type, .. }
@@ -492,6 +500,54 @@ pub(crate) fn emit_direct_expression(
             next_value_identity,
             operations,
         ),
+        LoweredDirectExpression::SaturatingShiftLeft {
+            scalar_type,
+            left,
+            right,
+        } => {
+            let left_value =
+                emit_direct_expression(left, parameters, next_value_identity, operations);
+            let right_value =
+                emit_direct_expression(right, parameters, next_value_identity, operations);
+            let bindings = [
+                ValueDeclaration {
+                    id: left_value,
+                    scalar_type: *scalar_type,
+                    qualifications: Default::default(),
+                },
+                ValueDeclaration {
+                    id: right_value,
+                    scalar_type: right.scalar_type(),
+                    qualifications: Default::default(),
+                },
+            ];
+            let left = LoweredDirectExpression::Parameter {
+                position: 0,
+                scalar_type: *scalar_type,
+            };
+            let right = LoweredDirectExpression::Parameter {
+                position: 1,
+                scalar_type: right.scalar_type(),
+            };
+            // Right shift has exactly the authored formation condition: a
+            // representable count below the value width, without a value-
+            // overflow condition. Keep that certificate even though scaling
+            // uses total masked shifts. An optimizer may erase this unused
+            // result only after independent Terminal verification.
+            let count_witness = LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::ExactShiftRight,
+                scalar_type: *scalar_type,
+                left: Box::new(left.clone()),
+                right: Box::new(right.clone()),
+            };
+            emit_direct_expression(&count_witness, &bindings, next_value_identity, operations);
+            let expanded = crate::expression_preparation::saturating_shift::expansion(
+                *scalar_type,
+                left,
+                right,
+            );
+            emit_direct_expression(&expanded, &bindings, next_value_identity, operations)
+        }
         LoweredDirectExpression::IntegerBinary {
             kind,
             scalar_type,

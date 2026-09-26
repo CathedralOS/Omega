@@ -517,6 +517,17 @@ fn execute(
     source: &str,
     arguments: &[terminal_interpreter::TerminalScalarValue],
 ) -> terminal_interpreter::TerminalExecutionResult {
+    let (semantics, proof) = encoded_program(source);
+    terminal_interpreter::interpret_terminal_artifact(
+        &semantics,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+        arguments,
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"))
+}
+
+fn encoded_program(source: &str) -> (Vec<u8>, Vec<u8>) {
     let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -528,13 +539,159 @@ fn execute(
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .expect("canonical proof bytes");
-    terminal_interpreter::interpret_terminal_artifact(
-        &semantics,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-        arguments,
+    (semantics, proof)
+}
+
+#[test]
+fn saturating_shifts_execute_signed_unsigned_and_mixed_count_boundaries() {
+    use terminal_interpreter::TerminalExecutionResult;
+    for bits in [8_u16, 16, 32, 64] {
+        for signed in [false, true] {
+            let prefix = if signed { "i" } else { "u" };
+            let carrier = format!("{prefix}{bits}");
+            // Counts deliberately retain a different carrier at narrow widths.
+            for operator in ["<<", ">>"] {
+                let source = format!(
+                    "machine value(input: {carrier} in Saturating, count: u64) -> {carrier} \
+                     requires count < {bits} {{ (input {operator} count) as {carrier} }}"
+                );
+                let (semantics, proof) = encoded_program(&source);
+                let minimum = if signed { -(1_i128 << (bits - 1)) } else { 0 };
+                let maximum = (1_i128 << (bits - u16::from(signed))) - 1;
+                let inputs = if signed {
+                    vec![minimum, minimum + 1, -1, 0, 1, maximum]
+                } else {
+                    vec![0, 1, 17, maximum - 1, maximum]
+                };
+                for input in inputs {
+                    for count in [0_u16, 1, bits - 2, bits - 1] {
+                        let expected = if operator == "<<" {
+                            (input << count).clamp(minimum, maximum)
+                        } else {
+                            input >> count
+                        };
+                        let input = if signed {
+                            signed_argument(bits, input)
+                        } else {
+                            unsigned_argument(bits, input as u128)
+                        };
+                        let expected = if signed {
+                            signed_result(bits, expected)
+                        } else {
+                            unsigned_result(bits, expected as u128)
+                        };
+                        let result = terminal_interpreter::interpret_terminal_artifact(
+                            &semantics,
+                            &proof,
+                            &proof_admission::AdmissionProfile::default(),
+                            &[input, unsigned_argument(64, u128::from(count))],
+                        )
+                        .unwrap_or_else(|error| panic!("{source}, count {count}: {error:#?}"));
+                        assert_eq!(
+                            result,
+                            TerminalExecutionResult::Scalar(expected),
+                            "{source}, count {count}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn saturating_shift_evaluates_a_trapping_count_once_and_keeps_its_range_obligation() {
+    use terminal_interpreter::{TerminalArtifactInterpretError, TerminalInterpretError};
+    use terminal_psi::{OperationKind, TrappingIntegerPrimitive};
+    let source = "machine value(input: i8 in Saturating, count: u64 in Trapping, extra: u64 in Trapping) -> i8 \
+                  { (input << (((count + extra) as u64) & 7)) as i8 }";
+    let checked = crate::front_end::checked_program(source);
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
     )
-    .unwrap_or_else(|error| panic!("{source}: {error:#?}"))
+    .expect("saturating shift composes with a trapping count expression");
+    let operations = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    let traps = operations
+        .iter()
+        .filter_map(|operation| match operation.kind {
+            OperationKind::TrappingInteger { operation } => Some(operation.primitive()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        traps,
+        [TrappingIntegerPrimitive::Add],
+        "one authored count, one crash site"
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(
+                operation.kind,
+                OperationKind::ExactIntegerShiftRight { .. }
+            ))
+            .count(),
+        1,
+        "masked scaling must not erase the count-range obligation"
+    );
+    let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
+    let run = |count, extra| {
+        terminal_interpreter::interpret_terminal_artifact(
+            &semantics,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+            &[
+                signed_argument(8, 1),
+                unsigned_argument(64, count),
+                unsigned_argument(64, extra),
+            ],
+        )
+    };
+    assert_eq!(
+        run(3, 4).unwrap(),
+        terminal_interpreter::TerminalExecutionResult::Scalar(signed_result(8, 127))
+    );
+    let error =
+        run(u128::from(u64::MAX), 1).expect_err("the count addition still traps before scaling");
+    let TerminalArtifactInterpretError::Execution(TerminalInterpretError::Crash(crash)) = error
+    else {
+        panic!("expected the count operation's Trap, got {error:#?}");
+    };
+    assert_eq!(crash.cause, terminal_psi::CrashCause::Trap);
+}
+
+#[test]
+fn saturating_shift_invalid_counts_still_reject() {
+    for operator in ["<<", ">>"] {
+        for count in ["-1", "8"] {
+            let source = format!(
+                "machine value(input: i8 in Saturating) -> i8 \
+                 {{ (input {operator} ({count})) as i8 }}"
+            );
+            assert!(
+                crate::front_end::checked_program_result(&source).is_err(),
+                "{source}"
+            );
+        }
+        let source = format!(
+            "machine value(input: u8 in Saturating, count: u64) -> u8 \
+             {{ (input {operator} count) as u8 }}"
+        );
+        assert!(
+            crate::front_end::checked_program_result(&source).is_err(),
+            "{source}"
+        );
+    }
 }
 
 fn saturating_narrow(source_type: &str, target: &str) -> String {

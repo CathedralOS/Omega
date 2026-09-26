@@ -72,6 +72,12 @@ fn shared_integer_runtime_parameters(
                 *position,
             )]))
         }
+        LoweredDirectExpression::SaturatingShiftLeft { left, right, scalar_type } => {
+            if left.scalar_type() != *scalar_type { return None; }
+            let mut parameters = shared_integer_runtime_parameters(left)?;
+            parameters.extend(shared_integer_runtime_parameters(right)?);
+            Some(parameters)
+        }
         LoweredDirectExpression::IntegerBinary {
             kind:
                 kind @ (LoweredIntegerBinaryKind::BitwiseAnd

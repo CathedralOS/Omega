@@ -629,6 +629,8 @@ pub enum CheckedIntegerBinaryKind {
     WrappingShiftRight,
     ExactShiftLeft,
     ExactShiftRight,
+    SaturatingShiftLeft,
+    SaturatingShiftRight,
     /// Runtime-checked arithmetic: a failed primitive predicate is an
     /// executable trap, never a silent wrap or saturation. These forms carry
     /// only normal-return facts; consumers without a Trapping realization

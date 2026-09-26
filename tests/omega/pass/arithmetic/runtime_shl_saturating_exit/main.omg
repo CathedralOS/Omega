@@ -1,18 +1,23 @@
-// RUN CANARY (exit 70) + interpreter differential. Saturating `<<` clamps
-// when the TRUE value x * 2^n leaves the type's range (shift slice C,
-// closing the shift-domain arc): u8 17 << 4 = 272 clamps to 255. All three
-// engines conform -- the count is statically proven in range, while the
-// interpreter and both native backends detect and clamp value overflow.
-// PROMOTED
-// from tests/omega/pending after sitting parked as a three-way divergence.
-// exits: 71 = neither clamped nor wrapped; 72 = wrapped (the old native
-// plain-shl behavior).
+// Native success is exit 70. Saturating `<<` clamps the mathematical
+// product: u8 17 << 4 = 272 becomes 255. Signed limits, zero, arithmetic
+// right shift, and a wider count carrier must preserve their own semantics.
+// Counts are proven in range; saturation does not admit invalid counts.
+// Exit 71 is a wrong result; 72 is the original unsigned wrapping result.
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main
 where
     b <= 7,
-{ console: Binding<Console>; a: u8 in Saturating; b: u8; r: u8 in Saturating; }
+    signed_count <= 7,
+{
+    console: Binding<Console>;
+    a: u8 in Saturating;
+    b: u8;
+    r: u8 in Saturating;
+    signed_value: i8 in Saturating;
+    signed_count: u64;
+    signed_result: i8 in Saturating;
+}
 machine Main::main(&mut self) reaches Console {
     self.a = 17;
     self.b = 4;
@@ -21,7 +26,35 @@ machine Main::main(&mut self) reaches Console {
     state chk16(&mut self) {
         transition self.r == 16 { true -> wrapped() _ -> bad() }
     }
-    state clamped(&mut self) { self.console.exit_process(70); }
+    state clamped(&mut self) {
+        // The largest count must not turn a signed scale factor negative.
+        self.signed_value = 1;
+        self.signed_count = 7;
+        self.signed_result = self.signed_value << self.signed_count;
+        transition self.signed_result == 127 { true -> negative() _ -> bad() }
+    }
+    state negative(&mut self) {
+        self.signed_value = -1;
+        self.signed_result = self.signed_value << self.signed_count;
+        transition self.signed_result == -128 { true -> right_shift() _ -> bad() }
+    }
+    state right_shift(&mut self) {
+        self.signed_value = -128;
+        self.signed_result = self.signed_value >> self.signed_count;
+        transition self.signed_result == -1 { true -> zero_count() _ -> bad() }
+    }
+    state zero_count(&mut self) {
+        self.signed_count = 0;
+        self.signed_result = self.signed_value << self.signed_count;
+        transition self.signed_result == -128 { true -> zero_value() _ -> bad() }
+    }
+    state zero_value(&mut self) {
+        self.signed_value = 0;
+        self.signed_count = 7;
+        self.signed_result = self.signed_value << self.signed_count;
+        transition self.signed_result == 0 { true -> done() _ -> bad() }
+    }
+    state done(&mut self) { self.console.exit_process(70); }
     state wrapped(&mut self) { self.console.exit_process(72); }
     state bad(&mut self) { self.console.exit_process(71); }
 }

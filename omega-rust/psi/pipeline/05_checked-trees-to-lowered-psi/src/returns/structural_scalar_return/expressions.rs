@@ -75,7 +75,8 @@ pub(super) fn is_branch_free_structural_integer_expression(
 ) -> bool {
     match expression {
         LoweredDirectExpression::IntegerLiteral { .. } => true,
-        LoweredDirectExpression::IntegerBinary { left, right, .. } => {
+        LoweredDirectExpression::IntegerBinary { left, right, .. }
+        | LoweredDirectExpression::SaturatingShiftLeft { left, right, .. } => {
             is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
                 && is_branch_free_structural_integer_expression(
                     right,

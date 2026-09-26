@@ -470,6 +470,8 @@ fn lower_structural_integer_expression(
                         | CheckedIntegerBinaryKind::WrappingShiftRight
                         | CheckedIntegerBinaryKind::ExactShiftLeft
                         | CheckedIntegerBinaryKind::ExactShiftRight
+                        | CheckedIntegerBinaryKind::SaturatingShiftLeft
+                        | CheckedIntegerBinaryKind::SaturatingShiftRight
                 ))
             .then_some((
                 CheckedScalarExpression::IntegerBinary {

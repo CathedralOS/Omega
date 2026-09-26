@@ -237,6 +237,39 @@ pub(crate) fn evaluate_direct_expression(
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ElementViewLength { .. }
         | LoweredDirectExpression::ElementViewRead { .. } => None,
+        LoweredDirectExpression::SaturatingShiftLeft {
+            scalar_type,
+            left,
+            right,
+        } => {
+            let ScalarType::Integer(carrier) = scalar_type else {
+                return None;
+            };
+            let ScalarType::Integer(count_type) = right.scalar_type() else {
+                return None;
+            };
+            let KnownDirectScalar::Integer(value) = evaluate_direct_expression(left, parameters)?
+            else {
+                return None;
+            };
+            let KnownDirectScalar::Integer(count) = evaluate_direct_expression(right, parameters)?
+            else {
+                return None;
+            };
+            carrier.exact_shift_right(value, count_type, count)?;
+            let expanded = crate::expression_preparation::saturating_shift::expansion(
+                *scalar_type,
+                LoweredDirectExpression::IntegerLiteral {
+                    scalar_type: *scalar_type,
+                    value,
+                },
+                LoweredDirectExpression::IntegerLiteral {
+                    scalar_type: right.scalar_type(),
+                    value: count,
+                },
+            );
+            evaluate_direct_expression(&expanded, &[])
+        }
         LoweredDirectExpression::IntegerBinary {
             kind,
             scalar_type,
