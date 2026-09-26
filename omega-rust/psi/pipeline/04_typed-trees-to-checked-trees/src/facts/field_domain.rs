@@ -531,10 +531,29 @@ fn declared_owned_field_domain_identities_uncached(
             length: FixedArrayLength::Literal(length),
         } = program.type_reference_table.type_reference(carrier)
         {
+            if *length == 0 {
+                return;
+            }
+            // Every element has the same identities below its index. Visit
+            // one element under a placeholder index and repeat the result per
+            // index rather than walking each element of a large buffer.
+            let mut element = Vec::new();
+            let mut element_prefix = vec![facts::PlaceSegment::FixedIndex { index: 0 }];
+            visit(
+                program,
+                *element_type,
+                &mut element_prefix,
+                ancestors,
+                &mut element,
+            );
             for index in 0..*length {
-                prefix.push(facts::PlaceSegment::FixedIndex { index });
-                visit(program, *element_type, prefix, ancestors, output);
-                prefix.pop();
+                for (path, symbol, identity) in &element {
+                    let mut indexed = Vec::with_capacity(prefix.len() + path.len());
+                    indexed.extend_from_slice(prefix);
+                    indexed.push(facts::PlaceSegment::FixedIndex { index });
+                    indexed.extend_from_slice(&path[1..]);
+                    output.push((indexed, *symbol, *identity));
+                }
             }
         }
     }
