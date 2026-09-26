@@ -228,6 +228,11 @@ struct ScopeProofs {
     /// whose leaf set adds `derived::prove`, so its answers are not
     /// interchangeable with the canonical `build` answers.
     relaxed: BTreeMap<(Proposition, BTreeSet<ValueId>), Option<ProofNode>>,
+    /// `integer_selection::derived`'s bounded closure per integer type. It
+    /// depends on the scope and the type, never on the goal, and every
+    /// derived goal and operand-endpoint query under this scope reads the
+    /// same proposition set.
+    derived: BTreeMap<semantic_vocabulary::IntegerType, Rc<[ProofNode]>>,
 }
 
 thread_local! {
@@ -332,6 +337,7 @@ fn shared_proofs(
                             selection: BTreeMap::new(),
                             build: BTreeMap::new(),
                             relaxed: BTreeMap::new(),
+                            derived: BTreeMap::new(),
                         })),
                     ));
                     proofs.len() - 1
@@ -720,6 +726,24 @@ impl DefinitionIndex {
             .borrow_mut()
             .build
             .insert((goal.clone(), machine_parameter_values.clone()), proof);
+    }
+
+    pub(in crate::proofs::nonzero_divisor_certificate) fn cached_derived_closure(
+        &self,
+        integer_type: semantic_vocabulary::IntegerType,
+    ) -> Option<Rc<[ProofNode]>> {
+        self.proofs.borrow().derived.get(&integer_type).cloned()
+    }
+
+    pub(in crate::proofs::nonzero_divisor_certificate) fn cache_derived_closure(
+        &mut self,
+        integer_type: semantic_vocabulary::IntegerType,
+        closure: Rc<[ProofNode]>,
+    ) {
+        self.proofs
+            .borrow_mut()
+            .derived
+            .insert(integer_type, closure);
     }
 
     /// Same whole-selection memo for the relaxed selection whose leaf set

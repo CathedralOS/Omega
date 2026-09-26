@@ -3,7 +3,7 @@ use symbols::SymbolHandle;
 
 /// Whether an authored declaration selection contributes only to an
 /// implementation or is exposed through a package's published surface.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AuthoredDeclarationSelectionExposure {
     PrivateImplementation,
     PublicInterface,
@@ -14,7 +14,7 @@ pub enum AuthoredDeclarationSelectionExposure {
 /// These kinds describe source authority only. Compiler-planned layout,
 /// movement, and automatic cleanup are semantic dependencies and do not belong
 /// in this ledger.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AuthoredDeclarationSelectionKind {
     TypeReference,
     StaticPathSegment,

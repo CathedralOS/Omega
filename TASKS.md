@@ -622,6 +622,34 @@ the complete product bar; focused successes below do not establish that baseline
   Prioritize the actual operation named by `omitted at local construction`,
   not the downstream `rejoins 0 Terminal attachment identities` symptom.
 
+  The fail tier is status-clean: all 435 fixtures reject and none records
+  `checked`. What the gate still reports on a clean checkout is 25 moves
+  against the golden, and they are not one problem. Twenty-two are diagnostic
+  text: `fail/arithmetic/narrowing_signedness_rejected`, for one, still
+  rejects and still carries its fragment, but the message is now
+  **IMPLICIT-STORE-CONVERSION**'s rather than the narrowing-proof rule's.
+  Others gain a diagnostic from bundled library code rather than their own --
+  `fail/modules/ambiguous_imported_data` now also reports
+  `LinuxArm64::extent_shape` storing outside a declared range. Attribute each
+  row to the lane that moved it before re-pinning; a bulk re-record would pin
+  whatever those lanes broke as expected.
+
+  Four fail fixtures reject for a reason other than their own subject, so
+  they pin nothing. `fail/build/uefi_program_entry_wrong_calling_policy`
+  declares its own `UefiApplication` beside the bundled one and refuses at
+  "requires exactly one loaded `UefiApplication` boundary schema, but found
+  2" before any policy is weighed; whether ambiguity or the policy is the
+  right answer there is the entry-slot owner's call.
+  `fail/calls/value_call_param_effect_arm_rejected` expects "composed scalar
+  call structural actual lost its authored position" from checking and is
+  instead refused at realization by Terminal validation
+  (`InvalidBlockStructuralParameter`), so the checked-stage rule it names
+  goes unexercised. `fail/ranges/index_signed_guard_below_zero` and
+  `fail/ranges/loop_increment_index_unbounded` are masked by
+  **IMPLICIT-STORE-CONVERSION**'s new refusal on a `__hoist_0` local and are
+  recorded there. All four are pinned `unexpected` in the golden rather than
+  hidden.
+
   `corpus_runner`'s pass route requests the Check product targetless and
   establishes no program entry, so a `_exit` fixture whose unit plan is
   omitted still records `checked`. Every `pass/recast/*_exit` row is green on
@@ -655,6 +683,22 @@ the complete product bar; focused successes below do not establish that baseline
   **OPERATOR-BOUNDARY-CALLS** exists to remove. The widening is a prerequisite
   for that item's customer, not an independent repair: land it with that work,
   where the sample's own `omega --check` is the acceptance.
+
+  Two measurements for whoever lands it. The widening is clean over 1120
+  corpus fixtures and moves none of them, because the store admission only
+  decides unit-plan construction and no corpus fixture reaches it: a
+  float-store program checks targetless either way, and only a bound program
+  entry exposes the omission. Second, the widening is not sufficient for
+  realization. A machine binding an entry whose body is
+  `self.lo = self.readings[0]; self.hi = self.lo;` has its unit plan omitted
+  without the widening and builds a plan with it, then stops in
+  `expression_preparation/source_custody/storage_reads` at "scalar read
+  differs from its authored binding or mutable place": the independent replay
+  there does not reconstruct either read form, and it is a verification
+  check, not a gate to relax. Keep an exit that is not a float guard when
+  writing the acceptance -- `transition self.lo == 1.5` omits at
+  `state graph: terminator: conditional successors: guard expression` on its
+  own, with no float store involved.
 
   No corpus fixture sees that diagnostic at all -- a full record carries zero
   occurrences -- because the pass tier compiles targetless through Check and
@@ -3150,6 +3194,16 @@ syntax and other terminal services are not prerequisites.
   refusal than "a typed value keeps its arithmetic policy", and whether the
   rule should reach them is this item's call, not a fixture repair.
 
+  Two corpus fail fixtures are masked the same way and need the same
+  judgement. `fail/ranges/index_signed_guard_below_zero` and
+  `fail/ranges/loop_increment_index_unbounded` each expect a
+  "cannot prove index" refusal and are instead refused at
+  "store in machine `Main::main` state `body` local `__hoist_0` implicitly
+  converts `i32` to `i32 in Trapping`". The conversion is in a compiler-minted
+  hoist local, not authored source, so neither fixture can spell an `as` to
+  restore its subject: the rule reaching a generated local is this item's
+  call.
+
   `call_bounds::tests::widening::argument_widening_does_not_reinterpret_saved\
 _wrapping_computations` is repaired as the worked example: it asserts rejection
   carrying "cannot prove requires" and was being refused earlier for the
@@ -4204,30 +4258,60 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
 
-  A traced omission that is general and cheap to reproduce. No reference-typed
-  local bound to a place loan plans, in any polarity or referent shape: `let r:
-  &bool = &self.flag;`, `let r: &mut u8 = &mut self.byte;` and `let r: &Inner =
-  &self.inner;` all omit at `statement sequence: local data: structural call
-  binding`, while `(&self.flag as &u8) == 1` and `(&self.inner).v == 0` inline
-  in a guard operand plan and reach realization.
-  `local_data.rs` routes every structural local through that phase and returns
-  `None` unless the initializer is a `Call`; a loan is not a call result.
-  This holds every `tests/omega/pass/recast/*_exit` fixture at
-  **RECAST-SOURCE-POSITIONS**.
+  A traced omission that is general and cheap to reproduce. A reference-typed
+  local bound to a place loan has no producer: `local_data.rs` routes every
+  structural local through `statement sequence: local data: structural call
+  binding` and returns `None` unless the initializer is a `Call`, while the
+  same read inline in a guard operand plans and reaches realization.
 
-  The plan variant and its Terminal operation already exist:
-  `CheckedUnitEffectOperationPlan::EstablishReference` and
-  `terminal-psi`'s `EstablishReference`, produced today only for a `(place)`
-  or `(place[a..b])` return target by `state_graph/returns.rs` and
-  `statement_sequence/completion.rs`, both at `Multiplicity::Affine` with a
-  returned-carrier release. What is missing is a producer at the `let` site
-  and the observation route that reads a scalar leaf through the resulting
-  structural local; `05_`'s `runtime field observation` binder resolves a
-  `StructuralParameterField`, not a structural local result. Do not make the
-  local alias its loaned place instead:
-  `resolve_contextual_name_path_root` deliberately roots a local at its own
-  symbol, and collapsing that erases the loan identity that borrow facts,
-  write frames and releases are keyed on.
+  One shape is now planned. An immutable `&mut <primitive>` loan whose place
+  roots at a structural parameter and whose projection bottoms out in exactly
+  the declared referent is admitted as a compile-time carrier: it plans no
+  operation, `structural_scalar_store::destination` rejoins each write through
+  the name to the loaned place, and `composed_control`'s body count recognizes
+  it as a marker. A reference cannot be reseated and the binding is immutable,
+  so the name denotes one place for its scope and the write is the ordinary
+  store of that place; it adds no authority over the checked loan.
+
+  Still omitting: every shared loan, and any *read* through a loan name.
+  Do not close those by making the local alias its place in
+  `resolve_contextual_name_path_root`: it roots a local at its own symbol so
+  borrow facts, write frames and releases keep a loan identity to key on.
+  `EstablishReference` and its Terminal operation exist for a `(place)` return
+  target, at `Multiplicity::Affine` with a returned-carrier release; a `let`
+  loan of a known place needs no such value, and minting one is dropped by
+  `composed_control`'s state graph as an added body effect.
+
+  The shared half is one consumer away, and the consumer is named. Admitting
+  `shared_borrowed_parts` beside `parts` in the producer and its
+  `composed_control` marker is corpus-clean over 1119 fixtures and makes
+  `let r: &Inner = &self.inner; transition r.v == 0` check; realization then
+  stops at "computed shared argument lost its established local".
+  `expression_preparation/bindings`'s `shared_structural_argument` resolves a
+  `StructuralLocal { symbol }` through the `structural_locals` registry, which
+  a loan planning no operation never enters. That registry already states a
+  `&T` local "is itself a shared-borrow join result", so the entry belongs
+  there, but three edits are needed and not one: `argument_evaluation`
+  registers only from a lowered structural value's `produced.place`, so a
+  loan needs its own registration from the parameter place and projection;
+  the entry's `path` is then non-empty, which `shared_structural_argument`
+  refuses outright today; and the two paths must compose at the use.
+  Do not instead rejoin at the argument sites, the way the store destination
+  does -- `StructuralLocal` sources are built at ten sites across
+  `values/scalar/computations/` and `execution/terminal_cleanup.rs`. A bare scalar read through the name
+  (`let r: &bool = &self.flag; transition r`) stops earlier still, at
+  `state graph: terminator: conditional successors: guard expression`.
+
+  That shape now executes. `let seen: &mut u8 = &mut self.raw; seen = 0;`
+  realizes to a Mach-O product on macOS AArch64 and exits 70, pinned by
+  `checked-trees-to-lowered-psi`'s `tests::exclusive_loan_locals`.
+
+  One loan shape remains refused past checking: loaning a ranged field
+  (`u8 [0..=1]`) as `&mut u8` reaches "receiver alias changes its referent
+  type" in `projected_receivers/aliases.rs`, because
+  `normalized_type_identity` equates the two while that owner does not. Decide
+  whether the weakening is admissible before widening either side; validation
+  admits the program today.
 
   A traced omission to start from. `samples/cli/collections/matrix_multiply`
   stops at `structural field store: scalar field type` (state 0, statement 0),

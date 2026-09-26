@@ -183,6 +183,10 @@ pub(super) struct FlowBuildContext<'plans> {
     >,
     entry_origin_chains:
         HashMap<(SymbolHandle, SymbolHandle), Rc<Vec<(SymbolHandle, SymbolHandle)>>>,
+    /// One solved parameter-origin fixed point per machine, shared by every
+    /// state's `entry_origin_chains` row.
+    machine_parameter_origins:
+        HashMap<SymbolHandle, Rc<crate::flow::entry_origins::MachineParameterOrigins>>,
     reference_candidate_places:
         HashMap<(SymbolHandle, usize, SymbolHandle), Option<Rc<Vec<crate::flow::CanonicalPlace>>>>,
     /// Statement storage-write places per site: the answer is program-pure on
@@ -276,6 +280,7 @@ impl<'plans> FlowBuildContext<'plans> {
             expression_result_types: HashMap::new(),
             transition_call_targets: HashMap::new(),
             entry_origin_chains: HashMap::new(),
+            machine_parameter_origins: HashMap::new(),
             reference_candidate_places: HashMap::new(),
             statement_storage_writes: HashMap::new(),
             correspondence_root_types: HashMap::new(),
@@ -454,14 +459,29 @@ impl<'plans> FlowBuildContext<'plans> {
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
     ) -> Rc<Vec<(SymbolHandle, SymbolHandle)>> {
+        if let Some(chain) = self
+            .entry_origin_chains
+            .get(&(machine.symbol, state.symbol))
+        {
+            return chain.clone();
+        }
+        let solved = match self.machine_parameter_origins.get(&machine.symbol) {
+            Some(solved) if solved.covers(program, machine) => solved.clone(),
+            _ => {
+                let solved = Rc::new(crate::flow::entry_origins::machine_parameter_origins(
+                    program, machine,
+                ));
+                self.machine_parameter_origins
+                    .insert(machine.symbol, solved.clone());
+                solved
+            }
+        };
+        let chain = Rc::new(crate::flow::entry_origins::state_origins(
+            program, machine, state, &solved,
+        ));
         self.entry_origin_chains
-            .entry((machine.symbol, state.symbol))
-            .or_insert_with(|| {
-                Rc::new(crate::flow::entry_origins::state_origins(
-                    program, machine, state,
-                ))
-            })
-            .clone()
+            .insert((machine.symbol, state.symbol), chain.clone());
+        chain
     }
 
     pub(super) fn expression_occurrences_at(
