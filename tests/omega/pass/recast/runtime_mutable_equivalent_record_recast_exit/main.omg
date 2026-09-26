@@ -34,13 +34,28 @@ machine Main::main(&mut self) reaches Console {
         &mut self.source as &mut UnsignedRecord;
     view.unsigned_value = 99;
     view.active = true;
+    // `view` holds an EXCLUSIVE loan of `self.source`, and exclusivity
+    // prevents reading the original while that loan is live (ownership:
+    // "&mut T | Exclusive observation and mutation" and "Exclusivity
+    // prevents reading old contents through a second alias"). Reading both
+    // spellings inside one guard did that, and only compiled because a plain
+    // operand read bypassed the check that a call argument enforces -- so the
+    // guard stopped compiling the moment `f32 ==` became a call to
+    // `Float::equal`. Observing through the view FIRST ends the loan at its
+    // last use, and the original is then read on its own authority. The
+    // subject is unchanged: values written through the recast view are the
+    // values the original reports.
+    let seen_value: u16 = view.unsigned_value;
+    let seen_tag: u16 = view.unsigned_tag;
+    let seen_active: bool = view.active;
+    let seen_ratio: f32 = view.unsigned_ratio;
     transition self.source.signed_value == 99
-        && view.unsigned_value == 99
+        && seen_value == 99
         && self.source.signed_tag == 2
-        && view.unsigned_tag == 2
+        && seen_tag == 2
         && self.source.enabled
-        && view.active
-        && view.unsigned_ratio == self.source.signed_ratio {
+        && seen_active
+        && seen_ratio == self.source.signed_ratio {
         true -> good()
         _ -> bad()
     }
