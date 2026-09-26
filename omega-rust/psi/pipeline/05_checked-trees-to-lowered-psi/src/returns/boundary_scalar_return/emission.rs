@@ -1,13 +1,13 @@
 //! Boundary-return body emission in an already selected catalog and identity space.
 use super::super::{
     Block, BoundaryMachineId, CarryPolicy, CompletionReceipt, ContractId, EntryClaim,
-    LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence, MachineContract, MachineId,
-    Operation, OperationKind, PermissionClaimIdentity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
-    TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, TerminalMachineResult, Terminator,
-    ValueDeclaration, allocate_dense, claim_id, edge_id, lookup_claim_id,
-    lower_checked_crash_route_buckets, lower_installation_machine_service_ceiling,
-    lower_structural_arguments, lower_structural_path, validate_transfer_shape, value_id,
+    LoweredSourceCallOccurrence, MachineContract, MachineId, Operation, OperationKind,
+    PermissionClaimIdentity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, TERMINAL_MACHINE_IDENTITY_STRIDE,
+    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, claim_id,
+    edge_id, lookup_claim_id, lower_checked_crash_route_buckets,
+    lower_installation_machine_service_ceiling, lower_structural_arguments, lower_structural_path,
+    validate_transfer_shape, value_id,
 };
 use super::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
@@ -34,7 +34,6 @@ pub(crate) struct BoundaryScalarReturnIdentities {
 pub(crate) struct EmittedBoundaryScalarReturn {
     pub(crate) machine: TerminalMachine,
     pub(crate) source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
-    pub(crate) selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     pub(crate) selected_ieee_float_comparison_occurrences:
         Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(crate) selected_integer_comparison_occurrences:
@@ -286,7 +285,6 @@ pub(crate) fn emit_boundary_scalar_return(
     let OperationBuffer {
         operations,
         source_calls: source_call_occurrences,
-        selected_ieee_float_fmas: selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparisons: selected_ieee_float_comparison_occurrences,
         selected_integer_comparisons: selected_integer_comparison_occurrences,
         ..
@@ -377,7 +375,6 @@ pub(crate) fn emit_boundary_scalar_return(
     Ok(EmittedBoundaryScalarReturn {
         machine,
         source_call_occurrences,
-        selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     })

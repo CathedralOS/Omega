@@ -402,7 +402,6 @@ pub(crate) fn lower_scalar_call_closure(
     let mut machines = Vec::with_capacity(prepared.len());
     let mut evidence = Vec::new();
     let mut source_call_occurrences = Vec::new();
-    let mut selected_ieee_float_fma_occurrences = Vec::new();
     let mut selected_ieee_float_comparison_occurrences = Vec::new();
     let mut selected_integer_comparison_occurrences = Vec::new();
     let mut scalar_qualifications = qualifications.catalog().clone();
@@ -458,8 +457,6 @@ pub(crate) fn lower_scalar_call_closure(
         machines.push(terminal_machine.clone());
         evidence.append(&mut lowered.proof_bundle.evidence);
         source_call_occurrences.append(&mut lowered.source_call_occurrences);
-        selected_ieee_float_fma_occurrences
-            .append(&mut lowered.selected_ieee_float_fma_occurrences);
         selected_ieee_float_comparison_occurrences
             .append(&mut lowered.selected_ieee_float_comparison_occurrences);
         selected_integer_comparison_occurrences
@@ -486,7 +483,6 @@ pub(crate) fn lower_scalar_call_closure(
         },
         debug_map: None,
         source_call_occurrences,
-        selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     };

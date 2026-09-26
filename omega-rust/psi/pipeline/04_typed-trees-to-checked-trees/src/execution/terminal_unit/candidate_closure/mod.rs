@@ -233,11 +233,7 @@ pub(super) fn retain_available(
                     }
                 }
                 // Selected execution already joined exact realization custody.
-                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
-                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
-                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
-                | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
-                | CheckedUnitEffectOperationPlan::PortWrite { .. }
+                CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                 | CheckedUnitEffectOperationPlan::ReleaseReference { .. }

@@ -60,19 +60,6 @@ deletes the side doors it replaces. Validate with `tools/corpus_gate.py
 --filter` over the affected groups plus `--native --filter` for anything
 backend-visible; full corpus runs only at the end of an item.
 
-- **DEAD-SELECTED-OPERATOR-PLANS.** (new-scope) 089bd3290c stopped producing
-  the selected-operator Unit plans; delete their vocabulary and consumers:
-  `CheckedUnitEffectOperationPlan::{SelectedOperatorScalarCall,
-  SelectedOperatorStructuralScalarCall, SelectedOperatorStructuralCall,
-  SelectedIeeeFloatFusedMultiplyAdd}`,
-  `CheckedStructuralScalarReturnPlans::selected_operator_machines` and
-  `CheckedSelectedOperatorStructuralScalarReturnMachinePlan`, their arms in
-  stage 05 (`unit/attached_unit/selected_operator.rs`,
-  `returns/structural_scalar_return/selected_operator.rs`, source custody),
-  stage 07 `boundary_operator_custody`, `validate_selected_operator_terminal_custody`,
-  terminal-artifact `float_fma` and the native FMA occurrence joins.
-  Acceptance: none of those names remain and the corpus goldens are unchanged.
-
 - **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
   A boundary-operator application lowers as a requirement-level `BoundaryCall`
   on the operator's requirement, exactly like a direct top-level requirement
@@ -85,7 +72,10 @@ backend-visible; full corpus runs only at the end of an item.
   the operator-adapter and float-intrinsic resolution it uses. Compiler-known
   float realizations (`F32::negate`, directed arithmetic, conversions,
   `square_root`, FMA) install as Omega builtins beside the hosted process
-  builtins in native provider settlement. Acceptance: the eight native builds
+  builtins in native provider settlement. Stage 02's
+  `AdmittedIeeeFloatFmaSettlement` and the native realization request's
+  `ieee_float_fma` slice survive with no producer (every caller passes an empty
+  slice): reuse them for FMA installation or delete them. Acceptance: the eight native builds
   089bd3290c regressed build again with their golden exits
   (`providers/checked_fixed_operator_dispatch_exit` exits 70,
   `checked_boundary_operator_physical_custody`,

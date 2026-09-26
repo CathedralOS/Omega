@@ -69,9 +69,6 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
     for occurrence in &before.selected_ieee_float_comparison_occurrences {
         sidecar_operations.insert(occurrence.terminal_operation);
     }
-    for occurrence in &before.selected_ieee_float_fma_occurrences {
-        sidecar_operations.insert(occurrence.terminal_operation);
-    }
     for occurrence in &before.selected_integer_comparison_occurrences {
         sidecar_operations.insert(occurrence.terminal_operation);
     }

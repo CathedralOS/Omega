@@ -442,14 +442,6 @@ pub(crate) fn build_checked_machine_residual_parts(
                 structural_arguments,
                 ..
             }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                structural_arguments,
-                ..
-            }
             | CheckedUnitEffectOperationPlan::StructuralCall {
                 structural_arguments,
                 ..
@@ -468,8 +460,6 @@ pub(crate) fn build_checked_machine_residual_parts(
             | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)

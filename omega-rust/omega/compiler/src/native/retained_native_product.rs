@@ -243,35 +243,6 @@ pub fn realize_retained_native_artifact(
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let ieee_float_fma = proposal
-            .ieee_float_fma_occurrences()
-            .iter()
-            .map(|occurrence| {
-                let provider_plan = proposal
-                    .selected_provider_plans()
-                    .plans()
-                    .get(occurrence.provider_plan_index())
-                    .ok_or_else(|| {
-                        diagnostic(
-                            "Terminal nearest-FMA proposal",
-                            "occurrence names an absent exact selected provider plan",
-                        )
-                    })?;
-                let admission = occurrence.x86_admission().ok_or_else(|| {
-                    diagnostic(
-                        "Terminal nearest-FMA proposal",
-                        "ordinary native lowering currently requires admitted x86 FMA custody",
-                    )
-                })?;
-                Ok(crate::native::AdmittedIeeeFloatFmaSettlement {
-                    terminal_operation: occurrence.terminal_operation(),
-                    provider_plan,
-                    format: occurrence.format(),
-                    slot: admission.slot(),
-                    provider: admission.provider(),
-                })
-            })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         let calling_plans = proposal.program_entry().calling_plans().map(|plans| {
             (
                 &plans.semantic_calling_application,
@@ -306,7 +277,7 @@ pub fn realize_retained_native_artifact(
                 settlements: &native_settlements,
                 compiler_builtins: &compiler_builtins,
                 boundary_application_coverage: Some(proposal.boundary_application_coverage()),
-                ieee_float_fma: &ieee_float_fma,
+                ieee_float_fma: &[],
                 native_callbacks: &native_callbacks,
                 callback_thunks: &callback_thunks,
                 behavior_exclusions: proposal.behavior_exclusions(),

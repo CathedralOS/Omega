@@ -271,7 +271,6 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
     CheckedStructuralScalarReturnPlans {
         structural_types: shapes.types.into_values().collect(),
         machines,
-        selected_operator_machines: Vec::new(),
         trait_operator_machines,
     }
 }

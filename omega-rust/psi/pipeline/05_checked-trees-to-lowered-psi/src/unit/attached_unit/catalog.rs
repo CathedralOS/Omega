@@ -191,34 +191,6 @@ pub(super) fn lower_unit_structural_types_including(
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     type_identity, ..
                 } => roots.push(type_identity.clone()),
-                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                    realization_machine,
-                    realization_state,
-                    ..
-                } => {
-                    let realizations = checked
-                        .facts
-                        .flow
-                        .terminal_structural_scalar_returns
-                        .machines
-                        .iter()
-                        .filter(|plan| {
-                            plan.machine == *realization_machine && plan.state == *realization_state
-                        })
-                        .collect::<Vec<_>>();
-                    let [realization] = realizations.as_slice() else {
-                        return unsupported(
-                            "selected structural-scalar Unit operation has no exact type catalog owner",
-                        );
-                    };
-                    roots.extend(realization.attachment_type_identity.clone());
-                    roots.extend(
-                        realization
-                            .structural_parameters
-                            .iter()
-                            .map(|parameter| parameter.type_identity.clone()),
-                    );
-                }
                 CheckedUnitEffectOperationPlan::StructuralCall {
                     target_machine,
                     target_state,
@@ -246,12 +218,7 @@ pub(super) fn lower_unit_structural_types_including(
                             .map(|parameter| parameter.type_identity.clone()),
                     );
                 }
-                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                    realization_machine,
-                    realization_state,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::StructuralCall {
+                CheckedUnitEffectOperationPlan::StructuralCall {
                     target_machine: realization_machine,
                     target_state: realization_state,
                     ..
@@ -1031,18 +998,6 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                     service_reach, ..
                 }
-                | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-                    service_reach,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                    service_reach,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                    service_reach,
-                    ..
-                }
                 | CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } => {
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
@@ -1054,7 +1009,6 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)

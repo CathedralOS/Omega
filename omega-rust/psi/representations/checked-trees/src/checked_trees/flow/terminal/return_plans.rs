@@ -12,8 +12,7 @@ use symbols::SymbolHandle;
 use crate::checked_trees::flow::FlowFacts;
 use crate::checked_trees::flow::terminal::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedClaimFreeAffineStructuralReturnMachinePlan,
-    CheckedPayloadlessGuardedCallReturnMachinePlan,
-    CheckedSelectedOperatorStructuralScalarReturnMachinePlan, CheckedStructuralReturnMachinePlan,
+    CheckedPayloadlessGuardedCallReturnMachinePlan, CheckedStructuralReturnMachinePlan,
     CheckedStructuralScalarReturnMachinePlan, CheckedTerminalSignatureEligibility,
     CheckedTraitOperatorScalarReturnMachinePlan,
 };
@@ -25,9 +24,6 @@ use crate::checked_trees::flow::terminal::{
 /// terminal lowering has always dispatched in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedReturnPlan<'a> {
-    /// One scalar result realized by calling a selected boundary operator's
-    /// checked realization over the exact structural frontier.
-    SelectedOperator(&'a CheckedSelectedOperatorStructuralScalarReturnMachinePlan),
     /// One payloadless structural result saved from a final call and returned
     /// unchanged through its exhaustive identity arms.
     PayloadlessGuardedCall(&'a CheckedPayloadlessGuardedCallReturnMachinePlan),
@@ -51,14 +47,9 @@ impl<'a> CheckedReturnPlan<'a> {
     pub fn for_machine(flow: &'a FlowFacts, machine: SymbolHandle) -> Option<Self> {
         let scalar_returns = &flow.terminal_structural_scalar_returns;
         let structural_returns = &flow.terminal_structural_returns;
-        scalar_returns
-            .selected_operator_for_machine(machine)
-            .map(Self::SelectedOperator)
-            .or_else(|| {
-                flow.terminal_structural_call_returns
-                    .payloadless_guarded_for_machine(machine)
-                    .map(Self::PayloadlessGuardedCall)
-            })
+        flow.terminal_structural_call_returns
+            .payloadless_guarded_for_machine(machine)
+            .map(Self::PayloadlessGuardedCall)
             .or_else(|| {
                 scalar_returns
                     .trait_operator_for_machine(machine)
@@ -89,7 +80,6 @@ impl<'a> CheckedReturnPlan<'a> {
     /// The selected machine this plan returns from.
     pub fn machine(self) -> SymbolHandle {
         match self {
-            Self::SelectedOperator(plan) => plan.machine,
             Self::PayloadlessGuardedCall(plan) => plan.machine,
             Self::TraitOperator(plan) => plan.machine,
             Self::StructuralScalar(plan) => plan.machine,
@@ -103,7 +93,6 @@ impl<'a> CheckedReturnPlan<'a> {
     /// call, when the plan is such a call rather than an authored body.
     pub fn realization_machine(self) -> Option<SymbolHandle> {
         match self {
-            Self::SelectedOperator(plan) => Some(plan.realization_machine),
             Self::TraitOperator(plan) => Some(plan.realization_machine),
             Self::PayloadlessGuardedCall(plan) => Some(plan.target_machine),
             Self::StructuralScalar(_)
@@ -119,7 +108,7 @@ impl<'a> CheckedReturnPlan<'a> {
     /// caller's selection and return `None`.
     pub fn expected_signature(self) -> Option<CheckedTerminalSignatureEligibility> {
         let attached = match self {
-            Self::SelectedOperator(_) | Self::TraitOperator(_) => return None,
+            Self::TraitOperator(_) => return None,
             Self::StructuralScalar(plan) => plan.attachment_type_identity.is_some(),
             Self::ClaimFreeAffine(plan) => plan.attachment_type_identity.is_some(),
             Self::PayloadlessGuardedCall(_) | Self::BoundaryScalar(_) | Self::Structural(_) => true,

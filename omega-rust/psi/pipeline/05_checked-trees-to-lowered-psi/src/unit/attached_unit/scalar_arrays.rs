@@ -233,14 +233,6 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
         | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
         | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-            coordinate, ..
-        }
-        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
-            coordinate, ..
-        }
         | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => {
             Some(coordinate.statement_index)
         }

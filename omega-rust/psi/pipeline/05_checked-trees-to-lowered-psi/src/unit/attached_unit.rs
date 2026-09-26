@@ -32,10 +32,9 @@ use super::{
     content_conservation, contract_id, dense_identity, direct_expression_contains_short_circuit,
     edge_id, emit_direct_expression, finalize_operation_proofs, lookup_claim_id, lookup_domain_id,
     lookup_machine_id, lookup_service_id, lookup_type_id, lower_boundary_content_guarantees,
-    lower_boundary_crash_routes, lower_checked_crash_route_buckets,
-    lower_checked_scalar_expression, lower_placed_view_input, lower_structural_crash_route_buckets,
-    machine_id, obligation_id, place_id, terminal_scalar_type, unsupported,
-    validate_direct_parameter_types, value_id,
+    lower_boundary_crash_routes, lower_checked_crash_route_buckets, lower_placed_view_input,
+    lower_structural_crash_route_buckets, machine_id, obligation_id, place_id,
+    terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
@@ -76,7 +75,6 @@ pub(crate) mod primitive_locals;
 mod reference_results;
 pub(crate) mod scalar_arrays;
 mod scalar_structural_calls;
-mod selected_operator;
 mod structural_calls;
 pub(crate) mod structural_values;
 mod view_ranges;
@@ -122,7 +120,6 @@ pub(crate) use parameters::{
 };
 pub(crate) use provider_attachments::lower_provider_attachment_places;
 use providers::{ProviderBody, checked_unit_provider_candidates};
-use selected_operator::lower_selected_structural_scalar_realizations;
 
 /// Which runtime-requirement roster a closure's machines answer to.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -380,7 +377,6 @@ pub(crate) fn lower_unit_closure(
         .into_iter()
         .chain(closure.iter())
         .chain(&scalar_closure)
-        .chain(&realizations.selected_structural_scalars)
         .chain(&realizations.structural_results)
         .enumerate()
         .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
@@ -439,10 +435,7 @@ pub(crate) fn lower_unit_closure(
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
     let mut call_evidence = Vec::new();
     let mut machines = Vec::with_capacity(
-        closure.len()
-            + scalar_closure.len()
-            + realizations.selected_structural_scalars.len()
-            + realizations.structural_results.len(),
+        closure.len() + scalar_closure.len() + realizations.structural_results.len(),
     );
     let mut occurrences = ClosureOccurrences::default();
     let catalog = ordinary_machine::ClosureCatalog {
@@ -503,7 +496,6 @@ pub(crate) fn lower_unit_closure(
             machines.push(machine);
             occurrences.retain(
                 composed.source_calls,
-                composed.selected_ieee_float_fmas,
                 composed.selected_ieee_float_comparisons,
                 composed.selected_integer_comparisons,
             );
@@ -530,7 +522,6 @@ pub(crate) fn lower_unit_closure(
         machines.push(emitted.machine);
         occurrences.retain(
             emitted.source_calls,
-            emitted.selected_ieee_float_fmas,
             emitted.selected_ieee_float_comparisons,
             emitted.selected_integer_comparisons,
         );
@@ -567,18 +558,6 @@ pub(crate) fn lower_unit_closure(
         &mut machines,
         &mut occurrences,
     )?;
-    let mut lowered_structural_realizations = lower_selected_structural_scalar_realizations(
-        checked,
-        &realizations.selected_structural_scalars,
-        &structural_types,
-        &machine_ids,
-        reserved_prefix + closure.len() + scalar_closure.len(),
-    )?;
-    machines.append(&mut lowered_structural_realizations.machines);
-    call_evidence.append(&mut lowered_structural_realizations.evidence);
-    occurrences
-        .source_calls
-        .append(&mut lowered_structural_realizations.source_calls);
     let mut lowered_structural_result_realizations =
         crate::returns::affine_return::lower_claim_free_affine_return_machines(
             checked,
@@ -586,10 +565,7 @@ pub(crate) fn lower_unit_closure(
             &structural_types,
             &type_ids,
             &machine_ids,
-            reserved_prefix
-                + closure.len()
-                + scalar_closure.len()
-                + realizations.selected_structural_scalars.len(),
+            reserved_prefix + closure.len() + scalar_closure.len(),
         )?;
     machines.append(&mut lowered_structural_result_realizations);
     let provider_candidates = providers::conformances(
@@ -656,7 +632,6 @@ pub(crate) fn lower_unit_closure(
         },
         debug_map: None,
         source_call_occurrences: occurrences.source_calls,
-        selected_ieee_float_fma_occurrences: occurrences.ieee_float_fmas,
         selected_ieee_float_comparison_occurrences: occurrences.ieee_float_comparisons,
         selected_integer_comparison_occurrences: occurrences.integer_comparisons,
     };
@@ -679,13 +654,12 @@ pub(crate) fn lower_unit_closure(
 }
 
 /// Occurrence rows every emitted machine publishes beside its Terminal
-/// operations. Each selected comparison, FMA, or source call keeps the row
+/// operations. Each selected comparison or source call keeps the row
 /// that joins it to its checked application; the closure publishes all of
 /// them.
 #[derive(Default)]
 struct ClosureOccurrences {
     source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
-    ieee_float_fmas: Vec<lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence>,
     ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     integer_comparisons: Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
 }
@@ -694,12 +668,10 @@ impl ClosureOccurrences {
     fn retain(
         &mut self,
         source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
-        ieee_float_fmas: Vec<lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence>,
         ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
         integer_comparisons: Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
     ) {
         self.source_calls.extend(source_calls);
-        self.ieee_float_fmas.extend(ieee_float_fmas);
         self.ieee_float_comparisons.extend(ieee_float_comparisons);
         self.integer_comparisons.extend(integer_comparisons);
     }
@@ -708,7 +680,6 @@ impl ClosureOccurrences {
     fn retain_lowered(&mut self, lowered: &mut LoweredPsi) {
         self.retain(
             std::mem::take(&mut lowered.source_call_occurrences),
-            std::mem::take(&mut lowered.selected_ieee_float_fma_occurrences),
             std::mem::take(&mut lowered.selected_ieee_float_comparison_occurrences),
             std::mem::take(&mut lowered.selected_integer_comparison_occurrences),
         );
@@ -716,11 +687,9 @@ impl ClosureOccurrences {
 }
 
 /// Machines emitted only as realizations of an operation the closure's bodies
-/// select: a structural-scalar operator realization or a structural-result
-/// callee without a Unit body. Each is its own Terminal machine, never also a
+/// select: a structural-result callee without a Unit body. Each is its own Terminal machine, never also a
 /// body of the closure.
 struct RealizationRoots {
-    selected_structural_scalars: Vec<symbols::SymbolHandle>,
     structural_results: Vec<symbols::SymbolHandle>,
 }
 
@@ -731,27 +700,6 @@ impl RealizationRoots {
         scalar_closure: &[symbols::SymbolHandle],
         provider_candidate_plans: &[CheckedUnitProviderCandidate],
     ) -> Result<Self, LoweringError> {
-        let mut selected_structural_scalars = Vec::new();
-        for machine_symbol in closure {
-            for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
-                if let CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                    realization_machine,
-                    ..
-                } = operation
-                    && !selected_structural_scalars.contains(realization_machine)
-                {
-                    selected_structural_scalars.push(*realization_machine);
-                }
-            }
-        }
-        if selected_structural_scalars
-            .iter()
-            .any(|machine| closure.contains(machine) || scalar_closure.contains(machine))
-        {
-            return unsupported(
-                "selected structural-scalar realization overlaps another attached Unit closure",
-            );
-        }
         let mut structural_results = Vec::new();
         for candidate in provider_candidate_plans
             .iter()
@@ -765,10 +713,6 @@ impl RealizationRoots {
             for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
                 let target =
                     match operation {
-                        CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                            realization_machine,
-                            ..
-                        } => Some(*realization_machine),
                         CheckedUnitEffectOperationPlan::StructuralCall {
                             target_machine, ..
                         } if !UnitBody::contains(plans, *target_machine) => Some(*target_machine),
@@ -781,17 +725,13 @@ impl RealizationRoots {
                 }
             }
         }
-        if structural_results.iter().any(|machine| {
-            closure.contains(machine)
-                || scalar_closure.contains(machine)
-                || selected_structural_scalars.contains(machine)
-        }) {
+        if structural_results
+            .iter()
+            .any(|machine| closure.contains(machine) || scalar_closure.contains(machine))
+        {
             return unsupported("structural-result machine overlaps another attached Unit closure");
         }
-        Ok(Self {
-            selected_structural_scalars,
-            structural_results,
-        })
+        Ok(Self { structural_results })
     }
 }
 

@@ -59,7 +59,6 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
             | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => result,
             _ => continue,
         };
@@ -103,16 +102,6 @@ pub(super) fn return_unit_affine_discards(
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
                 structural_arguments,
                 coordinate,
                 ..

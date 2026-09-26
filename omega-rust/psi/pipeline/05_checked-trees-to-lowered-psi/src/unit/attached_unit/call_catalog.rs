@@ -68,7 +68,6 @@ pub(super) fn discover(
             .collect::<Vec<_>>();
         let mut ordinary_scalar_roots =
             external.map_or_else(Vec::new, |roots| roots.scalar_roots.to_vec());
-        let mut selected_scalar_roots = Vec::new();
         let mut structural_scalar_roots = Vec::new();
         // A scalar provider joins the scalar closure as its call would; one
         // taking structural operands needs the structural call custody too.
@@ -114,42 +113,25 @@ pub(super) fn discover(
                 }
             }
             for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
-                match operation {
-                    CheckedUnitEffectOperationPlan::ScalarCall {
-                        target_machine,
-                        structural_arguments,
-                        claim_transfers,
-                        ..
-                    } => {
-                        if !ordinary_scalar_roots.contains(target_machine) {
-                            ordinary_scalar_roots.push(*target_machine);
-                        }
-                        if (!structural_arguments.is_empty() || !claim_transfers.is_empty())
-                            && !structural_scalar_roots.contains(target_machine)
-                        {
-                            structural_scalar_roots.push(*target_machine);
-                        }
+                if let CheckedUnitEffectOperationPlan::ScalarCall {
+                    target_machine,
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } = operation
+                {
+                    if !ordinary_scalar_roots.contains(target_machine) {
+                        ordinary_scalar_roots.push(*target_machine);
                     }
-                    CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-                        realization_machine,
-                        ..
-                    } if !selected_scalar_roots.contains(realization_machine) => {
-                        selected_scalar_roots.push(*realization_machine);
+                    if (!structural_arguments.is_empty() || !claim_transfers.is_empty())
+                        && !structural_scalar_roots.contains(target_machine)
+                    {
+                        structural_scalar_roots.push(*target_machine);
                     }
-                    _ => {}
                 }
             }
         }
-        let scalar_roots = ordinary_scalar_roots
-            .iter()
-            .chain(&selected_scalar_roots)
-            .copied()
-            .fold(Vec::new(), |mut roots, root| {
-                if !roots.contains(&root) {
-                    roots.push(root);
-                }
-                roots
-            });
+        let scalar_roots = ordinary_scalar_roots;
         let mut scalar_closure = checked_scalar_call_closure_with_structural_roots(
             checked,
             &scalar_roots,
