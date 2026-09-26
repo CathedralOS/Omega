@@ -131,7 +131,10 @@ pub(crate) fn bind_token_bound_machine_calls(
             )));
             continue;
         };
-        let (entry_symbol, target) = (entry.symbol, machine.name.clone());
+        // The call names its selected entry, not the enclosing qualified
+        // machine. Projected receivers recheck that name against the exact
+        // receiver declaration after specialization, just like named calls.
+        let (entry_symbol, target) = (entry.symbol, entry.name.clone());
         // Copy the signature views the rewrite needs before endpoint
         // normalization mutates the expression table.
         let first_is_self = program
@@ -364,6 +367,24 @@ mod tests {
             panic!("the operand is the synthesized integer literal");
         };
         literal.value_i64().expect("the literal fits i64")
+    }
+
+    #[test]
+    fn projected_index_call_names_the_selected_entry() {
+        let (checked, call) = run_tail_call(
+            "data Buffer { value: u64; }
+             machine [] Buffer::index(&self, index: u64) -> u64 { self.value }
+             data Holder { buffer: Buffer; }
+             machine run(holder: &Holder) -> u64 { holder.buffer[0] }",
+        );
+        let selected = checked
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.machine_states(machine))
+            .find(|state| state.symbol == call.target_symbol)
+            .expect("the call retains its selected entry identity");
+        assert_eq!(call.target, selected.name);
+        assert_eq!(call.target.as_str(), "index");
     }
 
     #[test]
