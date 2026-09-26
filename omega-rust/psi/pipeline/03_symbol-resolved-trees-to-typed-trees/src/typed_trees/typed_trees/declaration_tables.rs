@@ -47,20 +47,9 @@ impl TypedTrees {
         if let Some(existing) = self
             .tables
             .authored_declaration_selections
-            .iter()
-            .find(|selection| {
-                selection.source_span() == source_span
-                    && selection.exposure() == exposure
-                    && selection.kind() == kind
-                    && selection.compiler_partition().is_none()
-                    && matches!(
-                        selection.target(),
-                        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
-                            if target.selected_symbol() == selected_symbol
-                    )
-            })
+            .resolved_occurrence(source_span, exposure, kind, selected_symbol)
         {
-            return Ok(existing.occurrence_id());
+            return Ok(existing);
         }
         self.tables.authored_declaration_selections.record_resolved(
             source_span,
