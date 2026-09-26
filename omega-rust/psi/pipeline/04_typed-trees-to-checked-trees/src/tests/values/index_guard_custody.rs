@@ -205,4 +205,3 @@ fn computed_index_guards_keep_their_selected_meaning() {
         );
     }
 }
-

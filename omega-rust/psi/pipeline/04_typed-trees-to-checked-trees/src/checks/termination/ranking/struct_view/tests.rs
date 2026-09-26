@@ -61,4 +61,3 @@ fn nested_projection_rejects_a_forwarded_or_wrong_field_or_guard() {
             ),
     );
 }
-

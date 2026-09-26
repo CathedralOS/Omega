@@ -845,4 +845,3 @@ fn rejects_ambiguous_view_return_from_boundary_trait_signature() {
         "expected the bodyless-signature elision rejection, got:\n{combined}"
     );
 }
-

@@ -81,4 +81,3 @@ fn unknown_assignment_and_effectful_initializer_cannot_retain_old_values() {
         );
     }
 }
-

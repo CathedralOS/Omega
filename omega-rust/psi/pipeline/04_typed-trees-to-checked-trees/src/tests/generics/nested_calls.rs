@@ -62,4 +62,3 @@ fn conflicting_nested_generic_arguments_cannot_choose_one_binding() {
         "specialization tuple",
     );
 }
-

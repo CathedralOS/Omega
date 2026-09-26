@@ -1235,4 +1235,3 @@ fn generic_body_call_resolves_to_machine_parameter_contract() {
         .expect("generic body call");
     assert_eq!(call.target_symbol, machine_parameter.symbol);
 }
-

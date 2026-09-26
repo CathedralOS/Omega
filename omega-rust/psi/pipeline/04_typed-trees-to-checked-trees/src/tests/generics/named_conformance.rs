@@ -164,4 +164,3 @@ fn retained_named_conformance_call_rejects_missing_requirement() {
         "conformance-evidence call has no unique exact requirement",
     );
 }
-

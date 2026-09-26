@@ -355,4 +355,3 @@ fn erased_enum_parameter_on_runtime_machine_rides_the_term_lane() {
     )
     .expect("a contract-term erased enum formal checks and plans");
 }
-

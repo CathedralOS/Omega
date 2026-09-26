@@ -160,4 +160,3 @@ fn residue_order_claims_stay_outside_the_language() {
         "{diagnostics:#?}"
     );
 }
-

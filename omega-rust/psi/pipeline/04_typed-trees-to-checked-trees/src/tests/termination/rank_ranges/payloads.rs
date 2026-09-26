@@ -215,4 +215,3 @@ fn duplicated_rank_or_endpoint_slots_cannot_choose_a_convenient_copy() {
         );
     prove(&source);
 }
-

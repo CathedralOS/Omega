@@ -54,4 +54,3 @@ fn the_relational_fallback_does_not_reinterpret_authored_arithmetic() {
         ));
     }
 }
-

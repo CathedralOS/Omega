@@ -237,4 +237,3 @@ fn owned_parameter_reassignment_preserves_caller_input_facts() {
         true,
     );
 }
-
