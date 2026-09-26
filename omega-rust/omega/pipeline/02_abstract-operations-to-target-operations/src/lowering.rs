@@ -42,8 +42,6 @@ pub struct TargetLoweringRequest<'a> {
     pub settlements: &'a [AdmittedBoundarySettlement<'a>],
     /// Checked-provider installation evidence for the remaining boundaries.
     pub installation: Option<&'a dyn ProviderInstallationEvidence>,
-    /// Retained nearest-FMA occurrence custody.
-    pub ieee_float_fma: &'a [crate::AdmittedIeeeFloatFmaSettlement<'a>],
     /// Exact target-owned native callback argument admissions. The admitted
     /// roster is retained on the returned plan itself in
     /// `native_callback_arguments`, joined to each consuming row by its
@@ -58,7 +56,6 @@ impl TargetLoweringRequest<'_> {
             target,
             settlements: &[],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         }
     }
@@ -73,7 +70,6 @@ pub fn lower_to_target_operations(
         target,
         settlements,
         installation,
-        ieee_float_fma,
         native_callbacks,
     } = request;
     let bindings = provider_evidence::bind_provider_executions(plan, settlements)?;
@@ -82,7 +78,6 @@ pub fn lower_to_target_operations(
         target,
         &bindings,
         installation,
-        ieee_float_fma,
         native_callbacks,
     )
 }

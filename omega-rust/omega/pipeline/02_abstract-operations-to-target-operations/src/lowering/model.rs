@@ -14,18 +14,6 @@ pub struct SelectedPlacedViewInputPlan<'plan> {
     pub placement_plan: &'plan terminal_psi::access_plans::ValidatedPlacementPlan,
 }
 
-/// Borrowed exact-plan and deployment inputs for one Terminal nearest-FMA
-/// occurrence. Construction grants no authority: the Abstract-to-Target
-/// coordinator independently rejoins every field before producing target IR.
-#[derive(Debug, Clone, Copy)]
-pub struct AdmittedIeeeFloatFmaSettlement<'plan> {
-    pub terminal_operation: OperationId,
-    pub provider_plan: &'plan crate::effects::provider_plan::ProviderPlan,
-    pub format: semantic_vocabulary::IeeeFloatFormat,
-    pub slot: target::X86ScalarFmaSlot,
-    pub provider: target::AdmittedX86ScalarFmaProvider,
-}
-
 /// Owned target-side input for one compiler-private callback argument.
 ///
 /// The exact Terminal operation is the join to the unchanged abstract
@@ -63,6 +51,7 @@ pub enum AdmittedBoundaryExecution<'execution> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    UnsupportedIeeeFloatFmaRealization(OperationId),
     TranslationValidation(crate::AbstractToTargetTranslationValidationError),
     /// Parameter-rooted path qualifications are preserved through the
     /// prephysical optimizer boundary but have no target-operation carrier yet.
@@ -157,10 +146,6 @@ pub enum LoweringError {
         site: &'static std::panic::Location<'static>,
     },
     UnsupportedOperationInUnitFunction(MachineId),
-    DuplicateIeeeFloatFmaSettlement(OperationId),
-    UnknownIeeeFloatFmaSettlement(OperationId),
-    MissingIeeeFloatFmaSettlement(OperationId),
-    InvalidIeeeFloatFmaSettlement(OperationId),
     DuplicateNativeCallbackArgument(OperationId),
     MultipleNativeCallbackArguments,
     UnknownNativeCallbackArgument(OperationId),

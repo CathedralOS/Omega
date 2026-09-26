@@ -39,7 +39,6 @@ fn lower(
                 realization,
             }],
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )

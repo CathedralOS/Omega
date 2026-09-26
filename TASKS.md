@@ -104,10 +104,7 @@ backend-visible; full corpus runs only at the end of an item.
   the operator-adapter and float-intrinsic resolution it uses. Compiler-known
   float realizations (`F32::negate`, directed arithmetic, conversions,
   `square_root`, FMA) install as Omega builtins beside the hosted process
-  builtins in native provider settlement. Stage 02's
-  `AdmittedIeeeFloatFmaSettlement` and the native realization request's
-  `ieee_float_fma` slice survive with no producer (every caller passes an empty
-  slice): reuse them for FMA installation or delete them. Acceptance: the eight native builds
+  builtins in native provider settlement. Acceptance: the eight native builds
   089bd3290c regressed build again with their golden exits
   (`providers/checked_fixed_operator_dispatch_exit` exits 70,
   `checked_boundary_operator_physical_custody`,

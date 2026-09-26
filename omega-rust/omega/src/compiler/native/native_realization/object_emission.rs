@@ -6,7 +6,6 @@ use crate::compiler::native::native_realization::optimized_fragment_projection::
     OptimizedFragmentPublicationRequest, emit_optimized_fragments,
 };
 use crate::compiler::native::native_realization::physical_stage::lower_realization_physical_stage;
-use crate::compiler::native::native_realization::realization_diagnostics::realization_error;
 use crate::compiler::native::native_realization::realization_request::{
     NativeRealizationInput, NativeRealizationRequest,
 };
@@ -37,12 +36,6 @@ pub(crate) fn emit_realization_object(
     terminal: &terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
-    if !request.ieee_float_fma.is_empty() {
-        return Err(realization_error(
-            "native instruction selection",
-            "FMA provider transport is not implemented in the common instruction pipeline",
-        ));
-    }
     let abstract_stage = lower_realization_optimization_stage(input, request)?;
     // Thunks are independent canonical artifacts: materialize them once the
     // request-level callback/selection custody check has passed, before the

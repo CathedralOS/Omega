@@ -221,7 +221,6 @@ fn graph_rejects_unimplemented_claim_bearing_provider_calls() {
                     target,
                     settlements: &[],
                     installation: Some(&installation),
-                    ieee_float_fma: &[],
                     native_callbacks: &[],
                 }
             ),
@@ -370,7 +369,6 @@ fn installed_provider_calls_retain_scalar_operands_and_selection_custody() {
                 target,
                 settlements: &[],
                 installation: Some(&installation),
-                ieee_float_fma: &[],
                 native_callbacks: &[],
             },
         )
@@ -444,7 +442,6 @@ fn installed_i32_provider_rejects_scalar_evidence_substitution() {
                 target: NativeTarget::linux_x64(),
                 settlements: &[],
                 installation: Some(&installation),
-                ieee_float_fma: &[],
                 native_callbacks: &[],
             }
         ),
@@ -476,7 +473,6 @@ fn installed_selection_rejects_another_semantically_valid_catalog_candidate() {
             target: native,
             settlements: &[],
             installation: Some(&installation),
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )
@@ -531,7 +527,6 @@ fn installed_provider_result_must_match_occurrence_and_boundary_declaration() {
                     target: NativeTarget::linux_x64(),
                     settlements: &[],
                     installation: Some(&installation),
-                    ieee_float_fma: &[],
                     native_callbacks: &[],
                 }
             ),

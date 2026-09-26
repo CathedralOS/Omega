@@ -10,8 +10,8 @@
 //!    (`projected_qualifications`) or with no function for its entry machine;
 //! 2. the fixed scalar ABI and the mixed structural scalar ABI of each
 //!    function that has one (`scalar_abi`);
-//! 3. the settlement index (`settlement_roster`), the IEEE float fused
-//!    multiply-add settlement check (`ieee_float_fma_settlements`), the
+//! 3. the settlement index (`settlement_roster`), rejection of unsupported
+//!    raw IEEE float fused-multiply-add operations, the
 //!    installed provider call and boundary call indexes
 //!    (`installed_provider_calls`), and the native callback argument binding
 //!    (`native_callbacks`);
@@ -36,9 +36,10 @@ use crate::target_operations::{BoundarySettlementBinding, TargetFunction, Target
 use installation_evidence::ProviderInstallationEvidence;
 use std::collections::BTreeMap;
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractOperationPlan,
+};
 
-mod ieee_float_fma_settlements;
 mod installed_provider_calls;
 pub(crate) mod native_callbacks;
 mod projected_qualifications;
@@ -56,7 +57,6 @@ pub(crate) fn lower_to_target_operations_with_settlements(
         settlement_bindings,
         None,
         &[],
-        &[],
     )
 }
 
@@ -65,7 +65,6 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     target: NativeTarget,
     settlement_bindings: &[BoundarySettlementBinding],
     installation: Option<&dyn ProviderInstallationEvidence>,
-    ieee_float_fma: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
 ) -> Result<TargetOperationPlan, LoweringError> {
     projected_qualifications::reject_unsupported(plan)?;
@@ -103,7 +102,23 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         .collect::<BTreeMap<_, _>>();
     let settlements_by_boundary =
         settlement_roster::index_settlement_bindings(plan, settlement_bindings)?;
-    ieee_float_fma_settlements::validate_ieee_float_fma_settlements(plan, target, ieee_float_fma)?;
+    // No admitted provider route realizes raw FMA operations in this stage.
+    // A selected plan or available target instruction alone cannot supply
+    // the missing occurrence-bound execution evidence.
+    if let Some(operation) = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .filter_map(|operation| match operation {
+            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. } => {
+                Some(*psi_operation)
+            }
+            _ => None,
+        })
+        .min()
+    {
+        return Err(LoweringError::UnsupportedIeeeFloatFmaRealization(operation));
+    }
     let installed_by_call =
         installed_provider_calls::index_installed_provider_calls(plan, installation)?;
     let boundary_calls = installed_provider_calls::index_boundary_calls(plan);

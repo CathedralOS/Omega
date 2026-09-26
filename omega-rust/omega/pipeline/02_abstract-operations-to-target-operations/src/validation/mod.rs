@@ -19,10 +19,7 @@ mod structural_shapes;
 mod structural_signatures;
 mod whole_plan;
 
-pub use whole_plan::{
-    validate_abstract_to_target_translation,
-    validate_abstract_to_target_translation_with_ieee_float_fma_settlements,
-};
+pub use whole_plan::validate_abstract_to_target_translation;
 
 use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
 use target::NativeTarget;
@@ -103,6 +100,7 @@ impl AbstractToTargetFunctionRosterReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationValidationError {
+    UnsupportedIeeeFloatFmaRealization(OperationId),
     StructuralSignatureMismatch {
         machine: MachineId,
     },
@@ -123,9 +121,6 @@ pub enum AbstractToTargetTranslationValidationError {
     FunctionStructuralTypeRosterMismatch {
         machine: MachineId,
     },
-    DuplicateIeeeFloatFmaSettlement(OperationId),
-    UnknownIeeeFloatFmaSettlement(OperationId),
-    MissingIeeeFloatFmaSettlement(OperationId),
     NativeCallbackRosterMismatch(OperationId),
 }
 

@@ -28,7 +28,6 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
             target,
             settlements,
             installation: None,
-            ieee_float_fma: &[],
             native_callbacks: &[],
         },
     )
