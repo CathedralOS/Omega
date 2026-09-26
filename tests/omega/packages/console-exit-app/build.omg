@@ -4,6 +4,6 @@
 machine build(builder: &mut Build) {
     builder.application("console_exit_app");
     builder.depend(Source::Path { location: "../../../../source/library/std" });
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
