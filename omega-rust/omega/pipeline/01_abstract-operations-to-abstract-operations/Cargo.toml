@@ -24,7 +24,8 @@ proof-admission = { path = "../../../psi/semantics/proof-admission" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
 
 [dev-dependencies]
-# Unit tests drive the same test-support surface the differential suite reaches.
+# Dev builds enable test-support so the psi_optimization_allocations example and
+# the test_support exports it drives compile alongside the unit tests.
 abstract-operations-to-abstract-operations = { path = ".", features = ["test-support"] }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }

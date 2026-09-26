@@ -8,9 +8,6 @@ version.workspace = true
 name = "post_allocation_machine_to_selected_form_encoding"
 path = "src/lib.rs"
 
-[features]
-test-support = []
-
 [dependencies]
 machine-code = { path = "../../representations/machine-code" }
 physical-instructions = { path = "../../representations/physical-instructions" }

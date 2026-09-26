@@ -20,11 +20,15 @@ mod native_realization;
 mod retained_native_product;
 
 pub use abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
-pub use terminal_psi_to_abstract_operations::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
-};
 pub use image_emission::ExecutableImageEmissionRequest;
+pub use native_artifact::optimized_semantic_wrapper_object::{
+    InstalledProgramStorageContinuationEvidenceError,
+    OptimizedProgramStorageSemanticWrapperObjectError,
+    StagedValidatedOptimizedProgramStorageSemanticWrapperObject,
+    stage_validated_optimized_program_storage_semantic_wrapper_object,
+    validate_installed_program_storage_continuation_evidence,
+    validate_optimized_program_storage_semantic_wrapper_object,
+};
 pub use native_artifact::{
     BoundaryExecutionRecord, BoundaryTraitSettlement, BoundaryTraitSettlementParts,
     BoundaryTraitSettlementRole, CompilerBuiltinResult, CompilerBuiltinScalarArgument,
@@ -36,8 +40,6 @@ pub use native_artifact::{
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations, PhysicalChildParent,
     PhysicalRelocationDisposition,
 };
-#[cfg(feature = "test-support")]
-pub use native_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions;
 pub use native_pipeline::{
     EmptyOptimizationSelections, ExplicitOptimizationRequest, OptimizationPipelineError,
     OptimizationPipelineReport, OptimizationPipelineRequest,
@@ -47,8 +49,6 @@ pub use native_pipeline::{
     optimization_pipeline_report_from_ordinary_callable_entry, optimize_artifact_sections,
     optimize_verified_abstract_input, stage_optimized_verified_physical_pipeline,
 };
-#[cfg(feature = "test-support")]
-pub use native_product::NativeInputReuseKey;
 pub use native_product::{
     NativeInputReuse, NativeProductRequest, PreparedNativeCompilation, prepare_native_product,
 };
@@ -80,15 +80,11 @@ pub use native_realization::{
     terminal_authority_policy_with_rows, time_host_mechanism_row, time_host_permission_row,
     time_host_permission_rows,
 };
-pub use native_artifact::optimized_semantic_wrapper_object::{
-    InstalledProgramStorageContinuationEvidenceError,
-    OptimizedProgramStorageSemanticWrapperObjectError,
-    StagedValidatedOptimizedProgramStorageSemanticWrapperObject,
-    stage_validated_optimized_program_storage_semantic_wrapper_object,
-    validate_installed_program_storage_continuation_evidence,
-    validate_optimized_program_storage_semantic_wrapper_object,
-};
 pub use retained_native_product::{
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
     realize_retained_native_artifact,
+};
+pub use terminal_psi_to_abstract_operations::{
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
+    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };

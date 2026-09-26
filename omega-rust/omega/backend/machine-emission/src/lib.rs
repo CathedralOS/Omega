@@ -42,13 +42,6 @@ pub use function_realization::{
     validate_fixed_frame_function_relative_realization,
 };
 
-#[cfg(any(test, feature = "test-support"))]
-pub use function_realization::{
-    FixedFramePublicationCustodyFieldForTest, corrupt_fixed_frame_realization_custody_for_test,
-    corrupt_fixed_frame_realization_exit_for_test,
-    corrupt_fixed_frame_realization_manifest_for_test,
-    replace_fixed_frame_realization_exit_for_test, swap_fixed_frame_realization_source_for_test,
-};
 pub use function_realization::{
     FunctionRelativeFrame, FunctionRelativeFrameDisposition,
     FunctionRelativeOptimizationRealizationError, FunctionRelativeOptimizationRealizationManifest,
@@ -58,11 +51,6 @@ pub use function_realization::{
     StagedFixedFrameFunctionRelativeRealization,
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
     ValidatedFunctionRelativeOptimizationRealizationManifest,
-};
-#[cfg(feature = "test-support")]
-pub use function_realization::{
-    corrupt_fixed_frame_realization_encoding_for_test,
-    corrupt_fixed_frame_realization_layout_for_test,
 };
 
 // Evidence the realization joins: frame geometry, frame bytes, exit contract.
@@ -89,8 +77,6 @@ pub use exit_contract::{
     validate_whole_function_exit_contract_with_frame,
 };
 
-#[cfg(any(test, feature = "test-support"))]
-pub use exit_contract::Rel8ExitBoundaryForTest;
 pub use exit_contract::{
     ValidatedWholeFunctionExitContract, WholeFunctionEntryAssumption, WholeFunctionExitContract,
     WholeFunctionExitContractError, WholeFunctionExitContractIdentity, WholeFunctionExitEvidence,
@@ -106,8 +92,6 @@ pub use fragment_emission::{
     stage_optimized_function_fragment_emission, validate_optimized_function_fragment_emission,
 };
 
-#[cfg(any(test, feature = "test-support"))]
-pub use fragment_emission::FunctionFragmentReplayInputs;
 pub use fragment_emission::{
     FunctionFragmentEmissionError, FunctionFragmentEmissionManifest,
     FunctionFragmentEmissionManifestDecodeError, FunctionFragmentEmissionStage,
@@ -147,8 +131,6 @@ pub use text_placement::{
     stage_optimized_fixed_frame_text_section, validate_optimized_fixed_frame_text_section,
 };
 
-#[cfg(any(test, feature = "test-support"))]
-pub use text_placement::place_fragments_for_test;
 pub use text_placement::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,

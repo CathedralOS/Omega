@@ -4,21 +4,14 @@
 //! phase set, and runs selection, analysis, allocation, and machine construction
 //! once before realization. [`model`] defines the returned carrier, [`error`]
 //! defines the closed failure surface. Every admitted selection uses the same
-//! canonical frame realization. The test-only [`input`] helper
-//! composes target lowering to exercise the complete route in isolation.
+//! canonical frame realization.
 
 mod error;
-#[cfg(feature = "test-support")]
-mod input;
 mod model;
 mod phase_selections;
-#[cfg(feature = "test-support")]
-mod test_support;
 
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 pub use error::OptimizedVerifiedPhysicalPipelineError;
-#[cfg(feature = "test-support")]
-pub use input::stage_optimized_verified_physical_pipeline_with_provider_executions;
 pub use model::StagedOptimizedVerifiedPhysicalPipeline;
 use optimization_core::PostTerminalOptimizationSelections;
 use phase_selections::validate_physical_selections;

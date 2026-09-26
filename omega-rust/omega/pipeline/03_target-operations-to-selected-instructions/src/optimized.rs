@@ -7,8 +7,6 @@
 mod constraints;
 mod construction;
 mod model;
-#[cfg(feature = "test-support")]
-mod test_support;
 mod validation;
 
 pub use constraints::selection_constraints;
@@ -16,8 +14,6 @@ pub use model::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
     StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
 };
-#[cfg(feature = "test-support")]
-pub use test_support::OptimizedSelectionCustodyFieldForTest;
 pub use validation::validate_optimized_selection_custody;
 
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;

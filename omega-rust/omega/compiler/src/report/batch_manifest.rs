@@ -20,14 +20,6 @@ const BATCH_DIAGNOSTICS_DOMAIN: &[u8] = b"OMEGA-BATCH-CHILD-DIAGNOSTICS-V1\0";
 pub struct BatchCompilationManifestIdentity([u8; 32]);
 
 impl BatchCompilationManifestIdentity {
-    /// Substitute a different claimed identity into a stored manifest so
-    /// custody coverage can prove the digest is consulted on replay.
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub const fn for_test(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
@@ -114,22 +106,6 @@ impl BatchCompilationManifest {
             canonical_bytes,
             identity,
         })
-    }
-
-    /// Mint the honest manifest over arbitrary retained parts so custody
-    /// coverage can drive stale or substituted rows through validate().
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub fn for_test(
-        rows: Vec<BatchChildRow>,
-        canonical_bytes: Vec<u8>,
-        identity: BatchCompilationManifestIdentity,
-    ) -> Self {
-        Self {
-            rows: rows.into_boxed_slice(),
-            canonical_bytes,
-            identity,
-        }
     }
 
     pub const fn rows(&self) -> &[BatchChildRow] {

@@ -37,11 +37,3 @@ physical-instructions = { path = "../../representations/physical-instructions" }
 [dev-dependencies]
 target-operations = { path = "../../representations/target-operations" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
-
-[features]
-test-support = [
-    "selected-instructions-to-register-homes/test-support",
-    "post-allocation-machine-to-selected-form-encoding/test-support",
-    "selected-form-encoding-to-resolved-layout/test-support",
-    "resolved-layout-to-resolved-layout/test-support",
-]

@@ -6,12 +6,8 @@
 
 mod compute;
 mod custody;
-#[cfg(any(test, feature = "test-support"))]
-mod test_support;
 mod validation;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use test_support::OptimizedFixedPrecoloredSegmentHomeCustodyFieldForTest;
 pub use validation::validate_optimized_fixed_precolored_segment_home_custody;
 
 use optimization_core::OptimizationWorkBudget;

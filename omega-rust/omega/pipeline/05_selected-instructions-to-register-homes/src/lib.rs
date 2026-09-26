@@ -84,26 +84,7 @@ pub use assignment::transformed::{
     validate_optimized_register_home_after_selected_lowering_custody,
 };
 
-// Custody-field inventories the one-field substitution matrices drive.
-#[cfg(any(test, feature = "test-support"))]
-pub use assignment::baseline::{
-    OptimizedPostCopyRegisterHomeCustodyFieldForTest, OptimizedRegisterHomeCustodyFieldForTest,
-};
-#[cfg(any(test, feature = "test-support"))]
-pub use assignment::transformed::{
-    OptimizedPostLiteralFoldHomeCustodyFieldForTest,
-    OptimizedPostPreAllocationHomeCustodyFieldForTest,
-    OptimizedPostSelectedLoweringHomeCustodyFieldForTest,
-};
-#[cfg(any(test, feature = "test-support"))]
-pub use rewrites::{
-    OptimizedActiveResidentRematerializationCustodyFieldForTest,
-    OptimizedActiveResidentRematerializationPressureCustodyFieldForTest,
-};
-
 // Rematerialization staged by the active-resident recovery rule.
-#[cfg(feature = "test-support")]
-pub use rewrites::corrupt_active_resident_rematerialization_custody_for_test;
 pub use rewrites::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,

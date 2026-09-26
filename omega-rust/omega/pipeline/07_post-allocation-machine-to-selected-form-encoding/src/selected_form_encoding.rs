@@ -99,25 +99,4 @@ impl StagedOptimizedSelectedFormEncoding {
     pub fn counts(&self) -> SelectedFormEncodingCounts {
         self.program.counts
     }
-
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub fn program_mut_for_test(&mut self) -> &mut SelectedFormEncoding {
-        std::sync::Arc::make_mut(&mut self.program)
-    }
-
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub fn rows_mut(&mut self) -> &mut [SelectedFormEncodingRow] {
-        std::sync::Arc::make_mut(&mut self.program)
-            .rows
-            .as_mut_slice()
-    }
-
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    #[allow(dead_code)]
-    pub fn counts_mut(&mut self) -> &mut SelectedFormEncodingCounts {
-        &mut std::sync::Arc::make_mut(&mut self.program).counts
-    }
 }

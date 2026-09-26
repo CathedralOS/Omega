@@ -86,17 +86,4 @@ impl ResolvedLayoutOptimization {
     pub const fn budget(&self) -> OptimizationWorkBudget {
         self.budget
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn relaxation_mut_for_test(&mut self) -> Option<&mut StagedOptimizedX86BranchRelaxation> {
-        self.relaxation.as_mut()
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn current_program_mut_for_test(&mut self) -> &mut ResolvedMachineLayout {
-        Arc::make_mut(&mut self.current)
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn substitute_shared_layout_for_test(&mut self, current: Arc<ResolvedMachineLayout>) {
-        self.current = current;
-    }
 }

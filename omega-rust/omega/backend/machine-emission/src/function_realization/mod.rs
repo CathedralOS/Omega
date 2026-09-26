@@ -15,8 +15,6 @@ mod carriers;
 mod codec;
 mod error;
 mod fixed_frame;
-#[cfg(any(test, feature = "test-support"))]
-mod fixed_frame_test_support;
 mod frame;
 
 pub use carriers::{
@@ -28,18 +26,6 @@ pub use error::FunctionRelativeOptimizationRealizationError;
 pub use fixed_frame::{
     stage_fixed_frame_function_relative_realization,
     validate_fixed_frame_function_relative_realization,
-};
-#[cfg(any(test, feature = "test-support"))]
-pub use fixed_frame_test_support::{
-    FixedFramePublicationCustodyFieldForTest, corrupt_fixed_frame_realization_custody_for_test,
-    corrupt_fixed_frame_realization_exit_for_test,
-    corrupt_fixed_frame_realization_manifest_for_test,
-    replace_fixed_frame_realization_exit_for_test, swap_fixed_frame_realization_source_for_test,
-};
-#[cfg(feature = "test-support")]
-pub use fixed_frame_test_support::{
-    corrupt_fixed_frame_realization_encoding_for_test,
-    corrupt_fixed_frame_realization_layout_for_test,
 };
 pub use frame::FunctionRelativeFrame;
 
@@ -140,10 +126,5 @@ pub struct ValidatedFunctionRelativeOptimizationRealizationManifest {
 impl ValidatedFunctionRelativeOptimizationRealizationManifest {
     pub const fn record(&self) -> &FunctionRelativeOptimizationRealizationManifest {
         &self.record
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn record_mut(&mut self) -> &mut FunctionRelativeOptimizationRealizationManifest {
-        &mut self.record
     }
 }

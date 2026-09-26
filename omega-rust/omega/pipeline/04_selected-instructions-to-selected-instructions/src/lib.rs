@@ -64,11 +64,6 @@ pub(crate) use analyses::{
     SpillChoiceValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
     StagedOptimizedLivenessCustodyReceipt,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use analyses::{
-    OptimizedAllocationLegalityCustodyFieldForTest, OptimizedLiveRangeCustodyFieldForTest,
-    OptimizedLivenessCustodyFieldForTest, OptimizedSelectedReanalysisCustodyFieldForTest,
-};
 // Selected-CFG rewrites: the executed catalog slices, the recovery rewrites
 // register assignment replays, and the unexecuted families.
 pub use rewrites::unexecuted;
@@ -123,12 +118,6 @@ pub(crate) use rewrites::{
     StagedOptimizedPreAllocationStep, ValidatedAddressFold, ValidatedConstantBoolean,
     ValidatedCopyRemoval, ValidatedPreAllocationTransformation, ValidatedRedundantExtension,
     fixed_view_copy_identity,
-};
-#[cfg(any(test, feature = "test-support"))]
-pub use rewrites::{
-    OptimizedFixedPrecoloredSegmentHomeCustodyFieldForTest,
-    OptimizedFixedViewCopyCustodyFieldForTest, OptimizedLiteralFoldCustodyFieldForTest,
-    PreAllocationOptimizationCustodyFieldForTest, SelectedLoweringOptimizationCustodyFieldForTest,
 };
 
 #[cfg(any(test, feature = "test-support"))]

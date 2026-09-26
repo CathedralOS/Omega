@@ -21,6 +21,3 @@ semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" 
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
 target = { path = "../../../representations/target" }
 sha2 = "0.10.9"
-
-[features]
-test-support = ["machine-emission/test-support"]

@@ -16,8 +16,6 @@ use crate::StagedOptimizedAllocationLegality;
 
 mod accounting;
 mod execution;
-#[cfg(any(test, feature = "test-support"))]
-mod test_support;
 
 use crate::{
     AllocationLegalityError, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPolicy,
@@ -30,11 +28,6 @@ use crate::{
 pub use execution::{
     stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
     validate_optimized_literal_fold_custody, validate_selected_lowering_optimization_custody,
-};
-
-#[cfg(any(test, feature = "test-support"))]
-pub use test_support::{
-    OptimizedLiteralFoldCustodyFieldForTest, SelectedLoweringOptimizationCustodyFieldForTest,
 };
 
 impl From<crate::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {

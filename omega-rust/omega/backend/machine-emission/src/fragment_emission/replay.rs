@@ -18,13 +18,6 @@ impl FunctionFragmentReplayInputs {
     pub fn fixed_frame(&self) -> &StagedFixedFrameFunctionRelativeRealization {
         &self.realization
     }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn fixed_frame_mut(&mut self) -> &mut StagedFixedFrameFunctionRelativeRealization {
-        &mut self.realization
-    }
-    pub fn into_fixed_frame(self) -> StagedFixedFrameFunctionRelativeRealization {
-        self.realization
-    }
 }
 
 impl FunctionFragmentReplayInputs {

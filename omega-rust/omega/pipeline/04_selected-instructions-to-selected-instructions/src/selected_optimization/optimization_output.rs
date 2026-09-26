@@ -24,10 +24,6 @@ pub struct SelectedInstructionOptimizationOutput {
 }
 
 impl SelectedInstructionOptimizationOutput {
-    #[cfg(feature = "test-support")]
-    pub fn substitute_current_program_for_test(&mut self, program: OwnedSelectedProgram) {
-        self.current = program;
-    }
     pub(crate) fn from_evidence(
         evidence: SelectedInstructionOptimizationEvidence,
     ) -> Result<Self, SelectedInstructionOptimizationError> {

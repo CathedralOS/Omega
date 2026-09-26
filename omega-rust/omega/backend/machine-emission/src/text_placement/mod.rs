@@ -34,8 +34,6 @@ use crate::frame_application::{
     StagedFunctionFragmentFrameApplication, validate_function_fragment_frame_application,
 };
 use assembly::{compute_fixed_frame, fixed_frame_receipt};
-#[cfg(any(test, feature = "test-support"))]
-use machine_code::{FunctionFragmentEmissionPlan, RelocationFreeTextSectionPlacement};
 
 /// Resolve every ordinary typed internal call after the exact target frame has
 /// shifted function-relative coordinates, then publish a relocation-free text
@@ -55,14 +53,4 @@ pub fn stage_optimized_fixed_frame_text_section(
     };
     validate_optimized_fixed_frame_text_section(&staged)?;
     Ok(staged)
-}
-
-/// Place fragments that carry no internal call directly, outside any stage
-/// custody; a test fixture for placement order and replay, not an admission.
-#[cfg(any(test, feature = "test-support"))]
-pub fn place_fragments_for_test(
-    fragments: &FunctionFragmentEmissionPlan,
-) -> Result<RelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
-    placement::place_fragment_text_section(placement::TextPlacementInput::RelocationFree(fragments))
-        .map_err(Into::into)
 }

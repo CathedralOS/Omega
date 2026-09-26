@@ -15,14 +15,10 @@
 mod plan;
 mod post_allocation_machine;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use plan::PostAllocationMachinePlanReceiptFieldForTest;
 pub use plan::{
     PostAllocationMachineError, PostAllocationMachineReceipt, ValidatedPostAllocationMachinePlan,
     validate_post_allocation_machine_plan,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use post_allocation_machine::PostAllocationMachineCustodyFieldForTest;
 pub use post_allocation_machine::{
     OptimizedPostAllocationMachinePipelineError,
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,

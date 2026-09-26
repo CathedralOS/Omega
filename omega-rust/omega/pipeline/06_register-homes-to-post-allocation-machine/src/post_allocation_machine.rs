@@ -5,12 +5,8 @@
 //! This file owns the sealed plan and its custody receipt; `validation` replays
 //! the custody join against the same allocation evidence.
 
-#[cfg(any(test, feature = "test-support"))]
-mod test_support;
 mod validation;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use test_support::PostAllocationMachineCustodyFieldForTest;
 pub use validation::validate_optimized_post_allocation_machine_plan_custody;
 
 use crate::PostAllocationMachineError;

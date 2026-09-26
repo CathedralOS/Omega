@@ -6,8 +6,6 @@ pub(crate) mod liveness;
 pub(crate) mod machine_effects;
 mod reanalysis;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use legality::OptimizedAllocationLegalityCustodyFieldForTest;
 pub(crate) use legality::stage_optimized_allocation_legality_for_frameless_leaf;
 pub use legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
@@ -16,16 +14,12 @@ pub use legality::{
     stage_optimized_allocation_legality_with_availability,
     validate_optimized_allocation_legality_custody,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use live_ranges::OptimizedLiveRangeCustodyFieldForTest;
 pub use live_ranges::{
     LiveRangeError, LiveRangeValidationReceipt, OptimizedLiveRangeCustodyError,
     StagedOptimizedLiveRangeCustodyReceipt, StagedOptimizedLiveRanges, ValidatedLiveRanges,
     analyze_live_ranges, analyze_live_ranges_reusing, stage_optimized_live_ranges,
     validate_live_ranges, validate_optimized_live_range_custody,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use liveness::OptimizedLivenessCustodyFieldForTest;
 pub(crate) use liveness::validate_staged_optimized_liveness_custody;
 pub use liveness::{
     LivenessError, LivenessValidationReceipt, OptimizedLivenessCustodyError,
@@ -39,8 +33,6 @@ pub use machine_effects::{
     MachineEffectError, MachineEffectStageError, ValidatedPreAllocationMachineEffects,
     analyze_machine_effects, validate_machine_effects, validate_pre_allocation_machine_effects,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use reanalysis::OptimizedSelectedReanalysisCustodyFieldForTest;
 pub use reanalysis::{
     OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
     StagedOptimizedSelectedReanalysisCustodyReceipt, stage_optimized_selected_reanalysis,
