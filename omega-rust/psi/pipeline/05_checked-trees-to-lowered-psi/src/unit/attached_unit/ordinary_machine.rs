@@ -1141,6 +1141,7 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
@@ -1170,9 +1171,6 @@ impl MachineEmission<'_> {
             }
             CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {
                 self.establish_trivial_affine_local(operation)?
-            }
-            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_) => {
-                return unsupported("Unit structural case field store has no lowered operation");
             }
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {
