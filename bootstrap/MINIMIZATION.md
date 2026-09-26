@@ -14,6 +14,13 @@ mutable state, compiler/evaluator/checker source, proof obligations and rules,
 certificates, resource profiles, wire formats, permanent tests, and host tools.
 Complexity nearer Alpha costs more because later edges inherit it.
 
+Test orchestration follows the repository's Omega tooling direction. Host
+scripts retained while Omega is not usable are migration scaffolding, not a
+permanent second tooling stack. Keep only the host operations needed to
+kickstart the compiler or exercise actual platform behavior once Omega can
+own the workflow. This does not put Omega in the cold-start trust base or
+replace the selected predecessor-language implementations.
+
 Below Omega these are purpose-built compiler and checker languages, not
 general-purpose products. Support the next consumer and its required assurance;
 an exact, deliberately small facility is sufficient. Language breadth, ergonomic
