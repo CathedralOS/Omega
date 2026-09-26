@@ -19,6 +19,11 @@ impl<T: HierarchyNode> HierarchyArena<T> {
         self.nodes.get(node)
     }
 
+    /// Mutate one node's payload. Parent and child ranges stay as built.
+    pub fn get_mut(&mut self, node: Handle<T>) -> &mut T {
+        self.nodes.get_mut(node)
+    }
+
     /// Insert a generated root after the authored hierarchy has been frozen.
     /// Later compiler stages use this for materialized declarations (for
     /// example generic-machine specializations). Authored handles remain

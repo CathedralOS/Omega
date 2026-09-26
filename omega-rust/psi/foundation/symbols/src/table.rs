@@ -316,6 +316,28 @@ impl SymbolTable {
         self.symbols.get(symbol)
     }
 
+    /// Give one symbol a new spelling. Target-family selection promotes the
+    /// realized target's body to the family path and demotes the body it
+    /// replaces to its `<path>::<target>` spelling; handles are unchanged.
+    /// The declaration's source span stays attached to the new spelling, so
+    /// provenance and diagnostics are unchanged.
+    pub fn rename(&mut self, symbol: SymbolHandle, name: &str) {
+        let name = match self.names.get(self.get(symbol).name).source_span() {
+            Some(source_span) => {
+                self.names
+                    .insert(SymbolName::from_ref(SymbolNameRef::OwnedSource {
+                        value: name,
+                        source_span,
+                    }))
+            }
+            None => self
+                .names
+                .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
+        };
+        self.symbols.get_mut(symbol).name = name;
+        self.root_names.clear();
+    }
+
     /// Start an append-only extension of an already resolved symbol table.
     /// Existing symbol handles and child ranges remain unchanged.
     pub fn begin_extension(

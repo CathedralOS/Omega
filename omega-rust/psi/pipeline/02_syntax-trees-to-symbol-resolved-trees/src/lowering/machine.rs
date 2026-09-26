@@ -70,17 +70,14 @@ pub(crate) fn lower_machine_into(
     lowerer.current_state_name = None;
     lowerer.current_evidence_term_names.clear();
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
-    // A sibling's conformances belong to its own target's realization; this
-    // realization must not see a second implementer of the requirement.
+    // A sibling keeps its own conformances (its `via` locators are its
+    // target's); consumers that select implementers skip sibling machines,
+    // and per-target selection promotes the realized target's body with them.
     let sibling_target = machine
         .target
         .as_ref()
         .map(crate::lowering::name::lower_name);
-    let satisfies = if sibling_target.is_some() {
-        HandleSpan::empty()
-    } else {
-        lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?
-    };
+    let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
     let conformance_bounds =
         lower_generic_conformance_bounds(lowerer, syntax_trees, &machine.conformance_bounds)?;
     let ranking_subjects =
@@ -127,9 +124,7 @@ pub(crate) fn lower_machine_into(
     // NON-boundary machine with a `via` clause is PRV4's external leaf (the
     // item parser refuses every other bodyless shape). Computed before the
     // push so the interner borrow does not overlap the machines borrow.
-    let supply_mode = if sibling_target.is_some() && machine.bodyless {
-        language_semantics::MachineSupplyMode::TargetSibling
-    } else {
+    let supply_mode = {
         let via_binding = syntax_trees
             .items
             .satisfies_clauses(machine.satisfies)

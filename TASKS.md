@@ -138,19 +138,21 @@ backend-visible; full corpus runs only at the end of an item.
   (`linux_x86_64 machine StatLayout::plan(...)`) survive as data through every
   Psi stage. Landed so far: every body of a non-selected target lowers as a
   sibling declaration (authored name, symbol `<path>::<target>`, `target`
-  on the record, no conformances, bodyless siblings with
-  `MachineSupplyMode::TargetSibling`), calls inside a sibling bind to the same
+  on the record, its own supply mode and conformances), calls inside a sibling bind to the same
   target's siblings (`symbols/target_siblings.rs`), and `prune_target_siblings`
   drops them after plan-fact binding, so a compile on any host checks all six
   `source/library/std/targets/*` trees (`omega --check` of `cli_mvp` runs Stage
   05 over every tree; `tests/omega/fail/targets/sibling_body_type_error_rejected`
-  pins a `demo_target` type error on every host). Remaining: the transitional
-  pre-resolution selection in
-  `build_evaluation::target_machines::filter_target_machines_by_scope` still
-  clears the selected target's marker and validates the one-body-per-target
-  rule, and siblings never reach Terminal Psi. Replace both with a family
-  record (one path, bodies keyed by target) that lowering and Terminal Psi
-  retain, so `omega inspect-terminal` shows each body under its family with
+  pins a `demo_target` type error on every host). The frontend no longer
+  observes the realized target: pre-resolution selection picks each product
+  family's canonical body (first target in name order), and
+  `SelectedTargetMachineDeclarations::select_product_target` swaps in the
+  realized target's body before checking (calls retargeted, symbols renamed,
+  sibling conformances hidden behind `TypedTrees::machine_trait_conformances`).
+  Remaining: that swap still runs per target before checking, and siblings
+  never reach Terminal Psi. Replace both with a family record (one path,
+  bodies keyed by target) that lowering and Terminal Psi retain, so
+  `omega inspect-terminal` shows each body under its family with
   its target tag and Omega selects the body at realization
   (PROVIDER-SELECTION-AFTER-TERMINAL owns the selection move). Lowering
   coverage limits the family record: on `samples/cli/basics/cli_mvp` (Windows

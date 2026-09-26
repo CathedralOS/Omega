@@ -73,11 +73,21 @@ struct TargetMachineOrigin {
     selected: bool,
 }
 
-/// The selected target per dependency scope.
+/// The selected target per dependency scope. Product scope selects each
+/// family's canonical body (the first recognized target in name order), so the
+/// frontend is the same program for every realized target; the realized
+/// target's body replaces it before checking
+/// (`SelectedTargetMachineDeclarations::select_product_target`). A generated
+/// extension, typed per target, still selects the product target.
 struct ScopeTargets<'a> {
-    product: NativeTarget,
+    product: ProductSelection,
     execution: NativeTarget,
     build_scope_sources: &'a HashSet<source::SourceId>,
+}
+
+enum ProductSelection {
+    Canonical(BTreeMap<String, String>),
+    Target(NativeTarget),
 }
 
 impl ScopeTargets<'_> {
@@ -94,9 +104,12 @@ impl ScopeTargets<'_> {
     }
 
     fn selects(&self, machine: &syntax_trees::item::Machine, target: &str) -> bool {
-        let scope_target = match self.scope_of(machine) {
-            source::DependencyScope::Build => self.execution,
-            source::DependencyScope::Product => self.product,
+        let scope_target = match (self.scope_of(machine), &self.product) {
+            (source::DependencyScope::Build, _) => self.execution,
+            (source::DependencyScope::Product, ProductSelection::Target(product)) => *product,
+            (source::DependencyScope::Product, ProductSelection::Canonical(canonical)) => {
+                return canonical.get(machine.name.as_str()).map(String::as_str) == Some(target);
+            }
         };
         NativeTarget::from_omega_target_name(Some(target))
             .is_ok_and(|resolved| resolved == scope_target)
@@ -153,7 +166,7 @@ impl SelectedTargetMachineDeclarations {
             .map_err(|diagnostic| vec![diagnostic])?;
         let no_build_scope = HashSet::new();
         let scopes = ScopeTargets {
-            product: selected,
+            product: ProductSelection::Target(selected),
             execution: selected,
             build_scope_sources: &no_build_scope,
         };
@@ -258,6 +271,188 @@ impl SelectedTargetMachineDeclarations {
         Ok(())
     }
 
+    /// Replace each product-scope family's canonical body with `target`'s own
+    /// body before checking: calls that resolved to the canonical body move to
+    /// the target's sibling, which loses its sibling marker and so brings its
+    /// own conformances into selection, while the canonical body becomes that
+    /// target's sibling. A family implemented by two or more targets but not by
+    /// `target` rejects; a single-target helper for another target stays an
+    /// inert sibling with its callers.
+    pub fn select_product_target(
+        &mut self,
+        typed: &mut TypedTrees,
+        target: NativeTarget,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut families: BTreeMap<&str, Vec<&TargetMachineOrigin>> = BTreeMap::new();
+        for origin in &self.all_machine_origins {
+            if origin.scope == source::DependencyScope::Product {
+                families
+                    .entry(origin.full_name.as_str())
+                    .or_default()
+                    .push(origin);
+            }
+        }
+        let machine_index = |typed: &TypedTrees, name: &str, sibling: Option<&str>, source| {
+            typed.machines().iter().position(|machine| {
+                machine.name.as_str() == name
+                    && machine.target.as_ref().map(|target| target.as_str()) == sibling
+                    && typed
+                        .symbols
+                        .symbol_provenance_source_span(machine.symbol)
+                        .is_some_and(|span| span.source_id == source)
+            })
+        };
+        let mut diagnostics = Vec::new();
+        let mut replacements = Vec::new();
+        let mut swaps = Vec::new();
+        for (name, origins) in &families {
+            let Some(canonical) = origins.iter().find(|origin| origin.selected) else {
+                continue;
+            };
+            if NativeTarget::from_omega_target_name(Some(canonical.target.as_str()))
+                .is_ok_and(|resolved| resolved == target)
+            {
+                continue;
+            }
+            let wanted = origins.iter().find(|origin| {
+                NativeTarget::from_omega_target_name(Some(origin.target.as_str()))
+                    .is_ok_and(|resolved| resolved == target)
+            });
+            let Some(canonical_index) = machine_index(typed, name, None, canonical.source) else {
+                // Provider defaults and other declarations that never reach
+                // typing keep no typed body to swap.
+                continue;
+            };
+            let Some(wanted) = wanted else {
+                let mut providers = origins
+                    .iter()
+                    .map(|origin| origin.target.as_str())
+                    .collect::<Vec<_>>();
+                providers.sort();
+                providers.dedup();
+                if providers.len() >= 2 {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{name}` has no implementation for the selected target -- \
+                         target-scoped implementations exist for: {} (add this target's \
+                         `<target> machine {name}(..)` in that target package)",
+                        providers.join(", "),
+                    )));
+                }
+                swaps.push((canonical_index, None, (*canonical).clone(), None));
+                continue;
+            };
+            let Some(wanted_index) =
+                machine_index(typed, name, Some(wanted.target.as_str()), wanted.source)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "target `{}` body of machine `{name}` did not survive typing",
+                    wanted.target,
+                )));
+                continue;
+            };
+            let canonical_machine = &typed.machines()[canonical_index];
+            let wanted_machine = &typed.machines()[wanted_index];
+            let canonical_identity = typed
+                .normalized_machine_overload_identity(canonical_machine)
+                .map(|identity| identity.identity().to_owned());
+            let wanted_identity = typed
+                .normalized_machine_overload_identity(wanted_machine)
+                .map(|identity| identity.identity().to_owned());
+            if canonical_identity != wanted_identity {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{name}` has a different signature for `{}` than for `{}` -- \
+                     every target's body of one machine shares its signature",
+                    wanted.target, canonical.target,
+                )));
+                continue;
+            }
+            let canonical_states = typed.machine_states(canonical_machine);
+            let wanted_states = typed.machine_states(wanted_machine);
+            if let (Some(from), Some(to)) = (canonical_states.first(), wanted_states.first()) {
+                replacements.push((from.symbol, to.symbol));
+            }
+            for from in canonical_states.iter().skip(1) {
+                if let Some(to) = wanted_states.iter().find(|state| state.name == from.name) {
+                    replacements.push((from.symbol, to.symbol));
+                }
+            }
+            swaps.push((
+                canonical_index,
+                Some(wanted_index),
+                (*canonical).clone(),
+                Some((*wanted).clone()),
+            ));
+        }
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
+        for (canonical_index, wanted_index, canonical, wanted) in swaps {
+            let canonical_target =
+                typed_trees::name::Identifier::generated(canonical.target.clone());
+            let machines = typed.machines_mut();
+            machines[canonical_index].target = Some(canonical_target);
+            let canonical_symbol = machines[canonical_index].symbol;
+            let demoted_spelling = machines[canonical_index].symbol_spelling().into_owned();
+            let promoted = wanted_index.map(|wanted_index| {
+                machines[wanted_index].target = None;
+                (
+                    machines[wanted_index].symbol,
+                    machines[wanted_index].symbol_spelling().into_owned(),
+                )
+            });
+            // Validation joins each machine to its symbol by spelling, so the
+            // symbol table follows the markers.
+            typed.symbols.rename(canonical_symbol, &demoted_spelling);
+            if let Some((symbol, spelling)) = promoted {
+                typed.symbols.rename(symbol, &spelling);
+            }
+            self.reselect(&canonical, wanted.as_ref());
+        }
+        typed.statement_table.retarget_call_states(&replacements);
+        typed.expression_table.retarget_call_states(&replacements);
+        Ok(())
+    }
+
+    /// Move the retained selection of one family from its canonical body to
+    /// the realized target's body, or drop it when that target has none.
+    fn reselect(&mut self, canonical: &TargetMachineOrigin, wanted: Option<&TargetMachineOrigin>) {
+        for origin in &mut self.all_machine_origins {
+            if origin.scope != source::DependencyScope::Product
+                || origin.full_name != canonical.full_name
+            {
+                continue;
+            }
+            origin.selected = wanted.is_some_and(|wanted| {
+                origin.target == wanted.target && origin.source == wanted.source
+            });
+        }
+        self.selected_machine_origins
+            .retain(|(name, target, source)| {
+                !(name == &canonical.full_name
+                    && target == &canonical.target
+                    && *source == canonical.source)
+            });
+        let was_provider_default = self
+            .provider_default_machine_names
+            .iter()
+            .any(|(name, source)| name == &canonical.full_name && *source == canonical.source);
+        self.provider_default_machine_names
+            .retain(|(name, source)| {
+                !(name == &canonical.full_name && *source == canonical.source)
+            });
+        if let Some(wanted) = wanted {
+            self.selected_machine_origins.push((
+                wanted.full_name.clone(),
+                wanted.target.clone(),
+                wanted.source,
+            ));
+            if was_provider_default {
+                self.provider_default_machine_names
+                    .push((wanted.full_name.clone(), wanted.source));
+            }
+        }
+    }
+
     pub fn settle_provider_defaults(
         self,
         typed: &mut TypedTrees,
@@ -343,18 +538,54 @@ pub fn filter_target_machines_by_scope(
     execution_profile_name: Option<&str>,
     build_scope_sources: &HashSet<source::SourceId>,
 ) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {
-    let product = NativeTarget::from_omega_target_name(product_target_name)
+    // The product target no longer selects before resolution; it is still
+    // validated here so an unknown spelling rejects at admission.
+    NativeTarget::from_omega_target_name(product_target_name)
         .map_err(|diagnostic| vec![diagnostic])?;
     let execution = NativeTarget::from_omega_target_name(execution_profile_name)
         .map_err(|diagnostic| vec![diagnostic])?;
     let scopes = ScopeTargets {
-        product,
+        product: ProductSelection::Canonical(canonical_product_targets(
+            syntax,
+            build_scope_sources,
+        )),
         execution,
         build_scope_sources,
     };
     let origins = target_machine_origins(syntax, &scopes);
     validate_target_machine_origins(&origins)?;
     Ok(select_target_machines(syntax, &scopes, origins))
+}
+
+/// Each product-scope family's canonical target: the first recognized target
+/// in name order among its bodies.
+fn canonical_product_targets(
+    syntax: &SyntaxTrees,
+    build_scope_sources: &HashSet<source::SourceId>,
+) -> BTreeMap<String, String> {
+    let mut canonical: BTreeMap<String, String> = BTreeMap::new();
+    for item in syntax.root_items() {
+        let Item::Machine(machine) = item else {
+            continue;
+        };
+        let Some(target) = &machine.target else {
+            continue;
+        };
+        if build_scope_sources.contains(&machine.name.source_span().source_id)
+            || NativeTarget::from_omega_target_name(Some(target.as_str())).is_err()
+        {
+            continue;
+        }
+        canonical
+            .entry(machine.name.as_str().to_owned())
+            .and_modify(|current| {
+                if target.as_str() < current.as_str() {
+                    *current = target.as_str().to_owned();
+                }
+            })
+            .or_insert_with(|| target.as_str().to_owned());
+    }
+    canonical
 }
 
 fn target_machine_origins(
@@ -560,21 +791,24 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(selected_markers, vec![None, Some("windows_x86_64".into())]);
 
-        // The same declarations as product scope keep the product rule: a
-        // contract name implemented only by foreign targets is the loud edge.
+        // The same declarations as product scope select the family's
+        // canonical body (the first target in name order) for every product
+        // target; the realized target's body replaces it before checking.
         let mut product = syntax(7, HELPER);
-        let diagnostics = filter_target_machines_by_scope(
+        let retained = filter_target_machines_by_scope(
             &mut product,
             Some("linux_x86_64"),
             Some("macos_arm64"),
             &HashSet::new(),
         )
-        .expect_err("product-scope declarations still select against the product target");
-        assert!(
-            diagnostics[0]
-                .to_string()
-                .contains("machine `Tool::probe` has no implementation for the selected target"),
-            "{diagnostics:?}"
+        .expect("product-scope declarations select the canonical body");
+        assert_eq!(
+            retained.selected_machine_origins,
+            vec![(
+                "Tool::probe".into(),
+                "macos_arm64".into(),
+                source::SourceId(7)
+            )]
         );
     }
 
@@ -774,23 +1008,6 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].message.contains("implemented twice"));
         assert!(diagnostics[0].message.contains("Duplicate::value"));
-    }
-
-    #[test]
-    fn generated_extension_completes_missing_target_validation_across_base_stratum() {
-        let mut base = syntax(0, "windows_x86_64 machine Missing::value() -> u64 { 1 }\n");
-        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
-            .expect("one foreign-only base row remains an inert target-local helper");
-        let mut extension = syntax(1, "macos_arm64 machine Missing::value() -> u64 { 2 }\n");
-
-        let diagnostics = retained
-            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
-            .expect_err("base and generated rows must form one portable target cohort");
-
-        assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0].message.contains("no implementation"));
-        assert!(diagnostics[0].message.contains("macos_arm64"));
-        assert!(diagnostics[0].message.contains("windows_x86_64"));
     }
 
     #[test]

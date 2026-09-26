@@ -369,7 +369,6 @@ fn validate(
                     language_semantics::MachineSupplyMode::AdmissionClaim
                         | language_semantics::MachineSupplyMode::TopLevelRequirement
                         | language_semantics::MachineSupplyMode::Boundary
-                        | language_semantics::MachineSupplyMode::TargetSibling
                 )
                 // PRV4: an EXTERNAL LEAF's body IS its binding -- the
                 // realization produces the value at the seam.

@@ -39,22 +39,9 @@ pub enum MachineSupplyMode {
         binding: Option<ExternalBindingId>,
         mechanism: Option<ExternalBindingMechanism>,
     },
-    /// A bodyless target-scoped declaration that belongs to a target other
-    /// than the one this compilation realizes. It is retained beside the
-    /// selected target's declaration so every target's bodies resolve and
-    /// check on every host; it supplies nothing to this realization and is
-    /// pruned before lowering. Bodied siblings keep their own supply mode and
-    /// carry their target on the machine record instead. Realization-time
-    /// selection between siblings belongs to Omega
-    /// (`wiki/spec/build/configuration.md#multi-target-compilation`).
-    TargetSibling,
 }
 
 impl MachineSupplyMode {
-    pub const fn is_target_sibling(self) -> bool {
-        matches!(self, Self::TargetSibling)
-    }
-
     pub const fn is_checked_body(self) -> bool {
         matches!(self, Self::CheckedBody)
     }
