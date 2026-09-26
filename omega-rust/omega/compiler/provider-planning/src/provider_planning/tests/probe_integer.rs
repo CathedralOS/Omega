@@ -16,6 +16,8 @@ fn integer_comparison_satisfies_provider_binds_the_exact_requirement() {
         r#"
         boundary machine == Comparison::equal(left: i32, right: i32) -> bool;
 
+        data IntProvider {}
+
         machine IntProvider::equal_impl(left: i32, right: i32) -> bool
         satisfies Comparison::equal
         via ForeignBinding::CompilerIntrinsic;
@@ -25,7 +27,7 @@ fn integer_comparison_satisfies_provider_binds_the_exact_requirement() {
         }
         "#,
     );
-    let [operator] = typed.operators() else {
+    let [operator] = typed.machine_token_bindings() else {
         panic!("one boundary operator")
     };
     let derived_plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
@@ -114,7 +116,7 @@ fn integer_comparison_identity_commits_to_authored_spelling_and_type() {
             boundary machine {spelling} Comparison::order(left: u64, right: u64) -> bool;
             "#,
         ));
-        let [operator] = typed.operators() else {
+        let [operator] = typed.machine_token_bindings() else {
             panic!("one boundary operator")
         };
         assert_eq!(
@@ -155,7 +157,7 @@ fn integer_comparison_identity_fails_closed_outside_the_roster() {
         "boundary machine + Comparison::add(left: i32, right: i32) -> i32;",
     ] {
         let typed = typed_fixture(source);
-        let [operator] = typed.operators() else {
+        let [operator] = typed.machine_token_bindings() else {
             panic!("one boundary operator in `{source}`")
         };
         assert_eq!(
