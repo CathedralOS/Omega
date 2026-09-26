@@ -27,6 +27,17 @@
 //! `exit:signal`) and, beside an `expected_stdout.txt`, `stdout:match` or
 //! `stdout:differs`.
 //!
+//! `OMEGA_CORPUS_INTERPRET=1` also executes each runnable fixture (the run
+//! tier and `*_exit` pass fixtures) on the checked interpreter that
+//! `omega run --both` uses, for the host target (or the first target the
+//! fixture's build binds), with `input.txt` as stdin. The record gains
+//! `interpreter-exit:<code>` and, beside an `expected_stdout.txt`,
+//! `interpreter-stdout:match` or `interpreter-stdout:differs`; a run the
+//! interpreter declines records `interpreter:declined`, and a program that
+//! does not check for it records `interpreter:unchecked`. With the native leg
+//! as well, the record gains `interpreter:agrees` or `interpreter:disagrees`
+//! comparing the two exit codes.
+//!
 //! Record format, read by `tools/corpus_records.py`: one line per fixture,
 //! `<tier/group/name> <status> <milliseconds>ms`, followed by ` expected` or
 //! ` unexpected` when the fixture's `expected.txt` fragments were weighed
@@ -145,6 +156,67 @@ fn check_pass_fixture(
 fn native_target() -> Option<&'static str> {
     env::var_os("OMEGA_CORPUS_NATIVE")?;
     target::TargetProfile::host_if_supported().map(|profile| profile.target_name())
+}
+
+/// Whether runnable fixtures also execute on the checked interpreter.
+fn interpreter_leg() -> bool {
+    env::var_os("OMEGA_CORPUS_INTERPRET").is_some()
+}
+
+/// Interpret one fixture's selected program entry, as `omega run --both`
+/// does, and report its exit and stdout facts.
+fn interpret_fixture(root_path: &Path, fixture_dir: &Path) -> Vec<String> {
+    let Some(target) = target::TargetProfile::host_if_supported()
+        .map(|profile| profile.target_name().to_owned())
+        .or_else(|| declared_realization_target(root_path))
+    else {
+        return vec!["interpreter:unchecked".to_owned()];
+    };
+    let mut request = CheckedCompileRequest::new(root_path, Some(target.as_str()));
+    let Ok(package_inputs) = reviewed_repository_fixture_package_inputs(root_path, Some(&target))
+    else {
+        return vec!["interpreter:unchecked".to_owned()];
+    };
+    request.package_inputs = package_inputs;
+    let Ok(checked) = compile_to_checked(request) else {
+        return vec!["interpreter:unchecked".to_owned()];
+    };
+    let Some(entry) = checked.selected_program_entry() else {
+        return vec!["interpreter:unchecked".to_owned()];
+    };
+    let stdin = fs::read(fixture_dir.join("input.txt")).unwrap_or_default();
+    let outcome = checked_interpreter::interpret_entry(
+        &checked,
+        checked_interpreter::BuildMachineEntry::Symbol(entry.source_signature().machine_symbol()),
+        &stdin,
+        checked_interpreter::InterpretOptions::default(),
+    );
+    if outcome.error.is_some() {
+        return vec!["interpreter:declined".to_owned()];
+    }
+    let mut facts = vec![format!("interpreter-exit:{}", outcome.exit_code)];
+    if let Ok(expected) = fs::read_to_string(fixture_dir.join("expected_stdout.txt")) {
+        let actual = String::from_utf8_lossy(&outcome.stdout).replace("\r\n", "\n");
+        facts.push(if actual == expected.replace("\r\n", "\n") {
+            "interpreter-stdout:match".to_owned()
+        } else {
+            "interpreter-stdout:differs".to_owned()
+        });
+    }
+    facts
+}
+
+/// With both legs, whether the native and interpreted exit codes agree.
+fn interpreter_agreement(facts: &[String]) -> Option<String> {
+    let native = facts.iter().find_map(|fact| fact.strip_prefix("exit:"))?;
+    let interpreted = facts
+        .iter()
+        .find_map(|fact| fact.strip_prefix("interpreter-exit:"))?;
+    Some(if native == interpreted {
+        "interpreter:agrees".to_owned()
+    } else {
+        "interpreter:disagrees".to_owned()
+    })
 }
 
 /// Build one fixture as a published native executable for `target`.
@@ -343,6 +415,12 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     };
     if tier == "fail" && outcome.is_ok() {
         outcome = realize_fail_fixture(main, unique_build_dir(sequence));
+    }
+    if interpreter_leg() && tier != "fail" && (tier == "run" || rel.ends_with("_exit")) {
+        facts.extend(interpret_fixture(main, &fixture_dir));
+        if let Some(agreement) = interpreter_agreement(&facts) {
+            facts.push(agreement);
+        }
     }
     let errors: &[diagnostics::Diagnostic] =
         outcome.as_ref().err().map(Vec::as_slice).unwrap_or(&[]);
