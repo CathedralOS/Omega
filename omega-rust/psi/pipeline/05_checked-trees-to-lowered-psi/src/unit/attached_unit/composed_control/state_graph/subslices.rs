@@ -89,6 +89,9 @@ pub(super) fn emit(
                 family,
             }
         }
+        CheckedStorageRoot::OwnedLocal { .. } => {
+            return unsupported("Unit graph subslice source is an owned local, not a view");
+        }
     };
     view_ranges::emit(
         checked,

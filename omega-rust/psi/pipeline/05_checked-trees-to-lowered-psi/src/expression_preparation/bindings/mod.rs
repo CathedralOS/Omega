@@ -742,6 +742,7 @@ impl ScalarBindings {
             &self.primitive_storage,
             &self.element_views,
             &self.view_locals,
+            &self.structural_locals,
         )
     }
 }

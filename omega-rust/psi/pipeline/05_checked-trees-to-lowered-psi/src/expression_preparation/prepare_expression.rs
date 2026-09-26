@@ -16,7 +16,7 @@ use crate::expression_preparation::wrapping_cast;
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, LoweringError, PlaceId,
-    PrimitiveType, ScalarType, StructuralAccess, StructuralMultiplicity,
+    PrimitiveType, ScalarType, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeId, unsupported,
 };
 use semantic_vocabulary::CanonicalStructuralPathSegment;
@@ -51,6 +51,7 @@ pub(crate) fn lower_checked_scalar_expression(
         &[],
         &std::collections::BTreeMap::new(),
         &[],
+        &[],
     )
 }
 
@@ -79,6 +80,7 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
         &[],
         &[],
         &std::collections::BTreeMap::new(),
+        &[],
         &[],
     )?;
     source_custody::validate_pure(checked, binding, expression.scalar_type())?;
@@ -134,6 +136,30 @@ fn view_local_observation(
     Ok((local.place, local.carrier))
 }
 
+/// The place an owned structural local's establishment published, for scalar
+/// observations (element reads) rooted at it. The local keeps whole owned
+/// custody: an established view re-loan or a projected source means the read
+/// is no longer the plain owned-place read this root names.
+fn owned_local_observation(
+    structural_locals: &[(symbols::SymbolHandle, StructuralArgument)],
+    symbol: symbols::SymbolHandle,
+) -> Result<PlaceId, LoweringError> {
+    let mut matches = structural_locals
+        .iter()
+        .filter(|(local, _)| *local == symbol);
+    let Some((_, source)) = matches.next() else {
+        return unsupported("owned local observation lost its established place");
+    };
+    if !symbol.is_valid()
+        || matches.next().is_some()
+        || source.access != StructuralAccess::Owned
+        || !source.path.is_empty()
+    {
+        return unsupported("owned local observation changed its local custody");
+    }
+    Ok(source.place)
+}
+
 pub(crate) fn lower_checked_scalar_expression_with_parameters(
     expression: &CheckedScalarExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
@@ -142,6 +168,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
     element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
     view_locals: &[ViewLocalBinding],
+    structural_locals: &[(symbols::SymbolHandle, StructuralArgument)],
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
         CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
@@ -176,6 +203,11 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 }
                 checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
                     view_local_observation(view_locals, symbol, path)?
+                }
+                checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
+                    return unsupported(
+                        "an owned local's extent is declared, not an observed view length",
+                    );
                 }
             };
             Ok(match carrier {
@@ -324,6 +356,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?;
             let right = lower_checked_scalar_expression_with_parameters(
                 right,
@@ -333,6 +366,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?;
             Ok(LoweredDirectExpression::IntegerBinary {
                 kind: match kind {
@@ -437,6 +471,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
         }),
         CheckedScalarExpression::IntegerWiden {
@@ -452,6 +487,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
         }),
         CheckedScalarExpression::StructuralParameterIndexedRead {
@@ -461,6 +497,32 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             element_path,
             primitive_type,
         } => {
+            if let checked_trees::CheckedStorageRoot::OwnedLocal { symbol } = *root {
+                // An owned local's declared extent is on its place, so an
+                // element read needs no length observation — the verifier
+                // resolves `index < extent` from the type like a parameter's
+                // fixed-array field.
+                if !path.is_empty() || !element_path.is_empty() {
+                    return unsupported("an owned local element read takes no projection path");
+                }
+                let source = owned_local_observation(structural_locals, symbol)?;
+                let index = lower_checked_scalar_expression_with_parameters(
+                    index,
+                    structural_parameters,
+                    structural_fields,
+                    structural_cases,
+                    primitive_storage,
+                    element_views,
+                    view_locals,
+                    structural_locals,
+                )?;
+                return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+                    source,
+                    path: Vec::new(),
+                    index: Box::new(exact_u64_index(index)?),
+                    scalar_type: terminal_scalar_type(*primitive_type)?,
+                });
+            }
             let (source, carrier) = match *root {
                 checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
@@ -479,6 +541,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             primitive_storage,
                             element_views,
                             view_locals,
+                            structural_locals,
                         )?;
                         let index = exact_u64_index(index)?;
                         // A path ending at a fixed array declares its extent
@@ -537,6 +600,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
                     view_local_observation(view_locals, symbol, path)?
                 }
+                checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
+                    return unsupported("owned local element read left the view-carrier match");
+                }
             };
             let element_scalar = match carrier {
                 ViewCarrier::Bytes => None,
@@ -574,6 +640,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         primitive_storage,
                         element_views,
                         view_locals,
+                        structural_locals,
                     )?;
                     return Ok(LoweredDirectExpression::ElementViewRead {
                         source,
@@ -597,6 +664,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?;
             let index = exact_u64_index(index)?;
             match element_scalar {
@@ -633,6 +701,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
             let ScalarType::Integer(source_type) = operand.scalar_type() else {
@@ -652,6 +721,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
             let ScalarType::Integer(source_type) = operand.scalar_type() else {
@@ -672,6 +742,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
         }),
         CheckedScalarExpression::IntegerExactCast {
@@ -688,6 +759,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
         }),
         CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
@@ -699,6 +771,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
         }),
     }
@@ -716,6 +789,7 @@ pub(crate) fn lower_checked_boolean_expression(
         &[],
         &std::collections::BTreeMap::new(),
         &[],
+        &[],
     )
 }
 
@@ -727,6 +801,7 @@ fn lower_checked_boolean_expression_with_parameters(
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
     element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
     view_locals: &[ViewLocalBinding],
+    structural_locals: &[(symbols::SymbolHandle, StructuralArgument)],
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
     Ok(match expression {
         CheckedBooleanExpression::Constant(value) => {
@@ -839,6 +914,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
         },
         CheckedBooleanExpression::Equal { left, right } => LoweredBooleanReturnExpression::Equal {
@@ -850,6 +926,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
@@ -859,6 +936,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
         },
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
@@ -880,6 +958,7 @@ fn lower_checked_boolean_expression_with_parameters(
                     primitive_storage,
                     element_views,
                     view_locals,
+                    structural_locals,
                 )?),
                 right: Box::new(lower_checked_scalar_expression_with_parameters(
                     right,
@@ -889,6 +968,7 @@ fn lower_checked_boolean_expression_with_parameters(
                     primitive_storage,
                     element_views,
                     view_locals,
+                    structural_locals,
                 )?),
             }
         }
@@ -917,6 +997,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
@@ -926,6 +1007,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
         },
         CheckedBooleanExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
@@ -937,6 +1019,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
@@ -946,6 +1029,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 primitive_storage,
                 element_views,
                 view_locals,
+                structural_locals,
             )?),
         },
     })

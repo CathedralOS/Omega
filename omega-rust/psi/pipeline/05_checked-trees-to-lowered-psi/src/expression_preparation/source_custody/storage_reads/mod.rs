@@ -922,7 +922,32 @@ fn collect_scalar_storage_reads(
                 path.pop();
             }
         }
-        CheckedScalarExpression::StructuralParameterIndexedRead { index, .. } => {
+        CheckedScalarExpression::StructuralParameterIndexedRead {
+            root,
+            path: read_path,
+            index,
+            element_path,
+            primitive_type,
+        } => {
+            // An owned local's literal element read retains the same
+            // `IndexedPrimitive` leaf the authored `local[literal]` rejoin
+            // produces; a dynamic index retains only its selector read.
+            if let checked_trees::CheckedStorageRoot::OwnedLocal { symbol } = *root
+                && let CheckedScalarExpression::IntegerLiteral { literal } = index.as_ref()
+                && let Some(index) = literal.value_u64()
+            {
+                let mut projection = read_path.clone();
+                projection.extend(element_path.iter().cloned());
+                projection
+                    .push(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index));
+                reads.push((
+                    path.clone(),
+                    symbol,
+                    *primitive_type,
+                    ReadKind::IndexedPrimitive(projection),
+                ));
+                return;
+            }
             path.push(0);
             collect_scalar_storage_reads(index, namespace, path, reads, needs_value_replay);
             path.pop();

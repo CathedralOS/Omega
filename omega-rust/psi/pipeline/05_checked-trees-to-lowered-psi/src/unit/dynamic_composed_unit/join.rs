@@ -800,6 +800,7 @@ fn lower_join_guard(
         &[],
         &std::collections::BTreeMap::new(),
         &[],
+        &[],
     )?;
     if lowered.scalar_type() != ScalarType::Boolean {
         return unsupported("joined dynamic control guard is not a Boolean scalar");

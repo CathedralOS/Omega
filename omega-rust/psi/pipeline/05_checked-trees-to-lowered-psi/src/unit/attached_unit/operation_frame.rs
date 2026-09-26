@@ -1178,6 +1178,9 @@ impl OperationFrame<'_, '_> {
                     family,
                 }
             }
+            checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
+                return unsupported("view subslice source is an owned local, not a view");
+            }
         };
         // Endpoints read the body's scalar namespace, including the view
         // locals and parameters a `len` endpoint may observe.
