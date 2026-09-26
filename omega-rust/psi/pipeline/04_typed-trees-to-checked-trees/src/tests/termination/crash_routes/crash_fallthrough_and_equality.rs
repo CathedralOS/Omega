@@ -248,8 +248,9 @@ fn direct_crash_fallthrough_projects_uniform_state_arrivals() {
 
 #[test]
 fn checked_call_fallthrough_projects_unselected_arm_facts() {
-    // The callee's surviving route names its own parameter while the caller's
-    // published ceiling names the negated entry operand. Only the fallthrough
+    // The callee's surviving route reads `other`, independently of the caller's
+    // published ceiling over `flag`. Using `risky(flag)` instead would now
+    // discharge the callee route from the unselected arm. Only the fallthrough
     // fact `!flag` — established when the earlier arm was not selected —
     // activates the published guard as a path consequence over the call.
     let source = r#"
@@ -258,12 +259,12 @@ fn checked_call_fallthrough_projects_unselected_arm_facts() {
             flag
         { flag }
 
-        machine value(flag: bool) -> bool
+        machine value(flag: bool, other: bool) -> bool
         crashes Trap
             !flag
         {
             transition { flag -> true }
-            transition { risky(flag) -> true }
+            transition { risky(other) -> true }
             crash Trap;
         }
     "#;

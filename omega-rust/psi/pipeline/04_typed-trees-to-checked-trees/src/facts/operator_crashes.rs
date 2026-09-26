@@ -21,6 +21,7 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
 mod named_routes;
+pub(super) use named_routes::statement_entry_route_is_false;
 
 #[cfg(test)]
 mod tests;
