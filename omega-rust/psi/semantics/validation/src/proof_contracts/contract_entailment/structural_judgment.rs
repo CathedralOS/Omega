@@ -2550,13 +2550,13 @@ fn compute_ring_licenses(
                         continue;
                     }
                     if slot_satisfier_exists(
-                        &slot_carriers,
+                        slot_carriers,
                         program,
                         trait_definition.symbol,
                         comm_law,
                         carrier,
                     ) && slot_satisfier_exists(
-                        &slot_carriers,
+                        slot_carriers,
                         program,
                         trait_definition.symbol,
                         assoc_law,

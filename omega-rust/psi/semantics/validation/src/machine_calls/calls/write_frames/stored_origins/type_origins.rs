@@ -333,10 +333,10 @@ pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open — the type walk otherwise re-scans the declaration table per
 /// nominal node it descends into.
-fn data_definition_by_symbol<'program>(
-    program: &'program TypedTrees,
+fn data_definition_by_symbol(
+    program: &TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, symbol)
 }
 
