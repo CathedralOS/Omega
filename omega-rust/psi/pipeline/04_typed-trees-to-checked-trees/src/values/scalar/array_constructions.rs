@@ -2,7 +2,7 @@
 //! Discovery does not schedule evaluation or create a synthetic call. Pure and
 //! computed leaves share this roster after flow capture, while statement-owned
 //! arrays retain their existing pre-flow value production.
-use checked_trees::{CheckedArrayConstructionSource, FlowFacts};
+use checked_trees::{CheckedArrayConstructionSource, FlowFacts, FlowStateFact};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
@@ -22,16 +22,38 @@ pub(crate) fn call_array_constructions(
     state: &typed_trees::state::State,
     statement_index: usize,
 ) -> Vec<CallArrayConstruction> {
+    let Some(captured) = unique_state_flow(flow, machine, state) else {
+        return Vec::new();
+    };
+    call_array_constructions_in(program, flow, captured, machine, state, statement_index)
+}
+
+/// The one flow fact captured for `state`; `None` when there is none or more
+/// than one. A per-statement walk resolves it once per state rather than
+/// rescanning every state fact at each statement.
+pub(crate) fn unique_state_flow<'flow>(
+    flow: &'flow FlowFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> Option<&'flow FlowStateFact> {
     let mut states = flow.control.states.iter().filter_map(|(_, candidate)| {
         (candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol)
             .then_some(candidate)
     });
-    let Some(captured) = states.next() else {
-        return Vec::new();
-    };
-    if states.next().is_some() {
-        return Vec::new();
-    }
+    let captured = states.next()?;
+    states.next().is_none().then_some(captured)
+}
+
+/// [`call_array_constructions`] for a state whose unique flow fact the
+/// caller already resolved.
+pub(crate) fn call_array_constructions_in(
+    program: &TypedTrees,
+    flow: &FlowFacts,
+    captured: &FlowStateFact,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+) -> Vec<CallArrayConstruction> {
     let Some(calls) = flow.control.calls.span(captured.calls) else {
         return Vec::new();
     };
