@@ -1,0 +1,23 @@
+// PASS CANARY. An attached machine whose single state ends in a
+// `transition` that tail-calls another attached machine must keep its
+// checked scalar graph and lower through the shared Unit catalog: the
+// fused graph inlines the callee's states, so `run` returns `count`'s
+// scalar result without a synthesized call edge.
+
+data Counter {
+    n: u64;
+}
+
+machine Counter::count(&mut self, step: u64) -> u64
+    requires step < 100
+{
+    transition {
+        _ -> (step)
+    }
+}
+
+machine Counter::run(&mut self) -> u64 {
+    transition {
+        _ -> self.count(5)
+    }
+}

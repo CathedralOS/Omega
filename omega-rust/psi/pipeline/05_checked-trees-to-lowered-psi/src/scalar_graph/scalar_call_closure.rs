@@ -17,6 +17,24 @@ pub(crate) fn requires_shared_catalog(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<bool, LoweringError> {
+    // The pure scalar closure admits an Eligible entry or a caller-authorized
+    // Attached callee only: an attached entry has no authorized caller above
+    // it, so `checked_scalar_call_closure` refuses it outright. Its fused
+    // graph still carries the body — attached machines borrow the shared Unit
+    // catalog, which already emits attached signatures.
+    if checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .any(|selection| {
+            selection.machine == entry
+                && selection.signature == CheckedTerminalSignatureEligibility::Attached
+        })
+    {
+        return Ok(true);
+    }
     let mut pending = vec![entry];
     let mut visited = Vec::new();
     while let Some(machine) = pending.pop() {

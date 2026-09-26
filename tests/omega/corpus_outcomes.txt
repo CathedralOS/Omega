@@ -1121,6 +1121,7 @@ pass/control_flow/self_case_payload_both_arms_exit checked 1843ms
 pass/control_flow/sum_field_storage_roundtrip checked 174ms
 pass/control_flow/termination_index_distance_compile checked 63ms
 pass/control_flow/transition_operand_schedule checked 1ms
+pass/control_flow/transition_tail_self_call checked 285ms
 pass/core/carry_permission_provider_adapter checked 80ms
 pass/core/content_conservation_contract checked 203ms
 pass/core/content_retained_custody_round_trip checked 190ms
