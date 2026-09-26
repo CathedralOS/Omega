@@ -24,7 +24,7 @@ machine Builder::build(&mut self, level: &mut Level) {
     level.room_count = 4;
     transition { _ -> carve_at(level, 0) }
     state carve_at(&mut self, level: &mut Level, index: u64 [0..=3]) {
-        let tag: i32 = 100 + index;
+        let tag: i32 = 100 + (index as i32);
         self.carve(level, tag);
         let next: u64 = index + 1;
         transition next < 4 { true -> carve_at(level, next) false -> {} }

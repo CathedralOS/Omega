@@ -27,7 +27,7 @@ machine Main::main(&mut self) reaches Console {
         // The RHS must be genuinely runtime: a static-folding value lowers
         // through the write cascade's immediate path (probed -- `= 7`
         // compiles and runs).
-        let next: u8 = (y as u8 in Wrapping) + 5;
+        let next: u8 = ((y as u8 in Wrapping) + 5) as u8;
         self.cells[y * 4 + x] = next;
         self.out = self.cells[11] as i32;
         self.console.exit_process(self.out);

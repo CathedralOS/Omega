@@ -6,6 +6,6 @@
 data Bits { x: i32; y: u32; }
 
 machine Bits::go(&mut self) {
-    self.y = (self.x & 0xffff) & (&self.x as &u32);
+    self.y = ((self.x & 0xffff) as u32) & (&self.x as &u32);
     self.y = self.y & (&mut self.x as &mut u32);
 }

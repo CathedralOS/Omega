@@ -25,7 +25,7 @@ data Main {
 
 machine Calc::double_val(&mut self, n: i32 in Wrapping) -> i32 {
     transition {
-        _ -> (n * 2)
+        _ -> ((n * 2) as i32)
     }
 }
 

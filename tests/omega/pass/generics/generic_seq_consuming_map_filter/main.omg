@@ -6,7 +6,7 @@ data Seq<T> {
 machine increment(value: u64) -> u64 {
     // Re-tagged operand: a wrapping increment needs no range premise, and the
     // `map<increment>` instantiation keeps an ordinary `u64 -> u64` contract.
-    (value as u64 in Wrapping) + 1
+    ((value as u64 in Wrapping) + 1) as u64
 }
 
 machine positive(value: &i32) -> bool {

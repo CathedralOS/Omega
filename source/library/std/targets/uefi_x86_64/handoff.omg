@@ -385,8 +385,8 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     // spending a stale-key attempt: allocate the replacement first so the old
     // map storage stays live on a rejected grow.
     state grow(&mut self) {
-        let required: u64 = (self.legs.map_size as u64 in Saturating)
-            + (EFI_PAGE_BYTES - 1);
+        let required: u64 = ((self.legs.map_size as u64 in Saturating)
+            + (EFI_PAGE_BYTES - 1)) as u64;
         self.legs.pages = required / EFI_PAGE_BYTES;
         self.grow();
         transition { _ -> release() }
@@ -414,8 +414,8 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     state adopt(&mut self) {
         self.legs.map = self.legs.next_map;
         self.legs.map_pages = self.legs.pages;
-        self.legs.map_capacity = (self.legs.pages as u64 in Saturating)
-            * EFI_PAGE_BYTES;
+        self.legs.map_capacity = ((self.legs.pages as u64 in Saturating)
+            * EFI_PAGE_BYTES) as u64;
         transition { _ -> acquire() }
     }
 
@@ -452,7 +452,7 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     }
 
     state retry(&mut self) {
-        self.remaining = (self.remaining as u64 in Saturating) - 1;
+        self.remaining = ((self.remaining as u64 in Saturating) - 1) as u64;
         transition { _ -> acquire() }
     }
 

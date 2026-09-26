@@ -11,7 +11,7 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    nums: [i32; 4] in Trapping;
+    nums: [i32; 4];
     j: i32 in Trapping;
     sum: i32 in Trapping;
 }
@@ -36,7 +36,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state body(&mut self) {
-        self.sum = self.sum + self.nums[self.j];
+        self.sum = self.sum + (self.nums[self.j] as i32 in Trapping);
         self.j = self.j - 1;
         transition {
             _ -> loop_()
