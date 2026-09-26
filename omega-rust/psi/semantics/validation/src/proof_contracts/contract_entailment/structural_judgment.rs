@@ -359,10 +359,10 @@ struct SemiringLicense {
 /// looks up one machine per application, and a whole-table scan per unfold
 /// dominated entailment over the core Rat and Nat proofs. Built once per root
 /// judge; arm and site clones share it.
-struct EntryMachines(Vec<((u32, u32), u32)>);
+pub(crate) struct EntryMachines(Vec<((u32, u32), u32)>);
 
 impl EntryMachines {
-    fn of(program: &TypedTrees) -> Self {
+    pub(crate) fn of(program: &TypedTrees) -> Self {
         let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
         let mut entries = program
             .machines()
@@ -410,7 +410,7 @@ impl EntryMachines {
 
 pub(super) struct StructuralJudge<'program> {
     program: &'program TypedTrees,
-    entry_machines: std::rc::Rc<EntryMachines>,
+    entry_machines: std::sync::Arc<EntryMachines>,
     machine_symbol: SymbolHandle,
     resolve_applications: bool,
     runtime_body_values: bool,
@@ -438,7 +438,7 @@ impl Clone for StructuralJudge<'_> {
     fn clone(&self) -> Self {
         Self {
             program: self.program,
-            entry_machines: std::rc::Rc::clone(&self.entry_machines),
+            entry_machines: std::sync::Arc::clone(&self.entry_machines),
             machine_symbol: self.machine_symbol,
             resolve_applications: self.resolve_applications,
             runtime_body_values: self.runtime_body_values,
@@ -497,13 +497,18 @@ impl<'program> StructuralJudge<'program> {
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
-        let slot_carriers =
-            crate::machine_calls::effect_inference::plan_scope::memoized_conformance_slot_carriers(
-                program,
-            );
+        let licenses = crate::frozen_program::frozen_memo(
+            program,
+            |memos| &memos.license_candidates,
+            || LicenseCandidates::of(program),
+        );
         let mut judge = Self {
             program,
-            entry_machines: std::rc::Rc::new(EntryMachines::of(program)),
+            entry_machines: crate::frozen_program::frozen_memo(
+                program,
+                |memos| &memos.entry_machines,
+                || EntryMachines::of(program),
+            ),
             machine_symbol: judged_machine.symbol,
             resolve_applications,
             runtime_body_values: false,
@@ -512,8 +517,8 @@ impl<'program> StructuralJudge<'program> {
             case_facts: Vec::new(),
             case_substitutions: Vec::new(),
             hypotheses_contradictory: false,
-            ring_licenses: compute_ring_licenses(&slot_carriers, program, judged_machine),
-            semiring_licenses: compute_semiring_licenses(&slot_carriers, program, judged_machine),
+            ring_licenses: licenses.ring_licenses(program, judged_machine),
+            semiring_licenses: licenses.semiring_licenses(program, judged_machine),
         };
         for fact in requires {
             judge.intake(program, *fact);
@@ -2434,15 +2439,142 @@ pub(crate) fn conformance_slot_carriers_uncached(
 /// proves ring-free. This kills self-licensing (add_comm rearranging its own
 /// goal into triviality) AND multi-machine cycles (two comm satisfiers each
 /// licensed by the other's conformance, none carrying a real proof).
-fn compute_ring_licenses(
+/// A ring license before any judged machine's circularity break.
+struct RingCandidate {
+    trait_symbol: SymbolHandle,
+    comm_law: String,
+    assoc_law: String,
+    add_machine: SymbolHandle,
+    carrier: TypeReferenceHandle,
+}
+
+/// A paired license before any judged machine's circularity break;
+/// `law_slots` are the add and mul commutativity and associativity slots
+/// and the distributivity slot.
+struct SemiringCandidate {
+    trait_symbol: SymbolHandle,
+    law_slots: [String; 5],
+    license: SemiringLicense,
+    carrier: TypeReferenceHandle,
+}
+
+/// Every ring and semiring license the program's conformances earn. The
+/// trait-law scan and the carrier search are program-pure, so a frozen
+/// program derives them once; each judge only drops the licenses its own
+/// machine underpins.
+pub(crate) struct LicenseCandidates {
+    ring: Vec<RingCandidate>,
+    semiring: Vec<SemiringCandidate>,
+}
+
+impl LicenseCandidates {
+    pub(crate) fn of(program: &TypedTrees) -> Self {
+        let slot_carriers =
+            crate::machine_calls::effect_inference::plan_scope::memoized_conformance_slot_carriers(
+                program,
+            );
+        Self {
+            ring: ring_license_candidates(&slot_carriers, program),
+            semiring: semiring_license_candidates(&slot_carriers, program),
+        }
+    }
+
+    /// PER-LICENSE circularity break (refined 2026-07-16 from the old
+    /// trait-wide skip): the judged machine is excluded only from
+    /// licenses it ITSELF underpins -- the ones whose comm/assoc law
+    /// slots it binds FOR THE SAME CARRIER. A law lemma's goal is
+    /// exactly the law shape over its own op, so no other carrier's
+    /// license can rearrange it -- per-carrier exclusion breaks every
+    /// cycle while letting IntPair's mul_comm keep using NAT's earned
+    /// licenses (the trait-wide skip wrongly stripped those).
+    fn ring_licenses(&self, program: &TypedTrees, judged_machine: &Machine) -> Vec<RingLicense> {
+        let judged_carrier = judged_carrier(program, judged_machine);
+        self.ring
+            .iter()
+            .filter(|candidate| {
+                let judged_underpins_this_license =
+                    judged_bound_laws(program, judged_machine, candidate.trait_symbol)
+                        .any(|law| law == candidate.comm_law || law == candidate.assoc_law)
+                        && judged_carrier.is_some_and(|judged| {
+                            crate::value_custody::type_references::type_references_match(
+                                program,
+                                judged,
+                                candidate.carrier,
+                            )
+                        });
+                !judged_underpins_this_license
+            })
+            .map(|candidate| RingLicense {
+                add_machine: candidate.add_machine,
+            })
+            .collect()
+    }
+
+    /// PER-LICENSE circularity break (refined 2026-07-16, mirroring
+    /// `ring_licenses`): the judged machine is excluded only
+    /// from paired licenses it underpins -- binding one of the five
+    /// law slots FOR THE SAME CARRIER. A law lemma's goal is the law
+    /// shape over its own carrier's ops, so other carriers' licenses
+    /// cannot rearrange it.
+    fn semiring_licenses(
+        &self,
+        program: &TypedTrees,
+        judged_machine: &Machine,
+    ) -> Vec<SemiringLicense> {
+        let judged_carrier = judged_carrier(program, judged_machine);
+        self.semiring
+            .iter()
+            .filter(|candidate| {
+                let judged_underpins_this_license =
+                    judged_bound_laws(program, judged_machine, candidate.trait_symbol)
+                        .any(|name| candidate.law_slots.iter().any(|law| *law == name))
+                        && judged_carrier.is_some_and(|judged| {
+                            crate::value_custody::type_references::type_references_match(
+                                program,
+                                judged,
+                                candidate.carrier,
+                            )
+                        });
+                !judged_underpins_this_license
+            })
+            .map(|candidate| candidate.license.clone())
+            .collect()
+    }
+}
+
+/// The law requirements `judged_machine` binds on one trait.
+fn judged_bound_laws<'program>(
+    program: &'program TypedTrees,
+    judged_machine: &'program Machine,
+    trait_symbol: SymbolHandle,
+) -> impl Iterator<Item = String> + 'program {
+    program
+        .machine_trait_conformances(judged_machine)
+        .iter()
+        .filter(move |conformance| conformance.symbol == trait_symbol)
+        .filter_map(|conformance| bound_requirement_name(conformance, judged_machine))
+}
+
+/// The carrier a judged machine's laws speak about: its first entry
+/// parameter's type, else its result type.
+fn judged_carrier(program: &TypedTrees, judged_machine: &Machine) -> Option<TypeReferenceHandle> {
+    program.machine_states(judged_machine).first().map(|entry| {
+        program
+            .state_parameters(entry)
+            .first()
+            .map(|parameter| parameter.type_reference)
+            .unwrap_or(entry.return_type)
+    })
+}
+
+fn ring_license_candidates(
     slot_carriers: &std::collections::HashMap<
         (SymbolHandle, String),
         Vec<(TypeReferenceHandle, SymbolHandle)>,
     >,
     program: &TypedTrees,
-    judged_machine: &Machine,
-) -> Vec<RingLicense> {
-    let mut licenses = Vec::new();
+) -> Vec<RingCandidate> {
+    let mut candidates = Vec::new();
 
     for trait_definition in program.traits() {
         // Op slot name -> (has commutativity law named, has associativity law
@@ -2490,28 +2622,6 @@ fn compute_ring_licenses(
             }
         }
 
-        // PER-LICENSE circularity break (refined 2026-07-16 from the old
-        // trait-wide skip): the judged machine is excluded only from
-        // licenses it ITSELF underpins -- the ones whose comm/assoc law
-        // slots it binds FOR THE SAME CARRIER. A law lemma's goal is
-        // exactly the law shape over its own op, so no other carrier's
-        // license can rearrange it -- per-carrier exclusion breaks every
-        // cycle while letting IntPair's mul_comm keep using NAT's earned
-        // licenses (the trait-wide skip wrongly stripped those).
-        let judged_bound_laws: Vec<String> = program
-            .machine_trait_conformances(judged_machine)
-            .iter()
-            .filter(|conformance| conformance.symbol == trait_definition.symbol)
-            .filter_map(|conformance| bound_requirement_name(conformance, judged_machine))
-            .collect();
-        let judged_carrier = program.machine_states(judged_machine).first().map(|entry| {
-            program
-                .state_parameters(entry)
-                .first()
-                .map(|parameter| parameter.type_reference)
-                .unwrap_or(entry.return_type)
-        });
-
         for (op_slot, comm_law) in &comm_laws {
             let Some((_, assoc_law)) = assoc_laws.iter().find(|(op, _)| op == op_slot) else {
                 continue;
@@ -2538,17 +2648,6 @@ fn compute_ring_licenses(
                         .first()
                         .map(|parameter| parameter.type_reference)
                         .unwrap_or(candidate_entry.return_type);
-                    let judged_underpins_this_license = judged_bound_laws
-                        .iter()
-                        .any(|law| law == comm_law || law == assoc_law)
-                        && judged_carrier.is_some_and(|judged| {
-                            crate::value_custody::type_references::type_references_match(
-                                program, judged, carrier,
-                            )
-                        });
-                    if judged_underpins_this_license {
-                        continue;
-                    }
                     if slot_satisfier_exists(
                         slot_carriers,
                         program,
@@ -2562,8 +2661,12 @@ fn compute_ring_licenses(
                         assoc_law,
                         carrier,
                     ) {
-                        licenses.push(RingLicense {
+                        candidates.push(RingCandidate {
+                            trait_symbol: trait_definition.symbol,
+                            comm_law: comm_law.clone(),
+                            assoc_law: assoc_law.clone(),
                             add_machine: candidate_entry.symbol,
+                            carrier,
                         });
                     }
                 }
@@ -2571,7 +2674,7 @@ fn compute_ring_licenses(
         }
     }
 
-    licenses
+    candidates
 }
 
 /// The requirement name a conformance binds: the authored `as Name` alias
@@ -2705,15 +2808,14 @@ fn distributivity_shape(
 /// mul op, plus a DISTRIBUTIVITY law connecting them, licenses each carrier
 /// that conformed ALL FIVE law slots. Same no-circularity rule: the judged
 /// machine binding ANY involved law slot gets nothing from this trait.
-fn compute_semiring_licenses(
+fn semiring_license_candidates(
     slot_carriers: &std::collections::HashMap<
         (SymbolHandle, String),
         Vec<(TypeReferenceHandle, SymbolHandle)>,
     >,
     program: &TypedTrees,
-    judged_machine: &Machine,
-) -> Vec<SemiringLicense> {
-    let mut licenses = Vec::new();
+) -> Vec<SemiringCandidate> {
+    let mut candidates = Vec::new();
     for trait_definition in program.traits() {
         let mut comm_laws: Vec<(String, String)> = Vec::new();
         let mut assoc_laws: Vec<(String, String)> = Vec::new();
@@ -2775,26 +2877,6 @@ fn compute_semiring_licenses(
                 continue;
             };
             let law_slots = [add_comm, add_assoc, mul_comm, mul_assoc, dist_law];
-            // PER-LICENSE circularity break (refined 2026-07-16, mirroring
-            // compute_ring_licenses): the judged machine is excluded only
-            // from paired licenses it underpins -- binding one of the five
-            // law slots FOR THE SAME CARRIER. A law lemma's goal is the law
-            // shape over its own carrier's ops, so other carriers' licenses
-            // cannot rearrange it.
-            let judged_bound_laws: Vec<String> = program
-                .machine_trait_conformances(judged_machine)
-                .iter()
-                .filter(|conformance| conformance.symbol == trait_definition.symbol)
-                .filter_map(|conformance| bound_requirement_name(conformance, judged_machine))
-                .filter(|name| law_slots.iter().any(|law| law.as_str() == name))
-                .collect();
-            let judged_carrier = program.machine_states(judged_machine).first().map(|entry| {
-                program
-                    .state_parameters(entry)
-                    .first()
-                    .map(|parameter| parameter.type_reference)
-                    .unwrap_or(entry.return_type)
-            });
             // Each carrier conforming BOTH op slots with all five law slots
             // satisfied earns the paired license.
             for add_candidate in program.machines() {
@@ -2816,15 +2898,6 @@ fn compute_semiring_licenses(
                         .first()
                         .map(|parameter| parameter.type_reference)
                         .unwrap_or(entry.return_type);
-                    if !judged_bound_laws.is_empty()
-                        && judged_carrier.is_some_and(|judged| {
-                            crate::value_custody::type_references::type_references_match(
-                                program, judged, carrier,
-                            )
-                        })
-                    {
-                        continue;
-                    }
                     if !law_slots.iter().all(|law| {
                         slot_satisfier_exists(
                             slot_carriers,
@@ -2843,16 +2916,21 @@ fn compute_semiring_licenses(
                         mul_op,
                         carrier,
                     ) {
-                        licenses.push(SemiringLicense {
-                            add_machine: entry.symbol,
-                            mul_machine,
+                        candidates.push(SemiringCandidate {
+                            trait_symbol: trait_definition.symbol,
+                            law_slots: law_slots.map(|law| law.clone()),
+                            license: SemiringLicense {
+                                add_machine: entry.symbol,
+                                mul_machine,
+                            },
+                            carrier,
                         });
                     }
                 }
             }
         }
     }
-    licenses
+    candidates
 }
 
 /// The NAME of the machine conforming `op_slot` for the given carrier.

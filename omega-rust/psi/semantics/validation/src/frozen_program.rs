@@ -1,10 +1,14 @@
 //! Memos over one frozen program. Between validation and execution
 //! finalization `lower_typed_trees` checks a program no pass restructures,
 //! and many consumers there derive the same program-pure tables: every
-//! check-pass consumer builds its own call-frame resolver, and two dozen
-//! sites classify proof-only data. Inside a scope they share one copy.
+//! check-pass consumer builds its own call-frame resolver, two dozen sites
+//! classify proof-only data, and every structural judge rescans the trait
+//! laws. Inside a scope they share one copy.
 
 use crate::machine_calls::calls::CallFrameCaches;
+use crate::proof_contracts::contract_entailment::structural_judgment::{
+    EntryMachines, LicenseCandidates,
+};
 use std::cell::RefCell;
 use std::sync::{Arc, OnceLock};
 use typed_trees::TypedTrees;
@@ -24,6 +28,8 @@ struct FrozenProgramSlot {
 pub(crate) struct FrozenProgramMemos {
     pub(crate) call_frames: Arc<CallFrameCaches>,
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
+    pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
+    pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
 }
 
 /// Restores the enclosing scope, if any, when dropped.
@@ -66,13 +72,24 @@ pub(crate) fn frozen_program_memos(program: &TypedTrees) -> Option<Arc<FrozenPro
     })
 }
 
+/// `compute`, once per frozen program in the memo `slot` selects; afresh for
+/// any other program.
+pub(crate) fn frozen_memo<T>(
+    program: &TypedTrees,
+    slot: impl FnOnce(&FrozenProgramMemos) -> &OnceLock<Arc<T>>,
+    compute: impl FnOnce() -> T,
+) -> Arc<T> {
+    match frozen_program_memos(program) {
+        Some(memos) => slot(&memos).get_or_init(|| Arc::new(compute())).clone(),
+        None => Arc::new(compute()),
+    }
+}
+
 /// `typed_trees::proof_only::classify`, computed once per frozen program.
 pub fn proof_only_classification(program: &TypedTrees) -> Arc<ProofOnlyClassification> {
-    match frozen_program_memos(program) {
-        Some(memos) => memos
-            .proof_only
-            .get_or_init(|| Arc::new(typed_trees::proof_only::classify(program)))
-            .clone(),
-        None => Arc::new(typed_trees::proof_only::classify(program)),
-    }
+    frozen_memo(
+        program,
+        |memos| &memos.proof_only,
+        || typed_trees::proof_only::classify(program),
+    )
 }
