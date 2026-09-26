@@ -515,7 +515,9 @@ pub(crate) fn ensures_witness_bounds_at(
                     }
                 }
             }
-            StatementNode::Assignment(assignment) => {
+            // Spelling the target costs a formatted name per assignment; with
+            // no witness to invalidate there is nothing to compare it to.
+            StatementNode::Assignment(assignment) if !witnesses.is_empty() => {
                 let target = program.expression_table.display_name(assignment.target);
                 witnesses.retain(|(place, _)| !validation::frame_paths_overlap(place, &target));
             }
