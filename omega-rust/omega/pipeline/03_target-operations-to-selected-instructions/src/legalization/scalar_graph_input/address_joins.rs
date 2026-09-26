@@ -178,27 +178,29 @@ fn root_type(
         return (owner == block || dominates(function, owner, block))
             .then_some(joined.structural_type);
     }
-    let (operation, result) =
-        if let Some((operation, result, _)) = super::primitive_locals::producer(function, place) {
-            (operation, result.clone())
-        } else {
-            match super::structural_case::source_owner(function, place).ok()? {
-                legalized_operations::LegalizedStructuralCaseSource::OperationResult {
-                    operation,
-                    result,
-                } => (operation, result),
-                legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
-                    block: owner,
-                    declaration,
-                } => {
-                    return (owner == block || dominates(function, owner, block))
-                        .then_some(declaration.structural_type);
-                }
-                legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
-                    return None;
-                }
+    let (operation, result) = if let Some((operation, result, _)) =
+        super::primitive_locals::producer(function, place)
+    {
+        (operation, result.clone())
+    } else {
+        match super::structural_case::source_owner(function, place).ok()? {
+            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                operation,
+                result,
+            } => (operation, result),
+            legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                block: owner,
+                declaration,
+            } => {
+                return (owner == block || dominates(function, owner, block))
+                    .then_some(declaration.structural_type);
             }
-        };
+            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
+                return None;
+            }
+        }
+    };
     let owner = operation_block(function, operation)?;
     (result.claims.is_empty()
         && plain(

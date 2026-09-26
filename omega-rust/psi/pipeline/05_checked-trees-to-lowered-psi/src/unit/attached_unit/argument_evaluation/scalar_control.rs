@@ -183,13 +183,103 @@ impl Evaluation {
         if !path.is_empty() {
             return Ok(None);
         }
+        self.payload_dispatch_arm(
+            checked,
+            state,
+            bindings,
+            source_types,
+            result_type,
+            *statement_ordinal,
+            CheckedScalarExpressionRole::Return,
+            *source,
+            *case,
+        )
+    }
+
+    /// The else arm of a combined conditional has no membership test of its
+    /// own: its deferred reads alone name the case the tested edge leaves it.
+    /// The arm dispatches only when every read it carries observes one
+    /// leading case of one sum root.
+    fn payload_reads_dispatch(
+        &self,
+        checked: &CheckedTrees,
+        state: symbols::SymbolHandle,
+        bindings: &crate::expression_preparation::bindings::ScalarBindings,
+        source_types: &[QualifiedScalarType],
+        result_type: QualifiedScalarType,
+        destination: &CheckedScalarBranchDestination,
+    ) -> Result<Option<PayloadCaseDispatchArm>, LoweringError> {
+        let CheckedScalarBranchDestination::Return {
+            statement_ordinal,
+            is_continuation,
+        } = destination
+        else {
+            return Ok(None);
+        };
+        // The combined transition's false sibling carries the continuation
+        // role; its deferred reads still name the case it observes.
+        let role = if *is_continuation {
+            CheckedScalarExpressionRole::ContinuationReturn
+        } else {
+            CheckedScalarExpressionRole::Return
+        };
+        if checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .any(|(_, root)| {
+                root.state == state
+                    && root.statement_ordinal == *statement_ordinal
+                    && root.role == role
+            })
+        {
+            return Ok(None);
+        }
+        let expression = bindings.expression_at(checked, state, *statement_ordinal, role)?;
+        let Some((source, case)) =
+            crate::emission::case_payload_dispatch::single_leading_case_read(&expression)
+        else {
+            return Ok(None);
+        };
+        self.payload_dispatch_arm(
+            checked,
+            state,
+            bindings,
+            source_types,
+            result_type,
+            *statement_ordinal,
+            role,
+            source,
+            case,
+        )
+    }
+
+    /// The shared tail of case-dispatch admission: the arm's return
+    /// expression must observe `case` of `source`, every bound payload read
+    /// must substitute onto a scalar payload slot, and the result type must
+    /// match.
+    #[allow(clippy::too_many_arguments)]
+    fn payload_dispatch_arm(
+        &self,
+        checked: &CheckedTrees,
+        state: symbols::SymbolHandle,
+        bindings: &crate::expression_preparation::bindings::ScalarBindings,
+        source_types: &[QualifiedScalarType],
+        result_type: QualifiedScalarType,
+        statement_ordinal: u32,
+        role: CheckedScalarExpressionRole,
+        source: semantic_vocabulary::PlaceId,
+        case: semantic_vocabulary::StructuralCaseId,
+    ) -> Result<Option<PayloadCaseDispatchArm>, LoweringError> {
         let Some(cases) = crate::expression_preparation::bindings::structural_cases::sum_cases(
             &self.structural_cases,
-            *source,
+            source,
         ) else {
             return Ok(None);
         };
-        let Some(selected_case) = cases.iter().find(|declared| declared.id == *case) else {
+        let Some(selected_case) = cases.iter().find(|declared| declared.id == case) else {
             return unsupported("case dispatch selects a case outside its root's sum");
         };
         let mut payloads = Vec::new();
@@ -209,18 +299,18 @@ impl Evaluation {
             // namespace, where the emitted branch block declares them as
             // parameters.
             bound.push(EstablishedCasePayload {
-                source: *source,
-                case: *case,
+                source,
+                case,
                 field: field.id,
                 position: source_types.len() + bound.len(),
             });
             payloads.push((field.id, QualifiedScalarType::from(scalar_type)));
         }
-        let expression = bindings.expression_at(checked, state, *statement_ordinal, role)?;
+        let expression = bindings.expression_at(checked, state, statement_ordinal, role)?;
         if !crate::emission::case_payload_dispatch::direct_case_reads(
             std::slice::from_ref(&expression),
-            *source,
-            *case,
+            source,
+            case,
         ) {
             return Ok(None);
         }
@@ -234,20 +324,132 @@ impl Evaluation {
         // declines at its own gate rather than here.
         if crate::emission::case_payload_dispatch::direct_case_reads(
             std::slice::from_ref(&substituted),
-            *source,
-            *case,
+            source,
+            case,
         ) {
             return Ok(None);
         }
         let mut arguments = crate::scalar_graph::scalar_computations::parameters(source_types);
         arguments.push(substituted);
         Ok(Some(PayloadCaseDispatchArm {
-            source: *source,
-            selected: *case,
+            source,
+            selected: case,
             cases: cases.iter().map(|declared| declared.id).collect(),
             payloads,
             arguments,
         }))
+    }
+
+    /// Every arm dispatched on the same root, so one total split routes
+    /// each declared case's edge directly into that arm's continuation:
+    /// reaching an armed edge makes that arm's case provably selected.
+    /// Unarmed cases need an authored fallback; with none the split is
+    /// only total when every declared case is armed.
+    #[allow(clippy::too_many_arguments)]
+    fn case_dispatch_split(
+        &self,
+        expansion: &mut crate::scalar_graph::scalar_computations::Expansion<'_>,
+        checked: &CheckedTrees,
+        state: symbols::SymbolHandle,
+        bindings: &crate::expression_preparation::bindings::ScalarBindings,
+        source_types: &[QualifiedScalarType],
+        result_type: QualifiedScalarType,
+        dispatches: Vec<PayloadCaseDispatchArm>,
+        fallback: Option<&CheckedScalarBranchDestination>,
+    ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
+        let source = dispatches[0].source;
+        let cases = dispatches[0].cases.clone();
+        if dispatches
+            .iter()
+            .any(|dispatch| dispatch.source != source || dispatch.cases != cases)
+        {
+            return unsupported("case split dispatch requires one subject sum");
+        }
+        let mut armed = Vec::with_capacity(dispatches.len());
+        for dispatch in dispatches {
+            let mut parameter_types = source_types.to_vec();
+            parameter_types.extend(dispatch.payloads.iter().map(|(_, value_type)| *value_type));
+            let target = expansion.push(LoweredScalarBranchState {
+                structural_parameters: Vec::new(),
+                structural_effects: Vec::new(),
+                parameter_types,
+                erased_formal_types: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                bindings: Vec::new(),
+                terminator: LoweredScalarBranchTerminator::Jump {
+                    trivial_affine_discards: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    target: 0,
+                    arguments: dispatch.arguments.clone(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: self.proof_formal_forwarding(),
+                },
+            });
+            let mut arguments = crate::scalar_graph::scalar_computations::parameters(source_types);
+            arguments.extend(dispatch.payloads.iter().enumerate().map(
+                |(index, (_, value_type))| LoweredDirectExpression::Parameter {
+                    position: source_types.len() + index,
+                    scalar_type: value_type.scalar_type,
+                },
+            ));
+            armed.push(CaseDispatchArm {
+                case: dispatch.selected,
+                payloads: dispatch.payloads,
+                target,
+                arguments,
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: self.proof_formal_forwarding(),
+            });
+        }
+        let (fallback_target, fallback_arguments) = if let Some(fallback) = fallback {
+            (
+                push_arm_target(
+                    expansion,
+                    checked,
+                    state,
+                    bindings,
+                    source_types,
+                    result_type,
+                    fallback,
+                )?,
+                crate::scalar_graph::scalar_computations::parameters(source_types),
+            )
+        } else {
+            if cases
+                .iter()
+                .any(|case| !armed.iter().any(|arm| arm.case == *case))
+            {
+                return unsupported("case split dispatch lost an unarmed case");
+            }
+            // Every declared case is armed, so no edge reads the fallback
+            // continuation.
+            (armed[0].target, Vec::new())
+        };
+        let target = expansion.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
+            structural_effects: Vec::new(),
+            parameter_types: source_types.to_vec(),
+            erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            bindings: Vec::new(),
+            terminator: LoweredScalarBranchTerminator::CaseDispatchSplit {
+                source,
+                cases,
+                armed,
+                fallback_target,
+                fallback_arguments,
+                fallback_erased_arguments: Vec::new(),
+                fallback_erased_proof_arguments: self.proof_formal_forwarding(),
+            },
+        });
+        Ok(LoweredScalarBranchTerminator::Jump {
+            trivial_affine_discards: Vec::new(),
+            structural_arguments: Vec::new(),
+            target,
+            arguments: crate::scalar_graph::scalar_computations::parameters(source_types),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: self.proof_formal_forwarding(),
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -333,7 +535,7 @@ impl Evaluation {
                     *guard_statement_ordinal,
                     when_true,
                 )?;
-                let false_dispatch = self.payload_case_dispatch(
+                let false_dispatch = match self.payload_case_dispatch(
                     checked,
                     state,
                     &bindings,
@@ -341,83 +543,164 @@ impl Evaluation {
                     result_type.into(),
                     *guard_statement_ordinal,
                     when_false,
-                )?;
-                if let (Some(dispatch), None) = (true_dispatch, false_dispatch) {
-                    let mut parameter_types = source_types.clone();
-                    parameter_types
-                        .extend(dispatch.payloads.iter().map(|(_, value_type)| *value_type));
-                    let true_target = expansion.push(LoweredScalarBranchState {
-                        structural_parameters: Vec::new(),
-                        structural_effects: Vec::new(),
-                        parameter_types,
-                        erased_formal_types: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        bindings: Vec::new(),
-                        terminator: LoweredScalarBranchTerminator::Jump {
-                            trivial_affine_discards: Vec::new(),
-                            structural_arguments: Vec::new(),
-                            target: 0,
-                            arguments: dispatch.arguments.clone(),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: self.proof_formal_forwarding(),
-                        },
-                    });
-                    let false_target = push_arm_target(
-                        &mut expansion,
+                )? {
+                    dispatch @ Some(_) => dispatch,
+                    // The else arm has no membership test of its own — the
+                    // case it observes is read from its deferred payload
+                    // reads alone.
+                    None => self.payload_reads_dispatch(
                         checked,
                         state,
                         &bindings,
                         &source_types,
                         result_type.into(),
                         when_false,
-                    )?;
-                    payload_case_dispatch_terminator(
-                        dispatch,
-                        true_target,
-                        false_target,
-                        &source_types,
-                        self.proof_formal_forwarding(),
-                    )
-                } else {
-                    let true_target = push_arm_target(
-                        &mut expansion,
-                        checked,
-                        state,
-                        &bindings,
-                        &source_types,
-                        result_type.into(),
-                        when_true,
-                    )?;
-                    let false_target = push_arm_target(
-                        &mut expansion,
-                        checked,
-                        state,
-                        &bindings,
-                        &source_types,
-                        result_type.into(),
-                        when_false,
-                    )?;
-                    crate::scalar_graph::scalar_graph_lowering::guards::lower(
-                        checked,
-                        state,
-                        *guard_statement_ordinal,
-                        &bindings,
-                        &source_types,
-                        (
+                    )?,
+                };
+                match (true_dispatch, false_dispatch) {
+                    (Some(first), Some(second)) => {
+                        // Each arm returns through its own case's payloads;
+                        // one total split binds both payload rosters on
+                        // their own case edges rather than chaining a
+                        // second membership test with nothing to bind.
+                        if first.source != second.source
+                            || first.cases != second.cases
+                            || first.selected == second.selected
+                        {
+                            return unsupported(
+                                "conditional case-payload arms require one subject sum",
+                            );
+                        }
+                        self.case_dispatch_split(
+                            &mut expansion,
+                            checked,
+                            state,
+                            &bindings,
+                            &source_types,
+                            result_type.into(),
+                            vec![first, second],
+                            None,
+                        )?
+                    }
+                    (Some(dispatch), _) => {
+                        let mut parameter_types = source_types.clone();
+                        parameter_types
+                            .extend(dispatch.payloads.iter().map(|(_, value_type)| *value_type));
+                        let true_target = expansion.push(LoweredScalarBranchState {
+                            structural_parameters: Vec::new(),
+                            structural_effects: Vec::new(),
+                            parameter_types,
+                            erased_formal_types: Vec::new(),
+                            erased_proof_formals: Vec::new(),
+                            bindings: Vec::new(),
+                            terminator: LoweredScalarBranchTerminator::Jump {
+                                trivial_affine_discards: Vec::new(),
+                                structural_arguments: Vec::new(),
+                                target: 0,
+                                arguments: dispatch.arguments.clone(),
+                                erased_arguments: Vec::new(),
+                                erased_proof_arguments: self.proof_formal_forwarding(),
+                            },
+                        });
+                        let false_target = push_arm_target(
+                            &mut expansion,
+                            checked,
+                            state,
+                            &bindings,
+                            &source_types,
+                            result_type.into(),
+                            when_false,
+                        )?;
+                        payload_case_dispatch_terminator(
+                            dispatch,
                             true_target,
-                            crate::scalar_graph::scalar_computations::parameters(&source_types),
-                            Vec::new(),
-                            self.proof_formal_forwarding(),
-                        ),
-                        (
                             false_target,
-                            crate::scalar_graph::scalar_computations::parameters(&source_types),
-                            Vec::new(),
+                            &source_types,
                             self.proof_formal_forwarding(),
-                        ),
-                        when_false,
-                        &mut expansion,
-                    )?
+                        )
+                    }
+                    (None, Some(dispatch)) => {
+                        // The else arm alone reads a case payload: dispatch
+                        // on the case the arm observes, with every
+                        // non-selected edge continuing into the guard's
+                        // true continuation.
+                        let mut parameter_types = source_types.clone();
+                        parameter_types
+                            .extend(dispatch.payloads.iter().map(|(_, value_type)| *value_type));
+                        let selected_target = expansion.push(LoweredScalarBranchState {
+                            structural_parameters: Vec::new(),
+                            structural_effects: Vec::new(),
+                            parameter_types,
+                            erased_formal_types: Vec::new(),
+                            erased_proof_formals: Vec::new(),
+                            bindings: Vec::new(),
+                            terminator: LoweredScalarBranchTerminator::Jump {
+                                trivial_affine_discards: Vec::new(),
+                                structural_arguments: Vec::new(),
+                                target: 0,
+                                arguments: dispatch.arguments.clone(),
+                                erased_arguments: Vec::new(),
+                                erased_proof_arguments: self.proof_formal_forwarding(),
+                            },
+                        });
+                        let other_target = push_arm_target(
+                            &mut expansion,
+                            checked,
+                            state,
+                            &bindings,
+                            &source_types,
+                            result_type.into(),
+                            when_true,
+                        )?;
+                        payload_case_dispatch_terminator(
+                            dispatch,
+                            selected_target,
+                            other_target,
+                            &source_types,
+                            self.proof_formal_forwarding(),
+                        )
+                    }
+                    (None, None) => {
+                        let true_target = push_arm_target(
+                            &mut expansion,
+                            checked,
+                            state,
+                            &bindings,
+                            &source_types,
+                            result_type.into(),
+                            when_true,
+                        )?;
+                        let false_target = push_arm_target(
+                            &mut expansion,
+                            checked,
+                            state,
+                            &bindings,
+                            &source_types,
+                            result_type.into(),
+                            when_false,
+                        )?;
+                        crate::scalar_graph::scalar_graph_lowering::guards::lower(
+                            checked,
+                            state,
+                            *guard_statement_ordinal,
+                            &bindings,
+                            &source_types,
+                            (
+                                true_target,
+                                crate::scalar_graph::scalar_computations::parameters(&source_types),
+                                Vec::new(),
+                                self.proof_formal_forwarding(),
+                            ),
+                            (
+                                false_target,
+                                crate::scalar_graph::scalar_computations::parameters(&source_types),
+                                Vec::new(),
+                                self.proof_formal_forwarding(),
+                            ),
+                            when_false,
+                            &mut expansion,
+                        )?
+                    }
                 }
             }
             CheckedScalarStateTerminator::Guarded { arms, fallback } => {
@@ -457,103 +740,16 @@ impl Evaluation {
                         .into_iter()
                         .map(|dispatch| dispatch.expect("all arms dispatch"))
                         .collect::<Vec<_>>();
-                    let source = dispatches[0].source;
-                    let cases = dispatches[0].cases.clone();
-                    if dispatches
-                        .iter()
-                        .any(|dispatch| dispatch.source != source || dispatch.cases != cases)
-                    {
-                        return unsupported("case split dispatch requires one subject sum");
-                    }
-                    let mut armed = Vec::with_capacity(dispatches.len());
-                    for dispatch in dispatches {
-                        let mut parameter_types = source_types.clone();
-                        parameter_types
-                            .extend(dispatch.payloads.iter().map(|(_, value_type)| *value_type));
-                        let target = expansion.push(LoweredScalarBranchState {
-                            structural_parameters: Vec::new(),
-                            structural_effects: Vec::new(),
-                            parameter_types,
-                            erased_formal_types: Vec::new(),
-                            erased_proof_formals: Vec::new(),
-                            bindings: Vec::new(),
-                            terminator: LoweredScalarBranchTerminator::Jump {
-                                trivial_affine_discards: Vec::new(),
-                                structural_arguments: Vec::new(),
-                                target: 0,
-                                arguments: dispatch.arguments.clone(),
-                                erased_arguments: Vec::new(),
-                                erased_proof_arguments: self.proof_formal_forwarding(),
-                            },
-                        });
-                        let mut arguments =
-                            crate::scalar_graph::scalar_computations::parameters(&source_types);
-                        arguments.extend(dispatch.payloads.iter().enumerate().map(
-                            |(index, (_, value_type))| LoweredDirectExpression::Parameter {
-                                position: source_types.len() + index,
-                                scalar_type: value_type.scalar_type,
-                            },
-                        ));
-                        armed.push(CaseDispatchArm {
-                            case: dispatch.selected,
-                            payloads: dispatch.payloads,
-                            target,
-                            arguments,
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: self.proof_formal_forwarding(),
-                        });
-                    }
-                    let (fallback_target, fallback_arguments) = if let Some(fallback) = fallback {
-                        (
-                            push_arm_target(
-                                &mut expansion,
-                                checked,
-                                state,
-                                &bindings,
-                                &source_types,
-                                result_type.into(),
-                                fallback,
-                            )?,
-                            crate::scalar_graph::scalar_computations::parameters(&source_types),
-                        )
-                    } else {
-                        if cases
-                            .iter()
-                            .any(|case| !armed.iter().any(|arm| arm.case == *case))
-                        {
-                            return unsupported("case split dispatch lost an unarmed case");
-                        }
-                        // Every declared case is armed, so no edge reads
-                        // the fallback continuation.
-                        (armed[0].target, Vec::new())
-                    };
-                    let target = expansion.push(LoweredScalarBranchState {
-                        structural_parameters: Vec::new(),
-                        structural_effects: Vec::new(),
-                        parameter_types: source_types.clone(),
-                        erased_formal_types: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        bindings: Vec::new(),
-                        terminator: LoweredScalarBranchTerminator::CaseDispatchSplit {
-                            source,
-                            cases,
-                            armed,
-                            fallback_target,
-                            fallback_arguments,
-                            fallback_erased_arguments: Vec::new(),
-                            fallback_erased_proof_arguments: self.proof_formal_forwarding(),
-                        },
-                    });
-                    LoweredScalarBranchTerminator::Jump {
-                        trivial_affine_discards: Vec::new(),
-                        structural_arguments: Vec::new(),
-                        target,
-                        arguments: crate::scalar_graph::scalar_computations::parameters(
-                            &source_types,
-                        ),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: self.proof_formal_forwarding(),
-                    }
+                    self.case_dispatch_split(
+                        &mut expansion,
+                        checked,
+                        state,
+                        &bindings,
+                        &source_types,
+                        result_type.into(),
+                        dispatches,
+                        fallback.as_ref(),
+                    )?
                 } else {
                     let mut entries = Vec::with_capacity(arms.len());
                     for (guard, dispatch) in arms.iter().zip(dispatches) {

@@ -712,23 +712,29 @@ pub enum LegalizedStructuralCaseSource {
     Parameter {
         declaration: terminal_psi::StructuralParameterDeclaration,
     },
+    /// The function's own borrowed incoming parameter. A case dispatch reads
+    /// the caller's referent through the entry-retained borrow pointer; there
+    /// is no activation value copy to address.
+    BorrowedParameter {
+        declaration: terminal_psi::StructuralParameterDeclaration,
+    },
 }
 
 impl LegalizedStructuralCaseSource {
     pub fn place(&self) -> semantic_vocabulary::PlaceId {
         match self {
             Self::OperationResult { result, .. } => result.place,
-            Self::BlockParameter { declaration, .. } | Self::Parameter { declaration } => {
-                declaration.place
-            }
+            Self::BlockParameter { declaration, .. }
+            | Self::Parameter { declaration }
+            | Self::BorrowedParameter { declaration } => declaration.place,
         }
     }
     pub fn structural_type(&self) -> StructuralTypeId {
         match self {
             Self::OperationResult { result, .. } => result.structural_type,
-            Self::BlockParameter { declaration, .. } | Self::Parameter { declaration } => {
-                declaration.structural_type
-            }
+            Self::BlockParameter { declaration, .. }
+            | Self::Parameter { declaration }
+            | Self::BorrowedParameter { declaration } => declaration.structural_type,
         }
     }
 }

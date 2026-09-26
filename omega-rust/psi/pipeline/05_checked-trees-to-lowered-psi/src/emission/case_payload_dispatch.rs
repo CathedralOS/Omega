@@ -527,6 +527,29 @@ fn case_reads<'e>(
     }
 }
 
+/// The one sum case a deferred expression observes, when every case-prefixed
+/// read in it shares exactly one root and one leading case segment. A guard's
+/// sibling arm has no membership test of its own to name the case — the reads
+/// themselves are the only carrier — so an arm that reads nothing, mixes
+/// roots or cases, or reaches a case below a leading field segment returns
+/// `None` and keeps the ordinary lowering.
+pub(crate) fn single_leading_case_read(
+    expression: &LoweredDirectExpression,
+) -> Option<(PlaceId, StructuralCaseId)> {
+    let mut reads = Vec::new();
+    collect_direct_case_reads(expression, &mut reads);
+    let (source, path) = reads.first()?;
+    let CanonicalStructuralPathSegment::Case(case) = path.first()? else {
+        return None;
+    };
+    reads
+        .iter()
+        .all(|(root, path)| {
+            *root == *source && path.first() == Some(&CanonicalStructuralPathSegment::Case(*case))
+        })
+        .then_some((*source, *case))
+}
+
 /// Whether any lowered direct expression still observes a bound payload of
 /// `case` on `source` — the scalar-graph dispatch admission check.
 pub(crate) fn direct_case_reads(
@@ -541,6 +564,29 @@ pub(crate) fn direct_case_reads(
             *root == source && path.first() == Some(&CanonicalStructuralPathSegment::Case(case))
         })
     })
+}
+
+/// The distinct cases of `source` a deferred expression list observes through
+/// a bare `[Case]` leading path — exactly the reads `bound_position` can bind.
+/// Reads below a longer path (a record payload's member leaf) do not appear
+/// here; they resolve through `plan_case_payload_leaf`, not a dispatch arm.
+pub(crate) fn direct_case_read_cases(
+    expressions: &[LoweredDirectExpression],
+    source: PlaceId,
+) -> std::collections::BTreeSet<StructuralCaseId> {
+    let mut cases = std::collections::BTreeSet::new();
+    for expression in expressions {
+        let mut reads = Vec::new();
+        collect_direct_case_reads(expression, &mut reads);
+        for (root, path) in reads {
+            if root == source
+                && let [CanonicalStructuralPathSegment::Case(case)] = path
+            {
+                cases.insert(*case);
+            }
+        }
+    }
+    cases
 }
 
 fn collect_direct_case_reads<'e>(

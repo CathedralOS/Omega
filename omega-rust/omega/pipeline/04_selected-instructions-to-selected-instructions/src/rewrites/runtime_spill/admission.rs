@@ -592,7 +592,7 @@ pub(super) fn admit<'source>(
                             // mismatch would break the transport's invariant
                             // rather than restore it.
                             if let VictimLineage::Structural { place, byte_offset } = lineage
-                                && (Some(place) != case.slot.structural_place()
+                                && (case.source.place() != Some(place)
                                     || byte_offset != payload.semantic.field_byte_offset)
                             {
                                 return Err(RuntimeSpillError::UnsupportedUse);
@@ -1431,7 +1431,7 @@ fn parameter_definitions(
                     else {
                         return Err(RuntimeSpillError::UnsupportedValue);
                     };
-                    if Some(place) != case.slot.structural_place()
+                    if case.source.place() != Some(place)
                         || byte_offset != payload.semantic.field_byte_offset
                     {
                         return Err(RuntimeSpillError::UnsupportedValue);

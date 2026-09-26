@@ -731,12 +731,184 @@ impl GraphEmission<'_> {
                     frontier_lower_bound: crash.frontier_lower_bound.clone(),
                 }
             }
-            // The total split is produced only by the attached-unit call
-            // completion, which emits it through its own staged path.
-            LoweredScalarBranchTerminator::CaseDispatchSplit { .. } => {
-                return unsupported(
-                    "case split dispatch requires the attached unit completion route",
-                );
+            LoweredScalarBranchTerminator::CaseDispatchSplit {
+                source,
+                cases,
+                armed,
+                fallback_target,
+                fallback_arguments,
+                fallback_erased_arguments,
+                fallback_erased_proof_arguments,
+            } => {
+                // Case edges forward no values, so every outcome stages its
+                // arguments through a parameter-only continuation beneath the
+                // dispatch. Each armed case's edge binds that case's scalar
+                // payloads as its block parameters, matching the edge's
+                // `payload_fields` roster; unarmed cases share one
+                // payload-less fallback continuation.
+                let fresh_edge = |identity: &mut u64| {
+                    let edge = edge_id(*identity);
+                    *identity = identity
+                        .checked_add(1)
+                        .expect("case dispatch edge identities advance");
+                    edge
+                };
+                let mut case_edges = Vec::with_capacity(cases.len());
+                let mut fallback_block = None;
+                for case in cases {
+                    let Some(arm) = armed.iter().find(|arm| arm.case == *case) else {
+                        if fallback_block.is_none() {
+                            let block = block_id(self.next_block_identity);
+                            self.next_block_identity = self
+                                .next_block_identity
+                                .checked_add(1)
+                                .expect("case dispatch block identities advance");
+                            let fallback_staged = build_scalar_conditional_target(
+                                *fallback_target,
+                                fallback_arguments,
+                                &current_values,
+                                &current_value_types,
+                                &mut self.next_block_identity,
+                                &mut self.next_value_identity,
+                                &mut self.pending_blocks,
+                                self.identity_base,
+                            )?;
+                            let fallback_erased = fallback_erased_arguments
+                                .iter()
+                                .map(|argument| {
+                                    lowered_direct_scalar_term(
+                                        argument,
+                                        &current_values,
+                                        &self.state_erased_formals[index],
+                                    )
+                                })
+                                .collect::<Result<Vec<_>, _>>()?;
+                            let fallback_proof = fallback_erased_proof_arguments
+                                .iter()
+                                .map(|term| {
+                                    crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                        term,
+                                        &current_values,
+                                        &self.state_erased_formals[index],
+                                    )
+                                })
+                                .collect::<Result<Vec<_>, _>>()?;
+                            self.blocks.push(Block {
+                                id: block,
+                                parameters: Vec::new(),
+                                erased_scalar_formals: Vec::new(),
+                                erased_proof_formals: Vec::new(),
+                                structural_parameters: Vec::new(),
+                                operations: Vec::new(),
+                                terminator: Terminator::Jump {
+                                    structural_arguments: Vec::new(),
+                                    edge: fresh_edge(&mut self.next_edge_identity),
+                                    target: fallback_staged.block,
+                                    arguments: fallback_staged.arguments,
+                                    erased_arguments: fallback_erased,
+                                    erased_proof_arguments: fallback_proof,
+                                    trivial_affine_discards: Vec::new(),
+                                    residual_affine_discards: Vec::new(),
+                                },
+                            });
+                            fallback_block = Some(block);
+                        }
+                        case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                            edge: fresh_edge(&mut self.next_edge_identity),
+                            target: fallback_block.expect("the fallback block exists once pushed"),
+                            case: *case,
+                            payload_fields: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        });
+                        continue;
+                    };
+                    let mut dispatch_namespace = current_values.clone();
+                    let mut dispatch_value_types = current_value_types.clone();
+                    let payload_parameters = arm
+                        .payloads
+                        .iter()
+                        .map(|(_, value_type)| {
+                            let declaration = ValueDeclaration {
+                                id: value_id(self.next_value_identity),
+                                scalar_type: value_type.scalar_type,
+                                qualifications: value_type.qualifications,
+                            };
+                            self.next_value_identity = self
+                                .next_value_identity
+                                .checked_add(1)
+                                .expect("case payload parameter identities advance");
+                            dispatch_namespace.push(declaration);
+                            dispatch_value_types.push(*value_type);
+                            declaration
+                        })
+                        .collect::<Vec<_>>();
+                    let arm_block = block_id(self.next_block_identity);
+                    self.next_block_identity = self
+                        .next_block_identity
+                        .checked_add(1)
+                        .expect("case dispatch block identities advance");
+                    let staged = build_scalar_conditional_target(
+                        arm.target,
+                        &arm.arguments,
+                        &dispatch_namespace,
+                        &dispatch_value_types,
+                        &mut self.next_block_identity,
+                        &mut self.next_value_identity,
+                        &mut self.pending_blocks,
+                        self.identity_base,
+                    )?;
+                    let erased_arguments = arm
+                        .erased_arguments
+                        .iter()
+                        .map(|argument| {
+                            lowered_direct_scalar_term(
+                                argument,
+                                &dispatch_namespace,
+                                &self.state_erased_formals[index],
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let erased_proof_arguments = arm
+                        .erased_proof_arguments
+                        .iter()
+                        .map(|term| {
+                            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                term,
+                                &dispatch_namespace,
+                                &self.state_erased_formals[index],
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    self.blocks.push(Block {
+                        id: arm_block,
+                        parameters: payload_parameters,
+                        erased_scalar_formals: Vec::new(),
+                        erased_proof_formals: Vec::new(),
+                        structural_parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Jump {
+                            structural_arguments: Vec::new(),
+                            edge: fresh_edge(&mut self.next_edge_identity),
+                            target: staged.block,
+                            arguments: staged.arguments,
+                            erased_arguments,
+                            erased_proof_arguments,
+                            trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
+                        },
+                    });
+                    case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                        edge: fresh_edge(&mut self.next_edge_identity),
+                        target: arm_block,
+                        case: *case,
+                        payload_fields: arm.payloads.iter().map(|(field, _)| *field).collect(),
+                        trivial_affine_discards: Vec::new(),
+                    });
+                }
+                Terminator::StructuralCase {
+                    source: *source,
+                    cases: case_edges,
+                }
             }
         };
         let erased_scalar_formals = if index == 0 && loop_plan.is_none() {

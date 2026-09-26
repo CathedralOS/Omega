@@ -897,8 +897,8 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
     }
     if let Some(case) = &successor.structural_case {
         let slot_touches = match moved.storage {
-            SubjectStorage::Place => case.slot.structural_place() == Some(moved.place),
-            SubjectStorage::Staging(slot) => case.slot == slot,
+            SubjectStorage::Place => case.source.place() == Some(moved.place),
+            SubjectStorage::Staging(slot) => case.source.local_slot() == Some(slot),
         };
         let discard_touches = matches!(moved.storage, SubjectStorage::Place)
             && case.trivial_affine_discards.contains(&moved.place);
