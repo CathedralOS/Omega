@@ -30,10 +30,10 @@ than acquiring an alternate source-to-native route.
 - [Proof admission](semantics/proof-admission/README.md): product-local proof
   judgments and certificates, distinct from the
   [bootstrap proof tools](../../bootstrap/proofs/README.md).
-- [Build-time evaluation](semantics/build-time-evaluation/README.md) and
-  [checked interpreter](semantics/checked-interpreter/src/interpreter.rs): semantic
+- [Build-time evaluation](compiler/build-time-evaluation/README.md) and
+  [checked interpreter](interpreter/checked-interpreter/src/interpreter.rs): semantic
   evaluation and source-shaped reference execution.
-- [Terminal interpreter](semantics/terminal-interpreter/README.md): verified
+- [Terminal interpreter](interpreter/terminal-interpreter/README.md): verified
   artifact execution. Interpreter coverage does not establish native support
   or fixed-work evidence.
 

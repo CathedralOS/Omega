@@ -162,9 +162,9 @@
             "item": "TWO-AXIS-TERMINAL-AUTHORITY-REVIEW",
             "host": "local",
             "owning_paths": [
-                "omega-rust/omega/build/build-evaluation/src/provider_settlement",
-                "omega-rust/omega/packages/review/evidence/src/capture/providers",
-                "omega-rust/omega/packages/manager/src/review",
+                "omega-rust/omega/compiler/build-evaluation/src/provider_settlement",
+                "omega-rust/omega/package-manager/review-evidence/src/capture/providers",
+                "omega-rust/omega/package-manager/src/review",
                 "omega-rust/omega/compiler/native-realization/src/native_realization/providers",
                 "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy",
                 "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review.rs",
@@ -200,7 +200,7 @@
             "layer": 1,
             "owning_paths": [
                 "omega-rust/psi/semantics/terminal-verifier/src/validation/frontier",
-                "omega-rust/psi/semantics/terminal-interpreter",
+                "omega-rust/psi/interpreter/terminal-interpreter",
                 "wiki/spec/terminal-psi/ownership.md"
             ],
             "suggested_first_slice": "decide whether consume_terminal_self_receiver's implicit retirement is Linear-only or whether an Affine owned receiver's disposition also becomes implicit: 6e8cb1f85c is the measured first-bad for terminal-interpreter's scalar_return_performs_affine_discard_only_after_edge_charge and conditional_commits_only_the_selected_affine_cleanup_after_edge_charge (both red on main — they declare is_self+Owned, set Affine, and author an explicit DiscardRoot now rejected as ScalarReturnAffineDiscardsMismatch). Make the two tests state the decided rule rather than merely pass; if the rule stays multiplicity-blind, name in wiki/spec/terminal-psi/ownership.md which accounted disposition the receiver occurs in. Refill slot: your prompt's rendered claim command may be stale — reclaim with these paths if so",
@@ -216,8 +216,8 @@
             "host": "local",
             "layer": 1,
             "owning_paths": [
-                "omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator/wire_verification.rs",
-                "omega-rust/omega/build/build-evaluation/src/admission/wire_protocol.rs"
+                "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/wire_verification.rs",
+                "omega-rust/omega/compiler/build-evaluation/src/admission/wire_protocol.rs"
             ],
             "suggested_first_slice": "connect general codec agreement evidence to the exact realization and public schema, or retain explicit compiler-admitted trust where unavailable — wire_verification.rs's Floor/Ceiling member comparison and malformed-input probes are finite examples, not the general agreement law, and build-evaluation's wire_protocol.rs reports Derived when that probe's gaps are empty; a no-policy generated realization must earn Derived only from independently established requirements, witnessed divergences must reject, unsupported obligations stay honestly admitted. Refill slot: your prompt's rendered claim command may be stale — reclaim with these paths if so",
             "host_gates": [

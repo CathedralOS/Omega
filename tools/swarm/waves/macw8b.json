@@ -16,7 +16,7 @@
         "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/representation_specialization",
         "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/field_value_specialization",
         "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/state_specialization",
-        "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates"
+        "omega-rust/omega/representations/optimization-unit/semantics/src/candidates"
       ],
       "suggested_first_slice": "extend field/variant relevance beyond the landed specialization cases per the item text; GENERAL-LICM holds ranked_rewrites/loop_invariant_scalar_motion and validation/invariant_* in the same crate \u2014 stay inside the claimed dirs and report blocked if a slice needs them.",
       "host_gates": [
@@ -46,10 +46,10 @@
       "item": "TWO-AXIS-TERMINAL-AUTHORITY-REVIEW",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/build/build-evaluation/src/provider_settlement",
-        "omega-rust/omega/packages/review/evidence/src/capture/providers",
-        "omega-rust/omega/packages/review/evidence/tests",
-        "omega-rust/omega/packages/manager/src/review",
+        "omega-rust/omega/compiler/build-evaluation/src/provider_settlement",
+        "omega-rust/omega/package-manager/review-evidence/src/capture/providers",
+        "omega-rust/omega/package-manager/review-evidence/tests",
+        "omega-rust/omega/package-manager/src/review",
         "omega-rust/omega/compiler/native-realization/src/native_realization/providers"
       ],
       "suggested_first_slice": "take the next 'Remaining delivery' bullet in the item text \u2014 receiver admission / mechanism classification under the production/admission split. Preserve the two policy identities: no receiving permission policy means no admission claim (not denial), and native_realization/providers' mechanism-classification merge is separate from the receiver permission policy.",

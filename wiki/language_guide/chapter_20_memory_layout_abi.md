@@ -510,7 +510,7 @@ thereby become interchangeable aliases.
 
 More complex conversion can use a checked adapter. The
 [layout contract](../spec/layouts/plans.md#placement-vocabulary) owns encoding;
-the [implementation note](../../omega-rust/psi/semantics/build-time-evaluation/layouts.md)
+the [implementation note](../../omega-rust/psi/compiler/build-time-evaluation/layouts.md)
 records supported widths and materialization shapes without narrowing the language.
 
 ### Loans, aliases, and phases

@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 optimization-core = { path = "../../representations/optimization-core" }
 optimization-unit = { path = "../../representations/optimization-unit" }
-optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
+optimization-unit-semantics = { path = "../../representations/optimization-unit/semantics" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

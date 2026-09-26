@@ -23,7 +23,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/semantics/validation/src/wire",
-        "omega-rust/psi/semantics/build-time-evaluation/src/wire_plans.rs",
+        "omega-rust/psi/compiler/build-time-evaluation/src/wire_plans.rs",
         "omega-rust/omega/compiler/compiler/src/pipeline/reporting/wire.rs"
       ],
       "suggested_first_slice": "the old/new ordinary declaration pair with an explicitly selected checked migration, plus its missing-route rejection"
@@ -36,7 +36,7 @@
       "owning_paths": [
         "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation",
         "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/rules",
-        "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation"
+        "omega-rust/omega/representations/optimization-unit/semantics/src/unit_validation"
       ]
     },
     {
@@ -47,7 +47,7 @@
       "owning_paths": [
         "omega-rust/omega/backend/images/image-emission/src/unit_call_custody",
         "omega-rust/omega/backend/images/image-emission/src/unit_scalar_call_custody",
-        "omega-rust/omega/packages/review/evidence"
+        "omega-rust/omega/package-manager/review-evidence"
       ]
     },
     {

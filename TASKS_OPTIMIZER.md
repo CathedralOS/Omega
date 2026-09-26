@@ -52,7 +52,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion).
   Do not substitute `--all-targets`, which omits doctests.
 
-  The six [staged promotion records](omega-rust/omega/representations/optimization-core/promotions/)
+  The six [staged promotion records](omega-rust/omega/representations/optimization-core/promotions)
   contain rollback and Linux measurement evidence; Approved status and Owner
   approval remain PENDING. Review evidence against the contract rather than
   treating populated fields or a schema-gate pass as approval or broader host

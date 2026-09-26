@@ -32,8 +32,8 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/foundation/layout-plans/src",
-        "omega-rust/psi/semantics/build-time-evaluation/src/layout_plans",
-        "omega-rust/psi/semantics/build-time-evaluation/src/placed_views",
+        "omega-rust/psi/compiler/build-time-evaluation/src/layout_plans",
+        "omega-rust/psi/compiler/build-time-evaluation/src/placed_views",
         "omega-rust/omega/compiler/compiler/tests/layout_plans.rs"
       ],
       "suggested_first_slice": "Complete one nested-record field path (a.b) inner-placement carrier in the flat LayoutPlanReport; this Linux x86-64 host can run the Linux canary legs the previous session could not."
@@ -44,7 +44,7 @@
       "item": "OPAQUE-BY-VALUE-BOUNDARY-ABI",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/provider-planning/src/calling_policy_plans/opaque_representations.rs",
+        "omega-rust/omega/compiler/provider-planning/src/calling_policy_plans/opaque_representations.rs",
         "omega-rust/omega/representations/boundary-applications/src/realization.rs",
         "omega-rust/omega/representations/installation-evidence/src/lib.rs"
       ],

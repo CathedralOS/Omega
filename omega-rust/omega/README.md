@@ -16,7 +16,7 @@ These functions return errors instead of printing or terminating the caller.
 Package preparation, accepted policy, trust admission, and artifact publication
 remain part of the operation; another frontend need not reconstruct that sequence.
 Install/update and package inspection already have their own complete operations
-in [package-manager](packages/manager/src/operations/mod.rs), with no second wrapper.
+in [package-manager](package-manager/src/operations/mod.rs), with no second wrapper.
 
 `run_project` owns a distinct temporary directory per invocation. Disposable
 output is cleaned up on success and failure; requested retained output survives,

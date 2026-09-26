@@ -32,7 +32,7 @@ syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/pipeline/02_sy
 target = { path = "../../../representations/target" }
 target-operations = { path = "../../../representations/target-operations" }
 terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
-terminal-interpreter = { path = "../../../../psi/semantics/terminal-interpreter" }
+terminal-interpreter = { path = "../../../../psi/interpreter/terminal-interpreter" }
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
 terminal-verifier = { path = "../../../../psi/semantics/terminal-verifier" }
 tokens-to-syntax-trees = { path = "../../../../psi/pipeline/01_tokens-to-syntax-trees" }

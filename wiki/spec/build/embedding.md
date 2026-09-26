@@ -4,7 +4,7 @@ Embedding executes ordinary Omega programs through an ordinary interpreter
 library consuming [Terminal Psi](../terminal-psi/product.md). It is not another
 source dialect, authority system, module system, or proof relation. This contract
 specifies the destination; [implementation tasks](../../../TASKS.md#embedding-and-interpreted-components)
-and the [interpreter implementation](../../../omega-rust/psi/semantics/terminal-interpreter/README.md)
+and the [interpreter implementation](../../../omega-rust/psi/interpreter/terminal-interpreter/README.md)
 identify what is actually connected. Library method names below describe roles,
 not a frozen SDK spelling or new source keywords.
 

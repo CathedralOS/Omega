@@ -10,7 +10,7 @@
    "owning_paths": [
     "omega-rust/omega/representations/selected-instructions/src",
     "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review",
-    "omega-rust/omega/build/provider-planning/src/evaluated_via_bindings",
+    "omega-rust/omega/compiler/provider-planning/src/evaluated_via_bindings",
     "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering",
     "omega-rust/psi/representations/syntax-trees/src/syntax_trees/inspection/snapshot",
     "omega-rust/psi/foundation/language-semantics/src/external_bindings"
@@ -38,7 +38,7 @@
     "omega-rust/omega/compiler/terminal-artifact/src",
     "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/src/boundary_operator_custody",
     "omega-rust/psi/semantics/terminal-verifier/src/validation/crash",
-    "omega-rust/omega/build/selected-dispatch/src",
+    "omega-rust/omega/compiler/selected-dispatch/src",
     "omega-rust/omega/compiler/compiler/tests/behavior_exclusions.rs",
     "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/facts/operator_crashes.rs",
     "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs",
@@ -81,7 +81,7 @@
    "owning_paths": [
     "omega-rust/omega/backend/layout/src/sum_materialization",
     "omega-rust/psi/foundation/layout-plans/src/symbolic_values",
-    "omega-rust/psi/semantics/build-time-evaluation/src/layouts/layout_plans",
+    "omega-rust/psi/compiler/build-time-evaluation/src/layouts/layout_plans",
     "omega-rust/omega/compiler/compiler/tests/layout_plans"
    ],
    "suggested_first_slice": "Next named legs: target-dependent placement \u2014 both projection entries in sum_materialization/mod.rs still reject an outer field carrying Bits, IntegerAt or repeated placement, and a symbolic path must cross the whole placement vocabulary; or the still-fenced recursion shapes (array whose element is a mixed common-field/case data definition, non-literal array length) \u2014 extend project_record_level_children rather than adding depth-specific arms. Controls: record_array_symbolic_materialization_realizes_on_both_linux_isas and nested_array_symbolic_materialization_realizes_on_both_linux_isas in compiler/tests/layout_plans/writer_lowering.rs. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo."
@@ -208,8 +208,8 @@
    "board": "TASKS.md",
    "item": "TOP-LEVEL-BOUNDARY-REQUIREMENTS",
    "owning_paths": [
-    "omega-rust/omega/build/selected-dispatch/src/boundary_dispatch.rs",
-    "omega-rust/omega/build/selected-dispatch/src/boundary_dispatch",
+    "omega-rust/omega/compiler/selected-dispatch/src/boundary_dispatch.rs",
+    "omega-rust/omega/compiler/selected-dispatch/src/boundary_dispatch",
     "omega-rust/psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs",
     "tests/omega/pass/providers",
     "tests/omega/fail/providers"

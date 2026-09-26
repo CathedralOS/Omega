@@ -17,14 +17,14 @@ lowered-psi = { path = "../../psi/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../psi/pipeline/06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../psi/pipeline/07_lowered-psi-to-terminal-psi" }
 terminal-production = { path = "../../psi/compiler/terminal-production" }
-build-declarations = { path = "../build/build-declarations" }
-build-evaluation = { path = "../build/build-evaluation" }
-build-output = { path = "../build/build-output" }
+build-declarations = { path = "build-declarations" }
+build-evaluation = { path = "build-evaluation" }
+build-output = { path = "build-output" }
 component-description = { path = "../backend/artifacts/component-description" }
-package-compilation = { path = "../build/package-compilation" }
-provider-planning = { path = "../build/provider-planning" }
-representation-planning = { path = "../build/representation-planning" }
-trust-model = { path = "../build/trust-model" }
+package-compilation = { path = "package-compilation" }
+provider-planning = { path = "provider-planning" }
+representation-planning = { path = "representation-planning" }
+trust-model = { path = "trust-model" }
 boundary-applications = { path = "../representations/boundary-applications" }
 optimization-core = { path = "../representations/optimization-core" }
 abstract-operations-to-target-operations = { path = "../pipeline/02_abstract-operations-to-target-operations" }
@@ -49,8 +49,8 @@ backend-plan = { path = "../backend/plans/backend-plan" }
 program-entry-plan = { path = "../backend/plans/program-entry-plan" }
 artifacts = { path = "../tooling/artifacts" }
 checked-trees = { path = "../../psi/representations/checked-trees" }
-checked-interpreter = { path = "../../psi/semantics/checked-interpreter" }
-build-time-evaluation = { path = "../../psi/semantics/build-time-evaluation" }
+checked-interpreter = { path = "../../psi/interpreter/checked-interpreter" }
+build-time-evaluation = { path = "../../psi/compiler/build-time-evaluation" }
 validation = { path = "../../psi/semantics/validation" }
 effects = { path = "../representations/effects" }
 installation-evidence = { path = "../representations/installation-evidence" }
@@ -68,7 +68,7 @@ checked-trees-to-lowered-psi = { path = "../../psi/pipeline/05_checked-trees-to-
 terminal-codec = { path = "../../psi/semantics/terminal-codec" }
 terminal-verifier = { path = "../../psi/semantics/terminal-verifier" }
 proof-admission = { path = "../../psi/semantics/proof-admission" }
-selected-dispatch = { path = "../build/selected-dispatch" }
+selected-dispatch = { path = "selected-dispatch" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 selected-instructions-to-selected-instructions = { path = "../pipeline/04_selected-instructions-to-selected-instructions" }
@@ -99,7 +99,7 @@ image-pe = { path = "../backend/images/image-pe" }
 
 [dev-dependencies]
 mimalloc = { version = "0.1", default-features = false }
-package-compilation = { path = "../build/package-compilation", features = ["test-support"] }
+package-compilation = { path = "package-compilation", features = ["test-support"] }
 
 # A standalone corpus outcome driver, not a test: `tools/corpus_gate.py`
 # builds and executes it directly and diffs the emitted per-fixture outcome
