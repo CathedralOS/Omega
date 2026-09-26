@@ -86,6 +86,16 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         },
     },
     RewriteModuleRow {
+        module: "constant_branch",
+        // The pre-allocation executor: its discovery pass calls
+        // `fold_selected_constant_branch` for the exact rule the
+        // catalog admits.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs",
+            evidence: "fold_selected_constant_branch",
+        },
+    },
+    RewriteModuleRow {
         module: "copy_removal",
         // The pre-allocation executor: `run_pre_allocation_optimizations` is
         // the rewrite the stage entrance runs for that slice.
@@ -198,10 +208,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     },
     RewriteModuleRow {
         module: "confluence_relocation",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
-        module: "constant_branch",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {

@@ -9,6 +9,7 @@
 //! fixed point rather than each converging alone.
 use crate::AddressFoldError;
 use crate::ConstantBooleanError;
+use crate::ConstantBranchError;
 use crate::CopyRemovalError;
 use crate::OptimizedPreAllocationCustodyError;
 use crate::PreAllocationPolicy;
@@ -28,11 +29,13 @@ use crate::analyze_allocation_legality;
 use crate::analyze_live_ranges;
 use crate::analyze_liveness;
 use crate::resolve_pre_allocation_rules;
+use crate::rewrites::block_edges::terminator_instruction;
 use crate::rewrites::condition_state::adjacency;
 use crate::rewrites::{
-    address_fold_measured_steps, constant_boolean_measured_steps, copy_removal_measured_steps,
-    fold_selected_address, fold_selected_constant_boolean, redundant_extension_measured_steps,
-    remove_selected_copy, remove_selected_redundant_extension,
+    address_fold_measured_steps, constant_boolean_measured_steps, constant_branch_measured_steps,
+    constant_branch_surface_sizes, copy_removal_measured_steps, fold_selected_address,
+    fold_selected_constant_boolean, fold_selected_constant_branch,
+    redundant_extension_measured_steps, remove_selected_copy, remove_selected_redundant_extension,
 };
 use crate::validate_optimized_allocation_legality_custody;
 use optimization_core::{
@@ -112,6 +115,20 @@ fn is_boolean_reader(kind: SelectedInstructionKind) -> bool {
     )
 }
 
+/// Whether the terminator-carried instruction kind is a flag-reading
+/// `ConditionalBranch*` the constant-branch family considers. Admission
+/// decides foldability — the terminator/kind pairing, the zero-operand
+/// shape, and the flag partition; this is only the source-bound candidate
+/// surface, scanned in function/block order.
+fn is_branch_reader(kind: SelectedInstructionKind) -> bool {
+    matches!(
+        kind,
+        SelectedInstructionKind::ConditionalBranchNonZero
+            | SelectedInstructionKind::ConditionalBranchU64LessThan
+            | SelectedInstructionKind::ConditionalBranchI64LessThan
+    )
+}
+
 /// The operand-0 definition-chain length one fold-shaped consumer adds to
 /// the joint measure: the number of in-block definitions reached by
 /// following each defining instruction's own operand-0 `Use` backward from
@@ -147,12 +164,16 @@ fn operand0_chain_length(instructions: &[SelectedInstruction], consumer_index: u
 /// virtual registers, plus its remaining extension candidates, plus the
 /// summed operand-0 definition-chain lengths of the fold-shaped consumers,
 /// plus every flag unit the remaining `MaterializeBoolean*` readers still
-/// observe. A copy removal drops the copy and its destination's roster row
-/// and can only shorten chains; an extension removal retires one extension
-/// while keeping every register and chain; an address fold keeps both but
-/// skips a producer node in its consumer's chain; a constant-boolean fold
-/// keeps registers, chains, and instruction count while dropping the flag
-/// uses the folded reader carried.
+/// observe, plus every implicit use the remaining `ConditionalBranch*`
+/// terminators carry. A copy removal drops the copy and its destination's
+/// roster row and can only shorten chains; an extension removal retires
+/// one extension while keeping every register and chain; an address fold
+/// keeps both but skips a producer node in its consumer's chain; a
+/// constant-boolean fold keeps registers, chains, and instruction count
+/// while dropping the flag uses the folded reader carried; a
+/// constant-branch fold keeps registers, chains, and instruction count
+/// while the `Jump` row that replaces the branch carries none of its flag
+/// uses.
 fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
     let mut total = virtual_registers;
     for function in &plan.functions {
@@ -167,6 +188,10 @@ fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
                 if is_boolean_reader(instruction.kind) {
                     total += instruction.implicit_uses.len();
                 }
+            }
+            let terminator = terminator_instruction(&block.terminator);
+            if is_branch_reader(terminator.kind) {
+                total += terminator.implicit_uses.len();
             }
         }
     }
@@ -444,6 +469,81 @@ fn constant_boolean_pass(
     })
 }
 
+/// Source-bound candidate discovery for the constant-branch family: every
+/// flag-reading `ConditionalBranch*` terminator in the current validated
+/// plan, in function/block order, evaluated until the first admissible one
+/// commits. Declines and hard failures follow the copy pass's contract
+/// exactly, and the measured-step contract is the fold family's own — the
+/// flag-universe and jump-surface sizes are charged once per pass from the
+/// target's rows, and the reached compare's published definitions stay
+/// bounded by the flag universe, so the pre-admission charge uses it.
+fn constant_branch_pass(
+    current: SelectedProgramRef<'_>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+    let mut evaluated = 0usize;
+    let mut declined = 0usize;
+    let mut validation_steps = 0u64;
+    let (flag_universe, jump_surface) = constant_branch_surface_sizes(environment)
+        .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
+    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
+        let (successors, _) = adjacency(function);
+        for block in &function.blocks {
+            let instruction = terminator_instruction(&block.terminator);
+            if !is_branch_reader(instruction.kind) {
+                continue;
+            }
+            evaluated += 1;
+            let audit_cost = constant_branch_measured_steps(
+                current.selected_plan(),
+                function,
+                &successors,
+                instruction.implicit_uses.len(),
+                flag_universe,
+                jump_surface,
+                flag_universe,
+            )
+            .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
+            validation_steps = validation_steps
+                .checked_add(audit_cost)
+                .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+            match fold_selected_constant_branch(
+                &current,
+                function_index,
+                instruction.id,
+                environment,
+                budget,
+            ) {
+                Ok(fold) => {
+                    validation_steps = validation_steps
+                        .checked_add(audit_cost)
+                        .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                    return Ok(PreAllocationPass::Applied {
+                        transformation: ValidatedPreAllocationTransformation::ConstantBranch(fold),
+                        declined,
+                        evaluated,
+                        validation_steps,
+                    });
+                }
+                Err(
+                    error @ (ConstantBranchError::WorkBudgetExceeded
+                    | ConstantBranchError::IdentityOverflow
+                    | ConstantBranchError::ReplayMismatch),
+                ) => {
+                    return Err(OptimizedPreAllocationCustodyError::ConstantBranch(error));
+                }
+                Err(_) => declined += 1,
+            }
+        }
+    }
+    Ok(PreAllocationPass::Clean {
+        candidates: evaluated,
+        declined,
+        validation_steps,
+    })
+}
+
 /// The measured work of one discovery pass. `rule_evaluations` counts the
 /// candidates the pass reached; `validation_steps` carries the summed
 /// measured-step cost each admit — and, for a commit, the independent
@@ -593,6 +693,9 @@ fn run_passes(
                 }
                 Optimization::SelectedConstantBooleanFoldV1 => {
                     constant_boolean_pass(current, environment, budget)?
+                }
+                Optimization::SelectedConstantBranchFoldV1 => {
+                    constant_branch_pass(current, environment, budget)?
                 }
                 // The catalog is closed over this phase's owned rules.
                 _ => continue,
@@ -858,7 +961,7 @@ fn pre_allocation_completion_identity(
     receipt: &StagedPreAllocationOptimizationCustodyReceipt,
 ) -> PreAllocationOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v4\0");
+    canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v5\0");
     let source = receipt.source;
     for identity in [
         source.optimization().bytes(),
@@ -902,6 +1005,10 @@ fn pre_allocation_completion_identity(
             }
             crate::PreAllocationTransformationIdentity::ConstantBoolean(identity) => {
                 canonical.push(4);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            crate::PreAllocationTransformationIdentity::ConstantBranch(identity) => {
+                canonical.push(5);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

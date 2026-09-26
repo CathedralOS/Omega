@@ -1376,6 +1376,7 @@ pass/operators/runtime_bitwise_operators_exit checked 166ms
 pass/operators/runtime_xorshift_prng_exit checked 195ms
 pass/operators/slice_index_bounds_from_operator_contract checked 2ms
 pass/operators/unary_negation_exit checked 179ms
+pass/optimizer/constant_branch_selection_compile checked 1858ms
 pass/optimizer/rollback_to_no_selection_empty_entry checked 63ms
 pass/ownership/conditional_linear_sum checked 1ms
 pass/ownership/linear_ambiguous_state_result_mapping checked 72ms

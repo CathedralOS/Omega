@@ -26,9 +26,10 @@ pub type PreAllocationRuleCatalogEntry =
 /// The single pre-allocation enable/order catalog. Descriptor order is the
 /// deterministic discovery order inside one joint fixed-point sweep: the
 /// copy-removal pass scans first, then the extension pass, then the
-/// address-fold pass, then the constant-boolean pass, and a commit by any
-/// of them restarts the whole sweep over the transformed program.
-pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 4] = [
+/// address-fold pass, then the constant-boolean pass, then the
+/// constant-branch pass, and a commit by any of them restarts the whole
+/// sweep over the transformed program.
+pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 5] = [
     PreAllocationRuleCatalogEntry::new(
         Optimization::SelectedSameBlockCopyI64RemovalV1,
         PreAllocationRuleCatalogPayload {
@@ -55,6 +56,13 @@ pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 4] = [
         PreAllocationRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
             policy: PreAllocationPolicy::CONSTANT_BOOLEAN_V1,
+        },
+    ),
+    PreAllocationRuleCatalogEntry::new(
+        Optimization::SelectedConstantBranchFoldV1,
+        PreAllocationRuleCatalogPayload {
+            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            policy: PreAllocationPolicy::CONSTANT_BRANCH_V1,
         },
     ),
 ];

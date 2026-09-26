@@ -7,9 +7,9 @@ use optimization_core::{
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity;
 use target_operations_to_selected_instructions::{
-    AddressFoldIdentity, ConstantBooleanIdentity, CopyRemovalIdentity, FixedViewCopyIdentity,
-    LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-    RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
+    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, CopyRemovalIdentity,
+    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
+    PressureRematerializationIdentity, RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
 };
 
 use crate::register_homes::{
@@ -23,7 +23,7 @@ use super::{
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 12;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 13;
 
 impl PostAllocationOptimizationManifest {
     pub fn encode(&self) -> Vec<u8> {
@@ -110,6 +110,9 @@ impl PostAllocationOptimizationManifest {
                 ),
                 9 => PostAllocationSelectedTransformation::ConstantBoolean(
                     ConstantBooleanIdentity::from_bytes(cursor.array()?),
+                ),
+                10 => PostAllocationSelectedTransformation::ConstantBranch(
+                    ConstantBranchIdentity::from_bytes(cursor.array()?),
                 ),
                 tag => {
                     return Err(
@@ -237,6 +240,10 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
             }
             PostAllocationSelectedTransformation::ConstantBoolean(identity) => {
                 canonical.push(9);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::ConstantBranch(identity) => {
+                canonical.push(10);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

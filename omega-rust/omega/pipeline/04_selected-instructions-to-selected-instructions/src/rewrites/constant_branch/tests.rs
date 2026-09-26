@@ -1,10 +1,9 @@
+use super::{
+    ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch,
+    fold_selected_constant_branch, validate_constant_branch_fold,
+};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::test_support::{instruction, measured_step_budget};
-use crate::rewrites::unexecuted::ConstantBranchError;
-use crate::rewrites::unexecuted::ConstantBranchReceipt;
-use crate::rewrites::unexecuted::ValidatedConstantBranch;
-use crate::rewrites::unexecuted::fold_selected_constant_branch;
-use crate::rewrites::unexecuted::validate_constant_branch_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -282,6 +281,8 @@ fn fixture(
             transformed_selected: identity,
             optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
             fuel_schedule: plan.fuel_schedule,
+            function_index: 0,
+            branch: BRANCH,
         },
         transformed: std::sync::Arc::new(plan),
     }

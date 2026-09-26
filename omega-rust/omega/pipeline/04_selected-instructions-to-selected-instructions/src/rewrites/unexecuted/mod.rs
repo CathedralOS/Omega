@@ -64,7 +64,6 @@
 //! - `commuting_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `confluence_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `constant_branch` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_compare` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_store` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `inflow_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -87,7 +86,6 @@ mod boundary_branch;
 mod commuting_accesses;
 mod commuting_relocation;
 mod confluence_relocation;
-mod constant_branch;
 mod dead_compare;
 mod dead_path;
 mod dead_store;
@@ -119,10 +117,6 @@ pub use commuting_relocation::{
 pub use confluence_relocation::{
     ConfluenceRelocationError, ConfluenceRelocationReceipt, ValidatedConfluenceRelocation,
     relocate_selected_members_into_confluence, validate_confluence_relocation,
-};
-pub use constant_branch::{
-    ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch,
-    fold_selected_constant_branch, validate_constant_branch_fold,
 };
 pub use dead_compare::{
     DeadCompareError, DeadCompareReceipt, EquivalentCompareError, EquivalentCompareReceipt,

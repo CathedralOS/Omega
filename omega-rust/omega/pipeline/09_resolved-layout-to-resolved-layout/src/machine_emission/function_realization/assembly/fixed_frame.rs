@@ -91,6 +91,12 @@ pub(in crate::machine_emission::function_realization) fn expected_fixed_frame_ma
                 receipt.rematerialization(),
             ),
         ],
+        AllocationEvidence::PreAllocation(receipt) => receipt
+            .source()
+            .iterations()
+            .iter()
+            .map(|iteration| iteration.transformation().into())
+            .collect(),
         AllocationEvidence::RuntimeSpill(identity) if *identity == post.identity => {
             // AllocationSource replay independently reconstructs every retained
             // spill rewrite and its cumulative manifest before granting this

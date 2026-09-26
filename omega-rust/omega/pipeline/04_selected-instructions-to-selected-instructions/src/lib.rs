@@ -71,9 +71,9 @@ pub use rewrites::unexecuted;
 pub use rewrites::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AddressFoldError, AllocationRecoveryRuleCatalogEntry,
     AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload, ConstantBooleanError,
-    CopyRemovalError, FixedPrecoloredSegmentHomeDecline, FixedViewCopy, FixedViewCopyError,
-    FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence, LiteralFoldIdentity,
-    LiteralFoldPolicy, OptimizedFixedPrecoloredSegmentHomeCustodyError,
+    ConstantBranchError, CopyRemovalError, FixedPrecoloredSegmentHomeDecline, FixedViewCopy,
+    FixedViewCopyError, FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence,
+    LiteralFoldIdentity, LiteralFoldPolicy, OptimizedFixedPrecoloredSegmentHomeCustodyError,
     OptimizedFixedViewCopyCustodyError, OptimizedLiteralFoldCustodyError,
     OptimizedPreAllocationCustodyError, PRE_ALLOCATION_RULE_CATALOG, PairConsumerBindingAdmission,
     PairFaultDischarge, PairImmediateBound, PairLiteralPosition, PairMachineEffects,
@@ -117,8 +117,8 @@ pub(crate) use rewrites::{
     StagedOptimizedLiteralFoldStep, StagedOptimizedPreAllocationAttempt,
     StagedOptimizedPreAllocationAttemptReceipt, StagedOptimizedPreAllocationIterationReceipt,
     StagedOptimizedPreAllocationStep, ValidatedAddressFold, ValidatedConstantBoolean,
-    ValidatedCopyRemoval, ValidatedPreAllocationTransformation, ValidatedRedundantExtension,
-    fixed_view_copy_identity,
+    ValidatedConstantBranch, ValidatedCopyRemoval, ValidatedPreAllocationTransformation,
+    ValidatedRedundantExtension, fixed_view_copy_identity,
 };
 
 #[cfg(any(test, feature = "test-support"))]
@@ -128,7 +128,7 @@ pub use rewrites::test_support;
 // representation; the transform publishes them under its root so callers keep
 // one vocabulary.
 pub use target_operations_to_selected_instructions::{
-    AddressFoldIdentity, ConstantBooleanIdentity, FixedViewCopyIdentity,
+    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, FixedViewCopyIdentity,
     PressureRematerializationIdentity,
 };
 

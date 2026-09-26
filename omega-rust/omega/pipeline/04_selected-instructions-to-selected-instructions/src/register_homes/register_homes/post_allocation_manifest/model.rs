@@ -5,9 +5,9 @@ use optimization_core::{
 use target::NativeTarget;
 use target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity;
 use target_operations_to_selected_instructions::{
-    AddressFoldIdentity, ConstantBooleanIdentity, CopyRemovalIdentity, FixedViewCopyIdentity,
-    LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-    RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
+    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, CopyRemovalIdentity,
+    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
+    PressureRematerializationIdentity, RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
 };
 
 use crate::register_homes::{
@@ -55,6 +55,31 @@ pub enum PostAllocationSelectedTransformation {
     RedundantExtension(RedundantExtensionIdentity),
     AddressFold(AddressFoldIdentity),
     ConstantBoolean(ConstantBooleanIdentity),
+    ConstantBranch(ConstantBranchIdentity),
+}
+
+/// The post-allocation ledger entry one committed pre-allocation step
+/// publishes: the same identity, under its downstream name.
+impl From<crate::PreAllocationTransformationIdentity> for PostAllocationSelectedTransformation {
+    fn from(identity: crate::PreAllocationTransformationIdentity) -> Self {
+        match identity {
+            crate::PreAllocationTransformationIdentity::CopyRemoval(identity) => {
+                Self::CopyRemoval(identity)
+            }
+            crate::PreAllocationTransformationIdentity::RedundantExtension(identity) => {
+                Self::RedundantExtension(identity)
+            }
+            crate::PreAllocationTransformationIdentity::AddressFold(identity) => {
+                Self::AddressFold(identity)
+            }
+            crate::PreAllocationTransformationIdentity::ConstantBoolean(identity) => {
+                Self::ConstantBoolean(identity)
+            }
+            crate::PreAllocationTransformationIdentity::ConstantBranch(identity) => {
+                Self::ConstantBranch(identity)
+            }
+        }
+    }
 }
 
 /// Structured report at the first independently validated physical-home

@@ -11,8 +11,10 @@
 //! slice through `copy_removal` (same-block copy removal),
 //! `redundant_extension` (carrier extensions whose producer already
 //! normalizes), `address_fold` (displacement consumers reading an
-//! `AddressOffset` result), and `constant_boolean` (a `MaterializeBoolean*`
-//! whose reached compare is compile-time constant);
+//! `AddressOffset` result), `constant_boolean` (a `MaterializeBoolean*`
+//! whose reached compare is compile-time constant), and `constant_branch`
+//! (a conditional-branch terminator whose reached compare is compile-time
+//! constant);
 //! `runtime_spill` and `runtime_rematerialization`
 //! are the recovery rewrites register assignment replays. `block_edges`,
 //! `condition_state` and `window_hazards` are the block-boundary,
@@ -30,6 +32,7 @@ mod block_edges;
 mod catalog;
 mod condition_state;
 mod constant_boolean;
+mod constant_branch;
 mod copy_removal;
 mod fixed_view;
 mod literal_folds;
@@ -66,6 +69,11 @@ pub use allocation_recovery::{
 pub use constant_boolean::{ConstantBooleanError, ValidatedConstantBoolean};
 pub(crate) use constant_boolean::{
     fold_selected_constant_boolean, measured_steps as constant_boolean_measured_steps,
+};
+pub use constant_branch::{ConstantBranchError, ValidatedConstantBranch};
+pub(crate) use constant_branch::{
+    fold_selected_constant_branch, measured_steps as constant_branch_measured_steps,
+    surface_sizes as constant_branch_surface_sizes,
 };
 // Reached as `crate::rewrites::<name>` by the catalog's own tests and by
 // `selected_optimization`'s admission decision.

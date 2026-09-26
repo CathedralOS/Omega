@@ -1,4 +1,5 @@
-//! Constant condition branch folding on the selected CFG.
+//! Constant condition branch folding on the selected CFG — the
+//! `PreAllocation` slice's `SelectedConstantBranchFoldV1` family.
 //!
 //! `rewrites/constant_boolean` is the consumer-side twin: a
 //! `MaterializeBoolean*` whose flag units all reach one constant-operand
@@ -67,11 +68,12 @@ use std::sync::Arc;
 use optimization_core::OptimizationUnitIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::{
-    SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    ConstantBranchIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity,
 };
 
-pub use rewrite::fold_selected_constant_branch;
-pub use validation::validate_constant_branch_fold;
+pub(crate) use rewrite::fold_selected_constant_branch;
+pub(crate) use validation::{measured_steps, surface_sizes, validate_constant_branch_fold};
 
 #[cfg(test)]
 mod tests;
@@ -103,6 +105,8 @@ pub struct ConstantBranchReceipt {
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
+    function_index: usize,
+    branch: SelectedInstructionId,
 }
 
 impl ConstantBranchReceipt {
@@ -118,6 +122,41 @@ impl ConstantBranchReceipt {
     pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
         self.fuel_schedule
     }
+    /// The transformed function index carrying the folded branch.
+    pub const fn function_index(&self) -> usize {
+        self.function_index
+    }
+    /// The folded branch instruction — the `Jump` terminator instruction
+    /// carries this identity across.
+    pub const fn branch(&self) -> SelectedInstructionId {
+        self.branch
+    }
+    /// The durable transformation identity the post-allocation manifest
+    /// ledger records: the receipt's exact fields under the
+    /// constant-branch domain separator.
+    pub fn identity(&self) -> ConstantBranchIdentity {
+        constant_branch_identity(self)
+    }
+}
+
+/// Canonical identity of one validated constant branch fold: every receipt
+/// field — the coordinate, both plan identities, and the proof inputs — is
+/// part of the durable record, so two folds of the same branch under
+/// different sources stay distinct transformations.
+pub(crate) fn constant_branch_identity(receipt: &ConstantBranchReceipt) -> ConstantBranchIdentity {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-constant-branch-fold.v1\0");
+    bytes.extend_from_slice(&receipt.source_selected.bytes());
+    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
+    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
+    bytes.extend_from_slice(&receipt.fuel_schedule.marker().to_le_bytes());
+    bytes.extend_from_slice(
+        &u64::try_from(receipt.function_index)
+            .expect("constant-branch function index fits u64")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&receipt.branch.0.to_le_bytes());
+    ConstantBranchIdentity::from_canonical_bytes(&bytes)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
