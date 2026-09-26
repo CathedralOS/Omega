@@ -39,6 +39,7 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 build-evaluation = { path = "../../build/build-evaluation", features = ["test-support"] }
+mimalloc = { version = "0.1", default-features = false }
 package-source = { path = "../sources/acquisition", features = ["test-fixtures"] }
 
 [[test]]
