@@ -25,6 +25,108 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
     reference: TypeReferenceHandle,
     include_shared: bool,
 ) -> Option<StoredLocalOrigins> {
+    walk_declared_origins(
+        program,
+        symbol,
+        name,
+        reference,
+        include_shared,
+        OriginDetail::Paths,
+    )
+}
+
+/// Whether the type's owned structure contains a sum case, under the same
+/// admission rules as `declared_origins`. It walks the same structure but
+/// builds no leaf paths.
+pub(in crate::machine_calls::calls::write_frames) fn declares_cases(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    walk_declared_origins(
+        program,
+        SymbolHandle::invalid(),
+        "",
+        reference,
+        false,
+        OriginDetail::ShapeOnly,
+    )
+    .is_some_and(|origins| !origins.cases.is_empty())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OriginDetail {
+    Paths,
+    /// Record one empty entry per case and no reference leaves.
+    ShapeOnly,
+}
+
+/// One step of a type walk. Steps link to their parent, so a pending type
+/// shares its path prefix instead of copying the segment and visiting lists
+/// for each field it descends into.
+#[derive(Clone, Copy)]
+struct WalkStep {
+    parent: Option<u32>,
+    /// The type walked at this step. A case step walks no type and holds the
+    /// invalid handle; it only contributes its segment.
+    reference: TypeReferenceHandle,
+    segment: Option<PlaceSegment>,
+}
+
+#[derive(Default)]
+struct TypeWalk {
+    steps: Vec<WalkStep>,
+}
+
+impl TypeWalk {
+    fn push(
+        &mut self,
+        parent: Option<u32>,
+        reference: TypeReferenceHandle,
+        segment: Option<PlaceSegment>,
+    ) -> Option<u32> {
+        let step = u32::try_from(self.steps.len()).ok()?;
+        self.steps.push(WalkStep {
+            parent,
+            reference,
+            segment,
+        });
+        Some(step)
+    }
+
+    /// Whether `reference` is already being walked on the path above a step
+    /// whose parent is `parent`: the type is recursive through owned storage.
+    fn is_visiting(&self, mut parent: Option<u32>, reference: TypeReferenceHandle) -> bool {
+        while let Some(step) = parent {
+            let step = self.steps[step as usize];
+            if step.reference == reference {
+                return true;
+            }
+            parent = step.parent;
+        }
+        false
+    }
+
+    fn segments(&self, step: u32) -> Vec<PlaceSegment> {
+        let mut segments = Vec::new();
+        let mut current = Some(step);
+        while let Some(step) = current {
+            let step = self.steps[step as usize];
+            segments.extend(step.segment);
+            current = step.parent;
+        }
+        segments.reverse();
+        segments
+    }
+}
+
+fn walk_declared_origins(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+    name: &str,
+    reference: TypeReferenceHandle,
+    include_shared: bool,
+    detail: OriginDetail,
+) -> Option<StoredLocalOrigins> {
     let mut origins = StoredLocalOrigins {
         local_symbol: symbol,
         references: Vec::new(),
@@ -32,19 +134,22 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
         moves: Vec::new(),
         symbolic: true,
     };
-    let mut pending = vec![(reference, Vec::new(), Vec::new())];
-    while let Some((reference, segments, mut visiting)) = pending.pop() {
-        if !reference.is_valid() || visiting.contains(&reference) {
+    let mut walk = TypeWalk::default();
+    let mut pending = vec![walk.push(None, reference, None)?];
+    while let Some(step) = pending.pop() {
+        let WalkStep {
+            parent, reference, ..
+        } = walk.steps[step as usize];
+        if !reference.is_valid() || walk.is_visiting(parent, reference) {
             return None;
         }
-        visiting.push(reference);
         if program.primitive_type_reference(reference).is_some() {
             continue;
         }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Unit => {}
             TypeReferenceNode::Constrained { base_type, .. } => {
-                pending.push((*base_type, segments, visiting));
+                pending.push(walk.push(Some(step), *base_type, None)?);
             }
             TypeReferenceNode::Reference {
                 access, referee, ..
@@ -57,6 +162,10 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
                 ) {
                     return None;
                 }
+                if detail == OriginDetail::ShapeOnly {
+                    continue;
+                }
+                let segments = walk.segments(step);
                 let mut path = name.to_owned();
                 let mut precision = FramePathPrecision::Exact;
                 for segment in &segments {
@@ -92,13 +201,12 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
                 length: FixedArrayLength::Literal(length),
             } => {
                 if *length != 0 {
-                    let mut segments = segments;
                     // This is only a may-write selector, never an actual index
                     // expression or evidence authorizing an element access.
-                    segments.push(PlaceSegment::Index {
+                    let selector = PlaceSegment::Index {
                         expression: Default::default(),
-                    });
-                    pending.push((*element_type, segments, visiting));
+                    };
+                    pending.push(walk.push(Some(step), *element_type, Some(selector))?);
                 }
             }
             node if concrete_nominal_type(node).is_some() => {
@@ -114,9 +222,9 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
                         DataMember::Field(field) => {
                             push_field(
                                 program,
+                                &mut walk,
                                 &mut pending,
-                                &segments,
-                                &visiting,
+                                step,
                                 field.symbol,
                                 field.type_reference,
                             )?;
@@ -125,17 +233,23 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
                             if program.symbols.get(variant.symbol).kind != SymbolKind::Variant {
                                 return None;
                             }
-                            let mut selected = segments.clone();
-                            selected.push(PlaceSegment::Case {
-                                variant: variant.symbol,
+                            let case = walk.push(
+                                Some(step),
+                                TypeReferenceHandle::invalid(),
+                                Some(PlaceSegment::Case {
+                                    variant: variant.symbol,
+                                }),
+                            )?;
+                            origins.cases.push(match detail {
+                                OriginDetail::Paths => walk.segments(case),
+                                OriginDetail::ShapeOnly => Vec::new(),
                             });
-                            origins.cases.push(selected.clone());
                             for field in program.data_payload_fields(variant) {
                                 push_field(
                                     program,
+                                    &mut walk,
                                     &mut pending,
-                                    &selected,
-                                    &visiting,
+                                    case,
                                     field.symbol,
                                     field.type_reference,
                                 )?;
@@ -216,12 +330,6 @@ pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
     false
 }
 
-type PendingOrigin = (
-    TypeReferenceHandle,
-    Vec<PlaceSegment>,
-    Vec<TypeReferenceHandle>,
-);
-
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open — the type walk otherwise re-scans the declaration table per
 /// nominal node it descends into.
@@ -234,17 +342,19 @@ fn data_definition_by_symbol<'program>(
 
 fn push_field(
     program: &TypedTrees,
-    pending: &mut Vec<PendingOrigin>,
-    segments: &[PlaceSegment],
-    visiting: &[TypeReferenceHandle],
+    walk: &mut TypeWalk,
+    pending: &mut Vec<u32>,
+    parent: u32,
     symbol: SymbolHandle,
     reference: TypeReferenceHandle,
 ) -> Option<()> {
     if program.symbols.get(symbol).kind != SymbolKind::Field {
         return None;
     }
-    let mut segments = segments.to_vec();
-    segments.push(PlaceSegment::Field { symbol });
-    pending.push((reference, segments, visiting.to_vec()));
+    pending.push(walk.push(
+        Some(parent),
+        reference,
+        Some(PlaceSegment::Field { symbol }),
+    )?);
     Some(())
 }
