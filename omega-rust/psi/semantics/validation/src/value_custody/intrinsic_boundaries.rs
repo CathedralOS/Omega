@@ -9,6 +9,17 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
     program: &TypedTrees,
     target_state_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
+    // Only a state symbol, or one the table cannot resolve, names stored
+    // state rows, and a state under a trait is a requirement signature no
+    // machine stores; call targets naming anything else hold no intrinsic.
+    let symbol = program.symbols.get(target_state_symbol);
+    if !matches!(
+        symbol.kind,
+        symbols::SymbolKind::State | symbols::SymbolKind::Unknown
+    ) || program.symbols.get(symbol.parent).kind == symbols::SymbolKind::Trait
+    {
+        return None;
+    }
     // State spans are disjoint append-only ranges: at most one machine can
     // contain a state symbol, so the holder is unique by construction.
     let machine = program.machine_holding_state(target_state_symbol)?;
@@ -18,33 +29,33 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
     {
         return None;
     }
-    let authored_binding = match machine.supply_mode {
-        MachineSupplyMode::ExternalRealization {
-            binding: Some(binding),
-            mechanism: Some(language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
-        } if program.external_bindings.identity(binding)
-            == Some(&language_semantics::ExternalBindingIdentity::CompilerIntrinsic) =>
-        {
-            Some(binding)
-        }
-        _ => None,
-    };
-    // Exact hosted catalog leaves: (realization, provider nominal, boundary
-    // trait) admitted without an authored `via` binding.
-    let inferred_hosted_intrinsic = match machine.name.as_str() {
-        "ConsoleNativeProvider::exit_process" | "ConsoleNativeProvider::write_byte" => {
-            Some(("ConsoleNativeProvider", "Console"))
-        }
-        "ProcessExitNativeProvider::exit_process" => {
-            Some(("ProcessExitNativeProvider", "ProcessExit"))
-        }
-        _ => None,
-    }
-    .filter(|(provider_name, _)| {
-        machine.supply_mode == MachineSupplyMode::Boundary
-            && machine.attached_data.as_ref().map(|name| name.as_str()) == Some(*provider_name)
-    });
-    if authored_binding.is_none() && inferred_hosted_intrinsic.is_none() {
+    // Only a bodiless, lifetime-free machine with an intrinsic binding or a
+    // hosted catalog name can qualify, so the state scan runs over those
+    // alone. Uniqueness still spans every machine: a qualifying owner is
+    // rejected when any other machine also holds the target state.
+    let (machine, authored_binding, inferred_hosted_intrinsic) =
+        program.machines().iter().find_map(|machine| {
+            let (authored_binding, inferred_hosted_intrinsic) =
+                intrinsic_realization_candidate(program, machine)?;
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == target_state_symbol)
+                .then_some((machine, authored_binding, inferred_hosted_intrinsic))
+        })?;
+    if program
+        .machines()
+        .iter()
+        .filter(|other| {
+            program
+                .machine_states(other)
+                .iter()
+                .any(|state| state.symbol == target_state_symbol)
+        })
+        .nth(1)
+        .is_some()
+        || !program.machine_type_parameters(machine).is_empty()
+    {
         return None;
     }
     let inferred_trait_name = inferred_hosted_intrinsic.map(|(_, trait_name)| trait_name);
@@ -139,6 +150,48 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
         .next()
         .is_none()
         .then_some((requirement, machine.attached_data_symbol))
+}
+
+/// The machine-level half of the intrinsic identity: the authored
+/// compiler-intrinsic binding, or the exact hosted catalog leaf (realization,
+/// provider nominal, boundary trait) admitted without an authored `via`
+/// binding. `None` when the machine cannot realize an intrinsic boundary.
+fn intrinsic_realization_candidate(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Option<(
+    Option<language_semantics::ExternalBindingId>,
+    Option<(&'static str, &'static str)>,
+)> {
+    if machine.body_is_present || !machine.lifetime_parameters.is_empty() {
+        return None;
+    }
+    let authored_binding = match machine.supply_mode {
+        MachineSupplyMode::ExternalRealization {
+            binding: Some(binding),
+            mechanism: Some(language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
+        } if program.external_bindings.identity(binding)
+            == Some(&language_semantics::ExternalBindingIdentity::CompilerIntrinsic) =>
+        {
+            Some(binding)
+        }
+        _ => None,
+    };
+    let inferred_hosted_intrinsic = match machine.name.as_str() {
+        "ConsoleNativeProvider::exit_process" | "ConsoleNativeProvider::write_byte" => {
+            Some(("ConsoleNativeProvider", "Console"))
+        }
+        "ProcessExitNativeProvider::exit_process" => {
+            Some(("ProcessExitNativeProvider", "ProcessExit"))
+        }
+        _ => None,
+    }
+    .filter(|(provider_name, _)| {
+        machine.supply_mode == MachineSupplyMode::Boundary
+            && machine.attached_data.as_ref().map(|name| name.as_str()) == Some(*provider_name)
+    });
+    (authored_binding.is_some() || inferred_hosted_intrinsic.is_some())
+        .then_some((authored_binding, inferred_hosted_intrinsic))
 }
 
 /// The supported byte-input result, resolved by declaration identity. This is
