@@ -7,6 +7,60 @@ use super::{
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::block_id;
 
+#[test]
+fn sequential_clamps_prove_exact_arithmetic_on_an_observed_field() {
+    for expression in ["bounded + 70", "70 + bounded", "bounded + -70"] {
+        let lowered = clamped_field_addition(expression);
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("the independent verifier reconstructs the clamp and addition obligations");
+    }
+}
+
+fn clamped_field_addition(expression: &str) -> LoweredPsi {
+    let checked = crate::front_end::checked_program(&format!(
+        "data Main {{ seed: i32; result: i32; }}
+         machine Main::run(&mut self) {{
+             let low: i32 = max(self.seed, 0);
+             let bounded: i32 = min(low, 60);
+             self.result = {expression};
+         }}",
+    ));
+    lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("clamp bounds justify the exact addition")
+}
+
+#[test]
+fn clamp_join_demands_do_not_authorize_an_overflowing_arrival() {
+    let mut lowered = clamped_field_addition("bounded + 70");
+    lowered.semantic_module.scalar_block_invariants.clear();
+    lowered.proof_bundle = terminal_verifier::ProofBundle::default();
+    let cap = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Signed(60)
+                }
+            )
+        })
+        .expect("the upper clamp has an emitted literal");
+    cap.kind = terminal_psi::OperationKind::IntegerConstant {
+        value: semantic_vocabulary::IntegerValue::Signed(i32::MAX.into()),
+    };
+    // Keep the authored source unchanged: evidence must follow actual emitted
+    // arrivals, not its original narrowing annotation or the candidate alone.
+    assert!(finalize_operation_proofs(&mut lowered).is_err());
+}
+
 fn fixture(obligation_count: usize) -> LoweredPsi {
     let mut lowered = lower_source("machine root(value: u64) -> u64 { value }");
     lowered.semantic_module.machines[0].contract.ensures = (0..obligation_count)
