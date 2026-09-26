@@ -1,8 +1,8 @@
 //! Raw edge construction checks, not source-admission or native execution claims.
 
-use optimization_unit::ValueDefinitionSite;
-use optimization_unit::{FuelSettlement, PsiProvenance};
-use selected_instructions::SelectedInstruction;
+use crate::selected_instructions::SelectedInstruction;
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
+use terminal_psi_to_abstract_operations::optimization_unit::{FuelSettlement, PsiProvenance};
 
 use super::{
     IntegerSign, IntegerType, ScalarType, SelectedBlockId, SelectedCasePayloadTransport,
@@ -10,6 +10,8 @@ use super::{
     SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin, prepare,
 };
+use crate::selected_instructions::{
+    LocalStorageSlotId, SelectedCasePayloadBinding, SelectedStructuralCaseEdge,
 use selected_instructions::{
     LocalStorageSlotId, SelectedCaseDispatchSource, SelectedCasePayloadBinding,
     SelectedStructuralCaseEdge,
@@ -25,7 +27,7 @@ fn case_payload_bridge_snapshots_each_used_field_before_destination_binding() {
         target::NativeTarget::linux_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -64,10 +66,10 @@ fn case_payload_bridge_snapshots_each_used_field_before_destination_binding() {
                     entry_fixed_view: None,
                 });
                 SelectedCasePayloadBinding {
-                    semantic: legalized_operations::LegalizedStructuralCasePayload {
+                    semantic: crate::legalized_operations::LegalizedStructuralCasePayload {
                         field: StructuralFieldId::new(1).unwrap(),
                         field_byte_offset: 4,
-                        parameter: legalized_operations::LegalizedValueDefinition {
+                        parameter: crate::legalized_operations::LegalizedValueDefinition {
                             value,
                             scalar_type,
                             definition_site: site,

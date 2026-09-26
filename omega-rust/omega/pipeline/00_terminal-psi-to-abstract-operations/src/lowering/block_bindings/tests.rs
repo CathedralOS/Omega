@@ -226,7 +226,7 @@ fn common_native_and_optimizer_lowering_cannot_drop_descriptor_only_transfer() {
         function.block_entries[1].structural_parameters,
         module.machines[0].blocks[1].structural_parameters
     );
-    let abstract_operations::AbstractOperation::Jump {
+    let crate::abstract_operations::AbstractOperation::Jump {
         structural_bindings,
         ..
     } = &function.operations[0]

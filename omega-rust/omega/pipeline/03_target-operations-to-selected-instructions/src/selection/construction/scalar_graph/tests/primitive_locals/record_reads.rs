@@ -80,7 +80,7 @@ fn owned_record_read_rejects_wrong_root_offset_and_unavailable_home() {
     ] {
         let source = record_fixture(native);
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -180,9 +180,9 @@ fn record_read_store_read_materializes_two_snapshots_before_the_consuming_call()
             position: 0,
             is_self: false,
         };
-        signature.parameters = vec![legalized_operations::LegalizedCallUnitParameter {
+        signature.parameters = vec![crate::legalized_operations::LegalizedCallUnitParameter {
             semantic: parameter.clone(),
-            target: target_operations::TargetStructuralParameter {
+            target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                 place,
                 structural_type: identity,
                 multiplicity: parameter.multiplicity,
@@ -212,7 +212,7 @@ fn record_read_store_read_materializes_two_snapshots_before_the_consuming_call()
                 path: Vec::new(),
                 indices: Vec::new(),
                 field,
-                value: abstract_operations::AbstractResult {
+                value: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                     value: ValueId::new(2).unwrap(),
                     scalar_type: scalar,
                 },
@@ -253,7 +253,7 @@ fn record_read_store_read_materializes_two_snapshots_before_the_consuming_call()
             None,
         );
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

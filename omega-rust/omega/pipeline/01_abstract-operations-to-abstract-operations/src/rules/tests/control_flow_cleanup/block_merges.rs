@@ -10,20 +10,22 @@ use crate::rules::tests::fixtures::control_flow_cleanup::{
     propagated_block_parameter_unit,
 };
 use crate::rules::tests::fixtures::id;
-use abstract_operations::{AbstractOperation, AbstractOperation as O};
 use optimization_core::OptimizationFactReference;
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractOperation as O,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
     OwnershipFrontierWitness, ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
     PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_adjacent_block_merge_candidate,
     validate_constant_conditional_candidate, validate_non_adjacent_block_merge_candidate,
     validate_psi_optimization_unit,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, ValueId};
 
 #[test]
 fn adjacent_block_merge_substitutes_parameters_and_rehomes_edge_custody() {
@@ -450,7 +452,7 @@ fn non_adjacent_merge_supports_both_roster_directions_and_global_uses() {
         ));
         assert_eq!(
             predecessor.nodes[1].definitions[0].site,
-            optimization_unit::ValueDefinitionSite::Node {
+            terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
                 block: id(1_506, BlockId::new),
                 node: 1,
             }
@@ -514,7 +516,7 @@ fn adjacent_merge_rewrites_target_parameter_uses_in_dominated_successors() {
     let mut effect = 0u64;
     for block in &mut unit.functions[0].blocks {
         for node in &mut block.nodes {
-            node.effect = optimization_unit::EffectLink {
+            node.effect = terminal_psi_to_abstract_operations::optimization_unit::EffectLink {
                 input: effect,
                 output: effect + 1,
             };

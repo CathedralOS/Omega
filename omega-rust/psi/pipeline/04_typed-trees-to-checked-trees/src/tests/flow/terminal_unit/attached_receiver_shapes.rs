@@ -25,7 +25,12 @@ machine Root::run(&mut self) reaches Host {{
 }
 
 /// The receiver plans as one composed Unit machine with no omission row.
-fn composed_plan_count(part: &str) -> (usize, Option<checked_trees::CheckedUnitPlanOmissionStage>) {
+fn composed_plan_count(
+    part: &str,
+) -> (
+    usize,
+    Option<crate::checked_trees::CheckedUnitPlanOmissionStage>,
+) {
     let checked = checked_with_service(&entry_with_part(part));
     let root = machine_named(&checked, "run");
     let plans = &checked.facts.flow.terminal_unit_effects;
@@ -112,7 +117,7 @@ fn fixed_array_of_an_affine_payload_sum_stays_unshaped() {
         ),
         (
             0,
-            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { .. })
+            Some(crate::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { .. })
         )
     ));
 }

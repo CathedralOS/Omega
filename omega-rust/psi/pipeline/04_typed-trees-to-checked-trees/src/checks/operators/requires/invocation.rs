@@ -16,16 +16,20 @@
 //! versions of the same source place. Conjunctions are proved leaf by leaf by
 //! the ordinary requires checker; they do not need all premises at one time.
 
-use arena::Handle;
-use checked_trees::{
+use crate::checked_trees::{
     CheckFacts, CheckedNamedOperatorUseFact, CheckedOperatorUseFact, FlowFacts,
     FlowOperatorInvocationFact, FlowOperatorOperandFact,
 };
-use facts::{FactContextHandle, FactPlan};
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::signature::StateParameter;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use crate::fact_plan::{FactContextHandle, FactPlan};
+use arena::Handle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(super) struct InvocationContexts<'facts> {
     flow: &'facts FlowFacts,
@@ -191,7 +195,7 @@ impl<'facts> InvocationContexts<'facts> {
                     .iter()
                     .any(|fact_ref| {
                         let fact = self.semantic.facts.get(fact_ref.fact);
-                        let facts::FactPlace::Place(place) = fact.place else {
+                        let crate::fact_plan::FactPlace::Place(place) = fact.place else {
                             return false;
                         };
                         let Some(place) = crate::flow::canonical_place_from_semantic_place(
@@ -250,10 +254,10 @@ fn operand_binds_stable_copy(program: &TypedTrees, mut reference: TypeReferenceH
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { .. } => {
                 return program.primitive_type_reference(reference).is_some()
-                    || validation::has_stable_observable_contents(program, reference);
+                    || crate::validation::has_stable_observable_contents(program, reference);
             }
             TypeReferenceNode::Generic { .. } | TypeReferenceNode::FixedArray { .. } => {
-                return validation::has_stable_observable_contents(program, reference);
+                return crate::validation::has_stable_observable_contents(program, reference);
             }
             _ => return false,
         }

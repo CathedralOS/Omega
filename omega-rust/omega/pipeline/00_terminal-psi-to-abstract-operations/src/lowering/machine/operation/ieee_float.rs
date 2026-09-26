@@ -1,6 +1,6 @@
 //! Exact target-neutral IEEE scalar operations.
 
-use abstract_operations::AbstractOperation;
+use crate::abstract_operations::AbstractOperation;
 use semantic_vocabulary::ScalarType;
 use terminal_psi::{Operation, OperationKind};
 

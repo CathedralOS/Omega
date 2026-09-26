@@ -31,7 +31,7 @@ fn deleting_only_the_last_assignment_cannot_skip_its_store_before_return() {
     assert_eq!(state.primitive_locals.len(), 1);
     assert_eq!(
         state.terminator,
-        checked_trees::CheckedScalarStateTerminator::Return {
+        typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Return {
             statement_ordinal: 4,
         }
     );

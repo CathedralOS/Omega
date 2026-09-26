@@ -1,0 +1,172 @@
+use crate::package_evidence::capture::PackageReviewInput;
+use crate::package_evidence::capture::semantics::declarations::{
+    nominal_identity, nominal_owner, trait_requirement_identity,
+};
+use crate::package_evidence::record::{
+    PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentRoute,
+};
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+
+pub(crate) fn project_domain_alias_expansion(
+    compilation: &PackageReviewInput<'_>,
+    domain_symbol: SymbolHandle,
+) -> Result<Vec<PackageReviewDomainAliasAtom>, Vec<Diagnostic>> {
+    fn expand(
+        compilation: &PackageReviewInput<'_>,
+        domain_symbol: SymbolHandle,
+        stack: &mut Vec<SymbolHandle>,
+        atoms: &mut Vec<PackageReviewDomainAliasAtom>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if stack.contains(&domain_symbol) {
+            return Err(vec![Diagnostic::error(
+                "package review encountered a cycle in checked domain alias expansion",
+            )]);
+        }
+        let definitions = compilation
+            .domain_definitions()
+            .iter()
+            .filter(|candidate| candidate.symbol == domain_symbol)
+            .collect::<Vec<_>>();
+        let [definition] = definitions.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "package review domain alias resolves to {} declarations; expected exactly one",
+                definitions.len()
+            ))]);
+        };
+        let Some(alias) = definition.alias.as_ref() else {
+            atoms.push(PackageReviewDomainAliasAtom::Declared(nominal_identity(
+                compilation,
+                definition.symbol,
+            )?));
+            return Ok(());
+        };
+        stack.push(domain_symbol);
+        for constituent in &alias.constituents {
+            let label = compilation
+                .domain_path_members(constituent.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            if !constituent.domain_symbol.is_valid() && label == "Carry::Portable" {
+                atoms.extend(
+                    language_semantics::CarryPermission::ALL
+                        .map(PackageReviewDomainAliasAtom::Carry),
+                );
+            } else if !constituent.domain_symbol.is_valid()
+                && let Some(permission) = language_semantics::CarryPermission::from_name(&label)
+            {
+                atoms.push(PackageReviewDomainAliasAtom::Carry(permission));
+            } else {
+                if !constituent.domain_symbol.is_valid() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "package review domain alias has unresolved constituent `{label}`"
+                    ))]);
+                }
+                expand(compilation, constituent.domain_symbol, stack, atoms)?;
+            }
+        }
+        stack.pop();
+        Ok(())
+    }
+
+    let mut atoms = Vec::new();
+    expand(compilation, domain_symbol, &mut Vec::new(), &mut atoms)?;
+    atoms.sort();
+    atoms.dedup();
+    if atoms.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "package review domain alias has an empty canonical expansion",
+        )]);
+    }
+    Ok(atoms)
+}
+
+pub(crate) fn project_domain_establishment_route(
+    compilation: &PackageReviewInput<'_>,
+    route: language_semantics::DomainEstablishmentRoute,
+) -> Result<PackageReviewDomainEstablishmentRoute, Vec<Diagnostic>> {
+    let (trait_symbol, requirement_symbol, expects_boundary) = match route {
+        language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+            trait_definition,
+            requirement,
+        } => (trait_definition, requirement, false),
+        language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+            boundary_trait,
+            requirement,
+        } => (boundary_trait, requirement, true),
+        language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
+            let mut declarations = compilation
+                .machines()
+                .iter()
+                .filter(|candidate| candidate.symbol == machine);
+            let Some(declaration) = declarations.next() else {
+                return Err(vec![Diagnostic::error(
+                    "package review exact-machine issuer has no declaration",
+                )]);
+            };
+            if declarations.next().is_some() {
+                return Err(vec![Diagnostic::error(
+                    "package review exact-machine issuer has multiple declarations",
+                )]);
+            }
+            // Callable identity includes overload shape and attached owner;
+            // a display path cannot distinguish declarations with one name.
+            let path = compilation
+                .normalized_machine_overload_identity(declaration)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "package review exact-machine issuer has no normalized callable identity",
+                    )]
+                })?
+                .identity();
+            return Ok(PackageReviewDomainEstablishmentRoute::ExactMachine {
+                machine_identity: crate::package_evidence::record::PackageReviewNominalIdentity {
+                    owner: nominal_owner(compilation, declaration.symbol)?,
+                    path,
+                },
+            });
+        }
+    };
+    let owners = compilation
+        .traits()
+        .iter()
+        .filter(|candidate| candidate.symbol == trait_symbol)
+        .collect::<Vec<_>>();
+    let [owner] = owners.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "package review domain establishment route resolves to {} trait declarations; expected exactly one",
+            owners.len()
+        ))]);
+    };
+    if owner.is_boundary != expects_boundary {
+        return Err(vec![Diagnostic::error(
+            "package review domain establishment route kind disagrees with its exact trait declaration",
+        )]);
+    }
+    let requirements = compilation
+        .trait_machine_signatures(owner)
+        .iter()
+        .filter(|candidate| candidate.symbol == requirement_symbol)
+        .collect::<Vec<_>>();
+    let [requirement] = requirements.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "package review domain establishment route resolves to {} requirements under its exact trait; expected exactly one",
+            requirements.len()
+        ))]);
+    };
+    let trait_identity = nominal_identity(compilation, owner.symbol)?;
+    let requirement_identity = trait_requirement_identity(compilation, owner, requirement)?;
+    Ok(if expects_boundary {
+        PackageReviewDomainEstablishmentRoute::BoundaryRequirement {
+            trait_identity,
+            requirement_identity,
+        }
+    } else {
+        PackageReviewDomainEstablishmentRoute::CheckedRequirement {
+            trait_identity,
+            requirement_identity,
+        }
+    })
+}

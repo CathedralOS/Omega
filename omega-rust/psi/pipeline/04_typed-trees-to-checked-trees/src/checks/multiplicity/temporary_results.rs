@@ -3,6 +3,8 @@
 //! A partial move from a temporary has no remaining local owner in which to
 //! retain unselected linear claims. The selected path must carry every live
 //! obligation; ordinary affine siblings may be discarded.
+use crate::checked_trees::CheckFacts;
+use crate::checked_trees::FlowPermissionEventFact;
 use crate::checks::multiplicity::claim_outcomes::claim_paths_are_case_alternatives;
 use crate::checks::multiplicity::linear_claim_frontier;
 use crate::checks::multiplicity::linear_validation::event_statement_index;
@@ -11,16 +13,14 @@ use crate::checks::type_carries_linear_obligation;
 use crate::checks::type_multiplicity;
 use crate::flow::FlowOwnershipEventSource;
 use arena::HandleSpan;
-use checked_trees::CheckFacts;
-use checked_trees::FlowPermissionEventFact;
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
 use language_semantics::PermissionAccess;
 use language_semantics::PermissionClaimIdentity;
 use language_semantics::PermissionEventKind;
 use language_semantics::PermissionProvenance;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 use symbols::SymbolHandle;
-use typed_trees::types::TypeReferenceNode;
 
 mod projected;
 mod shared_borrows;
@@ -28,11 +28,11 @@ mod shared_borrows;
 pub(super) use shared_borrows::append_shared_borrow;
 
 pub(super) fn append_whole_affine_transfer(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    calls: &[checked_trees::FlowCallFact],
+    calls: &[crate::checked_trees::FlowCallFact],
     event: &crate::flow::DiscoveredMoveEvent,
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
@@ -48,7 +48,7 @@ pub(super) fn append_whole_affine_transfer(
         );
         return;
     }
-    let facts::PlaceRoot::Expression(expression) = event.root else {
+    let crate::fact_plan::PlaceRoot::Expression(expression) = event.root else {
         return;
     };
     let FlowOwnershipEventSource::Call {
@@ -101,11 +101,11 @@ pub(super) fn append_whole_affine_transfer(
 /// An unrestricted construction is copied, not moved, and needs no transfer;
 /// linear constructions keep their claim rules.
 pub(super) fn append_constructed_argument_transfers(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    calls: &[checked_trees::FlowCallFact],
+    calls: &[crate::checked_trees::FlowCallFact],
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
     for call in calls
@@ -136,7 +136,7 @@ pub(super) fn append_constructed_argument_transfers(
             .iter()
             .filter(|parameter| !parameter.is_self || explicit_self);
         for (parameter, argument) in explicit_parameters.zip(arguments.iter()) {
-            let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal) =
                 program.expression_table.expression(*argument)
             else {
                 continue;
@@ -154,7 +154,7 @@ pub(super) fn append_constructed_argument_transfers(
                 call_ordinal: call.call_ordinal,
                 target_symbol: call.target_symbol,
             };
-            let root = facts::PlaceRoot::Expression(*argument);
+            let root = crate::fact_plan::PlaceRoot::Expression(*argument);
             if permission_events
                 .iter()
                 .any(|event| event.source == source && event.root == root)
@@ -190,13 +190,13 @@ pub(super) fn append_constructed_argument_transfers(
 }
 
 pub(super) fn check_unselected_claims(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     event: &crate::flow::DiscoveredMoveEvent,
-    path: &[facts::PlaceSegment],
+    path: &[crate::fact_plan::PlaceSegment],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let facts::PlaceRoot::Expression(_) = event.root else {
+    let crate::fact_plan::PlaceRoot::Expression(_) = event.root else {
         return;
     };
     let root = crate::flow::CanonicalPlace {

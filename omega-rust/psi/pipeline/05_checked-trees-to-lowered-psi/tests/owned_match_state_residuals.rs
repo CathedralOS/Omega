@@ -23,7 +23,10 @@ fn unsigned(value: u128) -> TerminalScalarValue {
     }
 }
 
-fn lowered() -> (checked_trees::CheckedTrees, lowered_psi::LoweredPsi) {
+fn lowered() -> (
+    typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+) {
     let checked = crate::front_end::checked_program(SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,

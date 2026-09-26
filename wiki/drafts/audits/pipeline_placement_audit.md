@@ -5,8 +5,7 @@ Mechanical sweep at `37d18e2104` of code placement against the
 which ownership bucket each retained construct sits in, not whether the
 construct itself is correct. A finding means the code lives in the wrong
 bucket; it does not mean the code is wrong. Delete this audit once every open
-row-1 violation it lists moves to `representations/` or is recorded on
-DURABLE-CODEC-RELOCATION.
+row-1 violation it lists moves to its producing pipeline stage (or `representations/` for shared boundary vocabularies) or is recorded on DURABLE-CODEC-RELOCATION.
 
 Re-swept at `be496d9a90` — see [Re-sweep](#re-sweep-at-be496d9a90) and
 [Rulings](#rulings) below.
@@ -14,7 +13,7 @@ Re-swept at `be496d9a90` — see [Re-sweep](#re-sweep-at-be496d9a90) and
 ## Method
 
 - `rg 'pub struct \w*Identity'` over every `omega-rust/*/pipeline/` `src/`
-  (durable identity newtypes outside `representations/`).
+  (durable identity newtypes outside `representations/` and producing stages).
 - `rg 'Sha256::digest|sha2::'` over the same set (identity producers inside
   transforms).
 - `find omega-rust/*/pipeline -name "*.rs" -path "*codec*"` (durable codecs
@@ -39,12 +38,12 @@ identities, raw evidence and codecs). All confirmed against `pipeline.md`.
 
 | Location | Content | Disposition |
 | --- | --- | --- |
-| `omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/` | `LiteralFoldIdentity` newtype + `identity.rs` Sha256 producer | Boarded: DURABLE-CODEC-RELOCATION leg (1) remainder — the other two named identities (fixed-view-copy, pressure-rematerialization) already moved to `representations/selected-instructions` at `dfb414e84c`; literal_fold alone remains, fenced at audit time by COMPOSABLE-PAIR-DESCRIPTORS |
+| `omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/` | `LiteralFoldIdentity` newtype + `identity.rs` Sha256 producer | Boarded: DURABLE-CODEC-RELOCATION leg (1) remainder — the other two named identities (fixed-view-copy, pressure-rematerialization) already moved to `omega/pipeline/03_target-operations-to-selected-instructions` at `dfb414e84c`; literal_fold alone remains, fenced at audit time by COMPOSABLE-PAIR-DESCRIPTORS |
 | `omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/` (18 families) | every family's `model.rs` defines its own `*Identity` newtype; every `identity.rs` is a Sha256 producer; `logical_spill_operations/codec/` and `stack_slot_coloring/codec/` are full codec subtrees | Boarded: DURABLE-CODEC-RELOCATION (identities/codecs) + UNSEQUENCED-SPILL-STAGES-DISPOSITION family (sequence-or-delete decides whether the durable forms stay at all) |
 | `omega/pipeline/05_selected-instructions-to-register-homes/src/assignment/post_allocation_manifest/` | `model.rs` + `codec.rs` — a durable manifest wire format inside the transform | Boarded: DURABLE-CODEC-RELOCATION leg (2) — move to `representations/register-homes` |
 | `omega/pipeline/05_selected-instructions-to-register-homes/src/preservation/identity.rs` | Sha256 identity producer for preservation receipts | Same family as above; fold into the relocation leg or justify as stage-private receipt |
 | `omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/` | ~50-file durable codec subtree (envelope/evidence/selected/structural) inside the rewrite | Boarded: DURABLE-CODEC-RELOCATION leg (3) — move to `representation-selections` or a named area |
-| `omega/compiler/src/native/optimized_semantic_wrapper_object/` | durable object model + `codec.rs` + manifest inside a compiler coordinator | Boarded: PIPELINE-WRAPPER-OBJECT-ORPHAN; codec leg deferred to PIPELINE-OWNER-CONSOLIDATION per the verified relocation plan |
+| `omega/src/compiler/native/optimized_semantic_wrapper_object/` | durable object model + `codec.rs` + manifest inside a compiler coordinator | Boarded: PIPELINE-WRAPPER-OBJECT-ORPHAN; codec leg deferred to PIPELINE-OWNER-CONSOLIDATION per the verified relocation plan |
 | `psi/semantics/terminal-codec/` | the canonical binary codec and `TerminalPsiIdentity` for the whole Terminal Psi representation; the durable types live in `psi/representations/terminal-psi`, the codec+identity live in `semantics/` — the only codec crate in a directory of verifiers/interpreters/validators | **New finding.** Relocate to `psi/representations/` (e.g. beside `terminal-psi`). Note the bound surface: `terminal-codec/build.rs` folds `src/` into `source-closure`, so a move is a source-closure rebind ceremony (see PCC-CANONICAL-SEMANTIC-LEDGER's closure discipline), not a plain `git mv` |
 | `psi/semantics/checked-interpreter/src/interpreter/evaluator/wire_codec.rs` | compact_binary v0 encoder inside the evaluator | Borderline: the evaluator *models* the wire operation's semantics (era discriminator, field order, bounded writes) — a semantics-side behavior, arguably justified. Record for review; not a clear violation |
 | `psi/semantics/validation/src/machine_calls/calls/write_frames/wire_codecs/` | wire-codec tables inside call validation | Borderline: semantic-side checking of wire framing. Same review flag |

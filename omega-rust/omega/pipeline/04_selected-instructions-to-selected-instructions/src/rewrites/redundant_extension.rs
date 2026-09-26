@@ -56,11 +56,11 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{
+use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::{
     RedundantExtensionIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::remove_selected_redundant_extension;
 pub(crate) use validation::{measured_steps, validate_redundant_extension_removal};

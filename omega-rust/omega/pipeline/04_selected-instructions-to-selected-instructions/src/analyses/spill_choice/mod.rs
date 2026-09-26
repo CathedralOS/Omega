@@ -1,8 +1,8 @@
 //! Optimizer module role: executable entrance. Deterministic bounded pressure-victim selection entrance.
 use crate::ValidatedAllocationLegality;
 use crate::ValidatedLiveRanges;
-use register_homes::SpillChoicePolicy;
-use register_model::{
+use crate::register_homes::SpillChoicePolicy;
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
@@ -11,11 +11,11 @@ use register_model::{
 pub(crate) mod compute;
 pub(crate) mod validate;
 
-use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{
+use crate::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, SpillChoiceIdentity, SpillChoicePlan,
 };
-use selected_instructions::LiveRangeIdentity;
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use target_operations_to_selected_instructions::LiveRangeIdentity;
 pub use validate::validate_spill_choices;
 
 /// Select the deterministic recovery victim at each first supported local

@@ -102,8 +102,10 @@ fn detached_structural_endpoint_cannot_borrow_an_arena_neighbour_scope() {
         .unwrap();
     let state = program.machine_states(machine)[0].clone();
     let reference = program.state_parameters(&state)[0].type_reference;
-    let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
-        *program.type_reference_table.type_reference(reference)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
+        base_type,
+        ..
+    } = *program.type_reference_table.type_reference(reference)
     else {
         panic!("authored range")
     };
@@ -210,17 +212,19 @@ fn detached_const_recipe_keeps_its_tuple_until_executable_probe_specialization()
         symbols::SymbolKind::Const,
         "VALUE",
     );
-    program.push_const_declaration(typed_trees::constant::ConstDeclaration {
-        symbol,
-        is_public: false,
-        declared_type: entry.return_type,
-        initializer_source_span: program.expression_table.source_span(initializer),
-        canonical_value_encoding: Some(
-            language_semantics::const_value::CanonicalConstIdentity::integer("u64", 7).encoding,
-        ),
-        authored_initializer: initializer,
-        materialized_initializer: materialized,
-    });
+    program.push_const_declaration(
+        symbol_resolved_trees_to_typed_trees::typed_trees::constant::ConstDeclaration {
+            symbol,
+            is_public: false,
+            declared_type: entry.return_type,
+            initializer_source_span: program.expression_table.source_span(initializer),
+            canonical_value_encoding: Some(
+                language_semantics::const_value::CanonicalConstIdentity::integer("u64", 7).encoding,
+            ),
+            authored_initializer: initializer,
+            materialized_initializer: materialized,
+        },
+    );
     // Retain the parsed call as declaration evidence, with no executable owner.
     // Activation below restores the very same parsed state in a private clone.
     let retained_machines = program
@@ -368,8 +372,8 @@ fn recursive_instances_keep_each_tuples_own_state_and_template_commitment() {
         .position(|machine| machine.name.as_str() == "repeat")
         .expect("template");
     let template = candidate::from_machine(&program, template_index);
-    let operational = validation::infer_operational_may(&program);
-    let service_reaches = validation::infer_service_reaches(&program, &operational);
+    let operational = crate::validation::infer_operational_may(&program);
+    let service_reaches = crate::validation::infer_service_reaches(&program, &operational);
     let contract = canonical_template_contract_bytes(&program, template_index, &service_reaches)
         .expect("template contract");
     // Exercise graph publication independently of discovery's recursive-call
@@ -494,7 +498,7 @@ fn assert_template_unchanged(before: &TypedTrees, after: &TypedTrees, name: &str
 
 fn call_targets(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Vec<SymbolHandle> {
     let mut targets = Vec::new();
     for state in program.machine_states(machine) {
@@ -526,7 +530,7 @@ fn mutually_recursive_generic_instances_reuse_exact_tuples_without_changing_temp
     "#,
     );
     let original = program.clone();
-    let mut selections = validation::ValidatedStaticMachineSelections::default();
+    let mut selections = crate::validation::ValidatedStaticMachineSelections::default();
     monomorphize_generic_machine_value_calls_with_selections(&mut program, &mut selections, true)
         .expect("mutual recursion closes both concrete tuples");
     assert_eq!(program.machine_specializations.len(), 4);

@@ -4,11 +4,15 @@
 //! both reject a valid index and borrow another record's range to admit an
 //! invalid one. Ordinary projections retain this checker's scoped root lookup.
 
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 #[cfg(test)]
 mod tests;
@@ -19,7 +23,7 @@ mod tests;
 /// `>= 0` proof. A signed index -- or one whose type cannot be resolved -- is
 /// NOT exempt (closed-world: exempt only when provably unsigned).
 pub(super) fn expression_is_unsigned_integer(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -36,13 +40,13 @@ pub(super) fn expression_is_unsigned_integer(
 /// interval, but its u8 result still cannot exceed 255. Signed nonnegativity
 /// remains a separate obligation at the access.
 pub(super) fn expression_integer_carrier_maximum(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<u64> {
     let reference =
-        validation::expression_result_type_reference(program, machine, state, expression)?;
+        crate::validation::expression_result_type_reference(program, machine, state, expression)?;
     match program.primitive_type_reference(reference)? {
         PrimitiveType::U8 => Some(u64::from(u8::MAX)),
         PrimitiveType::U16 => Some(u64::from(u16::MAX)),
@@ -59,7 +63,7 @@ pub(super) fn expression_integer_carrier_maximum(
 /// Resolves a type reference (through references and constraints) to its
 /// underlying primitive, when it names one.
 fn primitive_of_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -73,7 +77,7 @@ fn primitive_of_type_reference(
 }
 
 pub(super) fn expression_is_slice(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -96,7 +100,7 @@ pub(super) fn expression_is_slice(
 /// every read. An exactly selected ordinary call may contribute its literal
 /// return interval; checking the callee's return remains an independent duty.
 pub(in crate::checks) fn expression_enforced_declared_range(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -109,7 +113,12 @@ pub(in crate::checks) fn expression_enforced_declared_range(
                 return None;
             }
             (
-                validation::declared_place_type_raw(program, machine, Some(state), expression)?,
+                crate::validation::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )?,
                 true,
             )
         }
@@ -152,7 +161,7 @@ pub(in crate::checks) fn expression_enforced_declared_range(
 /// unranged, non-Exact, or the arithmetic overflows (the index prover then
 /// reports its clean cannot-prove error).
 fn dependent_range_substituted(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     handle: TypeReferenceHandle,
 ) -> Option<(i64, i64)> {
@@ -160,7 +169,7 @@ fn dependent_range_substituted(
     // The symbolic bound retains a field spelling, but its owner is the exact
     // attached declaration. Another module's same-named record cannot supply
     // the store-enforced bound used to justify this parameter's indexes.
-    let field_type = validation::exact_attached_field(
+    let field_type = crate::validation::exact_attached_field(
         program,
         machine,
         SymbolHandle::invalid(),
@@ -193,9 +202,12 @@ fn dependent_range_substituted(
 /// R1a-admissible symbolic shape, under Exact shells only (mirrors
 /// `enforced_range_of_type_reference`'s domain kill).
 fn dependent_range_of_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     handle: TypeReferenceHandle,
-) -> Option<(i64, typed_trees::dependent_ranges::SymbolicMaxBound)> {
+) -> Option<(
+    i64,
+    symbol_resolved_trees_to_typed_trees::typed_trees::dependent_ranges::SymbolicMaxBound,
+)> {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => {
             dependent_range_of_type_reference(program, *referee)
@@ -208,7 +220,7 @@ fn dependent_range_of_type_reference(
             if constraints.iter().any(|constraint| {
                 matches!(
                     constraint,
-                    typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
                         if *domain != numerics::arithmetic::ArithmeticDomain::Exact
                 )
             }) {
@@ -217,14 +229,14 @@ fn dependent_range_of_type_reference(
             constraints
                 .iter()
                 .find_map(|constraint| match constraint {
-                    typed_trees::types::TypeConstraintNode::Range {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range {
                         minimum,
                         maximum,
                         end_inclusive,
                     } => {
                         let minimum =
-                            validation::closed_integer_range_bound(program, *minimum)?.to_i64()?;
-                        let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
+                            crate::validation::closed_integer_range_bound(program, *minimum)?.to_i64()?;
+                        let symbolic = symbol_resolved_trees_to_typed_trees::typed_trees::dependent_ranges::symbolic_range_maximum(
                             &program.expression_table,
                             *maximum,
                             *end_inclusive,
@@ -240,7 +252,7 @@ fn dependent_range_of_type_reference(
 }
 
 fn enforced_range_of_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     mut handle: TypeReferenceHandle,
 ) -> Option<(i64, i64)> {
     use numerics::bignum::BigInt;
@@ -257,7 +269,7 @@ fn enforced_range_of_type_reference(
                 if constraints.iter().any(|constraint| {
                     matches!(
                         constraint,
-                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
                             if *domain != numerics::arithmetic::ArithmeticDomain::Exact
                     )
                 }) {
@@ -270,9 +282,9 @@ fn enforced_range_of_type_reference(
                     // establishes D at every write. So each predicate the
                     // reader recognizes as a closed integer bound is a true
                     // bound of the place, exactly as a bracketed range is.
-                    if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
                         && let Some((minimum, maximum)) =
-                            validation::declared_domain_predicate_bounds(program, domain)
+                            crate::validation::declared_domain_predicate_bounds(program, domain)
                     {
                         bounds = Some(match bounds {
                             Some((prior_minimum, prior_maximum)) => {
@@ -282,7 +294,7 @@ fn enforced_range_of_type_reference(
                         });
                         continue;
                     }
-                    let typed_trees::types::TypeConstraintNode::Range {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range {
                         minimum,
                         maximum,
                         end_inclusive,
@@ -290,10 +302,10 @@ fn enforced_range_of_type_reference(
                     else {
                         continue;
                     };
-                    let Some((minimum, maximum)) = validation::closed_integer_range_bound(
+                    let Some((minimum, maximum)) = crate::validation::closed_integer_range_bound(
                         program, *minimum,
                     )
-                    .zip(validation::closed_integer_range_maximum(
+                    .zip(crate::validation::closed_integer_range_maximum(
                         program,
                         *maximum,
                         *end_inclusive,
@@ -331,11 +343,11 @@ fn enforced_range_of_type_reference(
 /// usable floor: an unranged signed carrier could in principle specialize a
 /// negative "length", so nothing below it is provable.
 pub(in crate::checks::ranges) fn symbolic_extent_floor(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     extent_symbol: SymbolHandle,
-    extent_name: &typed_trees::name::Identifier,
+    extent_name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
 ) -> Option<i64> {
     let reference = type_reference_for_symbol(program, machine, state, extent_symbol)
         .or_else(|| type_reference_for_name(program, machine, state, extent_name))
@@ -358,10 +370,10 @@ pub(in crate::checks::ranges) fn symbolic_extent_floor(
 /// parameter list is empty. Symbol match is authoritative; the terminal name is
 /// only a fallback when the data declaration never resolved.
 fn attached_data_const_parameter_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     extent_symbol: SymbolHandle,
-    extent_name: &typed_trees::name::Identifier,
+    extent_name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
 ) -> Option<TypeReferenceHandle> {
     let data = program
         .data_definitions()
@@ -379,10 +391,12 @@ fn attached_data_const_parameter_reference(
         .data_type_parameters(data)
         .iter()
         .find_map(|parameter| match &parameter.kind {
-            typed_trees::data::TypeParameterKind::Const { type_reference }
-            | typed_trees::data::TypeParameterKind::Value { type_reference }
-                if parameter.symbol == extent_symbol || parameter.name == *extent_name =>
-            {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const {
+                type_reference,
+            }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value {
+                type_reference,
+            } if parameter.symbol == extent_symbol || parameter.name == *extent_name => {
                 Some(*type_reference)
             }
             _ => None,
@@ -394,7 +408,7 @@ fn attached_data_const_parameter_reference(
 /// a symbolic or absent maximum — a `u64[1..=18446744073709551615]`/`u64[0..N]` lower bound is
 /// still an enforced floor.
 fn constrained_minimum_of_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     mut handle: TypeReferenceHandle,
 ) -> Option<i64> {
     let mut minimum: Option<numerics::bignum::BigInt> = None;
@@ -409,14 +423,14 @@ fn constrained_minimum_of_type_reference(
                 if constraints.iter().any(|constraint| {
                     matches!(
                         constraint,
-                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
                             if *domain != numerics::arithmetic::ArithmeticDomain::Exact
                     )
                 }) {
                     return None;
                 }
                 for constraint in constraints {
-                    let typed_trees::types::TypeConstraintNode::Range {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range {
                         minimum: range_minimum,
                         ..
                     } = constraint
@@ -424,7 +438,7 @@ fn constrained_minimum_of_type_reference(
                         continue;
                     };
                     let Some(range_minimum) =
-                        validation::closed_integer_range_bound(program, *range_minimum)
+                        crate::validation::closed_integer_range_bound(program, *range_minimum)
                     else {
                         continue;
                     };
@@ -446,12 +460,12 @@ fn constrained_minimum_of_type_reference(
 /// `u64[0..N]`/`u64[0..=N]` binder-bounded shape. `end_inclusive == false`
 /// asserts `value < N` (a strict index bound); `true` only `value <= N`.
 pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
     extent_symbol: SymbolHandle,
-    extent_name: &typed_trees::name::Identifier,
+    extent_name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
 ) -> Option<bool> {
     let mut handle = expression_type_reference(program, machine, state, expression)?;
     loop {
@@ -467,14 +481,14 @@ pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
                 if constraints.iter().any(|constraint| {
                     matches!(
                         constraint,
-                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
                             if *domain != numerics::arithmetic::ArithmeticDomain::Exact
                     )
                 }) {
                     return None;
                 }
                 for constraint in constraints {
-                    let typed_trees::types::TypeConstraintNode::Range {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range {
                         maximum,
                         end_inclusive,
                         ..
@@ -509,17 +523,17 @@ pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
 }
 
 pub(in crate::checks::ranges) fn expression_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
         ExpressionNode::ArrayLiteral(_) => {
-            validation::declared_constant_array_type(program, expression)
+            crate::validation::declared_constant_array_type(program, expression)
         }
         ExpressionNode::StructLiteral(_) => {
-            validation::expression_result_type_reference(program, machine, state, expression)
+            crate::validation::expression_result_type_reference(program, machine, state, expression)
         }
         ExpressionNode::Borrow(inner) => {
             expression_type_reference(program, machine, state, inner.target)
@@ -532,7 +546,7 @@ pub(in crate::checks::ranges) fn expression_type_reference(
             if call.static_requirement_dispatch.is_some() {
                 return None;
             }
-            validation::declared_place_type_raw(program, machine, Some(state), expression)
+            crate::validation::declared_place_type_raw(program, machine, Some(state), expression)
         }
         ExpressionNode::Indexed(indexed)
             if !matches!(
@@ -545,7 +559,7 @@ pub(in crate::checks::ranges) fn expression_type_reference(
             crate::flow::project_type_reference_from_segments(
                 program,
                 collection,
-                &[facts::PlaceSegment::Index {
+                &[crate::fact_plan::PlaceSegment::Index {
                     expression: indexed.index,
                 }],
             )
@@ -560,7 +574,7 @@ pub(in crate::checks::ranges) fn expression_type_reference(
             })
         }
         ExpressionNode::Member(member) => {
-            validation::exact_self_field(program, machine, expression)
+            crate::validation::exact_self_field(program, machine, expression)
                 .map(|field| field.type_reference)
                 .or_else(|| {
                     expression_type_reference(program, machine, state, member.receiver).and_then(
@@ -580,14 +594,14 @@ pub(in crate::checks::ranges) fn expression_type_reference(
         // non-negativity discharges by type alone. The generic reader owns
         // the operator typing; callers only need the carrier.
         ExpressionNode::Binary(_) => {
-            validation::expression_result_type_reference(program, machine, state, expression)
+            crate::validation::expression_result_type_reference(program, machine, state, expression)
         }
         _ => None,
     }
 }
 
 fn type_reference_for_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     symbol: SymbolHandle,
@@ -607,7 +621,7 @@ fn type_reference_for_symbol(
                 .statements(state.statement_nodes)
                 .iter()
                 .find_map(|statement| {
-                    let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement else {
                         return None;
                     };
                     (local.symbol == symbol).then_some(local.type_reference)
@@ -629,8 +643,8 @@ fn type_reference_for_symbol(
                 .machine_type_parameters(machine)
                 .iter()
                 .find_map(|parameter| match &parameter.kind {
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference }
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { type_reference }
                         if parameter.symbol == symbol =>
                     {
                         Some(*type_reference)
@@ -655,10 +669,10 @@ fn type_reference_for_symbol(
 }
 
 fn type_reference_for_name(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
-    name: &typed_trees::name::Identifier,
+    name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
 ) -> Option<TypeReferenceHandle> {
     program
         .state_parameters(state)
@@ -671,7 +685,7 @@ fn type_reference_for_name(
                 .statements(state.statement_nodes)
                 .iter()
                 .find_map(|statement| {
-                    let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement else {
                         return None;
                     };
                     (local.name == *name).then_some(local.type_reference)
@@ -691,8 +705,8 @@ fn type_reference_for_name(
                 .machine_type_parameters(machine)
                 .iter()
                 .find_map(|parameter| match &parameter.kind {
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference }
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { type_reference }
                         if parameter.name == *name =>
                     {
                         Some(*type_reference)
@@ -720,7 +734,7 @@ fn type_reference_for_name(
 }
 
 fn type_reference_is_slice(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -739,10 +753,10 @@ fn type_reference_is_slice(
 }
 
 fn data_field_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
     member_symbol: SymbolHandle,
-    member_name: &typed_trees::name::Identifier,
+    member_name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. }
@@ -772,10 +786,10 @@ fn data_field_type_reference(
 }
 
 fn data_definition_by_symbol_or_name<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
-    name: &typed_trees::name::Identifier,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+    name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
     program.data_definitions().iter().find(|data_definition| {
         if symbol.is_valid() {
             data_definition.symbol == symbol
@@ -786,16 +800,18 @@ fn data_definition_by_symbol_or_name<'program>(
 }
 
 fn data_field_in_definition(
-    program: &typed_trees::TypedTrees,
-    data_definition: &typed_trees::data::DataDefinition,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    data_definition: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
     member_symbol: SymbolHandle,
-    member_name: &typed_trees::name::Identifier,
+    member_name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
 ) -> Option<TypeReferenceHandle> {
     program
         .data_members(data_definition)
         .iter()
         .find_map(|member| {
-            let typed_trees::data::DataMember::Field(field) = member else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+                member
+            else {
                 return None;
             };
 

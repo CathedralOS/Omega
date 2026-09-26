@@ -29,8 +29,8 @@ pub(crate) fn build_checked_machine(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedUnitEffectMachinePlan> {
     build_checked_machine_traced(
         program,
@@ -53,8 +53,8 @@ pub(crate) fn build_checked_machine_traced(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectMachinePlan> {
     build_checked_machine_with_trace(
@@ -74,9 +74,9 @@ pub(crate) fn build_checked_machine_with(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     retain_reference_self: bool,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedUnitEffectMachinePlan> {
     build_checked_machine_with_trace(
         program,
@@ -96,9 +96,9 @@ fn build_checked_machine_with_trace(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     retain_reference_self: bool,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectMachinePlan> {
     build_checked_machine_residual_parts(
@@ -128,9 +128,9 @@ pub(crate) fn build_checked_machine_residual_parts(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     retain_reference_self: bool,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<(
     CheckedUnitEffectMachinePlan,
@@ -174,21 +174,24 @@ pub(crate) fn build_checked_machine_residual_parts(
                     bucket
                         .alternative_guards()
                         .iter()
-                        .any(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_)))
+                        .any(|guard| matches!(guard, crate::checked_trees::CrashRouteGuard::Predicate(_)))
                 })
             });
     trace.phase("result type");
     if !is_unit(program, state.return_type)
-        && validation::reference_result_custody::parts(program, state.return_type).is_none()
-        && !validation::reference_result_custody::is_reference_record(program, state.return_type)
+        && crate::validation::reference_result_custody::parts(program, state.return_type).is_none()
+        && !crate::validation::reference_result_custody::is_reference_record(
+            program,
+            state.return_type,
+        )
         && !crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type)
         && !crate::execution::terminal_unit::types::borrowed_named_view(program, state.return_type)
         && !crate::execution::terminal_unit::types::record_with_owned_or_shared_view_fields(
             program,
             state.return_type,
         )
-        && !validation::is_closed_primitive_array_type(program, state.return_type)
-        && !validation::has_plain_owned_contents_with_numeric_constraints(
+        && !crate::validation::is_closed_primitive_array_type(program, state.return_type)
+        && !crate::validation::has_plain_owned_contents_with_numeric_constraints(
             program,
             state.return_type,
         )
@@ -212,9 +215,9 @@ pub(crate) fn build_checked_machine_residual_parts(
             .any(|contract| {
                 !matches!(
                     contract.kind,
-                    typed_trees::signature::SignatureContractKind::Crashes { .. }
-                        | typed_trees::signature::SignatureContractKind::Requires
-                        | typed_trees::signature::SignatureContractKind::Ensures
+                    symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { .. }
+                        | symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires
+                        | symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures
                 ) || contract.binding.is_some()
             })
             || (matches!(
@@ -222,8 +225,8 @@ pub(crate) fn build_checked_machine_residual_parts(
                     .type_reference_table
                     .type_reference(state.return_type),
                 TypeReferenceNode::Constrained { .. }
-            ) && !validation::is_arithmetic_policy_only_integer(program, state.return_type)
-                && validation::closed_scalar_result_range(program, state.return_type).is_none()))
+            ) && !crate::validation::is_arithmetic_policy_only_integer(program, state.return_type)
+                && crate::validation::closed_scalar_result_range(program, state.return_type).is_none()))
     {
         return None;
     }
@@ -231,8 +234,11 @@ pub(crate) fn build_checked_machine_residual_parts(
     let statements = program.statement_table.statements(state.statement_nodes);
     let binders = machine_binders(program, machine);
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
-        typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
-            .is_some()
+        symbol_resolved_trees_to_typed_trees::typed_trees::service::exact_bound_service_requirement(
+            program,
+            parameter.type_reference,
+        )
+        .is_some()
     });
     let carries_scalar_parameter = program.state_parameters(state).iter().any(|parameter| {
         !parameter.is_self

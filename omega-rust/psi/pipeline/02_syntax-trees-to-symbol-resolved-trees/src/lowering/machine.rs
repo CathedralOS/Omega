@@ -19,15 +19,15 @@ use crate::lowering::state::{
     lower_state_node,
 };
 use crate::resolution::lowerer::Lowerer;
+use crate::symbol_resolved_trees::machine::{
+    GenericConformanceBound, Machine, MachineStorage, TraitConformance,
+};
+use crate::symbol_resolved_trees::state::State;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
-use symbol_resolved_trees::machine::{
-    GenericConformanceBound, Machine, MachineStorage, TraitConformance,
-};
-use symbol_resolved_trees::state::State;
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_machine_into(
     lowerer: &mut Lowerer,
@@ -93,7 +93,7 @@ pub(crate) fn lower_machine_into(
     let ranking_range = if machine.ranking_range.is_valid() {
         lower_expression_into_table(lowerer, syntax_trees, machine.ranking_range)?
     } else {
-        symbol_resolved_trees::expression::ExpressionHandle::invalid()
+        crate::symbol_resolved_trees::expression::ExpressionHandle::invalid()
     };
     let service_reaches = lower_service_reach_names(syntax_trees, machine.service_reaches);
     let invokes = lower_signature_invokes(lowerer, syntax_trees, machine.invokes);
@@ -104,11 +104,11 @@ pub(crate) fn lower_machine_into(
     // `<path>::<target>` so name lookups keep selecting the realized target's
     // one declaration.
     let target_symbol_name = match &sibling_target {
-        Some(target) => symbol_resolved_trees::name::DiagnosticName::new(
+        Some(target) => crate::symbol_resolved_trees::name::DiagnosticName::new(
             format!("{}::{}", machine.name.as_str(), target.as_str()),
             machine.name.source_span(),
         ),
-        None => symbol_resolved_trees::name::DiagnosticName::default(),
+        None => crate::symbol_resolved_trees::name::DiagnosticName::default(),
     };
     let attached_data = machine
         .attached_data
@@ -150,7 +150,7 @@ pub(crate) fn lower_machine_into(
                 .any(|contract| {
                     matches!(
                         contract.kind,
-                        syntax_trees::item::CapabilityContractKind::Ensures
+                        tokens_to_syntax_trees::syntax_trees::item::CapabilityContractKind::Ensures
                     ) && !contract.facts.is_empty()
                 });
             if authors_fact {
@@ -193,7 +193,7 @@ pub(crate) fn lower_machine_into(
     lowerer.symbol_resolved_trees.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
         name: machine_name,
-        generic_data_origin: symbol_resolved_trees::machine::GenericDataMachineOrigin {
+        generic_data_origin: crate::symbol_resolved_trees::machine::GenericDataMachineOrigin {
             template_source: crate::lowering::name::lower_name(&machine.generic_data_template),
             ..Default::default()
         },
@@ -494,8 +494,8 @@ fn elaborate_single_subject_default(
     states: HandleSpan<Handle<State>>,
     subject: syntax::expression::ExpressionHandle,
 ) -> (language_semantics::RankingViewId, String) {
+    use crate::symbol_resolved_trees::types::TypeReference;
     use language_semantics::RankingViewId;
-    use symbol_resolved_trees::types::TypeReference;
 
     if let syntax::expression::ExpressionNode::Member(member) =
         syntax_trees.expressions.expression(subject)
@@ -560,7 +560,7 @@ fn lower_machine_ranking_view(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     order: HandleSpan<syntax::identifier::Identifier>,
-) -> HandleSpan<symbol_resolved_trees::name::DiagnosticName> {
+) -> HandleSpan<crate::symbol_resolved_trees::name::DiagnosticName> {
     let mut lowered = HandleSpan::empty();
 
     for member in syntax_trees.items.identifier_path_members(order) {
@@ -579,7 +579,7 @@ fn lower_ranking_expressions(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     source_expressions: HandleSpan<syntax::expression::ExpressionHandle>,
-) -> Result<HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
+) -> Result<HandleSpan<crate::symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
     let mut lowered = Vec::new();
 
     for expression in syntax_trees
@@ -622,7 +622,7 @@ fn lower_machine_trait_conformances(
             .is_valid()
             .then(|| lower_expression_into_table(lowerer, syntax_trees, clause.via_expression))
             .transpose()?
-            .unwrap_or_else(symbol_resolved_trees::expression::ExpressionHandle::invalid);
+            .unwrap_or_else(crate::symbol_resolved_trees::expression::ExpressionHandle::invalid);
         lowerer
             .symbol_resolved_trees
             .tables

@@ -9,9 +9,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use optimization_unit::{OwnershipFrontierSite, PsiOptimizationUnit};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
 use terminal_psi::StructuralPathSegment;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    OwnershipFrontierSite, PsiOptimizationUnit,
+};
 
 /// One storage view: a declared root plus an exact projection path in the
 /// frontier-claim vocabulary.

@@ -1,7 +1,7 @@
 use crate::assign_register_homes;
 use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
 use optimization_core::OptimizationWorkBudget;
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     PostAllocationSelectedTransformation, RecoveryClassificationPolicy, SpillChoicePolicy,
 };
 use selected_instructions_to_selected_instructions::{

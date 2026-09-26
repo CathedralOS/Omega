@@ -5,7 +5,6 @@ use crate::unit::dynamic_composed_unit::dynamic_lanes::{
 };
 use crate::unit::dynamic_composed_unit::structural_types::terminal_structural_multiplicity;
 use crate::unit::{LoweringError, lookup_type_id, lower_structural_path, unsupported};
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralPathSegment};
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceRow, OperationKind, StructuralAccess,
     StructuralArgument, StructuralParameterDeclaration, TerminalDirectDynamicDispatch,
@@ -14,6 +13,9 @@ use terminal_psi::{
     TerminalDynamicDispatchCatalog, TerminalDynamicRequirement, TerminalIndirectDynamicDispatch,
     TerminalParameterDynamicDispatch, TerminalReboundDynamicDescriptor,
     TerminalStoredDynamicDescriptor, TerminalStoredDynamicDispatch,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedStructuralAccess, CheckedUnitStructuralPathSegment,
 };
 
 /// Validate that the caller's borrowed `self` licenses the call's field

@@ -10,8 +10,8 @@
 //! producer/validator split the selected-lowering pair-rule descriptors use
 //! for their result channels.
 
-use physical_instructions::PhysicalAddressOperation;
-use selected_instructions::SelectedInstructionKind;
+use register_homes_to_post_allocation_machine::PhysicalAddressOperation;
+use target_operations_to_selected_instructions::SelectedInstructionKind;
 
 /// The `PhysicalAddressOperation` family an address-routed row binds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

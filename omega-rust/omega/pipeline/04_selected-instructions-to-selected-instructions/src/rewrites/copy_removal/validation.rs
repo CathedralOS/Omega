@@ -14,16 +14,16 @@
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedCasePayloadTransport,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedMemoryAccessRole, SelectedStructuralTransport,
     SelectedSuccessor, SelectedTerminator, SelectedValueTransport, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{CopyRemovalError, CopyRemovalReceipt, ValidatedCopyRemoval};
 use crate::ValidatedSelectedAnalysis;
@@ -37,7 +37,7 @@ struct Reconstructed<'source> {
     function: &'source SelectedFunction,
     function_index: usize,
     block_index: usize,
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     copy_index: usize,
     input: VirtualRegisterId,
     output: VirtualRegisterId,
@@ -170,17 +170,14 @@ fn successor_mentions(successor: &SelectedSuccessor, register: VirtualRegisterId
                 } => argument == register || local_slot_mentions(destination, register),
                 SelectedStructuralTransport::Address {
                     base, destination, ..
-                } => {
-                    local_slot_mentions(destination, register)
-                        || match base {
-                            selected_instructions::SelectedAddressBase::Register(argument) => {
-                                argument == register
-                            }
-                            selected_instructions::SelectedAddressBase::Local(slot) => {
-                                local_slot_mentions(slot, register)
-                            }
-                        }
-                }
+                } => local_slot_mentions(destination, register) || match base {
+                    target_operations_to_selected_instructions::SelectedAddressBase::Register(
+                        argument,
+                    ) => argument == register,
+                    target_operations_to_selected_instructions::SelectedAddressBase::Local(
+                        slot,
+                    ) => local_slot_mentions(slot, register),
+                },
                 SelectedStructuralTransport::Unused => false,
             });
     let case_mentions = successor.structural_case.as_ref().is_some_and(|case| {
@@ -655,10 +652,14 @@ fn shift_successor(
                 base, destination, ..
             } => {
                 match base {
-                    selected_instructions::SelectedAddressBase::Register(argument) => {
+                    target_operations_to_selected_instructions::SelectedAddressBase::Register(
+                        argument,
+                    ) => {
                         *argument = shift_register(*argument, removed_register, raising)?;
                     }
-                    selected_instructions::SelectedAddressBase::Local(slot) => {
+                    target_operations_to_selected_instructions::SelectedAddressBase::Local(
+                        slot,
+                    ) => {
                         shift_local_slot(slot, removed_register, raising)?;
                     }
                 }
@@ -827,24 +828,24 @@ pub fn validate_copy_removal(
 mod independence_tests {
     use std::sync::Arc;
 
-    use abstract_operations::ValueBinding;
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-    use optimization_unit::ValueDefinitionSite;
-    use register_environment::baseline_target_register_environment;
-    use register_model::RegisterInstructionConstraint;
-    use selected_instructions::{
-        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-        SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-        SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
-        SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-    };
     use semantic_vocabulary::{
         BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ScalarType,
         ValueId,
     };
     use target::NativeTarget;
+    use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+    use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
     use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+    use target_operations_to_selected_instructions::{
+        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+        SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
+        SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
+        SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    };
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+    use terminal_psi_to_abstract_operations::abstract_operations::ValueBinding;
+    use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
     use super::{
         CopyRemovalError, CopyRemovalReceipt, ValidatedCopyRemoval, validate_copy_removal,

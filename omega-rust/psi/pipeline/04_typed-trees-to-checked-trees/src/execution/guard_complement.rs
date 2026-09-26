@@ -1,14 +1,14 @@
 //! Whether an authored two-guard tail needs no fallback because its second
 //! guard holds exactly where the first fails. The Unit and scalar graph
 //! producers both ask this of the selected Guard rows, through the one
-//! predicate in `checked_trees::values::guard_complement`, so both graph
+//! predicate in `crate::checked_trees::values::guard_complement`, so both graph
 //! families admit the same guard pairs.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionPlans,
     CheckedScalarExpressionRole, CheckedStructuralParameterField,
 };
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 #[cfg(test)]
 mod tests;
@@ -18,13 +18,13 @@ mod tests;
 pub(crate) fn complementary(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     ordinal: u32,
 ) -> bool {
     let Some((first, second)) = guard_pair(expressions, state.symbol, ordinal) else {
         return false;
     };
-    checked_trees::values::guard_complement::exact_complement(first, second, |subject| {
+    crate::checked_trees::values::guard_complement::exact_complement(first, second, |subject| {
         declared_cases(program, state, subject)
     })
 }
@@ -58,7 +58,7 @@ fn guard_pair(
 /// case.
 fn declared_cases(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     subject: &CheckedStructuralParameterField,
 ) -> Option<Vec<String>> {
     let (_, _, sum, _) = crate::values::resolve_structural_parameter_path(
@@ -72,8 +72,10 @@ fn declared_cases(
         .data_members(sum)
         .iter()
         .map(|member| match member {
-            typed_trees::data::DataMember::Variant(case) => Some(case.path_identity()),
-            typed_trees::data::DataMember::Field(_) => None,
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(case) => {
+                Some(case.path_identity())
+            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(_) => None,
         })
         .collect()
 }

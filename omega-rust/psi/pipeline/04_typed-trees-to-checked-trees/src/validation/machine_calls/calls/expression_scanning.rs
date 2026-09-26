@@ -1,0 +1,874 @@
+//! Value-position expression-call scanning and bound validation.
+//!
+//! The parent call validator owns shared argument/type rules. This child
+//! owns recursive expression traversal, value-callee resolution, and the
+//! diagnostics emitted at those scan sites.
+
+use super::{
+    free_machine_entry_state, machine_state_by_symbol, user_asm_contract,
+    validate_asm_operand_constraint, validate_call_arguments_handles,
+    validate_call_arguments_handles_with_policy_retention, validate_generic_bound_argument_types,
+    validate_machine_call_type_parameter_bounds, validate_value_call_argument_classes,
+};
+use crate::validation::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::validation::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
+use crate::validation::value_custody::locals::WritableRoots;
+use diagnostics::Diagnostic;
+use language_core::is_self_receiver;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCallExpression,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{PrimitiveType, TypeReferenceNode};
+use symbols::BuiltinFunction;
+
+mod result_realization;
+#[cfg(test)]
+mod selected_attached_tests;
+mod target_resolution;
+mod traversal;
+
+use result_realization::report_void_value_callee;
+pub(crate) use result_realization::{
+    report_nested_call_in_local_assignment, report_nested_call_in_local_initializer,
+};
+pub use result_realization::{
+    result_initializer_call_is_supported, unit_result_initializer_call_is_supported,
+};
+pub(crate) use target_resolution::declared_receiver_type_reference;
+use target_resolution::{named_type_reference_name, report_unresolved_value_call};
+pub(crate) use traversal::validate_value_position_calls;
+
+/// Enforce machine-call type-parameter bounds for a single VALUE-position
+/// `ExpressionNode::Call`.  The receiver name path is extracted from the
+/// receiver expression (must be a `Name` node with identifier segments).
+/// Other receiver shapes (member chains, indexed, etc.) are beyond this
+/// scope and stand down silently, consistent with the statement-path's
+/// handling of unrecognised receivers.
+/// A VALUE-position call from emitted concrete code may not retain a GENERIC
+/// callee: its result slot has no concrete layout. Uninstantiated generic
+/// templates are different—they are checked modularly but never emitted, and
+/// their symbolic calls are resolved by fixed-point specialization once a
+/// concrete outer call selects them.
+fn fence_generic_value_callee(
+    program: &TypedTrees,
+    caller_machine: &Machine,
+    callee_machine: &Machine,
+    target: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // An uninstantiated generic template is checked modularly but is never
+    // emitted. Its symbolic value calls become concrete when an outer call
+    // specializes the template. Keep the fence for concrete callers whose
+    // selected callee somehow remains generic: that is still an incomplete
+    // lowering and must fail loudly.
+    if !program.machine_type_parameters(caller_machine).is_empty()
+        || program.machine_type_parameters(callee_machine).is_empty()
+    {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "a value call to generic machine `{target}` cannot derive a complete \
+         type/const/machine/conformance specialization tuple from its argument and result types; add a \
+         concrete destination annotation or provide concrete argument type evidence",
+    )));
+}
+
+/// The receiver's spelled member chain, root -> leaf (`["self", "p",
+/// "second"]` for `self.p.second.stored()`). `None` for non-place receivers
+/// (calls, literals). Mirrors the state-call plan's `append_receiver_path`
+/// walk at the typed layer.
+pub(super) fn receiver_member_chain(
+    program: &TypedTrees,
+    receiver: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Option<Vec<String>> {
+    if !receiver.is_valid() {
+        return None;
+    }
+    match program.expression_table.expression(receiver) {
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            (!members.is_empty()).then(|| {
+                members
+                    .iter()
+                    .map(|member| member.as_str().to_string())
+                    .collect()
+            })
+        }
+        ExpressionNode::Member(member) => {
+            let mut chain = receiver_member_chain(program, member.receiver)?;
+            chain.push(member.member.as_str().to_string());
+            Some(chain)
+        }
+        ExpressionNode::Borrow(inner) => receiver_member_chain(program, inner.target),
+        _ => None,
+    }
+}
+
+/// A resolved machine state a VALUE-position call invokes.
+#[derive(Clone, Copy)]
+struct ValueCallee<'program> {
+    machine: &'program Machine,
+    state: &'program State,
+    /// The spelling type-parameter bound diagnostics name.
+    spelling: &'program str,
+    /// A static attached call passes its receiver as the explicit first
+    /// argument rather than as the callee's implicit `self`.
+    self_is_argument: bool,
+}
+
+impl<'program> ValueCallee<'program> {
+    /// A callee reported by the call's own spelling.
+    fn named(
+        machine: &'program Machine,
+        state: &'program State,
+        call: &'program TableCallExpression,
+    ) -> Self {
+        Self {
+            machine,
+            state,
+            spelling: call.target.as_str(),
+            self_is_argument: false,
+        }
+    }
+
+    /// A callee reported by its declared state name.
+    fn declared(machine: &'program Machine, state: &'program State) -> Self {
+        Self {
+            machine,
+            state,
+            spelling: state.name.as_str(),
+            self_is_argument: false,
+        }
+    }
+}
+
+/// One VALUE-position call occurrence and the caller facts its resolved
+/// callee is checked against.
+struct ValueCallSite<'a> {
+    program: &'a TypedTrees,
+    current_machine: &'a Machine,
+    current_state: &'a State,
+    value_environment: &'a ValueEnvironment,
+    expression: ExpressionHandle,
+    call: &'a TableCallExpression,
+    arguments: &'a [ExpressionHandle],
+    executes: bool,
+}
+
+impl ValueCallSite<'_> {
+    /// Every resolved callee owes the same checks, whichever route found it:
+    /// a value-producing result, a concrete specialization, its type-parameter
+    /// bounds, and argument arity and classes.
+    fn validate_callee(
+        &self,
+        symbols: &TopLevelSymbols<'_>,
+        callee: ValueCallee<'_>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        report_void_value_callee(
+            self.program,
+            callee.machine,
+            self.current_machine,
+            self.current_state,
+            callee.state,
+            self.expression,
+            diagnostics,
+        );
+        fence_generic_value_callee(
+            self.program,
+            self.current_machine,
+            callee.machine,
+            self.call.target.as_str(),
+            diagnostics,
+        );
+        validate_machine_call_type_parameter_bounds(
+            self.program,
+            symbols,
+            callee.machine,
+            callee.state,
+            callee.spelling,
+            self.arguments,
+            self.current_machine,
+            Some(self.current_state),
+            callee.self_is_argument,
+            diagnostics,
+        );
+        validate_value_call_argument_classes(
+            self.program,
+            self.current_machine,
+            self.current_state,
+            self.value_environment,
+            callee.self_is_argument,
+            self.arguments,
+            callee.machine,
+            callee.state,
+            self.executes,
+            diagnostics,
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_expression_call_bounds(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: &State,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    writable_roots: &WritableRoots<'_, '_>,
+    value_environment: &ValueEnvironment,
+    expression: ExpressionHandle,
+    call: &TableCallExpression,
+    statement_root: bool,
+    executes: bool,
+    boundary_operator_applications: &mut Vec<
+        crate::validation::ValidatedBoundaryOperatorApplication,
+    >,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if call.quotient_operation.is_some() {
+        // A sealed `Quotient` request is not an ordinary value call: the
+        // quotient formation and correspondence checks own its judgment.
+        // The outer scanner still visits the call's argument expressions.
+        return;
+    }
+    let unit_statement = statement_root
+        && crate::validation::machine_calls::calls::unit_statement_call_is_supported(
+            program,
+            current_machine,
+            current_state,
+            expression,
+        );
+    crate::validation::proof_contracts::contract_entailment::validate_const_range_call(
+        program,
+        current_machine,
+        Some(current_state),
+        call.target_symbol,
+        &call.machine_arguments,
+        program.expression_table.expression_handles(call.arguments),
+        diagnostics,
+    );
+    let evidence_receiver = super::generic_requirement::expression_conformance_receiver(
+        program,
+        current_machine,
+        call.receiver,
+    );
+    match super::generic_requirement::named_conformance_requirement(
+        program,
+        current_machine,
+        evidence_receiver,
+        call.target_symbol,
+    ) {
+        Ok(Some(requirement)) => {
+            if !unit_statement
+                && (!requirement.signature.return_type.is_valid()
+                    || matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(requirement.signature.return_type),
+                        TypeReferenceNode::Unit
+                    ))
+            {
+                diagnostics.push(Diagnostic::error(format!("trait requirement `{}::{}` does not return a value but is used in a VALUE position", requirement.trait_definition.name, requirement.signature.name)));
+            }
+            super::generic_requirement::validate_named_conformance_arguments(
+                program,
+                current_machine,
+                Some(current_state),
+                value_environment,
+                program.expression_table.expression_handles(call.arguments),
+                &requirement,
+                writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+        Err(error) => {
+            diagnostics.push(Diagnostic::error(error));
+            return;
+        }
+        Ok(None) => {}
+    }
+    if super::unit_returns::call_returns_unit(program, current_machine, expression)
+        && !unit_statement
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}`: `{}(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local",
+            current_machine.name, current_state.name, call.target,
+        )));
+        return;
+    }
+    if super::unit_returns::admitted_provider_selection(program, expression) {
+        // The exact admitted intrinsic returns Unit. The branch above still
+        // rejects value uses, and the outer scanner visits every operand.
+        return;
+    }
+    if crate::validation::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) {
+        // Embedding is a proof term, not a value-machine invocation. Its
+        // dedicated whole-program gate validates the exact unary carrier
+        // shape and rejects every executable occurrence. The outer scanner
+        // still visits its operand, including any nested ordinary call.
+        return;
+    }
+    let builtin = BuiltinFunction::from_name(call.target.as_str());
+    if (builtin == Some(BuiltinFunction::AsmSnapshotFlags)
+        || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
+            call.target.as_str(),
+        )
+        .is_some()
+        || language_core::inline_assembly::AsmSystemRegister::from_read_intrinsic_name(
+            call.target.as_str(),
+        )
+        .is_some())
+        && !call.receiver.is_valid()
+    {
+        let arguments = program.expression_table.expression_handles(call.arguments);
+        if !arguments.is_empty() {
+            diagnostics.push(Diagnostic::error(format!(
+                "asm intrinsic `{}` takes 0 operands, found {}",
+                call.target,
+                arguments.len()
+            )));
+        }
+        return;
+    }
+
+    if let Some(builtin @ (BuiltinFunction::AsmPortIn | BuiltinFunction::AsmReadMsr)) = builtin
+        && !call.receiver.is_valid()
+    {
+        let intrinsic = builtin.name();
+        let (instruction, operand_index) = if builtin == BuiltinFunction::AsmPortIn {
+            ("in", 1)
+        } else {
+            ("rdmsr", 1)
+        };
+        let arguments = program.expression_table.expression_handles(call.arguments);
+        if arguments.len() != 1 {
+            diagnostics.push(Diagnostic::error(format!(
+                "asm intrinsic `{intrinsic}` takes 1 operand, found {}",
+                arguments.len()
+            )));
+            return;
+        }
+        let contract = user_asm_contract(instruction);
+        validate_asm_operand_constraint(
+            program,
+            current_machine,
+            Some(current_state),
+            instruction,
+            arguments[0],
+            contract.operands[operand_index],
+            diagnostics,
+        );
+        return;
+    }
+
+    if let Some(operator) =
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(
+            program, call,
+        )
+    {
+        let explicit_arguments = program.expression_table.expression_handles(call.arguments);
+        let parameters = program.operator_parameters(operator);
+        let mut arguments = Vec::with_capacity(explicit_arguments.len() + 1);
+        if call.receiver.is_valid() && parameters.len() == explicit_arguments.len() + 1 {
+            let receiver_type = crate::validation::value_custody::places::declared_place_type(
+                program,
+                current_machine,
+                Some(current_state),
+                call.receiver,
+            );
+            if receiver_type.is_some() {
+                arguments.push(call.receiver);
+            }
+        }
+        arguments.extend_from_slice(explicit_arguments);
+        let operand_types = arguments
+            .iter()
+            .map(|argument| {
+                crate::validation::value_custody::places::declared_place_type(
+                    program,
+                    current_machine,
+                    Some(current_state),
+                    *argument,
+                )
+                .or_else(|| {
+                    crate::validation::declarations::operators::landed_integer_literal_type_reference(
+                        program, *argument,
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        match crate::validation::declarations::operators::validate_named_operator_application(
+            program,
+            symbols,
+            operator,
+            &call.machine_arguments,
+            &operand_types,
+        ) {
+            Ok(Some(bindings)) if operator.is_boundary => {
+                let application =
+                    crate::validation::declarations::operators::validated_boundary_operator_application(
+                        crate::validation::ValidatedBoundaryOperatorApplicationUseSite::Expression(expression),
+                        operator,
+                        bindings,
+                    );
+                crate::validation::declarations::operators::retain_validated_boundary_operator_application(
+                    boundary_operator_applications,
+                    application,
+                    diagnostics,
+                );
+            }
+            Ok(None) if operator.is_boundary && call.machine_arguments.is_empty() => {
+                if let Some(application) =
+                    crate::validation::declarations::operators::validated_symbolic_boundary_operator_application(
+                        program,
+                        current_machine,
+                        crate::validation::ValidatedBoundaryOperatorApplicationUseSite::Expression(expression),
+                        operator,
+                        &operand_types,
+                    )
+                {
+                    crate::validation::declarations::operators::retain_validated_boundary_operator_application(
+                        boundary_operator_applications,
+                        application,
+                        diagnostics,
+                    );
+                }
+            }
+            Ok(_) => {}
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+        let retains_arithmetic_policy = matches!(
+            (
+                program
+                    .operator_path_members(operator.name)
+                    .first()
+                    .map(|name| name.as_str()),
+                program.primitive_type_reference(operator.return_type),
+            ),
+            (Some("F32"), Some(PrimitiveType::F32)) | (Some("F64"), Some(PrimitiveType::F64))
+        );
+        validate_call_arguments_handles_with_policy_retention(
+            program,
+            current_machine,
+            Some(current_state),
+            value_environment,
+            &arguments,
+            call.target.as_str(),
+            parameters,
+            None,
+            writable_roots,
+            retains_arithmetic_policy,
+            &[],
+            diagnostics,
+        );
+        validate_named_float_to_integer_call(
+            program,
+            current_machine,
+            current_state,
+            value_environment,
+            operator,
+            explicit_arguments,
+            diagnostics,
+        );
+        return;
+    }
+
+    // Resolve the receiver: is this a self-call, and if not, the name of the
+    // receiver object (field/local). A self-call has no receiver (`call.receiver`
+    // invalid) or an explicit `self`. A `Name`-path receiver names the object via
+    // its last member; a `Member` receiver (`self.host.method(..)`, where
+    // `self.host` is a member access, NOT a name path) names it via that member —
+    // WITHOUT this, a member receiver fell through as an empty path and the call
+    // was misrouted into the self-call branch (resolving to a same-named sibling
+    // state instead of the field's boundary/machine type).
+    let (call_is_self, external_receiver_name): (bool, Option<&str>) = if !call.receiver.is_valid()
+    {
+        (true, None)
+    } else {
+        match program.expression_table.expression(call.receiver) {
+            ExpressionNode::Name(path) => {
+                let members = program.expression_table.name_path_members(path.members);
+                if members.is_empty() || matches!(members, [r] if r.is_self_receiver()) {
+                    (true, None)
+                } else {
+                    (false, members.last().map(Identifier::as_str))
+                }
+            }
+            ExpressionNode::Member(member) => (false, Some(member.member.as_str())),
+            _ => (true, None),
+        }
+    };
+
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let site = ValueCallSite {
+        program,
+        current_machine,
+        current_state,
+        value_environment,
+        expression,
+        call,
+        arguments,
+        executes,
+    };
+
+    // Self-call or `self`-prefixed call: the callee is a state of the
+    // current machine, an attached-data sibling machine, or a free machine.
+    // Mirrors the same three-way fallback in `validate_call_node`.
+    if call_is_self {
+        if let Some(signature) =
+            program.machine_parameter_signature_in(current_machine, call.target_symbol)
+        {
+            if !signature.return_type.is_valid() && !unit_statement {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}`: machine parameter `{}` does not return a value but is used in a VALUE position",
+                    current_machine.name,
+                    current_state.name,
+                    signature.name,
+                )));
+            }
+            validate_call_arguments_handles(
+                program,
+                current_machine,
+                Some(current_state),
+                value_environment,
+                arguments,
+                signature.name.as_str(),
+                program.state_signature_parameters(signature),
+                None,
+                writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+
+        // The callee is a selected state, a state of this machine, a
+        // SIBLING machine sharing the same attached data (`machine
+        // Main::pick<T [copy]>` called from `machine Main::main`; the
+        // statement path uses `symbols.attached_machine_state` too), or a
+        // free machine (`compute(item)` -- no `self.`, no receiver).
+        let callee = machine_state_by_symbol(program, call.target_symbol)
+            .map(|(machine, state)| ValueCallee::named(machine, state, call))
+            .or_else(|| {
+                machine_symbols
+                    .state(call.target.as_str())
+                    .map(|state| ValueCallee::declared(current_machine, state))
+            })
+            .or_else(|| {
+                let attached_data = current_machine.attached_data.as_ref()?;
+                symbols
+                    .attached_machine_state(program, attached_data.as_str(), call.target.as_str())
+                    .map(|(machine, state)| ValueCallee::named(machine, state, call))
+            })
+            .or_else(|| {
+                free_machine_entry_state(program, symbols, call.target.as_str())
+                    .map(|(machine, state)| ValueCallee::named(machine, state, call))
+            });
+        if let Some(callee) = callee {
+            site.validate_callee(symbols, callee, diagnostics);
+            return;
+        }
+        report_unresolved_value_call(
+            program,
+            current_machine,
+            current_state,
+            symbols,
+            None,
+            None,
+            call,
+            diagnostics,
+        );
+        return;
+    }
+
+    let receiver_name = external_receiver_name.unwrap_or_default();
+    // Direct field/local receivers resolve by bare name. A NESTED self-rooted
+    // VALUE-position member chain (`self.p.a.get()`) resolves by walking the
+    // chain's declared field types to the leaf type (receiver-place staircase,
+    // rung 3). The full arc is now sound: symbol resolution stamps the nested
+    // symbols (rung 2b) so the state-call plan records the call; the backend
+    // storage walk descends plain-DATA intermediates (rung 2a/D1) so the
+    // callee's `self` base resolves; and the emission-planning
+    // contained-receiver blocker rejects an ambiguous nested receiver (a
+    // same-type sibling that the by-type walk would misresolve) loudly instead
+    // of binding 0. STATEMENT-position nested calls are validated separately
+    // (`validate_call_node`) and remain unsupported -- see TASKS D2.
+    let receiver_type_reference = crate::validation::value_custody::places::declared_place_type(
+        program,
+        current_machine,
+        Some(current_state),
+        call.receiver,
+    );
+    let receiver_type = machine_symbols
+        .callable_field_type(receiver_name)
+        .or_else(|| {
+            let chain = receiver_member_chain(program, call.receiver)?;
+            if chain.len() < 3 || !chain.first().is_some_and(|root| is_self_receiver(root)) {
+                return None;
+            }
+            crate::validation::value_custody::places::nested_receiver_type_name(
+                program,
+                current_machine,
+                Some(current_state),
+                &chain,
+            )
+        })
+        .or_else(|| {
+            receiver_type_reference
+                .and_then(|type_reference| named_type_reference_name(program, type_reference))
+        });
+
+    if let Some(error) = receiver_type_reference.and_then(|type_reference| {
+        crate::validation::declarations::traits::dynamic_requirement_call_error(
+            program,
+            type_reference,
+            call.target.as_str(),
+            call.target_symbol,
+        )
+    }) {
+        diagnostics.push(Diagnostic::error(error));
+        return;
+    }
+
+    if let Some(type_reference) = receiver_type_reference {
+        match crate::validation::declarations::traits::generic_bound_requirement_call(
+            program,
+            current_machine,
+            type_reference,
+            call.target.as_str(),
+        ) {
+            Ok(Some(requirement)) => {
+                let signature = requirement.signature;
+                if !signature.return_type.is_valid()
+                    || matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(signature.return_type),
+                        TypeReferenceNode::Unit
+                    )
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "trait requirement `{}::{}` does not return a value but is used in a VALUE position",
+                        requirement.trait_definition.name,
+                        signature.name,
+                    )));
+                }
+                validate_generic_bound_argument_types(
+                    program,
+                    current_machine,
+                    Some(current_state),
+                    type_reference,
+                    arguments,
+                    &requirement,
+                    diagnostics,
+                );
+                super::generic_requirement::validate_requirement_call_arguments(
+                    program,
+                    current_machine,
+                    Some(current_state),
+                    value_environment,
+                    arguments,
+                    program.state_signature_parameters(signature),
+                    Some(type_reference),
+                    &requirement,
+                    writable_roots,
+                    diagnostics,
+                );
+                return;
+            }
+            Ok(None) => {}
+            Err(error) => {
+                diagnostics.push(Diagnostic::error(error));
+                return;
+            }
+        }
+    }
+
+    if let Some(receiver_type_reference) = receiver_type_reference
+        && let Some(candidate) =
+            crate::validation::proof_contracts::quotients::legacy_attached_quotient_call_candidate(
+                program,
+                receiver_type_reference,
+                call.target.as_str(),
+            )
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot implicitly lift attached representative operation `{}` onto quotient `{}`; use `Quotient::lift<F, Respect>` or `Quotient::define<F, Respect>` with one exact named conformance",
+            candidate.operation.name, candidate.quotient.name,
+        )));
+        return;
+    }
+
+    // Attached calls retain their selected state. Rejoin that declaration with
+    // the receiver's nominal type; a display name cannot select another module's
+    // same-leaf method or substitute an unrelated closed generic instance.
+    if let Some((callee_machine, callee_state)) =
+        machine_state_by_symbol(program, call.target_symbol)
+        && callee_machine.attached_data_symbol.is_valid()
+    {
+        let receiver_symbol = receiver_type_reference
+            .map(
+                |receiver| match program.type_reference_table.type_reference(receiver) {
+                    TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+                    _ => symbols::SymbolHandle::invalid(),
+                },
+            )
+            .or_else(|| {
+                // A static attached call names its carrier, rather than a
+                // runtime receiver place. Retain that selected Data symbol;
+                // a collection's element or a spelling is not a carrier home.
+                let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver)
+                else {
+                    return None;
+                };
+                (program.symbols.get(path.symbol).kind == symbols::SymbolKind::Data)
+                    .then_some(path.symbol)
+            })
+            .unwrap_or_default();
+        if receiver_symbol != callee_machine.attached_data_symbol {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected attached call `{}` does not belong to the receiver's exact data type",
+                call.target,
+            )));
+            return;
+        }
+        if receiver_type_reference.is_none()
+            && program
+                .state_parameters(callee_state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+            && let Some(argument) = arguments.first()
+            && crate::validation::value_custody::expression_types::value_concrete_data_symbol(
+                program,
+                current_machine,
+                Some(current_state),
+                *argument,
+            ) != Some(callee_machine.attached_data_symbol)
+        {
+            // A static carrier selects the declaration. Its explicit self
+            // argument must still supply that same receiver owner; the formal
+            // Self symbol is not itself a concrete data declaration.
+            diagnostics.push(Diagnostic::error(format!(
+                "explicit self argument for attached call `{}` does not belong to the receiver's exact data type",
+                call.target,
+            )));
+            return;
+        }
+        site.validate_callee(
+            symbols,
+            ValueCallee {
+                self_is_argument: receiver_type_reference.is_none(),
+                ..ValueCallee::declared(callee_machine, callee_state)
+            },
+            diagnostics,
+        );
+        return;
+    }
+
+    // External machine receiver.
+    if let Some(callee_machine) = receiver_type
+        .and_then(|type_name| symbols.machine(type_name))
+        .or_else(|| symbols.machine(receiver_name))
+    {
+        if let Some(callee_state) = program
+            .machine_states(callee_machine)
+            .iter()
+            .find(|s| s.name == call.target)
+        {
+            site.validate_callee(
+                symbols,
+                ValueCallee::declared(callee_machine, callee_state),
+                diagnostics,
+            );
+            return;
+        }
+        report_unresolved_value_call(
+            program,
+            current_machine,
+            current_state,
+            symbols,
+            Some(receiver_name),
+            receiver_type,
+            call,
+            diagnostics,
+        );
+        return;
+    }
+
+    report_unresolved_value_call(
+        program,
+        current_machine,
+        current_state,
+        symbols,
+        Some(receiver_name),
+        receiver_type,
+        call,
+        diagnostics,
+    );
+
+    let _ = writable_roots;
+}
+
+fn validate_named_float_to_integer_call(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: &State,
+    value_environment: &ValueEnvironment,
+    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    arguments: &[ExpressionHandle],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let path = program.operator_path_members(operator.name);
+    let [namespace, requirement] = path else {
+        return;
+    };
+    if !matches!(requirement.as_str(), "from_f32" | "from_f64")
+        || program
+            .type_reference_table
+            .arithmetic_domain(operator.return_type)
+            != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return;
+    }
+    let target = match namespace.as_str() {
+        "I8" => PrimitiveType::I8,
+        "I16" => PrimitiveType::I16,
+        "I32" => PrimitiveType::I32,
+        "I64" => PrimitiveType::I64,
+        "U8" => PrimitiveType::U8,
+        "U16" => PrimitiveType::U16,
+        "U32" => PrimitiveType::U32,
+        "U64" => PrimitiveType::U64,
+        _ => return,
+    };
+    let [value] = arguments else {
+        return;
+    };
+    if arithmetic_domains::float_source_proves_int_cast(
+        program,
+        current_machine,
+        Some(current_state),
+        value_environment,
+        *value,
+        target,
+    ) {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` cannot prove unqualified `{}::{}` operand `{}` is finite and truncates into `{}`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `{} in Trapping` or `{} in Saturating`",
+        current_machine.name,
+        current_state.name,
+        namespace,
+        requirement,
+        program.expression_table.display_name(*value),
+        target.name(),
+        target.name(),
+        target.name(),
+    )));
+}

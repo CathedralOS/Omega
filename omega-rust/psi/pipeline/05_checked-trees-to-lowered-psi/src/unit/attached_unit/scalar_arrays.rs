@@ -11,8 +11,10 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::expression_preparation::source_custody::array_sources::construction_expression;
-use checked_trees::CheckedArrayConstructionSource;
-use checked_trees::{CheckedCallScalarArgument, CheckedUnitStructuralResultBindingPlan};
+use typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedCallScalarArgument, CheckedUnitStructuralResultBindingPlan,
+};
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -37,11 +39,15 @@ pub(super) fn validate(
         return unsupported("array constructor result differs from its declared type");
     }
     validate_shape(checked, reference)?;
-    let array =
-        validation::scalar_array_elements(&checked.typed, machine.machine, expression, reference)
-            .ok_or(LoweringError::Unsupported(
-            "array constructor source is not an exact primitive array",
-        ))?;
+    let array = typed_trees_to_checked_trees::validation::scalar_array_elements(
+        &checked.typed,
+        machine.machine,
+        expression,
+        reference,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "array constructor source is not an exact primitive array",
+    ))?;
     for projection in array.projections {
         if let Some(selected) = checked.facts.operators.expression_use(projection)
             && (selected.spelling != language_core::OperatorSpelling::Index
@@ -49,8 +55,8 @@ pub(super) fn validate(
                 || selected.candidate_count != 0
                 || !matches!(
                     selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::Missing
+                        | typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                 ))
         {
             return unsupported("array constructor indexing selection changed");
@@ -154,7 +160,7 @@ pub(super) fn validate(
 
 pub(super) fn validate_shape(
     checked: &CheckedTrees,
-    mut reference: checked_trees::types::TypeReferenceHandle,
+    mut reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
 ) -> Result<(), LoweringError> {
     for _ in 0..checked.typed.type_reference_table.type_reference_count() {
         let identity = checked.typed.normalized_type_identity(reference);
@@ -176,11 +182,11 @@ pub(super) fn validate_shape(
             &plan.shape,
         ) {
             (
-                checked_trees::types::TypeReferenceNode::FixedArray {
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::FixedArray {
                     element_type,
-                    length: checked_trees::types::FixedArrayLength::Literal(length),
+                    length: typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(length),
                 },
-                checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
                     element_type_identity,
                     length: actual_length,
                 },
@@ -194,8 +200,8 @@ pub(super) fn validate_shape(
                 reference = *element_type
             }
             (
-                checked_trees::types::TypeReferenceNode::Named { .. },
-                checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { .. },
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
             ) if checked.typed.primitive_type_reference(reference) == Some(*primitive) => {
                 return Ok(());
             }

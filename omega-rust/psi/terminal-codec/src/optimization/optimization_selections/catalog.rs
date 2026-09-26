@@ -1,0 +1,13 @@
+use crate::optimization::PsiOptimization;
+
+/// Canonical execution order for every target-neutral Psi optimization pass.
+pub const PRETERMINAL_PSI_PASS_CATALOG: [PsiOptimization; 8] = [
+    PsiOptimization::ControlFlowCleanup,
+    PsiOptimization::SparseConditionalConstantPropagation,
+    PsiOptimization::CopyPropagation,
+    PsiOptimization::GlobalValueNumbering,
+    PsiOptimization::DeadPureScalarElimination,
+    PsiOptimization::ProofCheckElision,
+    PsiOptimization::StateSpecialization,
+    PsiOptimization::RepresentationSpecialization,
+];

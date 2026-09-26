@@ -1,5 +1,5 @@
-use checked_trees::BorrowLoanFact;
-use checked_trees::{
+use crate::checked_trees::BorrowLoanFact;
+use crate::checked_trees::{
     BorrowArgumentAccessFact, BorrowCallFact, BorrowWritableRootFact, StateBorrowFact,
 };
 
@@ -11,8 +11,9 @@ use super::tracker::StateLoanTracker;
 
 pub(super) struct BorrowFactArenas<'arenas> {
     pub(super) writable_roots: &'arenas mut arena::Arena<BorrowWritableRootFact>,
-    pub(super) access_segments: &'arenas mut arena::Arena<facts::PlaceSegment>,
-    pub(super) owner_segments: &'arenas mut arena::Arena<checked_trees::BorrowLoanOwnerSegment>,
+    pub(super) access_segments: &'arenas mut arena::Arena<crate::fact_plan::PlaceSegment>,
+    pub(super) owner_segments:
+        &'arenas mut arena::Arena<crate::checked_trees::BorrowLoanOwnerSegment>,
     pub(super) argument_accesses: &'arenas mut arena::Arena<BorrowArgumentAccessFact>,
     pub(super) calls: &'arenas mut arena::Arena<BorrowCallFact>,
     pub(super) loans: &'arenas mut arena::Arena<BorrowLoanFact>,
@@ -20,9 +21,9 @@ pub(super) struct BorrowFactArenas<'arenas> {
 }
 
 pub(super) fn append_state_borrow_facts(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     arenas: &mut BorrowFactArenas<'_>,
     state_loan_trackers: &mut Vec<StateLoanTracker>,
 ) {

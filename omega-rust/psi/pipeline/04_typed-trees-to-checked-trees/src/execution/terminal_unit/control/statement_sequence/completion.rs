@@ -17,7 +17,7 @@ use super::{
     parameter_qualifications, retain_selected_sources, returned_named_view, returned_parameter,
     returned_reference_leaf, returned_subslice, structural_operands,
 };
-use checked_trees::CheckedUnitStructuralReturnPlan;
+use crate::checked_trees::CheckedUnitStructuralReturnPlan;
 
 /// A planned body's final state, with the inputs completion reads.
 pub(super) struct Completion<'a, 'program, 'shapes> {
@@ -25,16 +25,17 @@ pub(super) struct Completion<'a, 'program, 'shapes> {
     pub(super) facts: &'program CheckFacts,
     pub(super) scalar_callees: ScalarCalleePlans<'a>,
     pub(super) shapes: &'a mut ShapeCollector<'shapes>,
-    pub(super) machine: &'program typed_trees::machine::Machine,
-    pub(super) state: &'program typed_trees::state::State,
+    pub(super) machine:
+        &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    pub(super) state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
     pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
-    pub(super) calls: &'a [&'a checked_trees::FlowCallFact],
+    pub(super) calls: &'a [&'a crate::checked_trees::FlowCallFact],
     pub(super) trivial_affine_locals:
         &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     pub(super) trace: &'a LocalConstructionTrace,
     pub(super) binders: &'a [(SymbolHandle, String)],
-    pub(super) scalar_control: Option<checked_trees::CheckedUnitScalarControlPlan>,
+    pub(super) scalar_control: Option<crate::checked_trees::CheckedUnitScalarControlPlan>,
     pub(super) operations: Vec<CheckedUnitEffectOperationPlan>,
     pub(super) scalar_count: usize,
     pub(super) structural_count: usize,
@@ -43,7 +44,10 @@ pub(super) struct Completion<'a, 'program, 'shapes> {
     pub(super) array_bindings: Vec<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>,
     pub(super) returned_call: Option<CheckedUnitStructuralResultBindingPlan>,
     pub(super) returned_scalar_call: Option<CheckedUnitScalarResultBindingPlan>,
-    pub(super) structural_results: Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
+    pub(super) structural_results: Vec<(
+        CheckedUnitStructuralResultBindingPlan,
+        crate::fact_plan::PlaceRoot,
+    )>,
     pub(super) call_count: usize,
 }
 
@@ -118,7 +122,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         }
         structural_results
             .iter()
-            .find(|(_, source)| *source == facts::PlaceRoot::Symbol(path.symbol))
+            .find(|(_, source)| *source == crate::fact_plan::PlaceRoot::Symbol(path.symbol))
             .map(|(binding, _)| binding.clone())
     });
     let mut structural_result = if let Some(binding) = returned_local {
@@ -283,7 +287,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             }
         }
         Some(binding.into())
-    } else if validation::is_closed_primitive_array_type(program, state.return_type) {
+    } else if crate::validation::is_closed_primitive_array_type(program, state.return_type) {
         trace.phase("statement sequence: structural result: returned scalar array");
         let statements = program.statement_table.statements(state.statement_nodes);
         let StatementNode::Expression(expression) = statements.last()? else {
@@ -311,7 +315,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 machine.symbol,
                 state.symbol,
                 statement_index,
-                checked_trees::CheckedArrayConstructionSource::Statement,
+                crate::checked_trees::CheckedArrayConstructionSource::Statement,
                 *expression,
                 state.return_type,
             )?;
@@ -322,7 +326,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 multiplicity: Multiplicity::Unrestricted,
             };
             operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                source: checked_trees::CheckedArrayConstructionSource::Statement,
+                source: crate::checked_trees::CheckedArrayConstructionSource::Statement,
                 result: result.clone(),
                 elements,
             });
@@ -427,7 +431,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 {
                     return None;
                 }
-                checked_trees::CheckedCallScalarArgument::Computation(root.root)
+                crate::checked_trees::CheckedCallScalarArgument::Computation(root.root)
             } else {
                 let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
                     state.symbol,
@@ -439,7 +443,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 {
                     return None;
                 }
-                checked_trees::CheckedCallScalarArgument::Pure(value.clone())
+                crate::checked_trees::CheckedCallScalarArgument::Pure(value.clone())
             };
             let result = CheckedUnitScalarResultBindingPlan {
                 statement_index,

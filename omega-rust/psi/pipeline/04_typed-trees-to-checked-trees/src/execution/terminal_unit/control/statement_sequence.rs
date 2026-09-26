@@ -40,7 +40,7 @@ use crate::execution::terminal_unit::types::{
     ShapeCollector, base_type_identity, is_unit, machine_binders, parameter_qualifications,
 };
 
-use checked_trees::CheckedUnitStructuralReturnPlan;
+use crate::checked_trees::CheckedUnitStructuralReturnPlan;
 
 mod assignments;
 mod completion;
@@ -52,8 +52,8 @@ mod statement_call;
 fn returned_parameter(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
 ) -> Option<CheckedUnitStructuralReturnPlan> {
@@ -105,7 +105,7 @@ fn returned_parameter(
                 .normalized_type_identity(state.return_type)
                 .into_string(),
             multiplicity: Multiplicity::Affine,
-            reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
+            reference_sources: vec![crate::checked_trees::CheckedReferenceResultSourcePlan {
                 path: Vec::new(),
                 source,
             }],
@@ -137,12 +137,13 @@ fn returned_parameter(
         || program.normalized_type_identity(source.type_reference)
             != program.normalized_type_identity(state.return_type)
         || parameter.qualifications
-            != validation::structural_result_qualifications(program, state.return_type).ok()?
+            != crate::validation::structural_result_qualifications(program, state.return_type)
+                .ok()?
     {
         return None;
     }
     if parameter.multiplicity == Multiplicity::Linear {
-        let returned = validation::reconstruct_structural_parameter_return_claims(
+        let returned = crate::validation::reconstruct_structural_parameter_return_claims(
             program,
             facts,
             machine.symbol,
@@ -168,11 +169,11 @@ fn returned_parameter(
         },
         type_identity: parameter.type_identity.clone(),
         multiplicity: parameter.multiplicity,
-        reference_sources: if validation::reference_result_custody::is_reference_record(
+        reference_sources: if crate::validation::reference_result_custody::is_reference_record(
             program,
             state.return_type,
         ) {
-            validation::reference_result_custody::returned_record_sources(program, state)?
+            crate::validation::reference_result_custody::returned_record_sources(program, state)?
         } else {
             Vec::new()
         },
@@ -188,10 +189,10 @@ fn returned_parameter(
 /// exactly the selected leaf.
 fn returned_reference_leaf(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> Option<CheckedUnitStructuralReturnPlan> {
-    let (_, source) = validation::reference_result_custody::source_leaf(program, state)?;
+    let (_, source) = crate::validation::reference_result_custody::source_leaf(program, state)?;
     let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
     else {
         return None;
@@ -210,7 +211,7 @@ fn returned_reference_leaf(
             .normalized_type_identity(state.return_type)
             .into_string(),
         multiplicity: Multiplicity::Affine,
-        reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
+        reference_sources: vec![crate::checked_trees::CheckedReferenceResultSourcePlan {
             path: Vec::new(),
             source,
         }],
@@ -265,8 +266,8 @@ fn self_referent_is_attached_application(
 fn returned_named_view(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     binders: &[(SymbolHandle, String)],
 ) -> Option<CheckedUnitStructuralReturnPlan> {
@@ -284,7 +285,7 @@ fn returned_named_view(
         statement_index,
         *expression,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     let authored = program.state_parameters(state);
@@ -337,7 +338,7 @@ fn returned_named_view(
     // its source path stays empty.
     let mut path = path;
     if !path.is_empty() {
-        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+        path.push(crate::checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
     let source = CheckedUnitStructuralArgumentPlan {
         source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
@@ -354,7 +355,7 @@ fn returned_named_view(
         // reference result carries.
         type_identity: shapes.add_named_view_type(state.return_type, binders)?,
         multiplicity: Multiplicity::Affine,
-        reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
+        reference_sources: vec![crate::checked_trees::CheckedReferenceResultSourcePlan {
             path: Vec::new(),
             source,
         }],
@@ -371,8 +372,8 @@ fn returned_subslice(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     count: &mut usize,
 ) -> Option<(
@@ -428,7 +429,7 @@ fn returned_subslice(
             },
             type_identity: result.type_identity.clone(),
             multiplicity: result.multiplicity,
-            reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
+            reference_sources: vec![crate::checked_trees::CheckedReferenceResultSourcePlan {
                 path: Vec::new(),
                 source: source.clone(),
             }],
@@ -445,12 +446,12 @@ fn returned_subslice(
 fn whole_view_result_operation(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     count: &mut usize,
     statement_ordinal: u32,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let return_type = state.return_type;
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
@@ -471,10 +472,18 @@ fn whole_view_result_operation(
     // The exclusive end must be this same place's own current extent —
     // `collection.len` — so the authored window covers exactly the carrier.
     let receiver =
-        validation::collection_length_receiver(program, machine, Some(state), range.end)?;
-    if !validation::place_has_builtin_coordinates(program, machine, Some(state), indexed.collection)
-        || !validation::place_has_builtin_coordinates(program, machine, Some(state), receiver)
-    {
+        crate::validation::collection_length_receiver(program, machine, Some(state), range.end)?;
+    if !crate::validation::place_has_builtin_coordinates(
+        program,
+        machine,
+        Some(state),
+        indexed.collection,
+    ) || !crate::validation::place_has_builtin_coordinates(
+        program,
+        machine,
+        Some(state),
+        receiver,
+    ) {
         return None;
     }
     if crate::flow::canonical_place_from_expression(program, indexed.collection)
@@ -492,7 +501,7 @@ fn whole_view_result_operation(
         statement_index,
         indexed.collection,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     let authored = program.state_parameters(state);
@@ -527,7 +536,7 @@ fn whole_view_result_operation(
         return None;
     }
     if !path.is_empty() {
-        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+        path.push(crate::checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
     let type_identity = shapes.add_slice_view_type(return_type, &[])?;
     let source_identity = shapes.add_type(return_type, &[], &[])?;
@@ -555,7 +564,7 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
     pub(in crate::execution::terminal_unit) scalar_result:
         Option<CheckedUnitScalarResultBindingPlan>,
     pub(in crate::execution::terminal_unit) scalar_control:
-        Option<checked_trees::CheckedUnitScalarControlPlan>,
+        Option<crate::checked_trees::CheckedUnitScalarControlPlan>,
     pub(in crate::execution::terminal_unit) structural_result:
         Option<CheckedUnitStructuralReturnPlan>,
     pub(in crate::execution::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
@@ -565,7 +574,7 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
 pub(super) fn has_structural_result(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     statement: &StatementNode,
 ) -> bool {
     let StatementNode::LocalData(local) = statement else {
@@ -587,11 +596,11 @@ pub(super) fn has_structural_result(
     {
         return true;
     }
-    if validation::is_scalar_case_value(program, local.initial_value, local.type_reference) {
+    if crate::validation::is_scalar_case_value(program, local.initial_value, local.type_reference) {
         return !local.is_mutable;
     }
-    if validation::is_closed_primitive_array_type(program, local.type_reference) {
-        return validation::scalar_array_elements(
+    if crate::validation::is_closed_primitive_array_type(program, local.type_reference) {
+        return crate::validation::scalar_array_elements(
             program,
             machine.symbol,
             local.initial_value,
@@ -644,8 +653,8 @@ fn statement_phase(statement: &StatementNode) -> &'static str {
 pub(super) fn first_unsupported_statement(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     construction_statement_count: usize,
 ) -> Option<usize> {
     let completion = scalar_control(program, facts, machine, state);
@@ -679,15 +688,17 @@ pub(super) fn first_unsupported_statement(
                                 .structural_values
                                 .root_at(state.symbol, ordinal)
                                 .is_some()
-                        }) || validation::is_scalar_case_value(
+                        }) || crate::validation::is_scalar_case_value(
                             program,
                             *expression,
                             state.return_type,
                         ) || matches!(
                             program.expression_table.expression(*expression),
                             ExpressionNode::Name(_)
-                        ) || validation::reference_result_custody::source_leaf(program, state)
-                            .is_some()
+                        ) || crate::validation::reference_result_custody::source_leaf(
+                            program, state,
+                        )
+                        .is_some()
                             || (crate::execution::terminal_unit::types::borrowed_named_view(
                                 program,
                                 state.return_type,
@@ -698,7 +709,7 @@ pub(super) fn first_unsupported_statement(
                                 *expression,
                             )
                             .is_some_and(|place| {
-                                matches!(place.root, facts::PlaceRoot::Symbol(_))
+                                matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(_))
                             }))
                             || (crate::execution::terminal_unit::types::borrowed_slice_view(
                                 program,
@@ -707,7 +718,7 @@ pub(super) fn first_unsupported_statement(
                                 program.expression_table.expression(*expression),
                                 ExpressionNode::Indexed(_)
                             ))
-                            || validation::is_closed_primitive_array_type(
+                            || crate::validation::is_closed_primitive_array_type(
                                 program,
                                 state.return_type,
                             )
@@ -775,8 +786,8 @@ pub(super) fn first_unsupported_statement(
 fn erased_alias_locals(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Vec<SymbolHandle> {
     let mut erased = super::super::receiver_aliases::aliases(program, facts, machine, state)
         .unwrap_or_default()
@@ -794,7 +805,9 @@ fn erased_alias_locals(
 /// only the spelled field set validation checks for exhaustiveness. The
 /// pattern's bindings are its per-field locals, each an ordinary re-read of
 /// the same place, so the marker declares no storage and plans no operation.
-fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> bool {
+fn is_record_pattern_marker(
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
+) -> bool {
     local.name.as_str().starts_with("__destructure#")
 }
 
@@ -802,7 +815,9 @@ fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> b
 /// only the match's provenance: the case-pattern bindings are resolved by the
 /// dispatch machinery, so the marker declares no storage and plans no
 /// operation — the sequence already skips it by name when iterating.
-fn is_arm_destructure_marker(local: &typed_trees::statement::TableLocalData) -> bool {
+fn is_arm_destructure_marker(
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
+) -> bool {
     local.name.as_str().starts_with("__arm_destructure#")
 }
 
@@ -832,7 +847,7 @@ fn store_statement_index(store: &CheckedUnitEffectOperationPlan) -> Option<u32> 
 /// The machine an assignment's right-hand side calls, when it is a direct call.
 fn statement_call_target(
     program: &TypedTrees,
-    assignment: &typed_trees::statement::TableAssignment,
+    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
 ) -> Option<SymbolHandle> {
     let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
         return None;
@@ -846,15 +861,15 @@ pub(in crate::execution::terminal_unit) fn build(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &mut [CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
-    calls: &[&checked_trees::FlowCallFact],
+    calls: &[&crate::checked_trees::FlowCallFact],
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     construction_statement_count: usize,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
     trace.phase("statement sequence: scalar control guard");
@@ -949,13 +964,13 @@ pub(in crate::execution::terminal_unit) fn build(
         let mut displaced_discard = None;
         if atomic_result.is_some()
             && !matches!(statement, StatementNode::Assignment(assignment)
-                if validation::atomic_assignment_carrier(program, assignment).is_some())
+                if crate::validation::atomic_assignment_carrier(program, assignment).is_some())
         {
             return None;
         }
         let result = match statement {
             StatementNode::Assignment(assignment)
-                if validation::atomic_assignment_carrier(program, assignment).is_some() =>
+                if crate::validation::atomic_assignment_carrier(program, assignment).is_some() =>
             {
                 trace.phase("statement sequence: assignment: atomic event");
                 trace.statement(Some(statement_index));
@@ -1182,9 +1197,9 @@ pub(in crate::execution::terminal_unit) fn build(
 pub(in crate::execution::terminal_unit) fn scalar_control(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-) -> Option<(checked_trees::CheckedUnitScalarControlPlan, usize)> {
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+) -> Option<(crate::checked_trees::CheckedUnitScalarControlPlan, usize)> {
     let primitive_type = program.primitive_type_reference(state.return_type)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let prefix_count = statements
@@ -1211,74 +1226,76 @@ pub(in crate::execution::terminal_unit) fn scalar_control(
         &facts.values.scalar_expressions,
         prefix_count,
     );
-    let terminator =
-        if let Some(terminator @ checked_trees::CheckedScalarStateTerminator::Conditional { .. }) =
-            binary
+    let terminator = if let Some(
+        terminator @ crate::checked_trees::CheckedScalarStateTerminator::Conditional { .. },
+    ) = binary
+    {
+        terminator
+    } else if let Some(tail) = guarded.next() {
+        if guarded.next().is_some() {
+            return None;
+        }
+        let arms = facts
+            .flow
+            .terminal_scalar_graphs
+            .guarded_exits
+            .span(tail.arms)?;
+        if arms.first()?.guard_statement_ordinal as usize != prefix_count
+            || !arms.iter().all(|arm| {
+                matches!(
+                    arm.destination,
+                    crate::checked_trees::CheckedScalarBranchDestination::Return { .. }
+                )
+            })
+            || tail.fallback.as_ref().is_some_and(|fallback| {
+                !matches!(
+                    fallback,
+                    crate::checked_trees::CheckedScalarBranchDestination::Return { .. }
+                )
+            })
         {
-            terminator
-        } else if let Some(tail) = guarded.next() {
-            if guarded.next().is_some() {
-                return None;
-            }
-            let arms = facts
-                .flow
-                .terminal_scalar_graphs
-                .guarded_exits
-                .span(tail.arms)?;
-            if arms.first()?.guard_statement_ordinal as usize != prefix_count
-                || !arms.iter().all(|arm| {
-                    matches!(
-                        arm.destination,
-                        checked_trees::CheckedScalarBranchDestination::Return { .. }
-                    )
-                })
-                || tail.fallback.as_ref().is_some_and(|fallback| {
-                    !matches!(
-                        fallback,
-                        checked_trees::CheckedScalarBranchDestination::Return { .. }
-                    )
-                })
-            {
-                return None;
-            }
-            checked_trees::CheckedScalarStateTerminator::Guarded {
-                arms: tail.arms,
-                fallback: tail.fallback.clone(),
-            }
-        } else {
-            crate::execution::terminal_scalar::checked_terminator(
-                program,
-                machine,
-                state,
-                &facts.values.scalar_expressions,
-                prefix_count,
-            )?
-        };
+            return None;
+        }
+        crate::checked_trees::CheckedScalarStateTerminator::Guarded {
+            arms: tail.arms,
+            fallback: tail.fallback.clone(),
+        }
+    } else {
+        crate::execution::terminal_scalar::checked_terminator(
+            program,
+            machine,
+            state,
+            &facts.values.scalar_expressions,
+            prefix_count,
+        )?
+    };
     let returning_tail = match &terminator {
         // Final expressions already belong to the scalar-result route, which
         // also supports ownership frontiers outside scalar-control admission.
         // Explicit unconditional transitions use the same retained return
         // coordinate as guarded control, without inventing a Boolean guard.
-        checked_trees::CheckedScalarStateTerminator::Return { statement_ordinal } => matches!(
-            statements.get(*statement_ordinal as usize),
-            Some(StatementNode::Transition(_))
-        ),
-        checked_trees::CheckedScalarStateTerminator::Guarded { .. }
-        | checked_trees::CheckedScalarStateTerminator::Conditional {
-            when_true: checked_trees::CheckedScalarBranchDestination::Return { .. },
-            when_false: checked_trees::CheckedScalarBranchDestination::Return { .. },
+        crate::checked_trees::CheckedScalarStateTerminator::Return { statement_ordinal } => {
+            matches!(
+                statements.get(*statement_ordinal as usize),
+                Some(StatementNode::Transition(_))
+            )
+        }
+        crate::checked_trees::CheckedScalarStateTerminator::Guarded { .. }
+        | crate::checked_trees::CheckedScalarStateTerminator::Conditional {
+            when_true: crate::checked_trees::CheckedScalarBranchDestination::Return { .. },
+            when_false: crate::checked_trees::CheckedScalarBranchDestination::Return { .. },
             ..
         } => true,
         // A crash exit is a scalar tail the route already owns; the state
         // produces no value and needs no completion.
-        checked_trees::CheckedScalarStateTerminator::Crash { .. } => true,
+        crate::checked_trees::CheckedScalarStateTerminator::Crash { .. } => true,
         _ => false,
     };
     if !returning_tail {
         return None;
     }
     Some((
-        checked_trees::CheckedUnitScalarControlPlan {
+        crate::checked_trees::CheckedUnitScalarControlPlan {
             primitive_type,
             terminator,
         },
@@ -1290,14 +1307,14 @@ fn scalar_computation_local_at(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: u32,
     binding_ordinal: u32,
-    local: &typed_trees::statement::TableLocalData,
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
     trace: &LocalConstructionTrace,
 ) -> Option<(
     CheckedUnitScalarResultBindingPlan,
-    checked_trees::CheckedCallScalarArgument,
+    crate::checked_trees::CheckedCallScalarArgument,
 )> {
     let role = CheckedScalarExpressionRole::LocalInitializer { binding_ordinal };
     let computations = &facts.values.scalar_computations;
@@ -1323,7 +1340,7 @@ fn scalar_computation_local_at(
         )?;
         return Some((
             result,
-            checked_trees::CheckedCallScalarArgument::Pure(value),
+            crate::checked_trees::CheckedCallScalarArgument::Pure(value),
         ));
     };
     trace.phase("statement sequence: local data: scalar local: computation initializer");
@@ -1349,7 +1366,7 @@ fn scalar_computation_local_at(
             binding_ordinal,
             primitive_type,
         },
-        checked_trees::CheckedCallScalarArgument::Computation(root.root),
+        crate::checked_trees::CheckedCallScalarArgument::Computation(root.root),
     ))
 }
 
@@ -1388,10 +1405,13 @@ fn append_call_cleanup(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     statement_index: u32,
-    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    results: &[(
+        CheckedUnitStructuralResultBindingPlan,
+        crate::fact_plan::PlaceRoot,
+    )],
 ) -> Option<()> {
     let Some(CheckedUnitEffectOperationPlan::CallUnit {
         coordinate,
@@ -1404,7 +1424,7 @@ fn append_call_cleanup(
     let coordinate = *coordinate;
     let mut discards = Vec::new();
     for (result, root) in results.iter().rev() {
-        let reference_record = matches!(root, facts::PlaceRoot::Symbol(_))
+        let reference_record = matches!(root, crate::fact_plan::PlaceRoot::Symbol(_))
             && super::super::reference_results::local_record_loans(
                 program,
                 facts,
@@ -1428,7 +1448,7 @@ fn append_call_cleanup(
                     && argument.path.last() == Some(&CheckedUnitStructuralPathSegment::Referent)
             });
         if !reference_record
-            && (!matches!(root, facts::PlaceRoot::Expression(_))
+            && (!matches!(root, crate::fact_plan::PlaceRoot::Expression(_))
                 || result.statement_index != statement_index
                 || !structural_arguments.iter().any(|argument| {
                     argument.source_structural_result_binding_ordinal()
@@ -1438,10 +1458,11 @@ fn append_call_cleanup(
         {
             continue;
         }
-        discards.push(checked_trees::CheckedUnitPartialAffineDiscardPlan {
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: result.binding_ordinal,
-            },
+        discards.push(crate::checked_trees::CheckedUnitPartialAffineDiscardPlan {
+            source:
+                crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                },
             path: Vec::new(),
             type_identity: result.type_identity.clone(),
         });
@@ -1450,7 +1471,7 @@ fn append_call_cleanup(
         return Some(());
     }
     for discard in &discards {
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        let crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
         } = discard.source
         else {
@@ -1497,7 +1518,10 @@ fn retain_selected_sources(
     facts: &CheckFacts,
     state: SymbolHandle,
     statement: u32,
-    sources: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    sources: &[(
+        CheckedUnitStructuralResultBindingPlan,
+        crate::fact_plan::PlaceRoot,
+    )],
     operations: &mut [CheckedUnitEffectOperationPlan],
 ) -> Option<()> {
     let Some((_, receipt)) = facts.flow.ownership.owned_selection_at(state, statement) else {
@@ -1523,7 +1547,7 @@ fn retain_selected_sources(
         }
         let (binding, _) = sources
             .iter()
-            .find(|(_, root)| *root == facts::PlaceRoot::Symbol(source.symbol))?;
+            .find(|(_, root)| *root == crate::fact_plan::PlaceRoot::Symbol(source.symbol))?;
         let mut producers = operations
             .iter_mut()
             .filter_map(|operation| match operation {
@@ -1696,8 +1720,11 @@ fn consume_result(
 
 fn consume_value_places(
     facts: &CheckFacts,
-    root: checked_trees::CheckedStructuralValueHandle,
-    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    root: crate::checked_trees::CheckedStructuralValueHandle,
+    results: &[(
+        CheckedUnitStructuralResultBindingPlan,
+        crate::fact_plan::PlaceRoot,
+    )],
     operations: &mut [CheckedUnitEffectOperationPlan],
 ) -> Option<()> {
     let plans = &facts.values.structural_values;
@@ -1709,14 +1736,14 @@ fn consume_value_places(
         }
         visited.push(value);
         match &plans.nodes.get(value).kind {
-            checked_trees::CheckedStructuralValueKind::Place(argument) => {
-                if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            crate::checked_trees::CheckedStructuralValueKind::Place(argument) => {
+                if let crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
                 } = argument.source
                 {
                     let mut matching = results
                         .iter()
-                        .filter(|(_, source)| *source == facts::PlaceRoot::Symbol(symbol));
+                        .filter(|(_, source)| *source == crate::fact_plan::PlaceRoot::Symbol(symbol));
                     let (result, _) = matching.next()?;
                     if matching.next().is_some() || result.type_identity != argument.type_identity {
                         return None;
@@ -1729,31 +1756,31 @@ fn consume_value_places(
                     )?;
                 }
             }
-            checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+            crate::checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+            | crate::checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                 for field in plans.record_fields.span(*fields)? {
-                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
+                    if let crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
                         field.value
                     {
                         pending.push(value);
                     }
                 }
             }
-            checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+            crate::checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                 pending.extend(plans.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
             }
-            checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+            crate::checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
                 // The selected edge moves a projected child: its root owner
                 // remains live for the residual complement that edge commits.
-                if let checked_trees::CheckedStructuralValueKind::Place(argument) =
+                if let crate::checked_trees::CheckedStructuralValueKind::Place(argument) =
                     &plans.nodes.get(*source).kind
-                    && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    && let crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol,
                     } = argument.source
                 {
                     let mut matching = results
                         .iter()
-                        .filter(|(_, source)| *source == facts::PlaceRoot::Symbol(symbol));
+                        .filter(|(_, source)| *source == crate::fact_plan::PlaceRoot::Symbol(symbol));
                     let (result, _) = matching.next()?;
                     if matching.next().is_some() || result.type_identity != argument.type_identity {
                         return None;
@@ -1761,17 +1788,17 @@ fn consume_value_places(
                     consume_result(operations, result.binding_ordinal, argument.access, true)?;
                 }
             }
-            checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+            crate::checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
                 pending.extend(elements.iter().copied());
             }
-            checked_trees::CheckedStructuralValueKind::Reference { .. }
-            | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
-            | checked_trees::CheckedStructuralValueKind::Call { .. }
-            | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { .. }
-            | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
-            | checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
-            | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
-            | checked_trees::CheckedStructuralValueKind::Case(_) => {}
+            crate::checked_trees::CheckedStructuralValueKind::Reference { .. }
+            | crate::checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
+            | crate::checked_trees::CheckedStructuralValueKind::Call { .. }
+            | crate::checked_trees::CheckedStructuralValueKind::ScalarCasePlace { .. }
+            | crate::checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
+            | crate::checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
+            | crate::checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
+            | crate::checked_trees::CheckedStructuralValueKind::Case(_) => {}
         }
     }
     Some(())

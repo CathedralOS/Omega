@@ -1,11 +1,15 @@
 //! Constructor subjects remain real established owners through observation.
 use super::{CheckedTrees, lower_machine};
-use crate::TerminalMachineSelection;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::types::PrimitiveType;
-use checked_trees::{CheckedScalarComputationKind, CheckedUnitEffectOperationPlan};
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::{OperationKind, OperationResult, StructuralMultiplicity, Terminator};
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarComputationKind, CheckedUnitEffectOperationPlan,
+};
 
 const SOURCE: &str = r#"
     data Choice { case Empty; case Some(first: bool, second: bool); }
@@ -24,15 +28,18 @@ fn copy_case_return_requires_its_producer_to_dominate_the_return() {
              match selected { true -> Choice::Some { value: 37 }, false -> Choice::Empty }
          }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("choose"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "choose",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let mut module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let machine = module
         .machines
@@ -88,15 +95,18 @@ fn copy_local_case_membership_repeats_direct_and_selected_observations_without_c
     );
     let profile = proof_admission::AdmissionProfile::default();
     for name in ["direct", "selected"] {
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name(name),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("copy case locals retain no affine disposal debt")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                    name,
+                ),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("copy case locals retain no affine disposal debt")
+            .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let root = module
             .machines
@@ -229,15 +239,18 @@ fn selected_local_case_membership_observes_the_joined_owner_and_rejects_foreign_
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("choose"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("selected local membership")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "choose",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("selected local membership")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -289,7 +302,7 @@ fn selected_local_case_membership_observes_the_joined_owner_and_rejects_foreign_
         .data_members(foreign)
         .iter()
         .find_map(|member| match member {
-            checked_trees::data::DataMember::Variant(case)
+            typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(case)
                 if !checked.data_payload_fields(case).is_empty() =>
             {
                 Some(case)
@@ -304,18 +317,18 @@ fn selected_local_case_membership_observes_the_joined_owner_and_rejects_foreign_
         .nodes
         .iter()
         .find_map(|(handle, node)| match &node.kind {
-            checked_trees::CheckedStructuralValueKind::Case(construction)
-                if !construction.fields.is_empty() =>
-            {
-                Some((handle, construction.fields))
-            }
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Case(
+                construction,
+            ) if !construction.fields.is_empty() => Some((handle, construction.fields)),
             _ => None,
         })
         .unwrap();
     for replace_case in [false, true] {
         let mut changed = checked.clone();
         if replace_case {
-            let checked_trees::CheckedStructuralValueKind::Case(construction) = &mut changed
+            let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Case(
+                construction,
+            ) = &mut changed
                 .facts
                 .values
                 .structural_values
@@ -361,7 +374,11 @@ fn local_case_membership_rejoins_establishment_and_exit_provenance() {
         .permissions
         .iter()
         .filter_map(|(handle, event)| {
-            matches!(event.root, facts::PlaceRoot::Symbol(_)).then_some(handle)
+            matches!(
+                event.root,
+                typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(_)
+            )
+            .then_some(handle)
         })
         .collect::<Vec<_>>();
     assert_eq!(events.len(), 2, "one establishment and one exit drop");
@@ -396,15 +413,18 @@ fn local_case_membership_reuses_one_affine_owner_through_repeated_observations()
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("choose"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("ordinary local case")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "choose",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("ordinary local case")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -489,7 +509,9 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
         .iter()
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } => {
-                let checked_trees::CheckedStructuralValueKind::Case(construction) = &checked
+                let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Case(
+                    construction,
+                ) = &checked
                     .facts
                     .values
                     .structural_values
@@ -541,7 +563,9 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
         .statements(source_state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
-            checked_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+                local,
+            ) => Some(local.symbol),
             _ => None,
         })
         .nth(1)
@@ -557,7 +581,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
             matches!(
                 node.kind,
                 CheckedScalarComputationKind::CaseMembership {
-                    subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
+                    subject: typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
                     ..
                 }
             )
@@ -565,7 +589,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
         })
         .unwrap();
     let CheckedScalarComputationKind::CaseMembership {
-        subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(argument),
+        subject: typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument),
         ..
     } = &mut changed
         .facts
@@ -578,7 +602,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
         panic!("local observation");
     };
     argument.source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: other };
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: other };
     assert!(
         lower_machine(&changed, TerminalMachineSelection::Name("choose")).is_err(),
         "same-typed established local cannot replace the authored subject"
@@ -593,7 +617,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
             (event.state_symbol == state
                 && event.source == language_semantics::PermissionEventSource::StateExit
                 && event.kind == language_semantics::PermissionEventKind::AffineDrop
-                && event.root == facts::PlaceRoot::Symbol(other))
+                && event.root == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(other))
             .then_some(handle)
         })
         .expect("local exit disposition");
@@ -623,7 +647,9 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
         0,
         original.authored_root,
         original.primitive_type,
-        &checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
+        &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+            value.clone(),
+        ),
     )
     .expect("pure field source correspondence");
     let CheckedScalarComputationKind::Value(donor) = &nodes.get(fields[1]).kind else {
@@ -636,7 +662,9 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
             0,
             original.authored_root,
             original.primitive_type,
-            &checked_trees::CheckedCallScalarArgument::Pure(donor.clone()),
+            &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+                donor.clone()
+            ),
         )
         .is_err(),
         "pure field cannot substitute a same-typed literal"
@@ -646,7 +674,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
 fn field_computation(
     checked: &CheckedTrees,
     machine_name: &str,
-) -> checked_trees::CheckedScalarComputationHandle {
+) -> typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationHandle {
     let machine = checked
         .machines()
         .iter()
@@ -659,7 +687,7 @@ fn field_computation(
         .find_map(|(_, root)| (root.machine == machine.symbol).then_some(root.root))
         .unwrap();
     let CheckedScalarComputationKind::CaseMembership {
-        subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+        subject: typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
         ..
     } = &plans.nodes.get(root).kind
     else {
@@ -700,7 +728,7 @@ fn constructor_membership_rejects_changed_literal_payload_in_either_source_or_pl
     assert!(matches!(
         original.kind,
         CheckedScalarComputationKind::Value(
-            checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
         )
     ));
     assert_eq!(original.primitive_type, replacement.primitive_type);
@@ -752,19 +780,22 @@ fn constructor_membership_rejects_erased_field_operator_meaning() {
         .get_mut(field)
         .kind
     {
-        CheckedScalarComputationKind::Value(checked_trees::CheckedScalarExpression::Boolean(
-            value,
-        )) => {
-            let checked_trees::CheckedBooleanExpression::Not(operand) = value.as_ref() else {
+        CheckedScalarComputationKind::Value(
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Boolean(value),
+        ) => {
+            let typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Not(operand) =
+                value.as_ref()
+            else {
                 panic!("retained pure negation");
             };
             *value = operand.clone();
         }
         CheckedScalarComputationKind::Apply { expression, .. } => {
-            *expression = checked_trees::CheckedScalarExpression::Parameter {
-                position: 0,
-                primitive_type: PrimitiveType::Bool,
-            };
+            *expression =
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Parameter {
+                    position: 0,
+                    primitive_type: PrimitiveType::Bool,
+                };
         }
         unexpected => panic!("unexpected negation computation: {unexpected:?}"),
     }
@@ -876,15 +907,18 @@ fn selected_constructor_membership_closes_its_affine_frontier_before_the_join() 
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("choose"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("selected case construction")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "choose",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("selected case construction")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -940,7 +974,7 @@ fn constructor_membership_rejoins_field_roster_roots_types_and_authored_source()
         .iter()
         .find_map(|(handle, node)| match &node.kind {
             CheckedScalarComputationKind::CaseMembership {
-                subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                subject: typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                 ..
             } => Some((handle, subject.clone())),
             _ => None,
@@ -1001,7 +1035,7 @@ fn constructor_membership_rejoins_field_roster_roots_types_and_authored_source()
             _ => {
                 let CheckedScalarComputationKind::CaseMembership {
                     subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                        typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                     ..
                 } = &mut changed
                     .facts
@@ -1041,7 +1075,9 @@ fn constructor_membership_rejects_a_same_spelled_foreign_observation_case() {
         .data_members(owner)
         .iter()
         .find_map(|member| match member {
-            checked_trees::data::DataMember::Variant(case) if case.name.as_str() == "Some" => {
+            typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(case)
+                if case.name.as_str() == "Some" =>
+            {
                 Some(case.symbol)
             }
             _ => None,

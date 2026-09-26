@@ -10,8 +10,8 @@
 //! whose observed executed prefix changes) and every member-written
 //! location dead on every path the member's new position adds it to.
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::{
     SelectedBlockOrigin, SelectedInstruction, SelectedInstructionId, SelectedSuccessor,
     SelectedTerminator,
 };
@@ -54,7 +54,7 @@ pub(super) struct Admission {
 /// — an execution that could fault must still run only on the paths that
 /// ran it before.
 fn hoistable(instruction: &SelectedInstruction) -> bool {
-    use selected_instructions::SelectedInstructionKind::*;
+    use target_operations_to_selected_instructions::SelectedInstructionKind::*;
     !matches!(
         instruction.kind,
         CopyBytes

@@ -9,7 +9,7 @@ use super::{
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn transport(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     write: &super::write_target::StatementWrite,
@@ -18,8 +18,8 @@ pub(super) fn transport(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    context_handles: Vec<facts::FactContextHandle>,
-    refs: &mut HandleSpan<facts::FactRef>,
+    context_handles: Vec<crate::fact_plan::FactContextHandle>,
+    refs: &mut HandleSpan<crate::fact_plan::FactRef>,
 ) {
     let target_place = write.target_place;
     let source_place = write.source_place;

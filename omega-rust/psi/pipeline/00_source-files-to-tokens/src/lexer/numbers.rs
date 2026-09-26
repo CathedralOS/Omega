@@ -1,5 +1,7 @@
+use crate::tokens::{
+    FloatLiteralKind, IntegerLiteralKind, NumericBase, NumericLiteralKind, TokenKind,
+};
 use source::Span;
-use tokens::{FloatLiteralKind, IntegerLiteralKind, NumericBase, NumericLiteralKind, TokenKind};
 
 use super::{LexedToken, is_identifier_continue, is_identifier_start};
 

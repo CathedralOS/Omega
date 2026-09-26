@@ -20,7 +20,7 @@ mod trapping_integer;
 
 use std::collections::BTreeMap;
 
-use abstract_operations::AbstractOperation;
+use crate::abstract_operations::AbstractOperation;
 use terminal_psi::TerminalMachine;
 
 use super::{LoweredAffineLocal, StructuralLiteral};

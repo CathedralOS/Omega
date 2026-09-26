@@ -14,14 +14,18 @@ pub use validate::validate_abstract_spill_insertion;
 
 use crate::{ValidatedLogicalSpillOperations, ValidatedStackSlotColoring};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     AllocatorAvailabilityIdentity, LogicalReloadValueId, LogicalSpillOperationIdentity,
     LogicalSpillStorageClass, LogicalSpillStorageId, LogicalSpillUseRewrite,
     StackSlotColoringIdentity,
 };
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{LiveRangePoint, SelectedInstructionId, VirtualRegisterId};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
+};
+use target_operations_to_selected_instructions::{
+    LiveRangePoint, SelectedInstructionId, VirtualRegisterId,
+};
 
 pub fn schedule_abstract_spill_insertion(
     logical: &ValidatedLogicalSpillOperations,

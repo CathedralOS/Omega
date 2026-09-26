@@ -23,18 +23,20 @@ use super::{
 };
 use crate::rewrites::runtime_spill::{control, control_mut, surviving_home_exists};
 use crate::spill_selected_runtime_value;
-use register_environment::{
+use semantic_vocabulary::{BlockId, IntegerSign, IntegerType, ScalarType, ValueId};
+use target_operations_to_selected_instructions::register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess, RegisterViewId};
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess, RegisterViewId,
+};
+use target_operations_to_selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
     SelectedLocalStorageSlot, SelectedOperand, SelectedTerminator, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{BlockId, IntegerSign, IntegerType, ScalarType, ValueId};
 
 const VICTIM: VirtualRegisterId = VirtualRegisterId(1);
 

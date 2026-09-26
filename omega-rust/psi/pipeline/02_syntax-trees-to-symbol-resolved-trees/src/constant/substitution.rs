@@ -1,10 +1,10 @@
 //! Substituting resolved constants into expressions.
 
 use crate::constant::declaration_values::selected_expression_constant;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::SymbolKind;
-use syntax_trees::item::ConstDefinition;
+use tokens_to_syntax_trees::syntax_trees::item::ConstDefinition;
 
 pub(crate) fn substitute_resolved_constants(
     program: &mut SymbolResolvedTrees,
@@ -12,7 +12,7 @@ pub(crate) fn substitute_resolved_constants(
     selections: &mut Vec<crate::resolution::lowerer::PendingConstSelection>,
     retain_selection_only: bool,
 ) -> Result<(), Diagnostic> {
-    use symbol_resolved_trees::expression::ExpressionNode;
+    use crate::symbol_resolved_trees::expression::ExpressionNode;
     let declarations = program
         .roots
         .const_declarations

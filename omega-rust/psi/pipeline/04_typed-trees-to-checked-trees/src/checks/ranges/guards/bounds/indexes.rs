@@ -1,5 +1,7 @@
 use language_semantics::declaration_selection::CollectionMeasure;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
 
 use super::super::super::expressions::expression_integer_value;
 use super::super::super::facts::RangeFacts;
@@ -9,9 +11,9 @@ use super::super::super::types::expression_is_unsigned_integer;
 /// shape — the strict comparison itself or a bounded `coll.len - k`
 /// offset that implies it.
 fn prove_index_within_member_length(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     index: ExpressionHandle,
     collection_label: &str,
@@ -32,7 +34,7 @@ fn prove_index_within_member_length(
 /// itself pays the one element. Returns `None` for a non-literal or
 /// negative offset and for any non-length receiver member.
 fn len_bound_minus_offset(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
     bound: ExpressionHandle,
 ) -> Option<(String, i64)> {
@@ -61,9 +63,9 @@ fn len_bound_minus_offset(
 }
 
 pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     index: ExpressionHandle,
     upper_bound: ExpressionHandle,
@@ -94,9 +96,9 @@ pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
 /// what a later literal-`0` element read (`self.slice[0]` as a comparison
 /// side) consults through `index_value_is_proven`.
 fn seed_index_length_floor(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     index: ExpressionHandle,
     collection_label: &str,
@@ -119,9 +121,9 @@ fn seed_index_length_floor(
 /// the `<=` counterpart of the strict `bound < coll.len` seeding in
 /// `seed_less_than_len_fact` (which additionally proves `bound` as an index).
 pub(in crate::checks::ranges::guards) fn seed_at_most_len_range_bound_fact(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     bound: ExpressionHandle,
     upper_bound: ExpressionHandle,
@@ -167,9 +169,9 @@ pub(in crate::checks::ranges::guards) fn seed_at_most_len_range_bound_fact(
 /// proves `bound` an index — `bound <= coll.len - 1 < coll.len`. k == 0
 /// is `bound == coll.len`, which is NOT an index and seeds nothing here.
 pub(in crate::checks::ranges::guards) fn seed_equal_len_offset_fact(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     bound: ExpressionHandle,
     upper_bound: ExpressionHandle,
@@ -184,9 +186,9 @@ pub(in crate::checks::ranges::guards) fn seed_equal_len_offset_fact(
 }
 
 pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     possible_successor: ExpressionHandle,
     upper_bound: ExpressionHandle,
@@ -217,7 +219,7 @@ pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(
 }
 
 pub(in crate::checks::ranges::guards) fn seed_index_less_than_integer_fact(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     index: ExpressionHandle,
     upper_bound: ExpressionHandle,
@@ -229,7 +231,7 @@ pub(in crate::checks::ranges::guards) fn seed_index_less_than_integer_fact(
 }
 
 pub(in crate::checks::ranges::guards) fn seed_index_at_most_integer_fact(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     index: ExpressionHandle,
     upper_bound: ExpressionHandle,
@@ -247,7 +249,7 @@ pub(in crate::checks::ranges::guards) fn seed_index_at_most_integer_fact(
 }
 
 fn positive_offset_base(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {

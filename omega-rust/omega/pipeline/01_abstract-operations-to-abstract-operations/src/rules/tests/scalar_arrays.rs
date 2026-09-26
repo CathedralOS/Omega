@@ -3,15 +3,7 @@ use super::super::DeadScalarLiteralEliminationRule;
 use crate::rules::registry::PsiOptimizationRule;
 use crate::rules::tests::fixtures::id;
 use crate::{AnalysisProduct, RuleAnalysisView, compute_analysis};
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
-    AbstractOperationPlan,
-};
 use optimization_core::AnalysisKind;
-use optimization_unit::reconstruct_psi_optimization_unit_seed;
-use optimization_unit_semantics::{
-    validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId, ScalarType,
     StructuralTypeId, ValueId,
@@ -19,6 +11,14 @@ use semantic_vocabulary::{
 use terminal_psi::{
     SemanticFingerprint, StructuralMultiplicity, StructuralOperationResult,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
+    AbstractOperationPlan,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
+    validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
 };
 
 #[test]

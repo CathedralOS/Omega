@@ -2,8 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, MachineId};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction;
 
 use crate::analyses::control_flow::DominatorAnalysis;
 

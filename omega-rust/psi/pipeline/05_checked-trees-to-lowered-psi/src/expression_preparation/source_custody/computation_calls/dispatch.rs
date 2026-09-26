@@ -4,8 +4,10 @@ use super::{
     CheckedScalarExpression, CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError,
     PrimitiveType, authored_expressions, operand_scopes, unsupported,
 };
-use checked_trees::expression::MatchPattern;
-use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
+use typed_trees_to_checked_trees::checked_trees::expression::MatchPattern;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarDispatchArm, CheckedScalarDispatchPattern,
+};
 
 pub(super) fn source_scope(
     checked: &CheckedTrees,
@@ -59,8 +61,11 @@ pub(super) fn operands(
         return unsupported("computed dispatch has no live subject");
     }
     let subject_type = plans.nodes.get(subject).primitive_type;
-    if validation::match_subject_primitive_type(&checked.typed, dispatch)
-        .is_some_and(|expected| expected != subject_type)
+    if typed_trees_to_checked_trees::validation::match_subject_primitive_type(
+        &checked.typed,
+        dispatch,
+    )
+    .is_some_and(|expected| expected != subject_type)
     {
         return unsupported("computed dispatch substituted its authored subject carrier");
     }
@@ -121,7 +126,7 @@ pub(super) fn operands(
                     let selected = checked.facts.operators.uses.get(arm.equality_use);
                     if selected.expression != source
                         || selected.occurrence
-                            != (checked_trees::CheckedOperatorOccurrence::MatchEquality {
+                            != (typed_trees_to_checked_trees::checked_trees::CheckedOperatorOccurrence::MatchEquality {
                                 source_arm,
                             })
                         || !matches!(
@@ -438,9 +443,9 @@ mod tests {
             .facts
             .operators
             .uses
-            .insert(checked_trees::CheckedOperatorUseFact {
+            .insert(typed_trees_to_checked_trees::checked_trees::CheckedOperatorUseFact {
                 expression: dispatch.subject,
-                status: checked_trees::CheckedOperatorResolutionStatus::Inadmissible,
+                status: typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::Inadmissible,
                 ..Default::default()
             });
         assert!(

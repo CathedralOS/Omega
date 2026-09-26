@@ -9,15 +9,15 @@ use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
     UnaryConstantFixtureKind, exact_cast_unit, goal_free_unary_unit, unary_constant_unit,
 };
 use crate::{RuleAnalysisView, compute_analysis};
-use abstract_operations::AbstractOperation;
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_integer_evaluation_candidate,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 
 #[test]
 fn unary_integer_rules_preserve_signed_and_unsigned_endpoint_semantics() {
@@ -282,7 +282,7 @@ fn exact_cast_rule_uses_unary_evidence_and_target_integer_semantics() {
     else {
         unreachable!()
     };
-    let optimization_unit::PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) =
+    let terminal_psi_to_abstract_operations::optimization_unit::PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) =
         candidates[0].patch()
     else {
         unreachable!()
@@ -306,7 +306,7 @@ fn exact_cast_rule_uses_unary_evidence_and_target_integer_semantics() {
     assert_ne!(binary_witness.identity(), candidates[0].identity());
     assert!(matches!(
         validate_integer_evaluation_candidate(&unit, &binary_witness),
-        Err(optimization_unit_semantics::OptimizationUnitValidationError::CandidateOperandFactMismatch)
+        Err(terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError::CandidateOperandFactMismatch)
     ));
 }
 

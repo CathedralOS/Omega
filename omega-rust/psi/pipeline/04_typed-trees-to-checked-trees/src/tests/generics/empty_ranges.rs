@@ -71,8 +71,9 @@ fn empty_integer_ranges_project_to_rejecting_wire_bounds() {
         let machine = &typed.machines()[0];
         let state = &typed.machine_states(machine)[0];
         let parameter = &typed.state_parameters(state)[0];
-        let range = validation::scalar_representation_range(&typed, parameter.type_reference)
-            .expect("empty is a retained restriction, not an absent range");
+        let range =
+            crate::validation::scalar_representation_range(&typed, parameter.type_reference)
+                .expect("empty is a retained restriction, not an absent range");
         assert_eq!((range.minimum, range.maximum), (1, 0), "{empty_type}");
         for value in [i64::MIN, -1, 0, 1, i64::MAX] {
             assert!(!(value >= range.minimum && value <= range.maximum));

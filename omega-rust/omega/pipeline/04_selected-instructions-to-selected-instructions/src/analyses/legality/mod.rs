@@ -14,6 +14,7 @@ pub use validation::validate_optimized_allocation_legality_custody;
 use crate::ValidatedAllocatorAvailability;
 
 use crate::StagedOptimizedLiveRanges;
+use crate::register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use crate::{
     AllocationLegalityError, AllocatorAvailabilityError, OptimizedLiveRangeCustodyError,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
@@ -23,11 +24,10 @@ use optimization_core::{
     OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
     PrePhysicalOptimizationManifestIdentity,
 };
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
-use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::SelectedInstructionPlanIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
 use terminal_psi::TerminalPsiIdentity;
 
 pub fn stage_optimized_allocation_legality(
@@ -139,11 +139,11 @@ pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
     manifest: PrePhysicalOptimizationManifestIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
-    register_environment: register_model::TargetRegisterEnvironmentIdentity,
+    register_environment: target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity,
     allocator_availability: AllocatorAvailabilityIdentity,
     selected: SelectedInstructionPlanIdentity,
-    liveness: selected_instructions::LivenessIdentity,
-    ranges: selected_instructions::LiveRangeIdentity,
+    liveness: target_operations_to_selected_instructions::LivenessIdentity,
+    ranges: target_operations_to_selected_instructions::LiveRangeIdentity,
     legality: AllocationLegalityIdentity,
     function_count: usize,
     virtual_register_count: usize,
@@ -177,7 +177,10 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
     pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
         self.fuel_schedule
     }
-    pub const fn register_environment(self) -> register_model::TargetRegisterEnvironmentIdentity {
+    pub const fn register_environment(
+        self,
+    ) -> target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity
+    {
         self.register_environment
     }
     pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
@@ -186,10 +189,10 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
     pub const fn selected(self) -> SelectedInstructionPlanIdentity {
         self.selected
     }
-    pub const fn liveness(self) -> selected_instructions::LivenessIdentity {
+    pub const fn liveness(self) -> target_operations_to_selected_instructions::LivenessIdentity {
         self.liveness
     }
-    pub const fn ranges(self) -> selected_instructions::LiveRangeIdentity {
+    pub const fn ranges(self) -> target_operations_to_selected_instructions::LiveRangeIdentity {
         self.ranges
     }
     pub const fn legality(self) -> AllocationLegalityIdentity {

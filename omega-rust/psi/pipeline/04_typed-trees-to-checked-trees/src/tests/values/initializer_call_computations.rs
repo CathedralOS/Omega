@@ -1,12 +1,12 @@
 use super::StatementNode;
 use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::front_end::typed_program;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedTrees,
     CheckedUnitEffectOperationPlan,
 };
-use typed_trees::expression::ExpressionNode;
+use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
 mod later_results;
 
@@ -62,7 +62,9 @@ fn checked_initializer(kind: ResultKind) -> CheckedTrees {
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
-fn caller(checked: &CheckedTrees) -> &typed_trees::machine::Machine {
+fn caller(
+    checked: &CheckedTrees,
+) -> &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine {
     checked
         .machines()
         .iter()
@@ -70,8 +72,11 @@ fn caller(checked: &CheckedTrees) -> &typed_trees::machine::Machine {
         .unwrap()
 }
 
-fn role(kind: ResultKind, argument_ordinal: u32) -> checked_trees::CheckedScalarExpressionRole {
-    use checked_trees::CheckedScalarExpressionRole;
+fn role(
+    kind: ResultKind,
+    argument_ordinal: u32,
+) -> crate::checked_trees::CheckedScalarExpressionRole {
+    use crate::checked_trees::CheckedScalarExpressionRole;
     match kind {
         ResultKind::Scalar => CheckedScalarExpressionRole::UnitCallArgument {
             call_ordinal: 0,
@@ -310,7 +315,11 @@ fn initializer_call_computations_preserve_the_free_scalar_whole_result_route() {
         .collect::<Vec<_>>();
     assert_eq!(
         roots,
-        [checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 }]
+        [
+            crate::checked_trees::CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: 0
+            }
+        ]
     );
 }
 
@@ -348,7 +357,7 @@ fn a_cast_wrapped_initializer_call_retains_its_argument_rows() {
                     && expression.statement_ordinal == 0
                     && matches!(
                         expression.role,
-                        checked_trees::CheckedScalarExpressionRole::UnitCallArgument { .. }
+                        crate::checked_trees::CheckedScalarExpressionRole::UnitCallArgument { .. }
                     )
             })
             .count()

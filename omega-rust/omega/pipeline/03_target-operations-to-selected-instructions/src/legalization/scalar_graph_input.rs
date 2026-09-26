@@ -1,20 +1,22 @@
 //! Input-only custody for ordinary ordered scalar graphs. No legalized output is built here.
 use super::LegalizationError;
-use abstract_operations::{
-    AbstractBoundaryResult, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan,
-};
-use calling_conventions::{
+use crate::legalized_operations::{SaturatingCarrier, TrappingForm, TrappingOperation};
+use abstract_operations_to_target_operations::calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
     evaluate_call_plan,
 };
-use legalized_operations::{SaturatingCarrier, TrappingForm, TrappingOperation};
-use optimization_unit::{
+use abstract_operations_to_target_operations::target_operations::{
+    TargetFunction, TargetOperationPlan,
+};
+use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBoundaryResult, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     ValueDefinitionSite,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, ValueId};
-use target_operations::{TargetFunction, TargetOperationPlan};
 pub(super) mod call_origin;
 mod control;
 mod custody;
@@ -39,7 +41,8 @@ pub(super) mod structural_call;
 pub(super) mod structural_fields;
 fn structural_parameters(
     target: &TargetFunction,
-) -> Option<&[target_operations::TargetStructuralParameter]> {
+) -> Option<&[abstract_operations_to_target_operations::target_operations::TargetStructuralParameter]>
+{
     if let Some(abi) = &target.mixed_structural_scalar_abi {
         Some(&abi.structural_parameters)
     } else {
@@ -51,7 +54,7 @@ pub(super) fn structural_contract(
     abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
-) -> Option<legalized_operations::LegalizedStructuralContract> {
+) -> Option<crate::legalized_operations::LegalizedStructuralContract> {
     // A matching place roster alone must not replace parameter custody
     // with an empty local-only signature; the sum fallback needs an actual producer.
     if let Some(parameters) = structural_parameters(target).or_else(|| {
@@ -64,14 +67,14 @@ pub(super) fn structural_contract(
                     && aggregate_results::roster(optimized))))
         .then_some(&[][..])
     }) {
-        return Some(legalized_operations::LegalizedStructuralContract {
+        return Some(crate::legalized_operations::LegalizedStructuralContract {
             structural_types: plan.structural_types.clone(),
             parameters: abstracted
                 .structural_parameters
                 .iter()
                 .zip(parameters)
                 .map(
-                    |(semantic, target)| legalized_operations::LegalizedCallUnitParameter {
+                    |(semantic, target)| crate::legalized_operations::LegalizedCallUnitParameter {
                         semantic: semantic.clone(),
                         target: target.clone(),
                     },
@@ -438,7 +441,7 @@ pub(super) fn match_input(
             && (!unit.accepted_obligation_facts.iter().any(|fact|
                 fact.machine == optimized.machine && fact.operation == *psi_operation && fact.obligation == *obligation)
                 || !optimized.facts.iter().any(|fact| matches!(fact,
-                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                    terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                     if referenced == obligation && support == psi_operation)))
         {
             return Err(LegalizationError::custody());
@@ -584,14 +587,14 @@ pub(super) fn callee_plan(
                         || crate::structural_inputs::structural_unit_input::owned_indirect_pointer(parameter, placement).is_some()))
             || scalar_stack(placement)
             || crate::structural_inputs::structural_reference_input::stack_pointer_offset(placement).is_some()
-            || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+            || placement.shape.class == abstract_operations_to_target_operations::calling_conventions::ValueClass::BorrowedReference
                 && matches!(placement.locations.as_slice(),
                     [ValueLocation::Register { value_byte_offset: 0, byte_size: 8, .. }])
-            || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+            || placement.shape.class == abstract_operations_to_target_operations::calling_conventions::ValueClass::BorrowedReference
                 && matches!(
                     placement.locations.as_slice(),
                     [ValueLocation::Indirect {
-                        pointer: calling_conventions::IndirectPointerLocation::Register(_),
+                        pointer: abstract_operations_to_target_operations::calling_conventions::IndirectPointerLocation::Register(_),
                         copy_stack_byte_offset: None,
                         byte_size,
                         alignment,

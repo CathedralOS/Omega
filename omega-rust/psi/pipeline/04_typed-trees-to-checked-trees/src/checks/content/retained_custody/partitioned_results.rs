@@ -13,16 +13,18 @@
 //! and provider admission; these checks do not publish qualification facts.
 
 use super::structural_sources::{ContentSource, SourceSegment, domain_sources, parameter_sources};
-use checked_trees::CheckFacts;
+use crate::checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::content::{
     ContentConservationTerm, ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion,
     ContentProjectionPlan, ContentStructuralPlace,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::{
+    SignatureContract, StateParameter,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::signature::{SignatureContract, StateParameter};
-use typed_trees::types::TypeReferenceHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn check_boundary_partition_results(
@@ -368,8 +370,9 @@ mod tests {
         let program = typed_program(source);
         // Isolate this declaration gate from unrelated whole-checker passes:
         // the borrowed-lifetime frontier currently enumerates array elements.
-        let mut facts = checked_trees::CheckFacts::default();
-        facts.qualifications.content.plans = validation::build_content_projection_plans(&program);
+        let mut facts = crate::checked_trees::CheckFacts::default();
+        facts.qualifications.content.plans =
+            crate::validation::build_content_projection_plans(&program);
         let owner = program
             .traits()
             .iter()

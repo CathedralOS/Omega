@@ -7,7 +7,7 @@ use crate::common;
 
 use common::{copy_fixture, sccp_fixture, value};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
-use optimization::{PsiOptimization, PsiOptimizationSelections};
+use terminal_codec::optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{OperationKind, Terminator};
 
 fn selections() -> PsiOptimizationSelections {

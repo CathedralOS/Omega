@@ -31,17 +31,20 @@ pub(crate) use resolution::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct CanonicalPlace {
-    pub(crate) root: facts::PlaceRoot,
-    pub(crate) segments: Vec<facts::PlaceSegment>,
+    pub(crate) root: crate::fact_plan::PlaceRoot,
+    pub(crate) segments: Vec<crate::fact_plan::PlaceSegment>,
 }
 
 impl CanonicalPlace {
-    pub(crate) fn extend_segments(&mut self, segments: &[facts::PlaceSegment]) {
+    pub(crate) fn extend_segments(&mut self, segments: &[crate::fact_plan::PlaceSegment]) {
         self.segments.extend(segments.iter().copied());
     }
 
     /// The canonical label diagnostics quote for this place.
-    pub(crate) fn label(&self, program: &typed_trees::TypedTrees) -> String {
-        facts::canonical_place_label_from_parts(program, self.root, &self.segments)
+    pub(crate) fn label(
+        &self,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ) -> String {
+        crate::fact_plan::canonical_place_label_from_parts(program, self.root, &self.segments)
     }
 }

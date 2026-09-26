@@ -10,7 +10,7 @@ mod function;
 use std::collections::BTreeSet;
 
 use crate::{LiveRangeError, ValidatedLiveRanges, ValidatedLiveness};
-use selected_instructions::LiveRangePlan;
+use target_operations_to_selected_instructions::LiveRangePlan;
 
 pub(super) fn replay_live_ranges(
     selected: &impl crate::ValidatedSelectedAnalysis,

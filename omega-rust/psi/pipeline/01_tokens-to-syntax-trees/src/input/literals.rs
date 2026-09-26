@@ -1,6 +1,6 @@
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
-use tokens::{FloatLiteralKind, IntegerLiteralKind, NumericBase};
+use source_files_to_tokens::tokens::{FloatLiteralKind, IntegerLiteralKind, NumericBase};
 
 /// Parse an integer literal token into its payload. UNSUFFIXED literals stay
 /// ANONYMOUS (D14): the token is validated (digits legal for the radix) and

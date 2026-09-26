@@ -1,8 +1,8 @@
-use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::{ValidatedRegisterHomes, ValidatedSelectedAnalysis};
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
 use crate::PostAllocationMachineError;
-use physical_instructions::PostAllocationMachinePlan;
+use crate::physical_instructions::PostAllocationMachinePlan;
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 
 use super::instruction::reconstruct_instruction;

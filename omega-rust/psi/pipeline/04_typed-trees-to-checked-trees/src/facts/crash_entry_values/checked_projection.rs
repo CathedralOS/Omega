@@ -6,15 +6,17 @@
 //! an earlier snapshot. Writes within that statement conservatively refuse
 //! substitution because a sibling operand may have changed the observed value.
 
-use checked_trees::{CheckedOperatorFacts, CrashPredicateExpression, FlowFacts, FlowStateFact};
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::statement::StatementNode;
+use crate::checked_trees::{
+    CheckedOperatorFacts, CrashPredicateExpression, FlowFacts, FlowStateFact,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 pub(in crate::facts) fn entry_value(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    semantic: &facts::FactPlan,
+    semantic: &crate::fact_plan::FactPlan,
     flow: &FlowFacts,
     state_flow: &FlowStateFact,
     before_statement: usize,
@@ -32,7 +34,7 @@ pub(in crate::facts) fn entry_value(
         expression,
         0,
         &mut |state, statement_index, selector| {
-            if !validation::has_builtin_bound_expression_meaning(
+            if !crate::validation::has_builtin_bound_expression_meaning(
                 program,
                 machine,
                 Some(state),
@@ -41,7 +43,9 @@ pub(in crate::facts) fn entry_value(
                 return None;
             }
             let primitive = program.primitive_type_reference(
-                validation::expression_result_type_reference(program, machine, state, selector)?,
+                crate::validation::expression_result_type_reference(
+                    program, machine, state, selector,
+                )?,
             )?;
             let lowered = crate::values::lower_unit_scalar_argument(
                 program,
@@ -111,7 +115,7 @@ pub(in crate::facts) fn entry_value(
                     },
                 },
             )?;
-            let facts::ScalarValue::Integer(value) = value else {
+            let crate::fact_plan::ScalarValue::Integer(value) = value else {
                 return None;
             };
             usize::try_from(value.to_u64()?).ok()

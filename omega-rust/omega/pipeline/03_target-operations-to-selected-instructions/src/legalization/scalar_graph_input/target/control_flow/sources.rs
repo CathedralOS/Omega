@@ -1,7 +1,7 @@
 //! Scalar source availability is indexed by source CFG dominance, not target block order.
 use super::super::{BlockId, ValueId};
 use super::{PsiOptimizationFunction, TargetControlGraph, TargetUnitOperation};
-use target_operations::TargetUnitScalarArgumentSource as Source;
+use abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource as Source;
 
 pub(super) fn available(
     graph: &TargetControlGraph,
@@ -28,7 +28,7 @@ pub(super) fn available(
             result.extend(candidate.parameters.iter().map(|parameter| {
                 (
                     parameter.value,
-                    Source::BlockParameter(target_operations::TargetScalarBlockValue {
+                    Source::BlockParameter(abstract_operations_to_target_operations::target_operations::TargetScalarBlockValue {
                         block: candidate.block,
                         value: parameter.value,
                         scalar_type: parameter.scalar_type,
@@ -85,7 +85,7 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
             ..
         } => Some((
             result.value,
-            Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+            Source::Home(abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement {
                 defining_operation: *psi_operation,
                 source_value: result.value,
                 scalar_type: result.scalar_type,
@@ -125,7 +125,7 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
             ..
         } => Some((
             *result,
-            Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+            Source::Home(abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement {
                 defining_operation: *psi_operation,
                 source_value: *result,
                 scalar_type: semantic_vocabulary::ScalarType::IeeeFloat(*format),
@@ -137,7 +137,7 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
         TargetUnitOperation::IeeeFloatCompare { result_home, .. }
         | TargetUnitOperation::ScalarDefinition { result_home, .. }
         | TargetUnitOperation::Call {
-            result: target_operations::TargetCallResult::Scalar(result_home),
+            result: abstract_operations_to_target_operations::target_operations::TargetCallResult::Scalar(result_home),
             ..
         } => Some((result_home.source_value, Source::Home(*result_home))),
         _ => None,

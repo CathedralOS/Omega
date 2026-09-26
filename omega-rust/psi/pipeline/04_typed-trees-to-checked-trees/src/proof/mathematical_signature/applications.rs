@@ -8,7 +8,7 @@ use super::{
     TypeReferenceNode, infer_sort,
 };
 use diagnostics::Diagnostic;
-use typed_trees::expression::StaticMachineArgument;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument;
 
 impl Elaborator<'_> {
     pub(super) fn elaborate_callee(

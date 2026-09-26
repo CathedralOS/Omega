@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::analyses::liveness::LivenessError;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPlan,
     LivenessPosition, OperandPosition, SuccessorLiveness,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstruction, VirtualRegisterId,
 };
 
@@ -375,7 +375,10 @@ fn tied_component(
 fn materialize_block(
     function_index: usize,
     block: &SelectedBlock,
-    positions: &BTreeMap<selected_instructions::SelectedInstructionId, LivenessPosition>,
+    positions: &BTreeMap<
+        target_operations_to_selected_instructions::SelectedInstructionId,
+        LivenessPosition,
+    >,
     flow: &flow::FunctionFlow,
     block_index: usize,
 ) -> Result<BlockLiveness, LivenessError> {

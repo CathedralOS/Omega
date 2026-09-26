@@ -1,5 +1,5 @@
 //! Invocation-local element-view homes; calls additionally materialize a descriptor.
-use selected_instructions::VirtualRegisterId;
+use crate::selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::{PlaceId, ValueId};
 
 /// Element views share the byte-view {base, extent} descriptor ABI; extent is

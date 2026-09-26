@@ -5,7 +5,7 @@ use super::{
     validate_with_environment,
 };
 use crate::SelectedInstructionError;
-use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
+use crate::register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
 
 pub(in crate::selection) fn validate(
     function: usize,
@@ -16,7 +16,7 @@ pub(in crate::selection) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    let environment = register_environment::validate_target_register_environment(
+    let environment = crate::register_environment::validate_target_register_environment(
         native_target,
         physical.model().clone(),
         catalog.catalog().clone(),

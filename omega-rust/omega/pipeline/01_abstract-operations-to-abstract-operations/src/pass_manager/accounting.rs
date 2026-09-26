@@ -4,7 +4,7 @@ use optimization_core::{
     OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationPassManifestRecord,
     OptimizationUnitIdentity, OptimizationWorkUsage,
 };
-use optimization_unit::PsiOptimizationUnit;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 use crate::OrderedRuleRegistry;
 
@@ -118,36 +118,36 @@ fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::ExactIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerMultiply { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerMultiply { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerMultiply { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerRemainder { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerRemainder { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerRemainder { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerShiftLeft { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerShiftRight { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerShiftLeft { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerShiftRight { .. }
-                    | abstract_operations::AbstractOperation::IntegerExactCast { .. }
-                    | abstract_operations::AbstractOperation::IntegerWiden { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseNot { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseAnd { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseOr { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseXor { .. }
-                    | abstract_operations::AbstractOperation::BooleanNot { .. }
-                    | abstract_operations::AbstractOperation::BooleanEqual { .. }
-                    | abstract_operations::AbstractOperation::IntegerEqual { .. }
-                    | abstract_operations::AbstractOperation::IntegerLessThan { .. }
-                    | abstract_operations::AbstractOperation::IntegerLessOrEqual { .. }
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerAdd { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerSubtract { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerMultiply { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerAdd { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerSubtract { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerMultiply { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::SaturatingIntegerAdd { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::SaturatingIntegerSubtract { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::SaturatingIntegerMultiply { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerDivide { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerRemainder { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerDivide { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerRemainder { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::SaturatingIntegerDivide { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::SaturatingIntegerRemainder { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerShiftLeft { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerShiftRight { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerShiftLeft { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerShiftRight { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerExactCast { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerWiden { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerBitwiseNot { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerBitwiseAnd { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerBitwiseOr { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerBitwiseXor { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BooleanNot { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BooleanEqual { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerEqual { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerLessThan { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerLessOrEqual { .. }
             )
         })
         .count()
@@ -171,26 +171,26 @@ fn dead_total_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::IntegerConstant { .. }
-                    | abstract_operations::AbstractOperation::BooleanConstant { .. }
-                    | abstract_operations::AbstractOperation::BooleanNot { .. }
-                    | abstract_operations::AbstractOperation::BooleanEqual { .. }
-                    | abstract_operations::AbstractOperation::IntegerEqual { .. }
-                    | abstract_operations::AbstractOperation::IntegerLessThan { .. }
-                    | abstract_operations::AbstractOperation::IntegerLessOrEqual { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseNot { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseAnd { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseOr { .. }
-                    | abstract_operations::AbstractOperation::IntegerBitwiseXor { .. }
-                    | abstract_operations::AbstractOperation::IntegerWiden { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerShiftLeft { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerShiftRight { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerMultiply { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerMultiply { .. }
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerConstant { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BooleanConstant { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BooleanNot { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BooleanEqual { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerEqual { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerLessThan { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerLessOrEqual { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerBitwiseNot { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerBitwiseAnd { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerBitwiseOr { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerBitwiseXor { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerWiden { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerShiftLeft { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerShiftRight { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerAdd { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerSubtract { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerMultiply { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::SaturatingIntegerAdd { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::SaturatingIntegerSubtract { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::SaturatingIntegerMultiply { .. }
             )
         })
         .count()
@@ -206,18 +206,18 @@ fn proof_certified_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::IntegerExactCast { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerShiftLeft { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerShiftRight { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerMultiply { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerRemainder { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerRemainder { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerRemainder { .. }
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerExactCast { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerShiftLeft { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerShiftRight { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerAdd { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerSubtract { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerMultiply { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerDivide { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ExactIntegerRemainder { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerDivide { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::WrappingIntegerRemainder { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::SaturatingIntegerDivide { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::SaturatingIntegerRemainder { .. }
             )
         })
         .count()
@@ -314,9 +314,9 @@ fn representation_observation_count(unit: &PsiOptimizationUnit) -> u64 {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::StructuralCaseMembership { .. }
-                    | abstract_operations::AbstractOperation::BooleanStructuralField { .. }
-                    | abstract_operations::AbstractOperation::IntegerStructuralField { .. }
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::StructuralCaseMembership { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BooleanStructuralField { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerStructuralField { .. }
             )
         })
         .count() as u64
@@ -336,9 +336,9 @@ fn representation_observation_count(unit: &PsiOptimizationUnit) -> u64 {
 fn dispatch_chain_depth_measure(unit: &PsiOptimizationUnit) -> u64 {
     use std::collections::BTreeSet;
 
-    use abstract_operations::AbstractOperation;
-    use optimization_unit::PsiOptimizationFunction;
     use semantic_vocabulary::BlockId;
+    use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+    use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction;
 
     fn depth(
         function: &PsiOptimizationFunction,

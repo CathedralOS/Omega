@@ -1,7 +1,9 @@
 use super::SymbolHandle;
+use crate::checked_trees::CheckedValueStatementRole;
 use crate::values::ValueFactBuilder;
-use checked_trees::CheckedValueStatementRole;
-use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    TransitionTargetHandle, TransitionTargetNode,
+};
 
 impl ValueFactBuilder<'_, '_> {
     pub(super) fn collect_transition_target(

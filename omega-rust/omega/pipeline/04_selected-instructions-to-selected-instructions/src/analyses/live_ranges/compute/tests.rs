@@ -1,14 +1,18 @@
 //! Focused live-range computation fixtures.
 
-use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId};
-use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 use semantic_vocabulary::{BlockId, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterOperandAccess, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{
+    SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+};
 
 use super::{
     block_domain, build_unit, compute_function, derive_early_clobbers, derive_tied_pairs,
     fragments_overlap, virtual_fragments,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     BlockLiveness, FunctionLiveness, InstructionLiveness, LiveRangeFragment, LiveRangePoint,
     LivenessPosition, OperandPosition,
 };
@@ -69,19 +73,22 @@ fn ordinary_ranges_retain_architecture_without_inventing_virtuals() {
         crate::analyses::liveness::tests::function_with_operand(RegisterOperandAccess::Use);
     selected.machine = live.machine;
     let instruction = &mut selected.blocks[0].instructions[0];
-    instruction.kind = selected_instructions::SelectedInstructionKind::CallUnit {
-        callee: MachineId::new(10).unwrap(),
-    };
+    instruction.kind =
+        target_operations_to_selected_instructions::SelectedInstructionKind::CallUnit {
+            callee: MachineId::new(10).unwrap(),
+        };
     instruction.operands.clear();
     instruction.implicit_uses = vec![RegisterUnitId(1)];
     instruction.implicit_defs = vec![RegisterUnitId(2)];
     instruction.clobbers = vec![RegisterUnitId(3)];
-    let selected_instructions::SelectedTerminator::Return { instruction, .. } =
-        &mut selected.blocks[0].terminator
+    let target_operations_to_selected_instructions::SelectedTerminator::Return {
+        instruction, ..
+    } = &mut selected.blocks[0].terminator
     else {
         unreachable!()
     };
-    instruction.kind = selected_instructions::SelectedInstructionKind::ReturnUnit;
+    instruction.kind =
+        target_operations_to_selected_instructions::SelectedInstructionKind::ReturnUnit;
     instruction.implicit_uses = vec![RegisterUnitId(2)];
     let ranges = compute_function(0, &selected, &live).unwrap();
     assert_eq!(ranges.machine, live.machine);
@@ -175,7 +182,7 @@ fn parallel_early_definitions_keep_use_hazards_and_dead_definition_interference(
     let mut selected =
         crate::analyses::liveness::tests::supported_parallel_early_definitions_function();
     selected.virtual_registers = (0..3)
-        .map(|ordinal| selected_instructions::VirtualRegister {
+        .map(|ordinal| target_operations_to_selected_instructions::VirtualRegister {
             id: VirtualRegisterId(ordinal),
             scalar_type: semantic_vocabulary::ScalarType::Integer(
                 semantic_vocabulary::IntegerType::new(
@@ -186,12 +193,12 @@ fn parallel_early_definitions_keep_use_hazards_and_dead_definition_interference(
             ),
             class: RegisterClassId(0),
             origin: if ordinal == 0 {
-                selected_instructions::VirtualRegisterOrigin::EntryParameter {
+                target_operations_to_selected_instructions::VirtualRegisterOrigin::EntryParameter {
                     source_value: semantic_vocabulary::ValueId::new(1).unwrap(),
                     parameter_index: 0,
                 }
             } else {
-                selected_instructions::VirtualRegisterOrigin::InstructionScratch {
+                target_operations_to_selected_instructions::VirtualRegisterOrigin::InstructionScratch {
                     instruction: SelectedInstructionId(0),
                     operand: ordinal as u16,
                 }
@@ -227,14 +234,12 @@ fn parallel_early_definitions_keep_use_hazards_and_dead_definition_interference(
             end: LiveRangePoint(2),
         }]
     );
-    assert!(
-        ranges
-            .interference
-            .contains(&selected_instructions::VirtualInterference {
-                lower: VirtualRegisterId(1),
-                higher: VirtualRegisterId(2)
-            })
-    );
+    assert!(ranges.interference.contains(
+        &target_operations_to_selected_instructions::VirtualInterference {
+            lower: VirtualRegisterId(1),
+            higher: VirtualRegisterId(2)
+        }
+    ));
     assert!(ranges.tied_pairs.is_empty());
 }
 

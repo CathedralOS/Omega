@@ -1,7 +1,7 @@
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
 
 use super::{
     MergedFact, ParameterFacts, ParameterIndexProof, ParameterIndexProofSide, StateArgumentFacts,
@@ -14,7 +14,7 @@ use crate::checks::ranges::proofs::unknown_length_index_is_proven;
 use language_core::is_receiver_rooted;
 
 pub(super) fn collect_state_argument_facts_for_call(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -188,7 +188,7 @@ pub(super) fn collect_state_argument_facts_for_call(
 }
 
 fn argument_is_proven_index_for_collection(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,

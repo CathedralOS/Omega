@@ -13,7 +13,7 @@ mod work;
 #[cfg(test)]
 mod tests;
 
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,

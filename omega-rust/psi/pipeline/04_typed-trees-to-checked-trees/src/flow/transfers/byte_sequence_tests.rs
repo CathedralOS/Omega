@@ -3,8 +3,8 @@
 //! caller's storage, and conversion policies the selected scalar plan has no
 //! node for (today `Saturating`). A case that cannot carry evidence must keep
 //! rejecting — nothing here invents a value or a tighter bound.
+use crate::checked_trees::CheckedTrees;
 use crate::tests::front_end::checked_program_result;
-use checked_trees::CheckedTrees;
 
 fn check(source: &str) -> Result<CheckedTrees, Vec<String>> {
     checked_program_result(source).map_err(|diagnostics| {

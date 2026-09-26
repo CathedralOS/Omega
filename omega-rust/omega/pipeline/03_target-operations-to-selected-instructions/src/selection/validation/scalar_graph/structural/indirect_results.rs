@@ -6,15 +6,15 @@ use super::{
     SelectedMemoryAccessRole, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::SelectedTerminator;
+use crate::selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::structural::local_storage;
 use crate::selection::validation::scalar_graph::structural::register;
-use selected_instructions::SelectedTerminator;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(in crate::selection) fn entry(
     source: &LegalizedScalarFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let Some(placement) = source.call_plan.result.as_ref() else {
@@ -27,7 +27,7 @@ pub(in crate::selection) fn entry(
         return Ok(());
     };
     if source.call_plan.policy
-        != calling_conventions::CallingPolicy::native_for_target(environment.target())
+        != abstract_operations_to_target_operations::calling_conventions::CallingPolicy::native_for_target(environment.target())
     {
         return Err(invalid());
     }
@@ -147,11 +147,11 @@ pub(in crate::selection) fn finish_call(
 
 pub(in crate::selection) fn returned(
     source: &LegalizedScalarFunction,
-    block: &legalized_operations::LegalizedScalarBlock,
-    returned: &legalized_operations::LegalizedScalarReturn,
+    block: &crate::legalized_operations::LegalizedScalarBlock,
+    returned: &crate::legalized_operations::LegalizedScalarReturn,
     place: PlaceId,
     input: VirtualRegisterId,
-    placement: &calling_conventions::ValuePlacement,
+    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let destination = source
@@ -187,8 +187,8 @@ pub(in crate::selection) fn returned(
     }
     let returned_pointer = matches!(
         source.call_plan.policy,
-        calling_conventions::CallingPolicy::MicrosoftX64
-            | calling_conventions::CallingPolicy::SystemVAMD64
+        abstract_operations_to_target_operations::calling_conventions::CallingPolicy::MicrosoftX64
+            | abstract_operations_to_target_operations::calling_conventions::CallingPolicy::SystemVAMD64
     );
     let pointer = if returned_pointer {
         let output = super::result(replay, destination, 0)?;

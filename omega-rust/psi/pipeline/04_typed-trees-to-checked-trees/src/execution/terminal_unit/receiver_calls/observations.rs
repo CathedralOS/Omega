@@ -1,13 +1,13 @@
 //! Runtime scalar observations require the original receiver, not an attachment.
 use super::super::CheckedScalarExpression;
 use super::{CheckFacts, TypedTrees};
+use crate::checked_trees::{CheckedBooleanExpression, CheckedScalarComputationKind};
 use crate::execution::terminal_unit::{is_reference, structural_parameter_candidate};
-use checked_trees::{CheckedBooleanExpression, CheckedScalarComputationKind};
 
 pub(in crate::execution::terminal_unit) fn reads_receiver(
     program: &TypedTrees,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> bool {
     let Some(position) = program
         .state_parameters(state)
@@ -65,18 +65,18 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
                 }
             }
             CheckedScalarComputationKind::CaseMembership { subject, .. } => match subject {
-                checked_trees::CheckedScalarComputationStructuralArgument::Place(place) => {
+                crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(place) => {
                     if place.source_parameter_index() == Some(receiver_source) {
                         return true;
                     }
                 }
-                checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                crate::checked_trees::CheckedScalarComputationStructuralArgument::Array {
                     elements,
                     ..
                 } => {
                     pending.extend_from_slice(computations.operands.span_or_empty(*elements));
                 }
-                checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) => {
+                crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) => {
                     pending.extend(
                         computations
                             .case_fields
@@ -115,7 +115,8 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in computations.dispatch_arms.span_or_empty(*arms) {
-                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
+                    if let crate::checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                        arm.pattern
                     {
                         pending.push(pattern);
                     }
@@ -199,8 +200,8 @@ fn boolean_reads(expression: &CheckedBooleanExpression, receiver: u32) -> bool {
 pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> bool {
     if reads_receiver(program, facts, state) {
         return true;
@@ -209,15 +210,20 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
         .state_parameters(state)
         .iter()
         .filter(|parameter| parameter.is_self)
-        .map(|parameter| facts::PlaceRoot::Symbol(parameter.symbol))
-        .chain(std::iter::once(facts::PlaceRoot::Symbol(machine.symbol)))
+        .map(|parameter| crate::fact_plan::PlaceRoot::Symbol(parameter.symbol))
+        .chain(std::iter::once(crate::fact_plan::PlaceRoot::Symbol(
+            machine.symbol,
+        )))
         .collect::<Vec<_>>();
     let statements = program.statement_table.statements(state.statement_nodes);
     // A store spelled through a reference local (`view.field = ..` after
     // `let view: &mut Self = &mut self`) writes the storage that local
     // aliases, so the target is judged by its resolved storage root.
     let stores_receiver = statements.iter().enumerate().any(|(index, statement)| {
-        let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Assignment(
+            assignment,
+        ) = statement
+        else {
             return false;
         };
         crate::flow::canonical_place_from_expression_in_state(
@@ -227,7 +233,7 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
             assignment.target,
         )
         .is_some_and(|place| {
-            let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
+            let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = place.root else {
                 return receiver_roots.contains(&place.root);
             };
             let (root, _) =
@@ -251,7 +257,10 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
     // observes the same receiver storage a scalar member read does; the
     // scalar-read side above only watches the scalar computation namespaces.
     let reads_receiver_projection = statements.iter().enumerate().any(|(index, statement)| {
-        let typed_trees::statement::StatementNode::Expression(expression) = statement else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(
+            expression,
+        ) = statement
+        else {
             return false;
         };
         crate::flow::canonical_place_from_expression_in_state(

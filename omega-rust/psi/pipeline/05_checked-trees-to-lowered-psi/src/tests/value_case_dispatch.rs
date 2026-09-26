@@ -1,21 +1,28 @@
 //! `match` on a scalar-payload sum subject executes as ordered membership
 //! selections end to end: lowered, verified, and interpreted.
 
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::OperationKind;
 
 const CHOICE: &str = "data Choice { case Empty; case Some(value: u32); }";
 
-fn interpret_integer(checked: &checked_trees::CheckedTrees, name: &str, expected: i64) {
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        checked,
-        terminal_production::TerminalMachineSelection::Name(name),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap_or_else(|error| panic!("{name} produces a terminal artifact: {error:?}"))
-    .into_artifact();
+fn interpret_integer(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    name: &str,
+    expected: i64,
+) {
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(name),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap_or_else(|error| panic!("{name} produces a terminal artifact: {error:?}"))
+        .into_artifact();
     terminal_verifier::verify_module(
         &terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
         &terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap(),
@@ -77,15 +84,18 @@ fn self_field_sum_match_verifies_as_parameter_membership() {
              match self.res {{ Choice::Empty -> 1, _ -> 0 }}
          }}"
     ));
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Holder::classify"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("attached-data field match produces a terminal artifact")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Holder::classify",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("attached-data field match produces a terminal artifact")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     terminal_verifier::verify_module(
         &module,

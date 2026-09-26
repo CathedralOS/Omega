@@ -1,4 +1,6 @@
-use typed_trees::expression::{ExpressionHandle, TableRangeExpression};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, TableRangeExpression,
+};
 
 use super::expressions::{expression_integer_value, normalize_exclusive_end};
 use super::facts::RangeFacts;
@@ -27,7 +29,7 @@ impl SubsliceRangeFailure {
 }
 
 pub(super) fn known_length_range_value_failure(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
     range: &TableRangeExpression,
 ) -> SubsliceRangeFailure {
@@ -68,9 +70,9 @@ pub(super) fn known_length_range_bound_failure(
 }
 
 pub(super) fn unknown_length_range_failure(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     range: &TableRangeExpression,
@@ -128,7 +130,7 @@ pub(super) fn unknown_length_range_failure(
 }
 
 fn range_bound_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
     collection_label: &str,
     bound: ExpressionHandle,
@@ -143,7 +145,7 @@ fn range_bound_is_proven(
 /// classification: exclusive ends use range-bound vocabulary (`b <= len`),
 /// inclusive ends use the strict index vocabulary (`b < len`).
 fn range_end_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
     collection_label: &str,
     end: ExpressionHandle,

@@ -303,7 +303,7 @@ fn every_source_leaf_rejects_reversed_outside_or_absent_carrier_bounds() {
             primitive_type: PrimitiveType::U8,
         },
         CheckedScalarExpression::StructuralParameterIndexedRead {
-            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
+            root: crate::checked_trees::CheckedStorageRoot::Parameter { index: 0 },
             path,
             index: Box::new(parameter(1, PrimitiveType::U64)),
             element_path: Vec::new(),
@@ -402,7 +402,7 @@ fn casts_meet_flow_bounds_with_their_exact_destination_contract() {
 #[test]
 fn byte_length_uses_the_carrier_snapshot_or_keeps_u64_carrier_bounds() {
     let expression = CheckedScalarExpression::StructuralParameterByteLength {
-        root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
+        root: crate::checked_trees::CheckedStorageRoot::Parameter { index: 0 },
         path: vec![CheckedStructuralPredicatePathSegment::Field("out".into())],
     };
     // A source with no whole-carrier snapshot keeps the full `u64` carrier.

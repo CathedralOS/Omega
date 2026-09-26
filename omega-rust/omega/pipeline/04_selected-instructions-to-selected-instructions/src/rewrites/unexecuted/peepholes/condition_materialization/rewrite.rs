@@ -6,8 +6,10 @@
 //! legal is for `replay` to decide — it never consults the pair table.
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedInstructionId, ValidatedMachineEffectCatalog};
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::{
+    SelectedInstructionId, ValidatedMachineEffectCatalog,
+};
 
 use super::{ConditionMaterializationError, ValidatedConditionMaterialization, admission};
 use crate::ValidatedSelectedAnalysis;

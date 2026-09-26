@@ -1,10 +1,10 @@
 //! Append one constraint ref per entry of a contiguous borrow-fact span: each
 //! writable root of a state, or each argument access of a call.
-use crate::flow::append_constraint_ref;
-use arena::Handle;
-use checked_trees::{
+use crate::checked_trees::{
     BorrowArgumentAccessFact, BorrowWritableRootFact, FlowConstraintKind, FlowConstraintRef,
 };
+use crate::flow::append_constraint_ref;
+use arena::Handle;
 
 pub(super) fn append_contiguous_borrow_root_constraints(
     constraint_refs: &mut arena::Arena<FlowConstraintRef>,

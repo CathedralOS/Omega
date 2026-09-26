@@ -1,10 +1,10 @@
 use super::PrimitiveType;
-use crate::tests::front_end::{checked_program, checked_program_result};
-use crate::values::scalar::computations::tests::checked_source;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedStructuralValueKind,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
+use crate::tests::front_end::{checked_program, checked_program_result};
+use crate::values::scalar::computations::tests::checked_source;
 
 #[test]
 fn local_record_copy_retains_shared_structural_value_plan() {
@@ -202,7 +202,7 @@ machine observe(selector: u64) {
         panic!("ordinary state successor");
     };
     assert!(successor.transfers.iter().any(|transfer| matches!(transfer.source,
-        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
+        crate::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
             if binding_ordinal == result.binding_ordinal)));
 }
 

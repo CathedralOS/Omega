@@ -36,8 +36,10 @@ pub(crate) struct LoweredDirectCallBinding {
     pub(crate) erased_proof_arguments: Vec<crate::scalar_graph::scalar_contracts::LoweredProofTerm>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
     pub(crate) uses_structural_frame: bool,
-    pub(crate) crash_continuations: Vec<checked_trees::CrashRouteBucket>,
-    pub(crate) parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
+    pub(crate) crash_continuations:
+        Vec<typed_trees_to_checked_trees::checked_trees::CrashRouteBucket>,
+    pub(crate) parameter_relative_crash_routes:
+        Vec<typed_trees_to_checked_trees::checked_trees::CrashRouteBucket>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -300,7 +302,7 @@ pub(crate) fn emit_staged_scalar_call_binding(
 
 fn emit_direct_call_operation(
     call: &LoweredDirectCallBinding,
-    crash_routes: &[checked_trees::CrashRouteBucket],
+    crash_routes: &[typed_trees_to_checked_trees::checked_trees::CrashRouteBucket],
     crash_values: &[ValueDeclaration],
     source_values_before_call: &[ValueDeclaration],
     caller_erased_formals: &[ValueDeclaration],

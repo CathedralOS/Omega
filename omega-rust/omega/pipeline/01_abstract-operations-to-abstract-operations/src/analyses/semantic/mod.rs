@@ -39,11 +39,11 @@ pub(super) use use_definitions::use_definitions;
 pub(super) use value_liveness::value_liveness;
 pub(super) use value_ranges::value_ranges;
 
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::{
+use semantic_vocabulary::ValueId;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     FuelSettlement, OptimizationEdge, PsiOptimizationFunction, PsiProvenance, ValueDefinition,
 };
-use semantic_vocabulary::ValueId;
 
 pub(super) fn scalar_value_definition(
     function: &PsiOptimizationFunction,
@@ -139,14 +139,15 @@ mod residual_edge_tests {
                 structural_type: StructuralTypeId::new(82).unwrap(),
             })
             .to_vec();
-        let operation = abstract_operations::AbstractOperation::Jump {
-            structural_bindings: Vec::new(),
-            psi_edge: EdgeId::new(83).unwrap(),
-            target: BlockId::new(84).unwrap(),
-            bindings: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-            residual_affine_discards: residuals.clone(),
-        };
+        let operation =
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Jump {
+                structural_bindings: Vec::new(),
+                psi_edge: EdgeId::new(83).unwrap(),
+                target: BlockId::new(84).unwrap(),
+                bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: residuals.clone(),
+            };
         let successors = super::scalar_operation_successors(&operation);
         assert_eq!(successors.len(), 1);
         assert_eq!(successors[0].residual_affine_discards, residuals);

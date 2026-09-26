@@ -1,7 +1,7 @@
-use legalized_operations::LegalizedOperationPlanIdentity;
+use crate::legalized_operations::LegalizedOperationPlanIdentity;
+use crate::register_model::RegisterConstraintKey;
+use crate::selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use optimization_core::OptimizationValidatorIdentity;
-use register_model::RegisterConstraintKey;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedSelectedInstructions {

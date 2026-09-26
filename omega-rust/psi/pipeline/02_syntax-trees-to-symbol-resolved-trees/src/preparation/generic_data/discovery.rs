@@ -2,15 +2,15 @@
 use crate::preparation::generic_data::constant_selection;
 use arena::HandleSpan;
 use std::collections::HashMap;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::DataMember;
-use syntax_trees::item::Item;
-use syntax_trees::item::ProofFact;
-use syntax_trees::types::TypeReferenceHandle;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
+use tokens_to_syntax_trees::syntax_trees::item::DataMember;
+use tokens_to_syntax_trees::syntax_trees::item::Item;
+use tokens_to_syntax_trees::syntax_trees::item::ProofFact;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle;
 
 pub(super) struct GenericData {
-    pub(super) declaration: syntax_trees::item::ItemHandle,
+    pub(super) declaration: tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
     pub(super) name: String,
     pub(super) origin_name: Identifier,
     pub(super) is_public: bool,
@@ -22,7 +22,7 @@ pub(super) struct GenericData {
     /// Applying the template decides them; instances never carry them.
     pub(super) type_equations: Vec<super::equations::TypeEquation>,
     pub(super) members: HandleSpan<DataMember>,
-    pub(super) properties: syntax_trees::item::DataProperties,
+    pub(super) properties: tokens_to_syntax_trees::syntax_trees::item::DataProperties,
     pub(super) supply_mode: language_semantics::DataSupplyMode,
 }
 
@@ -38,8 +38,8 @@ pub(super) struct PendingRewrite {
 #[derive(Clone)]
 pub(super) struct Instantiation {
     pub(super) synthetic_name: String,
-    pub(super) declaration: syntax_trees::item::ItemHandle,
-    pub(super) template: syntax_trees::item::ItemHandle,
+    pub(super) declaration: tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
+    pub(super) template: tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
     pub(super) argument_handles: Vec<TypeReferenceHandle>,
     pub(super) argument_identity: Vec<ClosedArgumentIdentity>,
 }
@@ -58,7 +58,7 @@ pub(crate) fn selected_data_item(
     syntax: &SyntaxTrees,
     selection: Option<&constant_selection::ConstantSelection>,
     name: &Identifier,
-) -> Option<syntax_trees::item::ItemHandle> {
+) -> Option<tokens_to_syntax_trees::syntax_trees::item::ItemHandle> {
     if let Some(selection) = selection {
         let declaration = selection.data(syntax, name).ok()?;
         return syntax.root_item_handles().iter().copied().find(|handle| {
@@ -74,7 +74,7 @@ pub(crate) fn selected_data_item(
 
 pub(super) fn selected_generic_data<'a>(
     syntax: &SyntaxTrees,
-    templates: &'a HashMap<syntax_trees::item::ItemHandle, GenericData>,
+    templates: &'a HashMap<tokens_to_syntax_trees::syntax_trees::item::ItemHandle, GenericData>,
     selection: Option<&constant_selection::ConstantSelection>,
     name: &Identifier,
 ) -> Option<&'a GenericData> {
@@ -86,9 +86,12 @@ pub(super) fn selected_generic_data<'a>(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ClosedArgumentIdentity {
     Builtin(symbols::BuiltinTypeAtom),
-    Nominal(syntax_trees::item::ItemHandle),
+    Nominal(tokens_to_syntax_trees::syntax_trees::item::ItemHandle),
     RetainedNominal(symbols::SymbolHandle),
-    Instance(syntax_trees::item::ItemHandle, Vec<ClosedArgumentIdentity>),
+    Instance(
+        tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
+        Vec<ClosedArgumentIdentity>,
+    ),
     Constant(String),
     Array(Box<ClosedArgumentIdentity>, usize),
     Reference(language_core::ReferenceAccess, Box<ClosedArgumentIdentity>),
@@ -98,12 +101,15 @@ pub(crate) enum ClosedArgumentIdentity {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ClosedConstraintIdentity {
-    Range(syntax_trees::types::IntegerRangeNormalization),
+    Range(tokens_to_syntax_trees::syntax_trees::types::IntegerRangeNormalization),
     Arithmetic(numerics::arithmetic::ArithmeticDomain),
-    Declaration(syntax_trees::item::ItemHandle),
+    Declaration(tokens_to_syntax_trees::syntax_trees::item::ItemHandle),
     /// An indexed declared-domain application: the selected declaration plus
     /// each index argument's own closed identity under the family's declared
     /// index telescope (`u64 in AtMost<256>`).
-    IndexedDeclaration(syntax_trees::item::ItemHandle, Vec<ClosedArgumentIdentity>),
+    IndexedDeclaration(
+        tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
+        Vec<ClosedArgumentIdentity>,
+    ),
     RetainedDeclaration(symbols::SymbolHandle),
 }

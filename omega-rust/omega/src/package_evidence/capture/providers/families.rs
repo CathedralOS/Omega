@@ -1,0 +1,423 @@
+use super::super::semantics::declarations::nominal_identity;
+use super::selection::validate_selected_provider_declaration_owner;
+use crate::package_evidence::capture::PackageReviewInput;
+use crate::package_evidence::record::{
+    CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
+    CheckedPackageProviderReview, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderSelectionAuthority,
+};
+use crate::provider_planning::{ProviderSelection, ProviderSelectionSubject};
+use diagnostics::Diagnostic;
+
+#[derive(Clone)]
+struct FamilySelectionSeed {
+    authority: PackageReviewProviderSelectionAuthority,
+    declaration: ProviderSelection,
+}
+
+fn declarations_for_authority(
+    provenance: &crate::provider_planning::ProviderSelectionProvenance,
+) -> Option<(
+    PackageReviewProviderSelectionAuthority,
+    &[ProviderSelection],
+)> {
+    match provenance {
+        crate::provider_planning::ProviderSelectionProvenance::BuildOverride(declarations) => {
+            Some((
+                PackageReviewProviderSelectionAuthority::BuildOverride,
+                declarations,
+            ))
+        }
+        crate::provider_planning::ProviderSelectionProvenance::TargetDefault(declarations) => {
+            Some((
+                PackageReviewProviderSelectionAuthority::TargetDefault,
+                declarations,
+            ))
+        }
+        crate::provider_planning::ProviderSelectionProvenance::UniqueCoveringCandidate => None,
+    }
+}
+
+fn same_family_selection(left: &ProviderSelection, right: &ProviderSelection) -> bool {
+    left.subject.same_declaration_as(&right.subject)
+        && left.provider_type.symbol == right.provider_type.symbol
+}
+
+fn provenance_selects_family(
+    provenance: &crate::provider_planning::ProviderSelectionProvenance,
+    seed: &FamilySelectionSeed,
+) -> bool {
+    declarations_for_authority(provenance).is_some_and(|(authority, declarations)| {
+        authority == seed.authority
+            && declarations
+                .iter()
+                .any(|declaration| same_family_selection(declaration, &seed.declaration))
+    })
+}
+
+fn validate_retained_static_parameter_count(
+    coordinate: &crate::provider_planning::ProviderOperatorFamilyCoordinate,
+    expected_static_parameter_count: usize,
+) -> Result<(), Vec<Diagnostic>> {
+    if coordinate.static_parameter_count != expected_static_parameter_count {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator coordinate `{}` retains static-telescope arity {}, but its exact typed declaration has arity {}",
+            coordinate.requirement_identity,
+            coordinate.static_parameter_count,
+            expected_static_parameter_count,
+        ))]);
+    }
+    Ok(())
+}
+
+/// Lazily reconstruct the compilation's closed specialized operator
+/// applications once a generic family coordinate needs them.
+fn specialized_operator_applications<'a>(
+    cache: &'a mut Option<
+        Vec<crate::selected_dispatch::CheckedSpecializedOperatorApplicationRealization>,
+    >,
+    compilation: &PackageReviewInput<'_>,
+) -> Result<
+    &'a [crate::selected_dispatch::CheckedSpecializedOperatorApplicationRealization],
+    Vec<Diagnostic>,
+> {
+    match cache {
+        Some(applications) => Ok(applications.as_slice()),
+        cache @ None => {
+            let derived =
+                crate::selected_dispatch::derive_checked_specialized_operator_application_realizations(
+                    compilation,
+                    compilation.custody.selected_provider_plans(),
+                )?;
+            Ok(cache.insert(derived).as_slice())
+        }
+    }
+}
+
+/// A generic coordinate is admissible only while every retained closed
+/// application of that coordinate rejoins the plan its family selected. The
+/// derivation has already reconstructed each nonempty D29 demand and
+/// rechecked its specialization replay and realization contract; the
+/// commitment join here binds that evidence to this coordinate's plan.
+fn validate_generic_coordinate_applications(
+    coordinate: &crate::provider_planning::ProviderOperatorFamilyCoordinate,
+    family_selected_plan_digest: &[u8; 32],
+    applications: &[crate::selected_dispatch::CheckedSpecializedOperatorApplicationRealization],
+) -> Result<(), Vec<Diagnostic>> {
+    for application in applications {
+        if application.requirement_operator != coordinate.symbol {
+            continue;
+        }
+        if application.provider_plan_commitment.as_bytes() != family_selected_plan_digest {
+            return Err(vec![Diagnostic::error(format!(
+                "generic boundary-operator coordinate `{}` retains a closed application whose selected plan commitment disagrees with the family-selected ProviderPlan",
+                coordinate.requirement_identity,
+            ))]);
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn project_selected_provider_families(
+    compilation: &PackageReviewInput<'_>,
+    target: target::TargetProfile,
+    selected_providers: &[CheckedPackageProviderReview],
+) -> Result<Vec<CheckedPackageProviderFamilyReview>, Vec<Diagnostic>> {
+    let selected_plans = compilation.custody.selected_provider_plans().plans();
+    let provenance = compilation.custody.selected_provider_provenance();
+    if selected_plans.len() != selected_providers.len() || selected_plans.len() != provenance.len()
+    {
+        return Err(vec![Diagnostic::error(
+            "selected-provider family projection is not aligned with the canonical selected plan set",
+        )]);
+    }
+
+    let mut seeds: Vec<FamilySelectionSeed> = Vec::new();
+    for retained in provenance {
+        let Some((authority, declarations)) = declarations_for_authority(&retained.selected_by)
+        else {
+            continue;
+        };
+        for declaration in declarations {
+            if !matches!(
+                declaration.subject,
+                ProviderSelectionSubject::BoundaryOperatorFamily(_)
+            ) {
+                continue;
+            }
+            if let Some(existing) = seeds.iter().find(|seed| {
+                seed.authority == authority
+                    && seed
+                        .declaration
+                        .subject
+                        .same_declaration_as(&declaration.subject)
+            }) {
+                if existing.declaration.provider_type.symbol != declaration.provider_type.symbol {
+                    return Err(vec![Diagnostic::error(format!(
+                        "selected boundary-operator family `{}` retains conflicting provider identities",
+                        declaration.subject.canonical_path(),
+                    ))]);
+                }
+                continue;
+            }
+            seeds.push(FamilySelectionSeed {
+                authority,
+                declaration: declaration.clone(),
+            });
+        }
+    }
+
+    let mut specialized_applications = None;
+    let mut families = Vec::with_capacity(seeds.len());
+    for seed in seeds {
+        let ProviderSelectionSubject::BoundaryOperatorFamily(family) = &seed.declaration.subject
+        else {
+            unreachable!("family seeds retain only operator-family subjects")
+        };
+        let provider_type_declaration =
+            nominal_identity(compilation, seed.declaration.provider_type.symbol)?;
+        validate_selected_provider_declaration_owner(
+            &provider_type_declaration,
+            seed.declaration.provider_type.package,
+            family.canonical_path.as_str(),
+            "family provider type",
+        )?;
+
+        let first = family.coordinates().first().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "selected boundary-operator family `{}` has no exact coordinates",
+                family.canonical_path,
+            ))]
+        })?;
+        let family_identity = nominal_identity(compilation, first.symbol)?;
+        validate_selected_provider_declaration_owner(
+            &family_identity,
+            family.package,
+            family.canonical_path.as_str(),
+            "operator family",
+        )?;
+        if family_identity.path() != family.canonical_path {
+            return Err(vec![Diagnostic::error(format!(
+                "selected boundary-operator family `{}` disagrees with exact declaration identity `{}`",
+                family.canonical_path,
+                family_identity.path(),
+            ))]);
+        }
+
+        let selected_by_family = provenance
+            .iter()
+            .filter(|retained| provenance_selects_family(&retained.selected_by, &seed))
+            .count();
+        if selected_by_family != family.coordinates().len() {
+            return Err(vec![Diagnostic::error(format!(
+                "selected boundary-operator family `{}` retains {} exact coordinates but {} selected plans",
+                family.canonical_path,
+                family.coordinates().len(),
+                selected_by_family,
+            ))]);
+        }
+
+        let mut coordinates = Vec::with_capacity(family.coordinates().len());
+        for coordinate in family.coordinates() {
+            let operator =
+                symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+                    &compilation.typed,
+                    coordinate.symbol,
+                )
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "selected boundary-operator coordinate `{}` has no exact typed declaration",
+                        coordinate.requirement_identity,
+                    ))]
+                })?;
+            let expected_static_parameter_count = operator.lifetime_parameters.len()
+                + compilation.operator_type_parameters(operator).len();
+            validate_retained_static_parameter_count(coordinate, expected_static_parameter_count)?;
+            let operator_declaration = nominal_identity(compilation, coordinate.symbol)?;
+            if operator_declaration != family_identity {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected boundary-operator coordinate `{}` is outside exact family `{}`",
+                    coordinate.requirement_identity, family.canonical_path,
+                ))]);
+            }
+            let matches = provenance
+                .iter()
+                .enumerate()
+                .filter(|(_, retained)| {
+                    retained.plan.schema.trait_name == coordinate.requirement_identity
+                        && retained.provider.schema.symbol() == coordinate.symbol
+                        && retained.provider.provider_type
+                            == Some(seed.declaration.provider_type.symbol)
+                        && provenance_selects_family(&retained.selected_by, &seed)
+                })
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            let [index] = matches.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected boundary-operator coordinate `{}` maps to {} exact selected provider plans; expected one",
+                    coordinate.requirement_identity,
+                    matches.len(),
+                ))]);
+            };
+            let selected_provider = &selected_providers[*index];
+            if selected_provider.provider_type_declaration() != Some(&provider_type_declaration) {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected boundary-operator coordinate `{}` disagrees with family provider `{}`",
+                    coordinate.requirement_identity,
+                    provider_type_declaration.path(),
+                ))]);
+            }
+            if expected_static_parameter_count != 0 {
+                let applications =
+                    specialized_operator_applications(&mut specialized_applications, compilation)?;
+                validate_generic_coordinate_applications(
+                    coordinate,
+                    selected_provider.selected_plan_digest().as_bytes(),
+                    applications,
+                )?;
+            }
+            coordinates.push(CheckedPackageProviderFamilyCoordinateReview {
+                requirement_identity: coordinate.requirement_identity.clone(),
+                operator_declaration,
+                plan_report_fingerprint: selected_provider.plan_report_fingerprint(),
+            });
+        }
+        if coordinates
+            .windows(2)
+            .any(|pair| pair[0].requirement_identity >= pair[1].requirement_identity)
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "selected boundary-operator family `{}` is not canonically ordered by exact coordinate identity",
+                family.canonical_path,
+            ))]);
+        }
+        families.push(CheckedPackageProviderFamilyReview {
+            family_identity,
+            provider_type_declaration,
+            target,
+            authority: seed.authority,
+            coverage: PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily,
+            coordinates,
+        });
+    }
+    families.sort_by(|left, right| {
+        left.family_identity
+            .cmp(&right.family_identity)
+            .then(
+                left.provider_type_declaration
+                    .cmp(&right.provider_type_declaration),
+            )
+            .then(left.target.target_name().cmp(right.target.target_name()))
+            .then(left.authority.cmp(&right.authority))
+            .then(left.coverage.cmp(&right.coverage))
+            .then(left.coordinates.cmp(&right.coordinates))
+    });
+    if families.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(vec![Diagnostic::error(
+            "package review contains a duplicate exact selected provider-family row",
+        )]);
+    }
+    Ok(families)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::package_evidence::capture::providers::families::{
+        validate_generic_coordinate_applications, validate_retained_static_parameter_count,
+    };
+
+    fn coordinate(arity: usize) -> crate::provider_planning::ProviderOperatorFamilyCoordinate {
+        crate::provider_planning::ProviderOperatorFamilyCoordinate {
+            symbol: symbols::SymbolHandle::invalid(),
+            requirement_identity: "operator::Transfer::move($0,$1)->unit".to_owned(),
+            static_parameter_count: arity,
+        }
+    }
+
+    fn specialized_application(
+        requirement_operator: symbols::SymbolHandle,
+        provider_plan_commitment: typed_trees_to_checked_trees::checked_trees::CheckedProviderPlanCommitment,
+    ) -> crate::selected_dispatch::CheckedSpecializedOperatorApplicationRealization {
+        crate::selected_dispatch::CheckedSpecializedOperatorApplicationRealization {
+            application_site: typed_trees_to_checked_trees::checked_trees::CheckedBoundaryOperatorApplicationUseSite::Statement(
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementHandle::invalid(),
+            ),
+            application_arguments: Vec::new(),
+            authored_use_kind: crate::selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
+            requirement_operator,
+            requirement_overload_identity: String::new(),
+            provider_plan_report_fingerprint: 0,
+            provider_plan_commitment,
+            realization_template: symbols::SymbolHandle::invalid(),
+            realization_machine: symbols::SymbolHandle::invalid(),
+            realization_state: symbols::SymbolHandle::invalid(),
+            specialization_commitment:
+                symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecializationCommitment::from_digest([0; 32]),
+            realization_contract_report_fingerprint: 0,
+            realization_contract_commitment: typed_trees_to_checked_trees::checked_trees::MachineContractCommitment::from_digest(
+                [0; 32],
+            ),
+        }
+    }
+
+    #[test]
+    fn generic_coordinate_admits_applications_rejoining_the_selected_plan() {
+        let coordinate = coordinate(1);
+        let selected = [7; 32];
+        let applications = vec![
+            specialized_application(
+                coordinate.symbol,
+                typed_trees_to_checked_trees::checked_trees::CheckedProviderPlanCommitment::from_digest(selected),
+            ),
+            specialized_application(
+                symbols::SymbolHandle::from_arena_index(41),
+                typed_trees_to_checked_trees::checked_trees::CheckedProviderPlanCommitment::from_digest([3; 32]),
+            ),
+        ];
+        validate_generic_coordinate_applications(&coordinate, &selected, &applications)
+            .expect("closed applications rejoining the selected plan admit the coordinate");
+    }
+
+    #[test]
+    fn generic_coordinate_rejects_an_application_on_another_plan() {
+        let coordinate = coordinate(1);
+        let applications = vec![specialized_application(
+            coordinate.symbol,
+            typed_trees_to_checked_trees::checked_trees::CheckedProviderPlanCommitment::from_digest(
+                [3; 32],
+            ),
+        )];
+        let diagnostics =
+            validate_generic_coordinate_applications(&coordinate, &[7; 32], &applications)
+                .expect_err("an application committed to another selected plan must fail closed");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("disagrees with the family-selected ProviderPlan")
+        );
+    }
+
+    #[test]
+    fn generic_coordinate_without_applications_keeps_declaration_coverage() {
+        let coordinate = coordinate(1);
+        validate_generic_coordinate_applications(&coordinate, &[7; 32], &[])
+            .expect("declaration coverage is vacuous without retained closed applications");
+    }
+
+    #[test]
+    fn family_review_rejects_retained_telescope_arity_drift() {
+        let coordinate = coordinate(1);
+        let diagnostics = validate_retained_static_parameter_count(&coordinate, 2)
+            .expect_err("review must rederive telescope arity from the typed declaration");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("retains static-telescope arity 1")
+        );
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("typed declaration has arity 2")
+        );
+    }
+}

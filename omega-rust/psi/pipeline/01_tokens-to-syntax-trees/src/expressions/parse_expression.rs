@@ -1,13 +1,13 @@
 use crate::expressions::context::ExpressionContext;
 use crate::input::token_cursor::{Input, ParseResult};
-use numerics::literals::IntegerLiteral;
-use source::SourceText;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableUnaryExpression,
     UnaryOperator,
 };
-use tokens::{KeywordKind, PunctuationKind};
+use numerics::literals::IntegerLiteral;
+use source::SourceText;
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 use super::membership::parse_membership_expression_handle;
 use super::parse_postfix::parse_postfix_expression_handle;
@@ -337,7 +337,7 @@ fn apply_unary_prefix(
 ) -> Result<ExpressionHandle, crate::ParseError> {
     match prefix {
         UnaryPrefix::Borrow(access) => Ok(syntax_trees.expressions.insert(ExpressionNode::Borrow(
-            syntax_trees::expression::TableBorrowExpression {
+            crate::syntax_trees::expression::TableBorrowExpression {
                 target: expression,
                 access,
             },
@@ -391,7 +391,7 @@ fn apply_unary_prefix(
             };
             syntax_trees.expressions.replace_expression(
                 expression,
-                ExpressionNode::Call(syntax_trees::expression::TableCallExpression {
+                ExpressionNode::Call(crate::syntax_trees::expression::TableCallExpression {
                     operational_acknowledgement: language_core::CallOperationalAcknowledgement {
                         acknowledges_suspend: suspend,
                         acknowledges_block: block,

@@ -9,9 +9,11 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, authored_state,
     unsupported, validate_pure,
 };
-use checked_trees::data::{DataDefinition, DataMember};
-use checked_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
-use checked_trees::{
+use typed_trees_to_checked_trees::checked_trees::data::{DataDefinition, DataMember};
+use typed_trees_to_checked_trees::checked_trees::types::{
+    FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
+};
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedScalarExpression, CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
 };
 
@@ -45,11 +47,13 @@ pub(crate) fn complementary(
         .ok_or(LoweringError::Unsupported("fallback ordinal overflow"))?;
     let (first, second) = (guard(ordinal)?, guard(next)?);
     let (_, source) = authored_state(checked, state)?;
-    Ok(checked_trees::values::guard_complement::exact_complement(
-        first,
-        second,
-        |subject| declared_cases(checked, source, subject),
-    ))
+    Ok(
+        typed_trees_to_checked_trees::checked_trees::values::guard_complement::exact_complement(
+            first,
+            second,
+            |subject| declared_cases(checked, source, subject),
+        ),
+    )
 }
 
 /// The declared case keys of the sum the subject path reaches from its
@@ -57,7 +61,7 @@ pub(crate) fn complementary(
 /// case.
 fn declared_cases(
     checked: &CheckedTrees,
-    state: &checked_trees::state::State,
+    state: &typed_trees_to_checked_trees::checked_trees::state::State,
     subject: &CheckedStructuralParameterField,
 ) -> Option<Vec<String>> {
     let parameter = checked

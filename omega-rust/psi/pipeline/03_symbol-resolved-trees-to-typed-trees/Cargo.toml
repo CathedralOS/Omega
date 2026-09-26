@@ -10,23 +10,24 @@ name = "symbol_resolved_trees_to_typed_trees"
 path = "src/lib.rs"
 
 [dependencies]
+syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
+terminal-psi = { path = "../../terminal-psi" }
 arena = { path = "../../foundation/arena" }
 diagnostics = { path = "../../foundation/diagnostics" }
+language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
-symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
-typed-trees = { path = "../../representations/typed-trees" }
-
 [dev-dependencies]
-checked-trees = { path = "../../representations/checked-trees" }
+typed-trees-to-checked-trees = { path = "../04_typed-trees-to-checked-trees" }
+tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
 language-core = { path = "../../foundation/language-core" }
 source = { path = "../../foundation/source" }
 source-files-to-tokens = { path = "../00_source-files-to-tokens" }
-syntax-trees = { path = "../../representations/syntax-trees" }
-tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
 
 [[test]]
 name = "suite"

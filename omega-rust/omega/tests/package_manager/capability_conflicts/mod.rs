@@ -1,0 +1,80 @@
+use omega::package_evidence::record::{
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    PackageReviewSourceLocationRole,
+};
+use omega::package_manager::resolution::graph::{
+    PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
+    ResolvedPackageSourceClosure, resolve_external_local_package_closure,
+};
+use omega::package_manager::resolution::source::ResolvePackageSourceError;
+use omega::package_manager::review::{
+    PackageTriageDisposition, PackageTriageReason, ReviewOnlyCapabilityConflictBaseline,
+    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
+    ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
+    ReviewOnlyRootPolicyRecordError, ReviewOnlyRootPolicyRecordLimits,
+    ReviewOnlyRootPolicyResolutionError, compare_review_only_capabilities,
+    compare_review_only_initial_capabilities, compile_resolved_package_reviews,
+    recover_review_only_root_policy_resolution, resolve_review_only_root_policy_decisions,
+    triage_initial_install, triage_review_update,
+};
+use omega::package_source::PrimaryGitChoices;
+use omega::package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn temp_root(name: &str) -> PathBuf {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after unix epoch")
+        .as_nanos();
+    std::env::temp_dir().join(format!(
+        "omega-capability-conflict-{name}-{}-{stamp}",
+        std::process::id()
+    ))
+}
+
+fn hex_digest(digest: [u8; 32]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn write_package(root: &Path, main: &str) {
+    std::fs::create_dir_all(root).expect("create test package");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"
+machine build(builder: &mut Build) {
+    builder.package("conflict_probe");
+}
+"#,
+    )
+    .expect("write package declaration");
+    std::fs::write(root.join("main.omg"), main).expect("write package source");
+}
+
+fn resolve_external_local_package_closure_from_hardened_base(
+    live_root: impl AsRef<Path>,
+    source_context: ExternalSourceContext,
+    cache_base: impl AsRef<Path>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    let storage =
+        SourceResolverStorage::for_hardened_base(cache_base, PrimaryGitChoices::default())
+            .map_err(|error| {
+                ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(
+                    error,
+                ))
+            })?;
+    resolve_external_local_package_closure(
+        live_root,
+        source_context,
+        &storage,
+        source_limits,
+        closure_limits,
+    )
+}
+
+mod operational;
+mod public_api;
+mod transaction;

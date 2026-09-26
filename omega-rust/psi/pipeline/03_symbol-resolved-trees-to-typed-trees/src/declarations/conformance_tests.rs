@@ -14,7 +14,7 @@ fn conformance_lifetimes_use_the_declared_binder_and_reject_out_of_scope_names()
     assert_eq!(typed.conformances()[0].trait_lifetime_arguments, vec![0]);
 
     resolved.conformances[0].trait_lifetime_arguments[0] =
-        symbol_resolved_trees::name::DiagnosticName::generated_static("outside");
+        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated_static("outside");
     let error = lower_symbol_resolved_trees(&resolved).expect_err("out-of-scope lifetime");
     let message = format!("{error:?}");
     assert!(message.contains("GenericConversion"), "{message}");

@@ -4,22 +4,22 @@ use crate::FixedViewCopyPolicy;
 use crate::rewrites::allocation_recovery::fixed_view_copy::compute::tests::{
     boundaries, computed_shared_fixture, immediate_fixture,
 };
-use selected_instructions::{
+use semantic_vocabulary::ValueId;
+use target_operations_to_selected_instructions::{
     SelectedInstructionId, SelectedInstructionKind, SelectedTerminator, VirtualRegisterId,
 };
-use semantic_vocabulary::ValueId;
 
 fn replay(
-    function: &selected_instructions::SelectedFunction,
+    function: &target_operations_to_selected_instructions::SelectedFunction,
     references: &[&super::super::super::evidence::AuthenticatedFixedViewBoundary],
-    row: &register_model::RegisterInstructionConstraint,
+    row: &target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint,
     policy: FixedViewCopyPolicy,
     next_instruction: u32,
     next_register: u32,
 ) -> Result<
     (
         Vec<crate::FixedViewCopy>,
-        selected_instructions::SelectedFunction,
+        target_operations_to_selected_instructions::SelectedFunction,
     ),
     FixedViewCopyError,
 > {
@@ -90,7 +90,10 @@ fn independent_replay_reconstructs_one_copy_and_both_returns() {
             1 => {
                 changed.destinations.pop();
             }
-            2 => changed.destinations[0].view = register_model::RegisterViewId(99),
+            2 => {
+                changed.destinations[0].view =
+                    target_operations_to_selected_instructions::register_model::RegisterViewId(99)
+            }
             3 => changed.source_virtual_register = VirtualRegisterId(0),
             4 => changed.source_value = ValueId::new(99).unwrap(),
             5 => changed.result_virtual_register = VirtualRegisterId(3),
@@ -111,7 +114,7 @@ fn independent_replay_reconstructs_one_copy_and_both_returns() {
             }
             2 => {
                 changed.virtual_registers[2].definition_site =
-                    Some(optimization_unit::ValueDefinitionSite::FunctionParameter(0))
+                    Some(terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::FunctionParameter(0))
             }
             3 | 4 => {
                 let SelectedTerminator::Return { instruction, .. } =
@@ -138,8 +141,11 @@ fn independent_shared_copy_replay_rejects_invalid_source_and_boundary_premises()
                 changed.pop();
             }
             1 => changed[0].incoming = None,
-            2 => changed[0].from_view = register_model::RegisterViewId(99),
-            3 => changed[0].block = selected_instructions::SelectedBlockId(0),
+            2 => {
+                changed[0].from_view =
+                    target_operations_to_selected_instructions::register_model::RegisterViewId(99)
+            }
+            3 => changed[0].block = target_operations_to_selected_instructions::SelectedBlockId(0),
             _ => unreachable!(),
         }
         let references = changed.iter().collect::<Vec<_>>();

@@ -17,8 +17,8 @@ use super::super::super::super::{
     WrappingIntegerSubtractConstantsRule,
 };
 use crate::rules::catalog::registry_for_optimization;
-use optimization::PsiOptimization;
 use optimization_core::OptimizationSafetyClass;
+use terminal_codec::optimization::PsiOptimization;
 
 #[test]
 fn sccp_registry_pins_every_binary_integer_constant_rule_position() {

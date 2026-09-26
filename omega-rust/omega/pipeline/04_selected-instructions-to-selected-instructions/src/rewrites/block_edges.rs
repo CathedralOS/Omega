@@ -9,7 +9,7 @@
 //! and hands the window to one derivation and one audit.
 use std::collections::{BTreeMap, BTreeSet};
 
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedMemoryAccessOrigin, SelectedStructuralTransport, SelectedSuccessor,
     SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
@@ -387,13 +387,15 @@ pub(super) fn crossed_window<'function>(
 
 #[cfg(test)]
 mod tests {
-    use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
-    use selected_instructions::{
+    use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+    use target_operations_to_selected_instructions::register_model::{
+        RegisterConstraintFamily, RegisterConstraintKey,
+    };
+    use target_operations_to_selected_instructions::{
         SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
         SelectedInstructionId, SelectedInstructionKind, SelectedSuccessor, SelectedSuccessorRole,
         SelectedTerminator,
     };
-    use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
     use super::{CrossingDirection, RelocationCrossing, crossed_window};
 

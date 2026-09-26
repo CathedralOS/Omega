@@ -11,18 +11,22 @@
 use super::super::{Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
-use abstract_operations::AbstractOperationPlan;
-use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation};
-use legalized_operations::LegalizedScalarInstruction;
+use crate::legalized_operations::LegalizedScalarInstruction;
+use abstract_operations_to_target_operations::calling_conventions::{
+    CallSignature, CallingPolicy, EntryControl, ValueLocation,
+};
+use abstract_operations_to_target_operations::target_operations::{
+    TargetUnitOperation, TargetUnitScalarHomeRequirement,
+};
 use semantic_vocabulary::OperationId;
-use target_operations::{TargetUnitOperation, TargetUnitScalarHomeRequirement};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -30,7 +34,7 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     let invalid = Error::NonCanonicalLegalizedPlan;
     let (
-        legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call),
+        crate::legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call),
         AbstractOperation::BoundaryCall {
             boundary,
             result,
@@ -131,11 +135,11 @@ pub(super) fn validate(
         .collect::<Result<Vec<_>, LegalizationError>>()?;
     let expected_result = match (result, &declaration.result) {
         (
-            abstract_operations::AbstractBoundaryResult::Unit,
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
             terminal_psi::BoundaryMachineResult::Unit,
         ) => None,
         (
-            abstract_operations::AbstractBoundaryResult::Scalar(result),
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(result),
             terminal_psi::BoundaryMachineResult::Scalar(declared),
         ) => {
             if *declared != result.scalar_type
@@ -192,13 +196,13 @@ pub(super) fn validate(
     };
     let validated = match callback {
         Some(callback) => {
-            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+            abstract_operations_to_target_operations::calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
                 call.binding.boundary_entry_plan.clone(),
                 &signature,
                 &callback.registrar_context,
             )
         }
-        None => calling_conventions::validate_boundary_entry_plan(
+        None => abstract_operations_to_target_operations::calling_conventions::validate_boundary_entry_plan(
             call.binding.boundary_entry_plan.clone(),
             &signature,
         ),
@@ -274,14 +278,14 @@ pub(super) fn validate(
                     || argument.source.scalar_type() != *parameter
                     || argument.source.source_value() != *value
                     || match &argument.source {
-                        target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                        abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                             scalar_type,
                             value,
                             ..
                         } => {
                             semantic_vocabulary::ScalarTerm::integer(*scalar_type, *value).is_err()
                         }
-                        target_operations::TargetUnitScalarArgumentSource::Home(home) => {
+                        abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::Home(home) => {
                             home.shape != *shape
                         }
                         _ => false,

@@ -750,7 +750,9 @@ fn verified_countdown() -> VerifiedPsiOptimizationUnit {
     build(&module, &proof)
 }
 
-fn target(source: &VerifiedPsiOptimizationUnit) -> target_operations::TargetOperationPlan {
+fn target(
+    source: &VerifiedPsiOptimizationUnit,
+) -> abstract_operations_to_target_operations::target_operations::TargetOperationPlan {
     abstract_operations_to_target_operations::lower_to_target_operations(
         source.input().plan(),
         abstract_operations_to_target_operations::TargetLoweringRequest::new(
@@ -816,12 +818,16 @@ fn unranked_cycle_rejects_coherent_current_backedge_redirection() {
     let mut changed = source.unit().clone();
     let entry = changed.functions[0].entry;
     let node = &mut changed.functions[0].blocks[1].nodes[0];
-    let abstract_operations::AbstractOperation::Jump { target, .. } = &mut node.operation else {
+    let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Jump {
+        target,
+        ..
+    } = &mut node.operation
+    else {
         panic!("loop jump");
     };
     *target = entry;
     node.successors[0].target = entry;
-    changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+    changed.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
     assert!(
         validate_unit_custody(
             &self::target(&source),
@@ -869,7 +875,7 @@ fn natural_cycle_rejects_coherent_current_backedge_redirection() {
     let entry = changed.functions[0].entry;
     let header = changed.functions[0].blocks[1].id;
     for node in &mut changed.functions[0].blocks[1].nodes {
-        let abstract_operations::AbstractOperation::Conditional { when_true, .. } =
+        let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Conditional { when_true, .. } =
             &mut node.operation
         else {
             continue;
@@ -883,7 +889,7 @@ fn natural_cycle_rejects_coherent_current_backedge_redirection() {
             }
         }
     }
-    changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+    changed.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
     assert!(
         validate_unit_custody(
             &self::target(&source),

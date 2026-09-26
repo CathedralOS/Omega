@@ -1,14 +1,16 @@
 //! Lawful case graphs and hostile substitutions through full selected admission.
 use super::SelectedSelectionConstraints;
-use crate::validate_selected_instructions;
-use optimization_unit::ValueDefinitionSite;
-use optimization_unit::{FuelSettlement, PsiProvenance};
-use selected_instructions::{
+use crate::selected_instructions::{
     SelectedBlockOrigin, SelectedCasePayloadTransport as Transport, SelectedMemoryAccessOrigin,
 };
-use selected_instructions::{SelectedInstructionKind, SelectedTerminator, VirtualRegisterOrigin};
+use crate::selected_instructions::{
+    SelectedInstructionKind, SelectedTerminator, VirtualRegisterOrigin,
+};
+use crate::validate_selected_instructions;
 use semantic_vocabulary::ValueId;
 use semantic_vocabulary::{PlaceId, StructuralFieldId};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
+use terminal_psi_to_abstract_operations::optimization_unit::{FuelSettlement, PsiProvenance};
 
 #[test]
 fn case_payload_selection_replays_only_the_selected_edge_and_rejects_substitution() {
@@ -20,7 +22,7 @@ fn case_payload_selection_replays_only_the_selected_edge_and_rejects_substitutio
             crate::tests::legalization::structural_case::fixture(native);
         let legal = crate::legalize_target_operations(&target, &abstracted, &unit).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

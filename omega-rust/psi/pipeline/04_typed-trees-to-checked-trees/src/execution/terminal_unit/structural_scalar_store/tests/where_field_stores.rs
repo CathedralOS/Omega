@@ -2,7 +2,7 @@
 //! fields with a literal. Those facts are the fields' bounds, so the store's
 //! range obligation re-proves them as it does a bracketed field's. A fact
 //! relating two fields is evidence no store retains.
-use checked_trees::{
+use crate::checked_trees::{
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralTypeShape,
 };
@@ -11,7 +11,7 @@ fn plan(
     source: &str,
 ) -> (
     Option<CheckedUnitEffectMachinePlan>,
-    checked_trees::CheckedTrees,
+    crate::checked_trees::CheckedTrees,
 ) {
     let typed = crate::tests::front_end::typed_program(source);
     let checked =

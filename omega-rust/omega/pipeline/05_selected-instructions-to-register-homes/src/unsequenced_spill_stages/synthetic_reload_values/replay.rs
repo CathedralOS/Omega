@@ -9,7 +9,7 @@ use crate::unsequenced_spill_stages::{
     SyntheticReloadValueId, SyntheticReloadValuePlan, SyntheticReloadValuePolicy,
     ValidatedAbstractSpillInsertion, ValidatedReloadValueHomes,
 };
-use register_homes::LogicalReloadValueId;
+use selected_instructions_to_selected_instructions::register_homes::LogicalReloadValueId;
 
 struct PendingBinding {
     function: usize,

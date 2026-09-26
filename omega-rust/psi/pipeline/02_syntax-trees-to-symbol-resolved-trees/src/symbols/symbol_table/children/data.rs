@@ -1,4 +1,4 @@
-use symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::insert_machine_parameter_signature_children;
@@ -8,7 +8,7 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     data_symbol: SymbolHandle,
-    data_definition: &symbol_resolved_trees::data::DataDefinition,
+    data_definition: &crate::symbol_resolved_trees::data::DataDefinition,
     has_sources: bool,
 ) {
     let data_children = builder.insert_children(
@@ -18,7 +18,7 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
             .iter()
             .map(|parameter| {
                 let kind = match parameter.kind {
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                         SymbolKind::MachineParameter
                     }
                     _ => SymbolKind::TypeParameter,
@@ -27,10 +27,10 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
             })
             .chain(program.data_members(data_definition.members).iter().map(
                 |member| match member {
-                    symbol_resolved_trees::data::DataMember::Field(field) => {
+                    crate::symbol_resolved_trees::data::DataMember::Field(field) => {
                         symbol_seed(SymbolKind::Field, &field.name, has_sources)
                     }
-                    symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                    crate::symbol_resolved_trees::data::DataMember::Variant(variant) => {
                         symbol_seed(SymbolKind::Variant, &variant.name, has_sources)
                     }
                 },
@@ -42,7 +42,7 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
         let parameter_symbol = data_children.next();
         if let (
             Some(parameter_symbol),
-            symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
+            crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
         ) = (parameter_symbol, &parameter.kind)
             && let Some(contract) = contract.structural()
         {
@@ -59,7 +59,7 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
         let Some(member_symbol) = data_children.next() else {
             break;
         };
-        let symbol_resolved_trees::data::DataMember::Variant(variant) = member else {
+        let crate::symbol_resolved_trees::data::DataMember::Variant(variant) = member else {
             continue;
         };
         builder.insert_children(

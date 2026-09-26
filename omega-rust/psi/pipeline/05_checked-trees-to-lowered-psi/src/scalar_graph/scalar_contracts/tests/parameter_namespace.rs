@@ -406,8 +406,10 @@ fn absent_clauses_and_unsupported_clauses_remain_distinct() {
 #[test]
 fn covered_requires_delivers_float_range_clauses_only_through_the_roster() {
     use super::super::covered_requires;
-    use checked_trees::{ClosedFloatRangeRequirement, ClosedScalarValueContractPlan};
     use semantic_vocabulary::IeeeFloatValue;
+    use typed_trees_to_checked_trees::checked_trees::{
+        ClosedFloatRangeRequirement, ClosedScalarValueContractPlan,
+    };
 
     let range = ClosedFloatRangeRequirement {
         position: 0,

@@ -35,7 +35,7 @@ pub(super) fn load(
             replay.constraints.keys.load64,
         ),
         _ => {
-            let width = selected_instructions::PackedByteWidth::from_byte_size(
+            let width = crate::selected_instructions::PackedByteWidth::from_byte_size(
                 byte_size
                     .try_into()
                     .map_err(|_| SelectedInstructionError::custody())?,
@@ -65,24 +65,25 @@ pub(super) fn store(
 ) -> Result<(), SelectedInstructionError> {
     let byte_size = u8::try_from(byte_size).map_err(|_| SelectedInstructionError::custody())?;
     let mut operands = vec![pointer, value];
-    let (kind, key) =
-        if let Some(width) = selected_instructions::PackedByteWidth::from_byte_size(byte_size) {
-            operands.push(scratch(replay)?);
-            (
-                SelectedInstructionKind::StorePacked { byte_offset, width },
-                replay.constraints.keys.store_packed,
-            )
-        } else if matches!(byte_size, 1 | 2 | 4 | 8) {
-            (
-                SelectedInstructionKind::Store {
-                    byte_offset,
-                    byte_size,
-                },
-                replay.constraints.keys.store,
-            )
-        } else {
-            return Err(SelectedInstructionError::custody());
-        };
+    let (kind, key) = if let Some(width) =
+        crate::selected_instructions::PackedByteWidth::from_byte_size(byte_size)
+    {
+        operands.push(scratch(replay)?);
+        (
+            SelectedInstructionKind::StorePacked { byte_offset, width },
+            replay.constraints.keys.store_packed,
+        )
+    } else if matches!(byte_size, 1 | 2 | 4 | 8) {
+        (
+            SelectedInstructionKind::Store {
+                byte_offset,
+                byte_size,
+            },
+            replay.constraints.keys.store,
+        )
+    } else {
+        return Err(SelectedInstructionError::custody());
+    };
     replay.check_instruction(
         kind,
         key.ok_or_else(|| SelectedInstructionError::custody())?,

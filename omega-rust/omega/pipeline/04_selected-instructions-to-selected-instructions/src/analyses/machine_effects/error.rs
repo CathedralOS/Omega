@@ -1,7 +1,7 @@
 //! Failures owned by target-catalog admission and effect analysis.
 use crate::MachineEffectError;
-use isa_aarch64::Aarch64MachineEffectCatalogValidationError;
-use isa_x86_64::X86_64MachineEffectCatalogValidationError;
+use target_operations_to_selected_instructions::isa_aarch64::Aarch64MachineEffectCatalogValidationError;
+use target_operations_to_selected_instructions::isa_x86_64::X86_64MachineEffectCatalogValidationError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineEffectStageError {

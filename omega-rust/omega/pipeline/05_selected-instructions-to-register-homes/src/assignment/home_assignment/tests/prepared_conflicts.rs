@@ -1,10 +1,14 @@
-use register_model::{RegisterUnitId, RegisterWriteSemantics, validate_physical_register_model};
-use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterUnitId, RegisterWriteSemantics, validate_physical_register_model,
+};
+use target_operations_to_selected_instructions::{
+    SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+};
 
 use super::super::compute::scan_reference;
 use super::fixtures::*;
 use super::{compute_function, validate};
-use selected_instructions::CopyAffinity;
+use target_operations_to_selected_instructions::CopyAffinity;
 
 #[test]
 fn prepared_constraints_match_original_scans_for_candidate_and_interference_rosters() {

@@ -1,15 +1,15 @@
 use crate::bodies::statements::parse_statement::parse_statement_handles;
 use crate::input::token_cursor::Input;
+use crate::syntax_trees::SyntaxTrees;
 use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 pub(crate) fn parse_trait_default_machine_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<
     (
-        HandleSpan<syntax_trees::statement::StatementHandle>,
+        HandleSpan<crate::syntax_trees::statement::StatementHandle>,
         Input<'tokens, 'source>,
     ),
     crate::diagnostics::parse_error::ParseError,

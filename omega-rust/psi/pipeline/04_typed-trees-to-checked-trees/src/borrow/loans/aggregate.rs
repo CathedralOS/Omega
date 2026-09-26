@@ -1,4 +1,4 @@
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 use super::super::tracker::BorrowOwnerSegment;
@@ -16,7 +16,8 @@ pub(super) enum BorrowedInitializerKind {
         is_mutable: bool,
     },
     Aggregate {
-        type_reference: typed_trees::types::TypeReferenceHandle,
+        type_reference:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     },
 }
 
@@ -24,13 +25,16 @@ pub(super) enum BorrowedInitializerKind {
 /// source, together with its projection within the aggregate owner. Aggregate
 /// sources are expanded later from call-return or transferred-local loan facts.
 pub(super) fn borrowed_initializers(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    substitutions: &[(
+        SymbolHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    )],
     owner_path: &[BorrowOwnerSegment],
 ) -> Vec<BorrowedInitializer> {
-    use typed_trees::types::TypeReferenceNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { access, .. } => vec![BorrowedInitializer {
@@ -150,8 +154,8 @@ pub(super) fn borrowed_initializers(
 }
 
 fn aggregate_value_initializer(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
     owner_path: &[BorrowOwnerSegment],
 ) -> Option<BorrowedInitializer> {
@@ -176,10 +180,13 @@ fn aggregate_value_initializer(
 }
 
 fn borrowed_data_literal_initializers(
-    program: &typed_trees::TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    definition: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
     expression: ExpressionHandle,
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    substitutions: &[(
+        SymbolHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    )],
     owner_path: &[BorrowOwnerSegment],
 ) -> Vec<BorrowedInitializer> {
     let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
@@ -188,12 +195,13 @@ fn borrowed_data_literal_initializers(
     };
     let literal_fields = program.expression_table.struct_fields(literal.fields);
 
-    let fields: Vec<&typed_trees::data::DataField> = if let Some(case_name) = &literal.case_name {
-        program
+    let fields: Vec<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField> =
+        if let Some(case_name) = &literal.case_name {
+            program
             .data_members(definition)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant)
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
                     if variant.name.as_str() == case_name.as_str() =>
                 {
                     Some(program.data_payload_fields(variant).iter().collect())
@@ -201,16 +209,16 @@ fn borrowed_data_literal_initializers(
                 _ => None,
             })
             .unwrap_or_default()
-    } else {
-        program
+        } else {
+            program
             .data_members(definition)
             .iter()
             .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) => Some(field),
-                typed_trees::data::DataMember::Variant(_) => None,
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => Some(field),
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(_) => None,
             })
             .collect()
-    };
+        };
 
     fields
         .into_iter()
@@ -224,7 +232,7 @@ fn borrowed_data_literal_initializers(
             let mut field_path = owner_path.to_vec();
             if let Some(case_name) = &literal.case_name
                 && let Some(variant) = program.data_members(definition).iter().find_map(|member| {
-                    let typed_trees::data::DataMember::Variant(variant) = member else {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) = member else {
                         return None;
                     };
                     (variant.name.as_str() == case_name.as_str()).then_some(variant)

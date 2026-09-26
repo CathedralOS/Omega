@@ -13,11 +13,13 @@ fn source_occurrence_map(
     for function in &unit.functions {
         for block in &function.blocks {
             for (node_index, node) in block.nodes.iter().enumerate() {
-                let node_site = PsiRealizationSite::Node(optimization_unit::NodeLocation {
-                    machine: function.machine,
-                    block: block.id,
-                    node: u32::try_from(node_index).ok()?,
-                });
+                let node_site = PsiRealizationSite::Node(
+                    terminal_psi_to_abstract_operations::optimization_unit::NodeLocation {
+                        machine: function.machine,
+                        block: block.id,
+                        node: u32::try_from(node_index).ok()?,
+                    },
+                );
                 for settlement in &node.fuel {
                     if result
                         .entry((function.machine, settlement.site))

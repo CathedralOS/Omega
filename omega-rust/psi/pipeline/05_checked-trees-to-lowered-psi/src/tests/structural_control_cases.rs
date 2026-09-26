@@ -1,25 +1,25 @@
 //! Structural Unit control-flow regression families.
 
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, SymbolHandle,
+    CheckedScalarExpressionRole, CheckedTrees, ScalarType, SymbolHandle,
     checked_source_with_core_service, hard_root_checked_fixture, lower_machine,
 };
-use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch::{lower_selected_machine, select_terminal_machine};
 use crate::producer_result::{ConformancePublication, OperandProofCompletion};
 use crate::terminal_identities::{block_id, edge_id, place_id, value_id};
 use crate::unit::structural_unit_control::lower_structural_unit_control_machine;
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
-    CheckedScalarExpression, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlTerminatorPlan,
-};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::Multiplicity;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, StructuralFieldId, StructuralPlaceKind,
 };
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, SuccessorEdge, Terminator, ValueDeclaration};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarExpression, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlTerminatorPlan,
+};
 #[test]
 fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
     let checked = crate::front_end::checked_program(
@@ -78,7 +78,7 @@ fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
             &without_boundary,
             TerminalMachineSelection::Name("Root::enter")
         ),
-        Err(LoweringError::Unsupported(_))
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
     ));
 }
 
@@ -150,7 +150,7 @@ fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
             &missing_provider,
             TerminalMachineSelection::Name("Main::main")
         ),
-        Err(LoweringError::Unsupported(_))
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
     ));
 }
 
@@ -256,7 +256,7 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
     };
     assert!(matches!(
         lower_machine(&drifted_fact, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(_))
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
     ));
 
     let mut drifted_retained_initializer = checked.clone();
@@ -279,7 +279,7 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
             &drifted_retained_initializer,
             TerminalMachineSelection::Name("Root::enter")
         ),
-        Err(LoweringError::Unsupported(_))
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
     ));
 
     let mut drifted_binding = checked;
@@ -296,7 +296,7 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
             &drifted_binding,
             TerminalMachineSelection::Name("Root::enter")
         ),
-        Err(LoweringError::Unsupported(_))
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
     ));
 }
 
@@ -310,18 +310,20 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
         .clone()
         .expect("root attachment");
     let leaf = SymbolHandle::from_arena_index(14);
-    let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
-        position,
-        is_self: false,
-        type_identity: acknowledgement_identity.clone(),
-        multiplicity: Multiplicity::Affine,
-        access: checked_trees::CheckedStructuralAccess::Owned,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-        fused_service_erasure: None,
+    let affine_parameter = |position| {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan {
+            position,
+            is_self: false,
+            type_identity: acknowledgement_identity.clone(),
+            multiplicity: Multiplicity::Affine,
+            access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            fused_service_erasure: None,
+        }
     };
     checked.facts.flow.terminal_structural_unit_controls =
-        checked_trees::CheckedStructuralUnitControlPlans {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlPlans {
             structural_types: checked
                 .facts
                 .flow
@@ -333,11 +335,11 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
                 attachment_type_identity: attachment_identity,
                 ranked_scc: None,
                 states: vec![
-                    checked_trees::CheckedStructuralUnitControlStatePlan {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
                         state: entry,
                         structural_parameters: vec![affine_parameter(0), affine_parameter(1)],
                         scalar_parameters: vec![
-                            checked_trees::CheckedStructuralScalarParameterPlan {
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
                                 source_position: 2,
                                 primitive_type: PrimitiveType::I32,
                             },
@@ -345,14 +347,14 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
                         terminator: CheckedStructuralUnitControlTerminatorPlan::Jump {
                             statement_ordinal: 0,
                             target_state: leaf,
-                            transfers: vec![checked_trees::CheckedStructuralControlTransferPlan {
-                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 },
+                            transfers: vec![typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferPlan {
+                                source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 },
                                 target_parameter_index: 0,
                             }],
                             scalar_arguments: vec![
-                                checked_trees::CheckedStructuralScalarArgumentPlan {
+                                typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan {
                                     argument_ordinal: 1,
-                                    source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 },
+                                    source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 },
                                     target_scalar_parameter_index: 0,
                                     primitive_type: PrimitiveType::I32,
                                 },
@@ -360,11 +362,11 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
                             trivial_affine_discard_parameter_positions: vec![0],
                         },
                     },
-                    checked_trees::CheckedStructuralUnitControlStatePlan {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
                         state: leaf,
                         structural_parameters: vec![affine_parameter(0)],
                         scalar_parameters: vec![
-                            checked_trees::CheckedStructuralScalarParameterPlan {
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
                                 source_position: 1,
                                 primitive_type: PrimitiveType::I32,
                             },
@@ -389,29 +391,35 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
         .expect("root attachment");
     let true_leaf = SymbolHandle::from_arena_index(12);
     let false_leaf = SymbolHandle::from_arena_index(13);
-    let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
-        position,
-        is_self: false,
-        type_identity: acknowledgement_identity.clone(),
-        multiplicity: Multiplicity::Affine,
-        access: checked_trees::CheckedStructuralAccess::Owned,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-        fused_service_erasure: None,
+    let affine_parameter = |position| {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan {
+            position,
+            is_self: false,
+            type_identity: acknowledgement_identity.clone(),
+            multiplicity: Multiplicity::Affine,
+            access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            fused_service_erasure: None,
+        }
     };
-    let leaf = |state| checked_trees::CheckedStructuralUnitControlStatePlan {
-        state,
-        structural_parameters: vec![affine_parameter(0)],
-        scalar_parameters: vec![checked_trees::CheckedStructuralScalarParameterPlan {
-            source_position: 1,
-            primitive_type: PrimitiveType::I32,
-        }],
-        terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
-            trivial_affine_discard_parameter_positions: vec![0],
-        },
+    let leaf = |state| {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
+            state,
+            structural_parameters: vec![affine_parameter(0)],
+            scalar_parameters: vec![
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
+                    source_position: 1,
+                    primitive_type: PrimitiveType::I32,
+                },
+            ],
+            terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+                trivial_affine_discard_parameter_positions: vec![0],
+            },
+        }
     };
     checked.facts.flow.terminal_structural_unit_controls =
-        checked_trees::CheckedStructuralUnitControlPlans {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlPlans {
             structural_types: checked
                 .facts
                 .flow
@@ -423,34 +431,34 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                 attachment_type_identity: attachment_identity,
                 ranked_scc: None,
                 states: vec![
-                    checked_trees::CheckedStructuralUnitControlStatePlan {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
                         state: entry,
                         structural_parameters: vec![affine_parameter(0), affine_parameter(1)],
                         scalar_parameters: vec![
-                            checked_trees::CheckedStructuralScalarParameterPlan {
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
                                 source_position: 2,
                                 primitive_type: PrimitiveType::Bool,
                             },
-                            checked_trees::CheckedStructuralScalarParameterPlan {
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
                                 source_position: 3,
                                 primitive_type: PrimitiveType::I32,
                             },
                         ],
                         terminator: CheckedStructuralUnitControlTerminatorPlan::Conditional {
                             guard_scalar_parameter_index: 0,
-                            when_true: checked_trees::CheckedStructuralControlSuccessorPlan {
+                            when_true: typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlSuccessorPlan {
                                 statement_ordinal: 0,
                                 target_state: true_leaf,
                                 transfers: vec![
-                                    checked_trees::CheckedStructuralControlTransferPlan {
-                                        source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
+                                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferPlan {
+                                        source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
                                         target_parameter_index: 0,
                                     },
                                 ],
                                 scalar_arguments: vec![
-                                    checked_trees::CheckedStructuralScalarArgumentPlan {
+                                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan {
                                         argument_ordinal: 1,
-                                        source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 },
+                                        source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 },
                                         target_scalar_parameter_index: 0,
                                         primitive_type: PrimitiveType::I32,
                                     },
@@ -459,19 +467,19 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                 erased_proof_arguments: Vec::new(),
                                 trivial_affine_discard_parameter_positions: vec![1],
                             },
-                            when_false: checked_trees::CheckedStructuralControlSuccessorPlan {
+                            when_false: typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlSuccessorPlan {
                                 statement_ordinal: 1,
                                 target_state: false_leaf,
                                 transfers: vec![
-                                    checked_trees::CheckedStructuralControlTransferPlan {
-                                        source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 },
+                                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferPlan {
+                                        source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 },
                                         target_parameter_index: 0,
                                     },
                                 ],
                                 scalar_arguments: vec![
-                                    checked_trees::CheckedStructuralScalarArgumentPlan {
+                                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan {
                                         argument_ordinal: 1,
-                                        source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 },
+                                        source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 },
                                         target_scalar_parameter_index: 0,
                                         primitive_type: PrimitiveType::I32,
                                     },
@@ -501,7 +509,7 @@ fn install_structural_unit_nonentry_conditional_fixture(checked: &mut CheckedTre
     let scalar_parameters = plan.states[0].scalar_parameters.clone();
     plan.states.insert(
         0,
-        checked_trees::CheckedStructuralUnitControlStatePlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
             state: SymbolHandle::from_arena_index(14),
             structural_parameters,
             scalar_parameters,
@@ -509,35 +517,35 @@ fn install_structural_unit_nonentry_conditional_fixture(checked: &mut CheckedTre
                 statement_ordinal: 0,
                 target_state: conditional_state,
                 transfers: vec![
-                    checked_trees::CheckedStructuralControlTransferPlan {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferPlan {
                         source:
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                                 index: 0,
                             },
                         target_parameter_index: 0,
                     },
-                    checked_trees::CheckedStructuralControlTransferPlan {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferPlan {
                         source:
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                                 index: 1,
                             },
                         target_parameter_index: 1,
                     },
                 ],
                 scalar_arguments: vec![
-                    checked_trees::CheckedStructuralScalarArgumentPlan {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan {
                         argument_ordinal: 2,
                         source:
-                            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                                 index: 0,
                             },
                         target_scalar_parameter_index: 0,
                         primitive_type: PrimitiveType::Bool,
                     },
-                    checked_trees::CheckedStructuralScalarArgumentPlan {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan {
                         argument_ordinal: 3,
                         source:
-                            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                                 index: 1,
                             },
                         target_scalar_parameter_index: 1,
@@ -561,15 +569,17 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
     let acknowledgement_identity = plan.states[0].structural_parameters[0]
         .type_identity
         .clone();
-    let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
-        position,
-        is_self: false,
-        type_identity: acknowledgement_identity.clone(),
-        multiplicity: Multiplicity::Affine,
-        access: checked_trees::CheckedStructuralAccess::Owned,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-        fused_service_erasure: None,
+    let affine_parameter = |position| {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan {
+            position,
+            is_self: false,
+            type_identity: acknowledgement_identity.clone(),
+            multiplicity: Multiplicity::Affine,
+            access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            fused_service_erasure: None,
+        }
     };
     let CheckedStructuralUnitControlTerminatorPlan::Conditional { when_true, .. } =
         &mut plan.states[0].terminator
@@ -577,17 +587,17 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
         unreachable!()
     };
     when_true.scalar_arguments = vec![
-        checked_trees::CheckedStructuralScalarArgumentPlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan {
             argument_ordinal: 1,
-            source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+            source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                 index: 0,
             },
             target_scalar_parameter_index: 0,
             primitive_type: PrimitiveType::Bool,
         },
-        checked_trees::CheckedStructuralScalarArgumentPlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan {
             argument_ordinal: 2,
-            source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+            source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                 index: 1,
             },
             target_scalar_parameter_index: 1,
@@ -597,28 +607,28 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
     let nested_true = SymbolHandle::from_arena_index(14);
     let nested_false = SymbolHandle::from_arena_index(15);
     plan.states[1].scalar_parameters = vec![
-        checked_trees::CheckedStructuralScalarParameterPlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
             source_position: 1,
             primitive_type: PrimitiveType::Bool,
         },
-        checked_trees::CheckedStructuralScalarParameterPlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
             source_position: 2,
             primitive_type: PrimitiveType::I32,
         },
     ];
-    let nested_successor =
-        |statement_ordinal, target_state| checked_trees::CheckedStructuralControlSuccessorPlan {
+    let nested_successor = |statement_ordinal, target_state| {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlSuccessorPlan {
             statement_ordinal,
             target_state,
-            transfers: vec![checked_trees::CheckedStructuralControlTransferPlan {
-                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+            transfers: vec![typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferPlan {
+                source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                     index: 0,
                 },
                 target_parameter_index: 0,
             }],
-            scalar_arguments: vec![checked_trees::CheckedStructuralScalarArgumentPlan {
+            scalar_arguments: vec![typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan {
                 argument_ordinal: 1,
-                source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                     index: 1,
                 },
                 target_scalar_parameter_index: 0,
@@ -627,22 +637,27 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             trivial_affine_discard_parameter_positions: Vec::new(),
-        };
+        }
+    };
     plan.states[1].terminator = CheckedStructuralUnitControlTerminatorPlan::Conditional {
         guard_scalar_parameter_index: 0,
         when_true: nested_successor(0, nested_true),
         when_false: nested_successor(1, nested_false),
     };
-    let leaf = |state| checked_trees::CheckedStructuralUnitControlStatePlan {
-        state,
-        structural_parameters: vec![affine_parameter(0)],
-        scalar_parameters: vec![checked_trees::CheckedStructuralScalarParameterPlan {
-            source_position: 1,
-            primitive_type: PrimitiveType::I32,
-        }],
-        terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
-            trivial_affine_discard_parameter_positions: vec![0],
-        },
+    let leaf = |state| {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
+            state,
+            structural_parameters: vec![affine_parameter(0)],
+            scalar_parameters: vec![
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
+                    source_position: 1,
+                    primitive_type: PrimitiveType::I32,
+                },
+            ],
+            terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+                trivial_affine_discard_parameter_positions: vec![0],
+            },
+        }
     };
     plan.states.push(leaf(nested_true));
     plan.states.push(leaf(nested_false));
@@ -659,31 +674,33 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
     let acknowledgement_identity = plan.states[0].structural_parameters[0]
         .type_identity
         .clone();
-    let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
-        position,
-        is_self: false,
-        type_identity: acknowledgement_identity.clone(),
-        multiplicity: Multiplicity::Affine,
-        access: checked_trees::CheckedStructuralAccess::Owned,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-        fused_service_erasure: None,
+    let affine_parameter = |position| {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan {
+            position,
+            is_self: false,
+            type_identity: acknowledgement_identity.clone(),
+            multiplicity: Multiplicity::Affine,
+            access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            fused_service_erasure: None,
+        }
     };
-    plan.states[0]
-        .scalar_parameters
-        .push(checked_trees::CheckedStructuralScalarParameterPlan {
+    plan.states[0].scalar_parameters.push(
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
             source_position: 4,
             primitive_type: PrimitiveType::I32,
-        });
+        },
+    );
     let CheckedStructuralUnitControlTerminatorPlan::Conditional { when_false, .. } =
         &mut plan.states[0].terminator
     else {
         unreachable!()
     };
     when_false.transfers[0].source =
-        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 };
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 };
     when_false.scalar_arguments[0].source =
-        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 2 };
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 2 };
     when_false.trivial_affine_discard_parameter_positions = vec![1];
 
     let join = SymbolHandle::from_arena_index(14);
@@ -691,15 +708,15 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
         state.terminator = CheckedStructuralUnitControlTerminatorPlan::Jump {
             statement_ordinal: 0,
             target_state: join,
-            transfers: vec![checked_trees::CheckedStructuralControlTransferPlan {
-                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+            transfers: vec![typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferPlan {
+                source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                     index: 0,
                 },
                 target_parameter_index: 0,
             }],
-            scalar_arguments: vec![checked_trees::CheckedStructuralScalarArgumentPlan {
+            scalar_arguments: vec![typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan {
                 argument_ordinal: 1,
-                source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                     index: 0,
                 },
                 target_scalar_parameter_index: 0,
@@ -708,18 +725,21 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
             trivial_affine_discard_parameter_positions: Vec::new(),
         };
     }
-    plan.states
-        .push(checked_trees::CheckedStructuralUnitControlStatePlan {
+    plan.states.push(
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
             state: join,
             structural_parameters: vec![affine_parameter(0)],
-            scalar_parameters: vec![checked_trees::CheckedStructuralScalarParameterPlan {
-                source_position: 1,
-                primitive_type: PrimitiveType::I32,
-            }],
+            scalar_parameters: vec![
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
+                    source_position: 1,
+                    primitive_type: PrimitiveType::I32,
+                },
+            ],
             terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
                 trivial_affine_discard_parameter_positions: vec![0],
             },
-        });
+        },
+    );
 }
 
 // A five-state acyclic dag: the entry conditional routes into two conditional
@@ -739,47 +759,51 @@ fn install_structural_unit_wide_dag_fixture(checked: &mut CheckedTrees) {
     let second_branch = SymbolHandle::from_arena_index(17);
     let mid_join = SymbolHandle::from_arena_index(18);
     let sink_join = SymbolHandle::from_arena_index(19);
-    let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
-        position,
-        is_self: false,
-        type_identity: acknowledgement_identity.clone(),
-        multiplicity: Multiplicity::Affine,
-        access: checked_trees::CheckedStructuralAccess::Owned,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-        fused_service_erasure: None,
+    let affine_parameter = |position| {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan {
+            position,
+            is_self: false,
+            type_identity: acknowledgement_identity.clone(),
+            multiplicity: Multiplicity::Affine,
+            access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            fused_service_erasure: None,
+        }
     };
     let branch_scalars = vec![
-        checked_trees::CheckedStructuralScalarParameterPlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
             source_position: 1,
             primitive_type: PrimitiveType::Bool,
         },
-        checked_trees::CheckedStructuralScalarParameterPlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
             source_position: 2,
             primitive_type: PrimitiveType::I32,
         },
     ];
-    let leaf_scalars = vec![checked_trees::CheckedStructuralScalarParameterPlan {
-        source_position: 1,
-        primitive_type: PrimitiveType::I32,
-    }];
+    let leaf_scalars = vec![
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
+            source_position: 1,
+            primitive_type: PrimitiveType::I32,
+        },
+    ];
     let scalar_argument = |argument_ordinal, source_index, target_index, primitive_type| {
-        checked_trees::CheckedStructuralScalarArgumentPlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan {
             argument_ordinal,
-            source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+            source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                 index: source_index,
             },
             target_scalar_parameter_index: target_index,
             primitive_type,
         }
     };
-    let whole_frontier_transfer = vec![checked_trees::CheckedStructuralControlTransferPlan {
-        source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
+    let whole_frontier_transfer = vec![typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferPlan {
+        source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
         target_parameter_index: 0,
     }];
     let branch_successor =
         |statement_ordinal: u32, target_state: SymbolHandle, target_is_leaf: bool| {
-            checked_trees::CheckedStructuralControlSuccessorPlan {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlSuccessorPlan {
                 erased_proof_arguments: Vec::new(),
                 statement_ordinal,
                 target_state,
@@ -796,18 +820,20 @@ fn install_structural_unit_wide_dag_fixture(checked: &mut CheckedTrees) {
                 trivial_affine_discard_parameter_positions: Vec::new(),
             }
         };
-    let branch_state = |state: SymbolHandle| checked_trees::CheckedStructuralUnitControlStatePlan {
-        state,
-        structural_parameters: vec![affine_parameter(0)],
-        scalar_parameters: branch_scalars.clone(),
-        terminator: CheckedStructuralUnitControlTerminatorPlan::Conditional {
-            guard_scalar_parameter_index: 0,
-            when_true: branch_successor(0, sink_join, true),
-            when_false: branch_successor(1, mid_join, true),
-        },
+    let branch_state = |state: SymbolHandle| {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
+            state,
+            structural_parameters: vec![affine_parameter(0)],
+            scalar_parameters: branch_scalars.clone(),
+            terminator: CheckedStructuralUnitControlTerminatorPlan::Conditional {
+                guard_scalar_parameter_index: 0,
+                when_true: branch_successor(0, sink_join, true),
+                when_false: branch_successor(1, mid_join, true),
+            },
+        }
     };
     checked.facts.flow.terminal_structural_unit_controls =
-        checked_trees::CheckedStructuralUnitControlPlans {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlPlans {
             structural_types: checked
                 .facts
                 .flow
@@ -819,7 +845,7 @@ fn install_structural_unit_wide_dag_fixture(checked: &mut CheckedTrees) {
                 attachment_type_identity: attachment_identity,
                 ranked_scc: None,
                 states: vec![
-                    checked_trees::CheckedStructuralUnitControlStatePlan {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
                         state: entry,
                         structural_parameters: vec![affine_parameter(0)],
                         scalar_parameters: branch_scalars.clone(),
@@ -831,7 +857,7 @@ fn install_structural_unit_wide_dag_fixture(checked: &mut CheckedTrees) {
                     },
                     branch_state(first_branch),
                     branch_state(second_branch),
-                    checked_trees::CheckedStructuralUnitControlStatePlan {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
                         state: mid_join,
                         structural_parameters: vec![affine_parameter(0)],
                         scalar_parameters: leaf_scalars.clone(),
@@ -843,7 +869,7 @@ fn install_structural_unit_wide_dag_fixture(checked: &mut CheckedTrees) {
                             trivial_affine_discard_parameter_positions: Vec::new(),
                         },
                     },
-                    checked_trees::CheckedStructuralUnitControlStatePlan {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan {
                         state: sink_join,
                         structural_parameters: vec![affine_parameter(0)],
                         scalar_parameters: leaf_scalars,
@@ -933,21 +959,22 @@ fn static_requirement_evidence_does_not_preempt_exact_structural_unit_control() 
         .terminal_structural_unit_controls
         .machines[0]
         .machine;
-    checked
-        .facts
-        .proof
-        .proof_output_calls
-        .append(checked_trees::ProofOutputCallFact {
+    checked.facts.proof.proof_output_calls.append(
+        typed_trees_to_checked_trees::checked_trees::ProofOutputCallFact {
             caller_machine_symbol: root,
             static_requirement_dispatch: Some(
-                checked_trees::StaticRequirementDispatchFact::default(),
+                typed_trees_to_checked_trees::checked_trees::StaticRequirementDispatchFact::default(
+                ),
             ),
             ..Default::default()
-        });
+        },
+    );
 
-    let selection =
-        select_terminal_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
-            .expect("fixture has one selected root");
+    let selection = select_terminal_machine(
+        &checked,
+        crate::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("fixture has one selected root");
     let routed = lower_selected_machine(&checked, selection)
         .expect("retained structural control wins before attached-Unit fallback");
 
@@ -1070,10 +1097,10 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
         unreachable!()
     };
     when_true.scalar_arguments[0].source =
-        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 };
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 };
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "structural Unit scalar successor map changes its checked signature"
         ))
     ));
@@ -1100,7 +1127,7 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
     );
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "structural Unit conditional successors are not in canonical order"
         ))
     ));
@@ -1209,7 +1236,7 @@ fn structural_unit_conditional_lowers_after_an_unconditional_prefix() {
     // the arity fences are gone, but the guard-signature invariant still rejects.
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "structural Unit conditional must select one Boolean scalar state input"
         ))
     ));
@@ -1407,11 +1434,11 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
         unreachable!()
     };
     when_false.transfers[0].source =
-        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
     when_false.trivial_affine_discard_parameter_positions = vec![0];
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "structural Unit join predecessors reconstruct different custody frontiers"
         ))
     ));
@@ -1433,8 +1460,8 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
         .terminator = CheckedStructuralUnitControlTerminatorPlan::Jump {
         statement_ordinal: 0,
         target_state: entry,
-        transfers: vec![checked_trees::CheckedStructuralControlTransferPlan {
-            source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+        transfers: vec![typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferPlan {
+            source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                 index: 0,
             },
             target_parameter_index: 0,
@@ -1444,7 +1471,7 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
     };
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "structural Unit control entry has an incoming edge"
         ))
     ));
@@ -1555,7 +1582,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
     trivial_affine_discard_parameter_positions.clear();
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "structural Unit jump transfer and cleanup do not partition its exact frontier"
         ))
     ));
@@ -1574,10 +1601,10 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
         unreachable!()
     };
     scalar_arguments[0].source =
-        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 };
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 };
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "structural Unit scalar successor map changes its checked signature"
         ))
     ));
@@ -1602,7 +1629,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
     assert!(
         matches!(
             &stale_signature,
-            Err(LoweringError::Unsupported(
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
                 "structural Unit transfer changes its checked structural signature"
             ))
         ),
@@ -1724,8 +1751,9 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("ranked proof closes under ordinary verification");
-    let fixed_fuel = terminal_fixed_fuel::derive_fixed_entry_fuel(&fixed_fuel_verified, machine.id)
-        .expect("the natural cycle has an all-input ceiling");
+    let fixed_fuel =
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&fixed_fuel_verified, machine.id)
+            .expect("the natural cycle has an all-input ceiling");
     // Generic component bound: each of the two member blocks visits at most
     // `u32::MAX + 1` times at 3 units per visit, plus the preheader and exit
     // blocks' single-unit edges.
@@ -1733,11 +1761,13 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         fixed_fuel.ceiling_units(),
         6 * (u64::from(u32::MAX) + 1) + 2
     );
-    terminal_fixed_fuel::validate_fixed_entry_fuel(&fixed_fuel_verified, &fixed_fuel)
+    omega::terminal_fixed_fuel::validate_fixed_entry_fuel(&fixed_fuel_verified, &fixed_fuel)
         .expect("ranked fixed-fuel theorem replays");
-    let ranked_segments =
-        terminal_fixed_fuel::derive_fixed_safe_point_segments(&fixed_fuel_verified, machine.id)
-            .expect("the natural cycle has a complete safe-point partition");
+    let ranked_segments = omega::terminal_fixed_fuel::derive_fixed_safe_point_segments(
+        &fixed_fuel_verified,
+        machine.id,
+    )
+    .expect("the natural cycle has a complete safe-point partition");
     assert_eq!(ranked_segments.len(), 5);
     assert_eq!(
         ranked_segments
@@ -1762,49 +1792,50 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
             && segment.machine() == machine.id
             && segment.relevant_preconditions().is_empty()
     }));
-    terminal_fixed_fuel::validate_fixed_safe_point_segments(
+    omega::terminal_fixed_fuel::validate_fixed_safe_point_segments(
         &fixed_fuel_verified,
         machine.id,
         &ranked_segments,
     )
     .expect("ranked safe-point partition replays as one canonical sequence");
     assert_eq!(
-        terminal_fixed_fuel::validate_fixed_safe_point_segments(
+        omega::terminal_fixed_fuel::validate_fixed_safe_point_segments(
             &fixed_fuel_verified,
             machine.id,
             &ranked_segments[..4],
         ),
-        Err(terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
+        Err(omega::terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
         "an omitted ranked segment must reject"
     );
     let mut reordered_ranked_segments = ranked_segments.clone();
     reordered_ranked_segments.swap(1, 2);
     assert_eq!(
-        terminal_fixed_fuel::validate_fixed_safe_point_segments(
+        omega::terminal_fixed_fuel::validate_fixed_safe_point_segments(
             &fixed_fuel_verified,
             machine.id,
             &reordered_ranked_segments,
         ),
-        Err(terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
+        Err(omega::terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
         "ranked conditional arms remain canonically ordered"
     );
     let mut duplicated_ranked_segments = ranked_segments.clone();
     duplicated_ranked_segments[4] = ranked_segments[3].clone();
     assert_eq!(
-        terminal_fixed_fuel::validate_fixed_safe_point_segments(
+        omega::terminal_fixed_fuel::validate_fixed_safe_point_segments(
             &fixed_fuel_verified,
             machine.id,
             &duplicated_ranked_segments,
         ),
-        Err(terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
+        Err(omega::terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
         "a duplicated ranked endpoint cannot replace the return row"
     );
-    let retained_ranked_segments = terminal_fixed_fuel::retain_validated_fixed_safe_point_segments(
-        &fixed_fuel_verified,
-        machine.id,
-        ranked_segments.clone(),
-    )
-    .expect("the exact ranked partition is retainable");
+    let retained_ranked_segments =
+        omega::terminal_fixed_fuel::retain_validated_fixed_safe_point_segments(
+            &fixed_fuel_verified,
+            machine.id,
+            ranked_segments.clone(),
+        )
+        .expect("the exact ranked partition is retainable");
     assert_eq!(
         retained_ranked_segments.terminal_psi(),
         fixed_fuel.terminal_psi()
@@ -1815,13 +1846,13 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         retained_ranked_segments.certificates(),
         ranked_segments.as_slice()
     );
-    terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
+    omega::terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
         &fixed_fuel_verified,
         &retained_ranked_segments,
     )
     .expect("the retained ranked partition independently replays");
     let directly_retained_ranked_segments =
-        terminal_fixed_fuel::derive_validated_fixed_safe_point_segments(
+        omega::terminal_fixed_fuel::derive_validated_fixed_safe_point_segments(
             &fixed_fuel_verified,
             machine.id,
         )
@@ -1830,7 +1861,7 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         directly_retained_ranked_segments.certificates(),
         ranked_segments.as_slice()
     );
-    terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
+    omega::terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
         &fixed_fuel_verified,
         &directly_retained_ranked_segments,
     )
@@ -1877,9 +1908,12 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("decoded ranked proof closes under ordinary verification");
-    terminal_fixed_fuel::validate_fixed_entry_fuel(&decoded_fixed_fuel_verified, &fixed_fuel)
-        .expect("ranked certificate binds the canonical round trip");
-    terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
+    omega::terminal_fixed_fuel::validate_fixed_entry_fuel(
+        &decoded_fixed_fuel_verified,
+        &fixed_fuel,
+    )
+    .expect("ranked certificate binds the canonical round trip");
+    omega::terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
         &decoded_fixed_fuel_verified,
         &retained_ranked_segments,
     )
@@ -1893,11 +1927,11 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     )
     .expect("identity-drifted ranked structure remains independently valid");
     assert_eq!(
-        terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
+        omega::terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
             &drifted_fixed_fuel_verified,
             &retained_ranked_segments,
         ),
-        Err(terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
+        Err(omega::terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
         "a different terminal semantic identity cannot replay ranked segments"
     );
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::countdown"))
@@ -2211,20 +2245,20 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
     )
     .expect("general Natural graph verifies independently");
     assert!(matches!(
-        terminal_fixed_fuel::derive_fixed_entry_fuel(
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(
             &verified_general,
             general.semantic_module.entry
         ),
         Err(
-            terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
-                cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
+            omega::terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+                cause: omega::terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
                 ..
             }
         )
     ));
     // Safe-point segments charge single edge traversals, not the cyclic
     // component bound, so the u64 rank maximum does not overflow them.
-    let general_segments = terminal_fixed_fuel::derive_fixed_safe_point_segments(
+    let general_segments = omega::terminal_fixed_fuel::derive_fixed_safe_point_segments(
         &verified_general,
         general.semantic_module.entry,
     )
@@ -2252,10 +2286,13 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
     )
     .expect("natural countdown proof closes under ordinary verification");
     assert!(matches!(
-        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(
+            &verified,
+            lowered.semantic_module.entry
+        ),
         Err(
-            terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
-                cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
+            omega::terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+                cause: omega::terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
                 ..
             }
         )

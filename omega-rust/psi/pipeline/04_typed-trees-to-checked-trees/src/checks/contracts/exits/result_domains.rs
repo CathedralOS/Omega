@@ -13,10 +13,12 @@
 //! write that retired a field's fact fails the proof, so a nominal
 //! annotation alone restores nothing.
 
-use checked_trees::{CheckFacts, FlowExitFact};
+use crate::checked_trees::{CheckFacts, FlowExitFact};
+use crate::fact_plan::{
+    FactContextHandle, FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint,
+};
 use diagnostics::Diagnostic;
-use facts::{FactContextHandle, FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint};
-use typed_trees::types::TypeReferenceNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 
 use super::super::return_values::exit_return_expression;
 use crate::flow::{
@@ -26,9 +28,9 @@ use crate::flow::{
 /// Shared by the exit census and its consumer: a scalar domain annotation
 /// needs a live return context even when there is no authored `ensures`.
 pub(crate) fn scalar_result_domains(
-    program: &typed_trees::TypedTrees,
-    return_type: typed_trees::types::TypeReferenceHandle,
-) -> Vec<&typed_trees::types::DomainConstraint> {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+) -> Vec<&symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint> {
     // Reference and nominal field obligations retain their existing owners.
     // All primitive scalar carriers participate, not only integer predicates.
     let mut carrier = return_type;
@@ -57,7 +59,7 @@ pub(crate) fn scalar_result_domains(
                 .constraints(*constraints)
                 .iter()
                 .filter_map(|constraint| match constraint {
-                    typed_trees::types::TypeConstraintNode::Domain(domain)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Domain(domain)
                         if domain.symbol.is_valid() =>
                     {
                         Some(domain)
@@ -76,7 +78,7 @@ pub(crate) fn scalar_result_domains(
 /// cannot identify an indexed domain application, and predicate truth alone
 /// cannot establish a routed qualification.
 pub(in crate::checks::contracts) fn check_scalar_result_domains(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     diagnostics: &mut Vec<Diagnostic>,
@@ -159,7 +161,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
             .is_some_and(|domain| {
                 // A route identifying the declaration does not by itself
                 // identify any of its indexed applications.
-                (typed_trees::domain::index_parameters(program, domain).is_empty()
+                (symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(program, domain).is_empty()
                     || domain.establishment_routes.is_empty())
                     && (domain.establishment_routes.is_empty()
                         || crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
@@ -183,10 +185,10 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
 /// Both the machine's external result and the current state's result are
 /// obligations. Identical instances need only one establishment judgment.
 fn scalar_exit_domains<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state_symbol: symbols::SymbolHandle,
-) -> Vec<&'program typed_trees::types::DomainConstraint> {
+) -> Vec<&'program symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint> {
     let mut domains = Vec::new();
     for state in program.machine_states(machine).iter().filter(|state| {
         state.symbol == state_symbol
@@ -198,7 +200,7 @@ fn scalar_exit_domains<'program>(
         for constraint in scalar_result_domains(program, state.return_type) {
             if !domains
                 .iter()
-                .any(|existing: &&typed_trees::types::DomainConstraint| {
+                .any(|existing: &&symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint| {
                     existing.symbol == constraint.symbol
                         && existing.semantic_id == constraint.semantic_id
                 })
@@ -217,9 +219,9 @@ fn scalar_exit_domains<'program>(
 /// the selected target contract. The common machine promise is checked at leaf
 /// exits, so intermediate states need not repeat it in their annotations.
 pub(in crate::checks::contracts) fn check_scalar_tail_result_domains(
-    program: &typed_trees::TypedTrees,
-    state_flow: &checked_trees::FlowStateFact,
-    call: &checked_trees::FlowCallFact,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state_flow: &crate::checked_trees::FlowStateFact,
+    call: &crate::checked_trees::FlowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(crate::semantic::calls::CallSite::TransitionNamed { path, .. }) =
@@ -248,8 +250,8 @@ pub(in crate::checks::contracts) fn check_scalar_tail_result_domains(
         return;
     };
     if !matches!(program.statement_table.statements(state.statement_nodes).get(call.statement_index),
-        Some(typed_trees::statement::StatementNode::Transition(transition))
-        if transition.exit == typed_trees::statement::TransitionExit::Ordinary)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(transition))
+        if transition.exit == symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionExit::Ordinary)
     {
         return;
     }
@@ -287,9 +289,9 @@ pub(in crate::checks::contracts) fn check_scalar_tail_result_domains(
 }
 
 fn call_result_has_domain(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     target: symbols::SymbolHandle,
-    required: &typed_trees::types::DomainConstraint,
+    required: &symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint,
 ) -> bool {
     let target = crate::proof::contract_target_from_state_symbol(program, target)
         .map_or(target, |(_, state)| state);
@@ -309,14 +311,15 @@ fn call_result_has_domain(
 /// reading that signature: neither an arbitrary callable symbol nor this
 /// enclosing machine's promised result constitutes an invocation result.
 fn exact_call_result_membership(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     exit: &FlowExitFact,
-    returned: typed_trees::expression::ExpressionHandle,
-    required: &typed_trees::types::DomainConstraint,
+    returned: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    required: &symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint,
 ) -> bool {
-    let typed_trees::expression::ExpressionNode::Call(authored) =
-        program.expression_table.expression(returned)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+        authored,
+    ) = program.expression_table.expression(returned)
     else {
         return false;
     };
@@ -358,7 +361,7 @@ fn exact_call_result_membership(
 }
 
 pub(in crate::checks::contracts) fn exact_scalar_membership(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     contexts: &[FactContextHandle],
     subject: &CanonicalPlace,
@@ -401,12 +404,12 @@ pub(in crate::checks::contracts) fn exact_scalar_membership(
 }
 
 fn establishes_scalar_predicates(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],
-    domain: &typed_trees::domain::DomainDefinition,
-    constraint: &typed_trees::types::DomainConstraint,
+    domain: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::DomainDefinition,
+    constraint: &symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint,
 ) -> bool {
     if domain.alias.is_some() {
         return false;
@@ -455,7 +458,7 @@ fn establishes_scalar_predicates(
             }
             let (expression, holds) = match fact.payload {
                 FactPayload::ContractBooleanExpression {
-                    kind: facts::ContractFactKind::Requires,
+                    kind: crate::fact_plan::ContractFactKind::Requires,
                     expression,
                     instantiated,
                     ..
@@ -464,7 +467,7 @@ fn establishes_scalar_predicates(
                 FactPayload::BooleanValue { expression, value } => (expression, value),
                 _ => return None,
             };
-            Some(validation::ScopedArithmeticHypothesis {
+            Some(crate::validation::ScopedArithmeticHypothesis {
                 proposition: proof.current_expression(expression)?,
                 holds,
             })
@@ -507,7 +510,10 @@ fn establishes_scalar_predicates(
             };
             if !semantic_domain.is_valid()
                 || semantic_domain != candidate.semantic_id
-                || !typed_trees::domain::index_parameters(program, candidate).is_empty()
+                || !symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
+                    program, candidate,
+                )
+                .is_empty()
             {
                 continue;
             }
@@ -528,7 +534,7 @@ fn establishes_scalar_predicates(
                 continue;
             };
             for predicate in program.proof_facts.span_or_empty(candidate.facts) {
-                let typed_trees::domain::ProofFact::Expression(expression) = predicate else {
+                let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) = predicate else {
                     continue;
                 };
                 let mut subjects = Vec::new();
@@ -537,14 +543,16 @@ fn establishes_scalar_predicates(
                 {
                     continue;
                 }
-                hypotheses.push(validation::ScopedArithmeticHypothesis {
-                    proposition: validation::ScopedArithmeticExpression {
+                hypotheses.push(crate::validation::ScopedArithmeticHypothesis {
+                    proposition: crate::validation::ScopedArithmeticExpression {
                         expression: *expression,
                         bindings: subjects
                             .into_iter()
-                            .map(|expression| validation::ScopedArithmeticBinding {
-                                binder: validation::ScopedArithmeticBinder::DomainSelf(expression),
-                                value: validation::ScopedArithmeticValue::Atom {
+                            .map(|expression| crate::validation::ScopedArithmeticBinding {
+                                binder: crate::validation::ScopedArithmeticBinder::DomainSelf(
+                                    expression,
+                                ),
+                                value: crate::validation::ScopedArithmeticValue::Atom {
                                     identity: format!("return-place:{subject:?}"),
                                     unsigned: !primitive.is_signed_integer(),
                                 },
@@ -561,7 +569,7 @@ fn establishes_scalar_predicates(
         .span_or_empty(domain.facts)
         .iter()
         .all(|fact| {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 // A membership or proposition conjunct remains an obligation; an
                 // arithmetic proof of its neighbors cannot discard it.
                 return false;
@@ -576,7 +584,7 @@ fn establishes_scalar_predicates(
                 if subjects.contains(&leaf) {
                     return known.clone();
                 }
-                let typed_trees::expression::ExpressionNode::Name(path) =
+                let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) =
                     program.expression_table.expression(leaf)
                 else {
                     return None;
@@ -597,23 +605,23 @@ fn establishes_scalar_predicates(
                 let super::super::prover::ScalarValue::Integer(value) = &index.value else {
                     return false;
                 };
-                bindings.push(validation::ScopedArithmeticBinding {
-                    binder: validation::ScopedArithmeticBinder::Symbol(index.symbol),
-                    value: validation::ScopedArithmeticValue::Integer(value.clone()),
+                bindings.push(crate::validation::ScopedArithmeticBinding {
+                    binder: crate::validation::ScopedArithmeticBinder::Symbol(index.symbol),
+                    value: crate::validation::ScopedArithmeticValue::Integer(value.clone()),
                 });
             }
             bindings.extend(subjects.into_iter().map(|subject| {
-                validation::ScopedArithmeticBinding {
-                    binder: validation::ScopedArithmeticBinder::DomainSelf(subject),
-                    value: validation::ScopedArithmeticValue::Term(returned.clone()),
+                crate::validation::ScopedArithmeticBinding {
+                    binder: crate::validation::ScopedArithmeticBinder::DomainSelf(subject),
+                    value: crate::validation::ScopedArithmeticValue::Term(returned.clone()),
                 }
             }));
-            let goal = validation::ScopedArithmeticExpression {
+            let goal = crate::validation::ScopedArithmeticExpression {
                 expression: *expression,
                 bindings,
             };
-            validation::scoped_arithmetic_implication(program, machine, &hypotheses, &goal)
-                == validation::StrictArithmeticImplicationJudgment::Proven
+            crate::validation::scoped_arithmetic_implication(program, machine, &hypotheses, &goal)
+                == crate::validation::StrictArithmeticImplicationJudgment::Proven
         })
 }
 
@@ -628,29 +636,32 @@ struct ScalarDomainIndex {
 /// becomes a mathematical substitution. The complete tuple must reproduce the
 /// exact semantic instance the result type promises.
 fn closed_domain_indices(
-    program: &typed_trees::TypedTrees,
-    domain: &typed_trees::domain::DomainDefinition,
-    constraint: &typed_trees::types::DomainConstraint,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    domain: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::DomainDefinition,
+    constraint: &symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint,
 ) -> Option<Vec<ScalarDomainIndex>> {
     use super::super::prover::ScalarValue;
     use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
-    let parameters = typed_trees::domain::index_parameters(program, domain);
+    let parameters = symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
+        program, domain,
+    );
     if parameters.len() != constraint.arguments.len() || !constraint.semantic_id.is_valid() {
         return None;
     }
-    let identity = typed_trees::domain::indexed_domain_instance_name(
-        program,
-        domain,
-        parameters,
-        &constraint.arguments,
-    )
-    .ok()?;
+    let identity =
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::indexed_domain_instance_name(
+            program,
+            domain,
+            parameters,
+            &constraint.arguments,
+        )
+        .ok()?;
     if program.semantic_domains.lookup(&identity) != Some(constraint.semantic_id) {
         return None;
     }
     let mut indices = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(&constraint.arguments) {
-        validation::validate_closed_const_argument(
+        crate::validation::validate_closed_const_argument(
             program,
             domain.name.as_str(),
             parameter,
@@ -684,12 +695,12 @@ fn closed_domain_indices(
 }
 
 struct ScalarReturnProof<'a> {
-    program: &'a typed_trees::TypedTrees,
+    program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &'a CheckFacts,
     exit: &'a FlowExitFact,
     contexts: &'a [FactContextHandle],
-    machine: &'a typed_trees::machine::Machine,
-    state: &'a typed_trees::state::State,
+    machine: &'a symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &'a symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 }
 
 impl ScalarReturnProof<'_> {
@@ -699,9 +710,10 @@ impl ScalarReturnProof<'_> {
     /// integer literals additionally undergo the ordinary exact landing check.
     fn value_preserving_source(
         &self,
-        mut expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<typed_trees::expression::ExpressionHandle> {
-        use typed_trees::expression::ExpressionNode;
+        mut expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    ) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>
+    {
+        use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
         for _ in 0..128 {
             let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
             else {
@@ -712,7 +724,7 @@ impl ScalarReturnProof<'_> {
                 return None;
             }
             let target = self.program.primitive_type_reference(cast.target_type)?;
-            let source = validation::expression_result_type_reference(
+            let source = crate::validation::expression_result_type_reference(
                 self.program,
                 self.machine,
                 self.state,
@@ -726,7 +738,8 @@ impl ScalarReturnProof<'_> {
                     return None;
                 };
                 if literal.landing().is_some()
-                    || validation::land_integer_value(&literal.value_bignum()?, target).is_none()
+                    || crate::validation::land_integer_value(&literal.value_bignum()?, target)
+                        .is_none()
                 {
                     return None;
                 }
@@ -742,10 +755,12 @@ impl ScalarReturnProof<'_> {
     /// saturating operations by unbounded arithmetic.
     fn exact_computations(
         &self,
-        expression: typed_trees::expression::ExpressionHandle,
+        expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
         depth: usize,
     ) -> bool {
-        use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
+        use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+            BinaryOperator, ExpressionNode, UnaryOperator,
+        };
         if depth >= 128
             || !self
                 .program
@@ -755,7 +770,7 @@ impl ScalarReturnProof<'_> {
             return false;
         }
         let exact_operand = |operand| {
-            validation::expression_result_type_reference(
+            crate::validation::expression_result_type_reference(
                 self.program,
                 self.machine,
                 self.state,
@@ -797,11 +812,11 @@ impl ScalarReturnProof<'_> {
 
     fn current_expression(
         &self,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<validation::ScopedArithmeticExpression> {
+        expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    ) -> Option<crate::validation::ScopedArithmeticExpression> {
         let expression = self.value_preserving_source(expression)?;
         if !self.exact_computations(expression, 0)
-            || !validation::has_builtin_bound_expression_meaning(
+            || !crate::validation::has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
                 Some(self.state),
@@ -812,7 +827,7 @@ impl ScalarReturnProof<'_> {
         }
         let mut bindings = Vec::new();
         self.current_bindings(expression, &mut bindings, 0)?;
-        Some(validation::ScopedArithmeticExpression {
+        Some(crate::validation::ScopedArithmeticExpression {
             expression,
             bindings,
         })
@@ -820,11 +835,11 @@ impl ScalarReturnProof<'_> {
 
     fn current_bindings(
         &self,
-        expression: typed_trees::expression::ExpressionHandle,
-        bindings: &mut Vec<validation::ScopedArithmeticBinding>,
+        expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+        bindings: &mut Vec<crate::validation::ScopedArithmeticBinding>,
         depth: usize,
     ) -> Option<()> {
-        use typed_trees::expression::ExpressionNode;
+        use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
         if depth >= 128
             || !self
                 .program
@@ -838,7 +853,7 @@ impl ScalarReturnProof<'_> {
             ExpressionNode::Name(path)
                 if path.symbol.is_valid() && path.head_symbol == path.symbol =>
             {
-                let reference = validation::declared_place_type_raw(
+                let reference = crate::validation::declared_place_type_raw(
                     self.program,
                     self.machine,
                     Some(self.state),
@@ -863,19 +878,21 @@ impl ScalarReturnProof<'_> {
                     &subject,
                 )
                 .map(|literal| {
-                    validation::ScopedArithmeticValue::Term(
-                        validation::ScopedArithmeticExpression {
+                    crate::validation::ScopedArithmeticValue::Term(
+                        crate::validation::ScopedArithmeticExpression {
                             expression: literal,
                             bindings: Vec::new(),
                         },
                     )
                 })
-                .unwrap_or_else(|| validation::ScopedArithmeticValue::Atom {
-                    identity: format!("return-place:{subject:?}"),
-                    unsigned: !primitive.is_signed_integer(),
+                .unwrap_or_else(|| {
+                    crate::validation::ScopedArithmeticValue::Atom {
+                        identity: format!("return-place:{subject:?}"),
+                        unsigned: !primitive.is_signed_integer(),
+                    }
                 });
-                bindings.push(validation::ScopedArithmeticBinding {
-                    binder: validation::ScopedArithmeticBinder::Symbol(path.symbol),
+                bindings.push(crate::validation::ScopedArithmeticBinding {
+                    binder: crate::validation::ScopedArithmeticBinder::Symbol(path.symbol),
                     value,
                 });
             }
@@ -893,11 +910,11 @@ impl ScalarReturnProof<'_> {
 
     fn current_value(
         &self,
-        expression: typed_trees::expression::ExpressionHandle,
+        expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     ) -> Option<super::super::prover::ScalarValue> {
         let expression = self.value_preserving_source(expression)?;
         if !self.exact_computations(expression, 0)
-            || !validation::has_builtin_bound_expression_meaning(
+            || !crate::validation::has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
                 Some(self.state),
@@ -926,8 +943,8 @@ impl ScalarReturnProof<'_> {
 }
 
 fn exact_integer_reference(
-    program: &typed_trees::TypedTrees,
-    reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     program
         .primitive_type_reference(reference)
@@ -942,14 +959,18 @@ fn exact_integer_reference(
 /// establishes meaning and exact self occurrences; the shared evaluator and
 /// implication engine, rather than this code, judge predicate truth.
 fn domain_predicate_meaning(
-    program: &typed_trees::TypedTrees,
-    domain: &typed_trees::domain::DomainDefinition,
-    expression: typed_trees::expression::ExpressionHandle,
-    subjects: &mut Vec<typed_trees::expression::ExpressionHandle>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    domain: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::DomainDefinition,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    subjects: &mut Vec<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
     depth: usize,
-) -> Option<Option<typed_trees::types::TypeReferenceHandle>> {
+) -> Option<Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle>> {
     use language_core::OperatorSpelling;
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, ExpressionNode,
+    };
     if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return None;
     }
@@ -964,7 +985,8 @@ fn domain_predicate_meaning(
             .type_reference_table
             .find_named_type_reference(symbol)
     };
-    if let Some(reference) = validation::exact_domain_self_type(program, domain, expression) {
+    if let Some(reference) = crate::validation::exact_domain_self_type(program, domain, expression)
+    {
         if !subjects.contains(&expression) {
             subjects.push(expression);
         }
@@ -972,7 +994,7 @@ fn domain_predicate_meaning(
     }
     Some(match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => {
-            validation::landed_integer_literal_type_reference(program, expression)
+            crate::validation::landed_integer_literal_type_reference(program, expression)
         }
         ExpressionNode::Boolean(_) => boolean_type(),
         ExpressionNode::Name(path)
@@ -984,10 +1006,10 @@ fn domain_predicate_meaning(
                     .len()
                     == 1 =>
         {
-            let parameter = typed_trees::domain::index_parameters(program, domain)
+            let parameter = symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(program, domain)
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol)?;
-            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
             else {
                 return None;
             };
@@ -1019,7 +1041,7 @@ fn domain_predicate_meaning(
                 BinaryOperator::CaseMembership => return None,
             };
             if spelling.is_some_and(|spelling| {
-                !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
                     domain.symbol,
                     expression,
@@ -1040,7 +1062,7 @@ fn domain_predicate_meaning(
                 | BinaryOperator::Or => boolean_type(),
                 _ => {
                     let exact_operand =
-                        |operand, reference: Option<typed_trees::types::TypeReferenceHandle>| {
+                        |operand, reference: Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle>| {
                             reference
                                 .map(|reference| exact_integer_reference(program, reference))
                                 .unwrap_or_else(|| {
@@ -1052,13 +1074,13 @@ fn domain_predicate_meaning(
                         return None;
                     }
                     let left_result = match left {
-                        Some(reference) => Some(validation::arithmetic_result_type_reference(
+                        Some(reference) => Some(crate::validation::arithmetic_result_type_reference(
                             program, reference,
                         )?),
                         None => None,
                     };
                     let right_result = match right {
-                        Some(reference) => Some(validation::arithmetic_result_type_reference(
+                        Some(reference) => Some(crate::validation::arithmetic_result_type_reference(
                             program, reference,
                         )?),
                         None => None,
@@ -1068,7 +1090,7 @@ fn domain_predicate_meaning(
             }
         }
         ExpressionNode::Unary(unary)
-            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
+            if unary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::UnaryOperator::LogicalNot =>
         {
             domain_predicate_meaning(program, domain, unary.operand, subjects, depth + 1)?
         }
@@ -1082,11 +1104,11 @@ fn domain_predicate_meaning(
 /// `rows[0].bytes` at this statement -- the same place mutation invalidation
 /// retires, so corrupted evidence cannot satisfy it.
 pub(super) fn proves_result_domain(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],
-    requirement: &facts::Fact,
+    requirement: &crate::fact_plan::Fact,
 ) -> bool {
     let domain_symbol = match requirement.payload {
         FactPayload::DomainMembership { domain_symbol, .. }
@@ -1104,7 +1126,7 @@ pub(super) fn proves_result_domain(
     // rebases onto the returned expression. Other expression roots keep their
     // identity (an authored `result` parameter or a foreign occurrence is not
     // the contract result).
-    if validation::reserved_result_owner(program, root)
+    if crate::validation::reserved_result_owner(program, root)
         .is_none_or(|(owner, _)| owner != exit.machine_symbol)
     {
         return false;
@@ -1152,10 +1174,10 @@ pub(super) fn proves_result_domain(
 /// declared fields through the reference, and a source write that retired
 /// them must have been repaired before the return.
 pub(in crate::checks::contracts) fn check_result_field_domains(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     exit: &FlowExitFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(machine) = program
@@ -1312,7 +1334,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
                 crate::labels::machine_name(program, exit.machine_symbol),
                 exit.statement_index,
-                facts::canonical_place_label_from_parts(program, root, &segments),
+                crate::fact_plan::canonical_place_label_from_parts(program, root, &segments),
                 crate::labels::symbol_name(program, domain_symbol),
             )));
         }
@@ -1323,9 +1345,9 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
 /// itself, or the referent behind a readable reference return. A write-only
 /// reference exposes no readable storage and owes nothing.
 pub(crate) fn result_domain_type(
-    program: &typed_trees::TypedTrees,
-    return_type: typed_trees::types::TypeReferenceHandle,
-) -> typed_trees::types::TypeReferenceHandle {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle {
     let mut reference = return_type;
     while reference.is_valid() {
         match program.type_reference_table.type_reference(reference) {
@@ -1346,7 +1368,7 @@ pub(crate) fn result_domain_type(
 /// close from predicates alone. Routed return obligations instead consume
 /// exact live membership; predicate-only call reseeding must exclude them.
 pub(crate) fn value_provable_domain(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     domain_symbol: symbols::SymbolHandle,
 ) -> bool {
     !crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
@@ -1357,8 +1379,8 @@ pub(crate) fn value_provable_domain(
 /// parameters die with the machine and write-only views expose no readable
 /// referent, so neither owes anything here.
 pub(crate) fn is_readable_mutable_reference(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     let mut reference = type_reference;
     while reference.is_valid() {
@@ -1379,11 +1401,11 @@ pub(crate) fn is_readable_mutable_reference(
 /// exactly the rows the self-transition arrival check re-proves
 /// (checks/contracts/arrivals.rs); no second obligation vocabulary exists.
 pub(crate) fn mutable_referent_field_requirements(
-    program: &typed_trees::TypedTrees,
-    semantic: &facts::FactPlan,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    semantic: &crate::fact_plan::FactPlan,
     machine_symbol: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
-) -> Vec<facts::Fact> {
+) -> Vec<crate::fact_plan::Fact> {
     let Some(state) =
         crate::semantic::calls::find_state_in_machine(program, machine_symbol, state_symbol)
     else {
@@ -1453,7 +1475,7 @@ pub(crate) fn mutable_referent_field_requirements(
 /// without repairing it rejects here with the exact place, the same way a
 /// call or transition would refuse the corrupted referent.
 pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1556,7 +1578,7 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
             "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
             crate::labels::machine_name(program, exit.machine_symbol),
             exit.statement_index,
-            facts::canonical_place_label_from_parts(
+            crate::fact_plan::canonical_place_label_from_parts(
                 program,
                 place.root,
                 facts.semantic.place_segments.span_or_empty(place.segments),

@@ -15,7 +15,7 @@ pub(crate) mod type_equations;
 use diagnostics::Diagnostic;
 use source::SourceMap;
 use std::sync::Arc;
-use syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 
 /// A forest ready to lower, with the constant selector its declarations
 /// resolved under.

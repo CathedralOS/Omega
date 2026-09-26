@@ -182,7 +182,7 @@ pub(super) fn integer_constant(
 }
 
 pub(super) fn integer_value_type(
-    function: &optimization_unit::PsiOptimizationFunction,
+    function: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     value: ValueId,
 ) -> Option<semantic_vocabulary::IntegerType> {
     function

@@ -4,8 +4,8 @@ use super::{
     SelectedInstructionKind, SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
-use legalized_operations::LegalizedScalarInstruction;
-use selected_instructions::{
+use crate::legalized_operations::LegalizedScalarInstruction;
+use crate::selected_instructions::{
     LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
     SelectedLocalStorageSlot,
 };
@@ -23,7 +23,7 @@ pub(super) fn emit(
         .resolve(source)
         .ok_or_else(|| SelectedInstructionError::custody())?;
     if row.result.is_some()
-        || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+        || !matches!(row.ownership.as_slice(), [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
         || !matches!(scalar_type, ScalarType::Integer(integer)
             if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
     {

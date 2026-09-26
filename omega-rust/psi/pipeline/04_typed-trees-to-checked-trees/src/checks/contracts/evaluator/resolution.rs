@@ -1,6 +1,8 @@
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
 
 use super::{BooleanExpressionOwner, ContractExpressionEvaluator};
 
@@ -148,7 +150,9 @@ impl ContractExpressionEvaluator<'_, '_> {
         &self,
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
-        members: arena::HandleSpan<typed_trees::name::Identifier>,
+        members: arena::HandleSpan<
+            symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+        >,
     ) -> Option<ExpressionHandle> {
         let name = self
             .program

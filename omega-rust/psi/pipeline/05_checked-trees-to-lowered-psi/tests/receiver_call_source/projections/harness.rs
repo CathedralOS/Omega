@@ -11,11 +11,11 @@ use super::{
     CheckedUnitStructuralPathSegment, IntegerSign, IntegerType, OperationKind, ScalarType,
     StructuralAccess, StructuralFieldType, StructuralPathSegment, StructuralTypeShape,
 };
-use terminal_interpreter::AcceptTerminalEffects;
-use terminal_interpreter::TerminalStructuralInputs;
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 pub(super) fn projected_source(
     caller_borrow: &str,
     callee_borrow: &str,
@@ -167,7 +167,7 @@ pub(super) fn assert_projected_receiver(
                     [CheckedCallScalarArgument::Pure(
                         CheckedScalarExpression::Parameter {
                             position: 0,
-                            primitive_type: typed_trees::types::PrimitiveType::U16
+                            primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16
                         }
                     )]
                 ));
@@ -177,15 +177,16 @@ pub(super) fn assert_projected_receiver(
                 assert!(callee.scalar_parameters.is_empty());
             }
 
-            let artifact = terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name(caller_name),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("projected receiver reaches canonical Terminal production")
-            .into_artifact();
+            let artifact =
+                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                    &checked,
+                    TerminalMachineSelection::Name(caller_name),
+                )
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default(),
+                ))
+                .expect("projected receiver reaches canonical Terminal production")
+                .into_artifact();
             drop(checked);
             let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
             let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -196,8 +197,9 @@ pub(super) fn assert_projected_receiver(
             let profile = proof_admission::AdmissionProfile::default();
             let verified = terminal_verifier::verify_module(&module, &proof, &profile)
                 .expect("decoded projected receiver independently verifies");
-            let certificate = terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry)
-                .expect("projected call and store have fixed fuel");
+            let certificate =
+                omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry)
+                    .expect("projected call and store have fixed fuel");
             let caller = module
                 .machines
                 .iter()

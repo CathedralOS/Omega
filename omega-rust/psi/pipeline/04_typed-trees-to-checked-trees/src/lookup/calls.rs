@@ -1,13 +1,13 @@
 use super::symbols::{machine_by_symbol, machine_symbol_from_type_reference_handle};
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode, NamePath};
+use crate::checked_trees::name::Identifier;
+use crate::checked_trees::statement::TableCall;
 use ::symbols::SymbolHandle;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode, NamePath};
-use checked_trees::name::Identifier;
-use checked_trees::statement::TableCall;
 
 pub(crate) fn statement_call_can_dispatch_to_machine(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     call: &TableCall,
 ) -> bool {
     resolve_state_call_target(
@@ -30,15 +30,15 @@ pub(crate) fn statement_call_can_dispatch_to_machine(
 }
 
 pub(crate) fn statement_call_receiver_members<'a>(
-    program: &'a typed_trees::TypedTrees,
+    program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     call: &TableCall,
 ) -> Option<&'a [Identifier]> {
     (!call.receiver.is_empty()).then(|| program.statement_table.name_path_members(call.receiver))
 }
 
 pub(crate) fn statement_call_receiver_path(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     before: usize,
     call: &TableCall,
 ) -> Option<NamePath> {
@@ -49,7 +49,7 @@ pub(crate) fn statement_call_receiver_path(
     {
         let mut path = NamePath::resolved_from_iter(members[..1].iter().cloned(), root, root);
         for (member, segment) in members[1..].iter().zip(segments) {
-            let facts::PlaceSegment::Field { symbol } = segment else {
+            let crate::fact_plan::PlaceSegment::Field { symbol } = segment else {
                 return None;
             };
             path.push_resolved(member.clone(), symbol);
@@ -65,9 +65,12 @@ pub(crate) fn statement_call_receiver_path(
 }
 
 pub(crate) fn call_receiver_parts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     receiver: ExpressionHandle,
-) -> (SymbolHandle, Option<checked_trees::expression::NamePath>) {
+) -> (
+    SymbolHandle,
+    Option<crate::checked_trees::expression::NamePath>,
+) {
     if !receiver.is_valid() {
         return (SymbolHandle::invalid(), None);
     }
@@ -115,8 +118,8 @@ pub(crate) fn call_receiver_parts(
 }
 
 pub(crate) fn resolve_name_path_member_symbol(
-    program: &typed_trees::TypedTrees,
-    path: &typed_trees::expression::TableNamePath,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
     target_index: usize,
 ) -> SymbolHandle {
     let members = program.expression_table.name_path_members(path.members);
@@ -160,9 +163,9 @@ pub(crate) fn resolve_name_path_member_symbol(
 }
 
 pub(crate) fn resolve_state_call_target(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     receiver: Option<&[Identifier]>,
@@ -177,7 +180,7 @@ pub(crate) fn resolve_state_call_target(
             .child_handles(receiver_symbol)
             .is_some_and(|mut children| children.any(|child| child == target_symbol))
         && let Ok(Some((_, requirement))) =
-            validation::named_conformance_target_requirement(program, machine, target_symbol)
+            crate::validation::named_conformance_target_requirement(program, machine, target_symbol)
     {
         return requirement.symbol;
     }
@@ -258,8 +261,8 @@ pub(crate) fn resolve_state_call_target(
 /// by `machine`, or invalid. Such a target is a callable signature during
 /// modular checking and becomes a concrete state only during specialization.
 pub(crate) fn machine_parameter_signature_symbol(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
     if target_symbol.is_valid()
@@ -276,7 +279,7 @@ pub(crate) fn machine_parameter_signature_symbol(
 /// `target_symbol` when it is a state of ANY machine in the program (a free
 /// machine's entry state, a method state resolved cross-machine), or invalid.
 fn state_symbol_in_any_machine(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
     crate::semantic::calls::find_state(program, target_symbol)
@@ -287,7 +290,7 @@ fn state_symbol_in_any_machine(
 /// `target_symbol` when it is a machine signature of ANY trait in the program
 /// (the resolved target of a call through a trait-typed receiver), or invalid.
 pub(crate) fn trait_machine_signature_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
     if target_symbol.is_valid()
@@ -308,7 +311,7 @@ pub(crate) fn trait_machine_signature_symbol(
 /// on a data-typed reference receiver (a `&mut Data` param, or a devirtualized
 /// `dyn Trait`) to the implementing machine's state.
 fn attached_machine_state_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     data_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     target_state: &Identifier,
@@ -342,7 +345,7 @@ fn attached_machine_state_symbol(
 /// Whether `data_symbol` is a data type that has at least one machine attached to
 /// it (so a `&mut Data` receiver can dispatch a method call to that machine).
 fn data_type_has_attached_machine(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     data_symbol: SymbolHandle,
 ) -> bool {
     data_symbol.is_valid()
@@ -359,9 +362,9 @@ fn data_type_has_attached_machine(
 }
 
 pub(crate) fn receiver_can_dispatch_to_machine(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     receiver_symbol: SymbolHandle,
     receiver: Option<&[Identifier]>,
 ) -> bool {
@@ -389,8 +392,8 @@ pub(crate) fn receiver_can_dispatch_to_machine(
 }
 
 fn receiver_field_type_machine_symbol(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     receiver_symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     program
@@ -407,10 +410,10 @@ fn receiver_field_type_machine_symbol(
 }
 
 fn attached_data_field_type_reference(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     receiver_symbol: SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     let attached_data = machine.attached_data.as_ref()?;
     let data = program
         .data_definitions()
@@ -418,7 +421,9 @@ fn attached_data_field_type_reference(
         .find(|data| data.name == *attached_data)?;
 
     program.data_members(data).iter().find_map(|member| {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+            member
+        else {
             return None;
         };
         (field.symbol == receiver_symbol).then_some(field.type_reference)
@@ -426,8 +431,8 @@ fn attached_data_field_type_reference(
 }
 
 fn resolve_state_symbol_in_machine(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state_symbol: SymbolHandle,
 ) -> SymbolHandle {
     if !state_symbol.is_valid() {

@@ -1,10 +1,10 @@
 //! Entire-value ranges derived from exact scalar-constant facts.
 
-use optimization_unit::{
+use semantic_vocabulary::ScalarType;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     PsiOptimizationUnit, ValueDefinition, ValueRangeFact, ValueRangeRegion, ValueRangeScope,
     ValueRangeSupport,
 };
-use semantic_vocabulary::ScalarType;
 
 use super::super::{
     scalar_value_definition,

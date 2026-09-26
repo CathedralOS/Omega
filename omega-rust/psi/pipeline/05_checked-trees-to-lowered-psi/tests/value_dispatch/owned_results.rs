@@ -88,7 +88,10 @@ fn membership_case(
 
 fn verify_membership_source(
     source: &str,
-) -> (checked_trees::CheckedTrees, lowered_psi::LoweredPsi) {
+) -> (
+    typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+) {
     let checked = crate::front_end::checked_program_result(source)
         .unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
     let machine = checked

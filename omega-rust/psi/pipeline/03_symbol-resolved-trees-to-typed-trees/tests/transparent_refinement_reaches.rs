@@ -108,7 +108,7 @@ trait LocalLogger = Logger {
 "#;
     let typed = crate::front_end::typed_program_result(source).expect("a subset reach narrows");
     let clause = local_logger_clause(&typed, "write");
-    let typed_trees::trait_definition::TraitRefinementReach::Concrete(row) = &clause.service_reach
+    let symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitRefinementReach::Concrete(row) = &clause.service_reach
     else {
         panic!("named reaches bind a concrete clause-location row")
     };
@@ -138,7 +138,7 @@ trait LocalLogger = Logger {
     let clause = local_logger_clause(&typed, "write");
     assert_eq!(
         clause.service_reach,
-        typed_trees::trait_definition::TraitRefinementReach::Concrete(
+        symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitRefinementReach::Concrete(
             language_semantics::ServiceReachRowTable::EMPTY_ROW
         ),
         "authored `reaches;` is the concrete empty row, not inheritance"
@@ -163,7 +163,7 @@ trait LocalLogger = Logger {
     let clause = local_logger_clause(&typed, "write");
     assert_eq!(
         clause.service_reach,
-        typed_trees::trait_definition::TraitRefinementReach::Inherited,
+        symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitRefinementReach::Inherited,
         "omitted reaches leaves the base row in place"
     );
 }
@@ -184,7 +184,7 @@ trait LocalLogger = Logger {
     let typed = crate::front_end::typed_program_result(source)
         .expect("`reaches _;` mints the independent abstract row");
     let clause = local_logger_clause(&typed, "write");
-    let typed_trees::trait_definition::TraitRefinementReach::IndependentBounded(rows) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitRefinementReach::IndependentBounded(rows) =
         &clause.service_reach
     else {
         panic!("`reaches _;` binds per-requirement abstract rows")
@@ -236,7 +236,7 @@ trait LocalLogger = Logger {
         .iter()
         .find(|definition| definition.name.as_str() == "LocalLogger")
         .expect("LocalLogger trait");
-    let typed_trees::trait_definition::TraitRefinementReach::IndependentBounded(rows) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitRefinementReach::IndependentBounded(rows) =
         &local.refinement_clauses[0].service_reach
     else {
         panic!("`machine *` + `reaches _;` binds per-requirement rows")
@@ -271,9 +271,10 @@ trait LocalLogger = Logger {
 }
 
 fn local_logger_clause<'a>(
-    typed: &'a typed_trees::TypedTrees,
+    typed: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     requirement: &str,
-) -> &'a typed_trees::trait_definition::TraitRefinementClause {
+) -> &'a symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitRefinementClause
+{
     let local = typed
         .traits()
         .iter()

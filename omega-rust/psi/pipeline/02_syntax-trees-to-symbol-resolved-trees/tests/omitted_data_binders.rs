@@ -10,17 +10,17 @@
 
 use numerics::bignum::BigInt;
 use source_files_to_tokens::Lexer;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::item::{DataMember, Item};
-use syntax_trees::types::{
-    FixedArrayLength, IntegerRangeNormalization, TypeConstraintNode, TypeReferenceHandle,
-    TypeReferenceNode,
-};
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     GenericDataRequest, normalize_generic_data,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
+use tokens_to_syntax_trees::syntax_trees::item::{DataMember, Item};
+use tokens_to_syntax_trees::syntax_trees::types::{
+    FixedArrayLength, IntegerRangeNormalization, TypeConstraintNode, TypeReferenceHandle,
+    TypeReferenceNode,
+};
 
 const TINY_BYTES: &str = r#"
     data TinyBytes<Length, const Capacity: u64>
@@ -62,7 +62,10 @@ fn range_arguments(syntax: &SyntaxTrees) -> Vec<TypeReferenceHandle> {
     ranges
 }
 
-fn literal(syntax: &SyntaxTrees, expression: syntax_trees::expression::ExpressionHandle) -> BigInt {
+fn literal(
+    syntax: &SyntaxTrees,
+    expression: tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle,
+) -> BigInt {
     let ExpressionNode::Integer(literal) = syntax.expressions.expression(expression) else {
         panic!("fixture endpoints are integer literals")
     };
@@ -386,7 +389,9 @@ fn fixed_array_equation_never_reads_a_root_constant_for_a_module_length() {
     );
 }
 
-fn instances(syntax: &SyntaxTrees) -> Vec<&syntax_trees::item::DataDefinition> {
+fn instances(
+    syntax: &SyntaxTrees,
+) -> Vec<&tokens_to_syntax_trees::syntax_trees::item::DataDefinition> {
     syntax
         .root_items()
         .filter_map(|item| match item {

@@ -3,14 +3,14 @@
 //! traversal in `propose` and typed `evaluate`; all five emit the same
 //! Boolean rewrite shape from scalar-constant evidence.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{
+use semantic_vocabulary::{OperationId, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     BooleanConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationNode,
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiRealizationSite, PsiRewriteCandidate,
 };
-use semantic_vocabulary::{OperationId, ValueId};
 
 use crate::rules::sparse_conditional_constant_propagation::{
     constant_evaluation_contract, integer_constant, integer_value_type,

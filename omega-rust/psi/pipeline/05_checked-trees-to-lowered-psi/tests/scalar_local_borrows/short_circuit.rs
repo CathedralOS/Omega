@@ -1,10 +1,10 @@
 use super::{OperationKind, TerminalExecutionResult, TerminalScalarValue, support, unsigned};
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
 
 #[test]
 fn conditional_local_mutation_charges_only_the_selected_invocation() {
@@ -17,15 +17,16 @@ machine enter(enabled: bool, number: u64) -> u64 {
 }
 "#;
     let checked = support::checked(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(

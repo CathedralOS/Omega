@@ -3,10 +3,10 @@
 use super::TypedTrees;
 pub(super) fn matches(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    frame: &facts::NormalizedWriteFrame,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    frame: &crate::fact_plan::NormalizedWriteFrame,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     let mut owned = None;
     let Some(resolver) = crate::flow::shared_call_frames_or(call_frames, program, &mut owned)

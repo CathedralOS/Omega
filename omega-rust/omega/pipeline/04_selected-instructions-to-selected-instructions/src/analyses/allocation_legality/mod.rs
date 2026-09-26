@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Per-point physical-view legality compute -> validation entrance.
 use crate::ValidatedAllocatorAvailability;
 use crate::ValidatedLiveRanges;
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
@@ -10,10 +10,10 @@ use register_model::{
 pub(crate) mod compute;
 pub(crate) mod validate;
 
-use register_homes::{
+use crate::register_homes::{
     AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
 };
-use selected_instructions::LiveRangeIdentity;
+use target_operations_to_selected_instructions::LiveRangeIdentity;
 pub use validate::validate_allocation_legality;
 
 /// Derive exact per-point physical-view candidates and incompatible fixed-view

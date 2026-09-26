@@ -172,7 +172,7 @@ fn reconstruct_row(
 
 fn validate_locations(
     function: &PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     constants: &[CountdownInvariantIntegerConstant; 2],
 ) -> Result<(), CountdownInvariantConstantAnalysisError> {

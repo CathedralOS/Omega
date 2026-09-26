@@ -4,10 +4,12 @@ use crate::checks::termination::graph;
 use crate::checks::termination::ranking::DecreaseMeasure;
 use crate::checks::termination::ranking::RankingOrder;
 use crate::checks::termination::ranking::patterns;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionGuardNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 mod state_edges;
 
@@ -15,22 +17,22 @@ mod state_edges;
 mod tests;
 
 pub(super) fn prove(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     measure: DecreaseMeasure,
     order: &RankingOrder,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     prove_with_entry_requirements(program, machine, measure, order, false, call_frames)
 }
 
 pub(super) fn prove_with_entry_requirements(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     measure: DecreaseMeasure,
     order: &RankingOrder,
     require_entry_invariant: bool,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some(range) = program
         .ranking_expression_custody_for(machine.symbol)
@@ -56,7 +58,7 @@ pub(super) fn prove_with_entry_requirements(
         (RankingOrder::IncreasingTo(limit), DecreaseMeasure::Distance { lower, upper })
             if *limit == upper =>
         {
-            validation::RankingRangeMeasure::IncreasingTo {
+            crate::validation::RankingRangeMeasure::IncreasingTo {
                 subject: lower,
                 limit: upper,
             }
@@ -64,7 +66,7 @@ pub(super) fn prove_with_entry_requirements(
         (
             RankingOrder::NatDescending | RankingOrder::CustomNatDescending,
             DecreaseMeasure::Single(subject),
-        ) => validation::RankingRangeMeasure::Single(subject),
+        ) => crate::validation::RankingRangeMeasure::Single(subject),
         (
             RankingOrder::CustomScalarView {
                 parameter,
@@ -72,26 +74,26 @@ pub(super) fn prove_with_entry_requirements(
                 carrier,
             },
             DecreaseMeasure::Single(subject),
-        ) => validation::RankingRangeMeasure::Computed {
+        ) => crate::validation::RankingRangeMeasure::Computed {
             subject,
             parameter: *parameter,
             body: *body,
             carrier: *carrier,
         },
         (RankingOrder::SliceLength, DecreaseMeasure::Single(subject)) => {
-            validation::RankingRangeMeasure::SliceLength(subject)
+            crate::validation::RankingRangeMeasure::SliceLength(subject)
         }
         // The relational field coordinate follows the declared view's exact
         // projection chain, nested or direct, and reads a borrowed subject's
         // referent; validation re-resolves that chain from the declaration.
         (RankingOrder::CustomStructView { measure, .. }, DecreaseMeasure::Single(subject)) => {
-            validation::RankingRangeMeasure::Field {
+            crate::validation::RankingRangeMeasure::Field {
                 subject,
                 measure: *measure,
             }
         }
         (RankingOrder::BoundedDistance, DecreaseMeasure::Distance { lower, upper }) => {
-            validation::RankingRangeMeasure::Distance { lower, upper }
+            crate::validation::RankingRangeMeasure::Distance { lower, upper }
         }
         _ => return false,
     };
@@ -101,13 +103,13 @@ pub(super) fn prove_with_entry_requirements(
     };
     // The entry obligation is independent of every edge's guards. In
     // particular, an acyclic body cannot pass vacuously through an empty SCC.
-    if !validation::prove_ranking_range_entry(program, machine, root, range, measure) {
+    if !crate::validation::prove_ranking_range_entry(program, machine, root, range, measure) {
         return false;
     }
     // The judgment reads only these entry formals' arrival values; every
     // prefix below is checked against the paths that carry them.
     let Some(premise_inputs) =
-        validation::ranking_range_premise_symbols(program, machine, range, measure)
+        crate::validation::ranking_range_premise_symbols(program, machine, range, measure)
     else {
         return false;
     };
@@ -116,13 +118,16 @@ pub(super) fn prove_with_entry_requirements(
     // A whole graph uses one inductive premise set. A failed edge cannot borrow
     // stronger assumptions from a different, incompletely proved attempt.
     [
-        validation::RankingRangePremises::RankInvariant,
-        validation::RankingRangePremises::EntryInvariant,
+        crate::validation::RankingRangePremises::RankInvariant,
+        crate::validation::RankingRangePremises::EntryInvariant,
     ]
     .into_iter()
     .filter(|premises| {
         !require_entry_invariant
-            || matches!(premises, validation::RankingRangePremises::EntryInvariant)
+            || matches!(
+                premises,
+                crate::validation::RankingRangePremises::EntryInvariant
+            )
     })
     .any(|premises| {
         prove_edges(
@@ -167,12 +172,12 @@ pub(super) fn protected_input_paths<'program>(
 }
 
 fn prove_edges<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &'program typed_trees::machine::Machine,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     range: ExpressionHandle,
-    measure: validation::RankingRangeMeasure,
-    frames: Option<&validation::CallFrameResolver<'program>>,
-    premises: validation::RankingRangePremises,
+    measure: crate::validation::RankingRangeMeasure,
+    frames: Option<&crate::validation::CallFrameResolver<'program>>,
+    premises: crate::validation::RankingRangePremises,
     premise_inputs: &[SymbolHandle],
 ) -> bool {
     let states = program.machine_states(machine);
@@ -200,7 +205,7 @@ fn prove_edges<'program>(
             .iter()
             .map(|guard| (guard.expression, guard.holds))
             .collect::<Vec<_>>();
-        let Some(proof) = validation::prove_ranking_range_edge(
+        let Some(proof) = crate::validation::prove_ranking_range_edge(
             program,
             machine,
             root,
@@ -230,10 +235,10 @@ fn prove_edges<'program>(
 }
 
 fn preserved_entry_prefix<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &'program typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    frames: Option<&validation::CallFrameResolver<'program>>,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    frames: Option<&crate::validation::CallFrameResolver<'program>>,
     statement: usize,
     protected: &[&str],
 ) -> Option<Vec<ExpressionHandle>> {
@@ -244,7 +249,7 @@ fn preserved_entry_prefix<'program>(
         .iter()
         .take(statement + 1)
     {
-        if validation::is_arm_pattern_marker(statement) {
+        if crate::validation::is_arm_pattern_marker(statement) {
             continue;
         }
         if let StatementNode::Assignment(assignment) = statement {
@@ -261,9 +266,9 @@ fn preserved_entry_prefix<'program>(
                         .into_complete_paths()
                         .is_some_and(|paths| {
                             protected.iter().all(|input| {
-                                paths
-                                    .iter()
-                                    .all(|path| !validation::frame_paths_overlap(path, input))
+                                paths.iter().all(|path| {
+                                    !crate::validation::frame_paths_overlap(path, input)
+                                })
                             })
                         })
                 });
@@ -387,15 +392,15 @@ fn preserved_entry_prefix<'program>(
 /// The binding writes a fresh local, so nothing else in the statement can
 /// disturb the entry telescope.
 fn call_tree_initializer_preserves_entry<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &'program typed_trees::machine::Machine,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state: &State,
     initial_value: ExpressionHandle,
-    frames: Option<&validation::CallFrameResolver<'program>>,
+    frames: Option<&crate::validation::CallFrameResolver<'program>>,
     protected: &[&str],
 ) -> bool {
     let resolved_callee =
-        |call: &typed_trees::expression::TableCallExpression| call.target_symbol.is_valid();
+        |call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression| call.target_symbol.is_valid();
     pure_guard_or_calls(program, machine, state, initial_value, 0, &resolved_callee)
         && frames.is_some_and(|frames| {
             protected.iter().all(|input| {
@@ -416,8 +421,8 @@ fn call_tree_initializer_preserves_entry<'program>(
 /// meaning deliberately treats calls as symbolic leaves, so
 /// `entries[next()]` would otherwise pass `place_has_builtin_coordinates`.
 fn inert_store_target(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state: &State,
     expression: ExpressionHandle,
     depth: usize,
@@ -436,7 +441,7 @@ fn inert_store_target(
         ExpressionNode::Indexed(indexed) => {
             inert_store_target(program, machine, state, indexed.collection, depth + 1)
                 && pure_guard(program, machine, state, indexed.index, depth + 1)
-                && validation::place_has_builtin_coordinates(
+                && crate::validation::place_has_builtin_coordinates(
                     program,
                     machine,
                     Some(state),
@@ -453,8 +458,8 @@ fn inert_store_target(
 /// value forms are write-free by construction. Meaning and membership of an
 /// admitted expression are still proved separately by the range owner.
 fn pure_guard(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state: &State,
     expression: ExpressionHandle,
     depth: usize,
@@ -468,12 +473,14 @@ fn pure_guard(
 /// covered, while every subterm that is not a call must still be pure the
 /// way it would be with no call present.
 fn pure_guard_or_calls(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state: &State,
     expression: ExpressionHandle,
     depth: usize,
-    admit_call: &dyn Fn(&typed_trees::expression::TableCallExpression) -> bool,
+    admit_call: &dyn Fn(
+        &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    ) -> bool,
 ) -> bool {
     if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return false;
@@ -499,7 +506,7 @@ fn pure_guard_or_calls(
         ExpressionNode::Binary(binary) => {
             // An authored operator application can hide a write the
             // direct-store frame does not see; only a builtin spelling is inert.
-            validation::has_builtin_binary_expression_meaning(
+            crate::validation::has_builtin_binary_expression_meaning(
                 program,
                 machine,
                 Some(state),
@@ -525,12 +532,12 @@ fn pure_guard_or_calls(
             };
             index_inert
                 && inert(indexed.collection)
-                && (validation::place_has_builtin_coordinates(
+                && (crate::validation::place_has_builtin_coordinates(
                     program,
                     machine,
                     Some(state),
                     expression,
-                ) || validation::has_builtin_subslice_meaning(
+                ) || crate::validation::has_builtin_subslice_meaning(
                     program,
                     machine,
                     Some(state),
@@ -555,8 +562,8 @@ fn pure_guard_or_calls(
                     .iter()
                     .all(|arm| {
                         let pattern_inert = match arm.pattern {
-                            typed_trees::expression::MatchPattern::Value(pattern) => inert(pattern),
-                            typed_trees::expression::MatchPattern::Wildcard => true,
+                            symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) => inert(pattern),
+                            symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard => true,
                         };
                         pattern_inert && inert(arm.value)
                     })

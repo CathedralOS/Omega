@@ -4,8 +4,8 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionOccurrenceId as OccurrenceId,
 };
 use source::SourceSpan;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 use crate::lookup::{
     call_receiver_parts, resolve_state_call_target, statement_call_receiver_members,
@@ -14,7 +14,7 @@ use crate::semantic::calls::{CallSite, collect_call_sites_in_statement};
 
 pub(crate) fn bind_checked_body_call_source_spans(
     program: &TypedTrees,
-    flow: &mut checked_trees::FlowFacts,
+    flow: &mut crate::checked_trees::FlowFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let machines_by_symbol = program
         .machines()
@@ -100,7 +100,7 @@ pub(crate) fn bind_checked_body_call_source_spans(
 
 pub(crate) fn derive_checked_body_call_source_spans(
     _program: &TypedTrees,
-    facts: &checked_trees::CheckFacts,
+    facts: &crate::checked_trees::CheckFacts,
     machine_symbol: SymbolHandle,
 ) -> Result<Vec<SourceSpan>, Vec<Diagnostic>> {
     let mut spans = Vec::new();
@@ -144,9 +144,9 @@ pub(crate) fn derive_checked_body_call_source_spans(
 
 fn validate_checked_call_join(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    checked: &checked_trees::FlowCallFact,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    checked: &crate::checked_trees::FlowCallFact,
     site: &CallSite<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     let (receiver_symbol, target_symbol, has_receiver, acknowledgement) = match site {

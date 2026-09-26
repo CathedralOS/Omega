@@ -9,7 +9,7 @@ use super::{
     StructuralTypeShape, TargetUnitOperation, TerminalAffineCleanupAction, ValueId, ValueShape,
     evaluate_call_plan, identity,
 };
-use target_operations::{
+use crate::target_operations::{
     ScalarFunctionAbi, TargetControlTerminator, TargetUnitWriteOnlyPrimitiveStoreSource,
 };
 

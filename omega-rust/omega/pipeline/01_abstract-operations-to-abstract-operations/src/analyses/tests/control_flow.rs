@@ -3,9 +3,9 @@
 use super::fixtures::*;
 use crate::analyses::ExitKind;
 use crate::{AnalysisProduct, EffectClass, EffectKnowledge, compute_analysis};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::*;
 use semantic_vocabulary::*;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
 
 #[test]
 fn cfg_products_cover_crash_exits_disconnected_machines_and_dominance() {
@@ -156,13 +156,13 @@ fn call_graph_marks_mutual_recursion() {
 
 #[test]
 fn call_graph_tracks_cleanup_and_stored_dynamic_transitions() {
-    use abstract_operations::{
-        AbstractResult, AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
-    };
     use terminal_psi::{
         ClosedConformanceApplication, NominalAffineCleanup, StructuralAccess, StructuralArgument,
         TerminalAffineCleanupAction, TerminalDynamicConformanceSelection,
         TerminalStoredDynamicDescriptor, TerminalStoredDynamicDispatch,
+    };
+    use terminal_psi_to_abstract_operations::abstract_operations::{
+        AbstractResult, AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
     };
 
     let caller_machine = id(100, MachineId::new);

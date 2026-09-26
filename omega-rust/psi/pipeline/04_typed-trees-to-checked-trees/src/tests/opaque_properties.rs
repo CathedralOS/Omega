@@ -6,7 +6,10 @@ data Main {}
 machine Main::main(&mut self) {}
 "#;
 
-fn data_symbol(program: &typed_trees::TypedTrees, name: &str) -> SymbolHandle {
+fn data_symbol(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    name: &str,
+) -> SymbolHandle {
     program
         .data_definitions()
         .iter()
@@ -33,7 +36,8 @@ fn ordinary_lowering_rejects_copyable_opaque_without_receipt() {
 #[test]
 fn exact_opaque_copy_receipt_is_consumed_once() {
     let program = typed_program(COPY_OPAQUE);
-    let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&program, "Token"));
+    let receipt =
+        crate::validation::OpaqueDataPropertyReceipt::copy(data_symbol(&program, "Token"));
     crate::lower_typed_trees(
         program,
         &crate::CheckingRequest::settled().with_opaque_property_receipts(&[receipt]),
@@ -44,7 +48,8 @@ fn exact_opaque_copy_receipt_is_consumed_once() {
 #[test]
 fn duplicate_and_wrong_declaration_receipts_reject() {
     let duplicate = typed_program(COPY_OPAQUE);
-    let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&duplicate, "Token"));
+    let receipt =
+        crate::validation::OpaqueDataPropertyReceipt::copy(data_symbol(&duplicate, "Token"));
     let diagnostics = crate::lower_typed_trees(
         duplicate,
         &crate::CheckingRequest::settled().with_opaque_property_receipts(&[receipt, receipt]),
@@ -53,7 +58,7 @@ fn duplicate_and_wrong_declaration_receipts_reject() {
     assert!(rendered(diagnostics).contains("repeat one exact declaration"));
 
     let wrong = typed_program(COPY_OPAQUE);
-    let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&wrong, "Main"));
+    let receipt = crate::validation::OpaqueDataPropertyReceipt::copy(data_symbol(&wrong, "Main"));
     let diagnostics = crate::lower_typed_trees(
         wrong,
         &crate::CheckingRequest::settled().with_opaque_property_receipts(&[receipt]),
@@ -71,7 +76,8 @@ data Main {}
 machine Main::main(&mut self) {}
 "#,
     );
-    let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&program, "Token"));
+    let receipt =
+        crate::validation::OpaqueDataPropertyReceipt::copy(data_symbol(&program, "Token"));
     let diagnostics = crate::lower_typed_trees(
         program,
         &crate::CheckingRequest::settled().with_opaque_property_receipts(&[receipt]),

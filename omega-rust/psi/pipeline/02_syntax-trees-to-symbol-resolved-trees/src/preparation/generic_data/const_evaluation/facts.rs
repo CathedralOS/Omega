@@ -10,7 +10,7 @@ use super::super::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 use arena::HandleSpan;
-use syntax_trees::expression::UnaryOperator;
+use tokens_to_syntax_trees::syntax_trees::expression::UnaryOperator;
 
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
 use crate::preparation::generic_data::evaluate_const_fact_binary;
@@ -258,7 +258,7 @@ fn evaluate_const_fact_expression_at(
 /// stay on the concrete record for typed build-time evaluation.
 pub(crate) fn evaluate_const_membership_fact(
     syntax: &SyntaxTrees,
-    membership: &syntax_trees::item::ProofMembershipFact,
+    membership: &tokens_to_syntax_trees::syntax_trees::item::ProofMembershipFact,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
     parameter_type_names: &HashMap<String, String>,
@@ -445,7 +445,7 @@ fn evaluate_named_const_domain(
 /// packages can publish identical logical paths.
 fn module_domain_key(
     syntax: &SyntaxTrees,
-    domain: &syntax_trees::item::DomainDefinition,
+    domain: &tokens_to_syntax_trees::syntax_trees::item::DomainDefinition,
 ) -> String {
     match crate::preparation::generic_data::module_constants::module_path(
         syntax,
@@ -464,7 +464,7 @@ fn module_domain_key(
 fn carrier_satisfies_declared_bounds(
     syntax: &SyntaxTrees,
     carrier: &str,
-    bounds: &syntax_trees::item::DataProperties,
+    bounds: &tokens_to_syntax_trees::syntax_trees::item::DataProperties,
 ) -> bool {
     let properties = primitive_scalar_properties(carrier).or_else(|| {
         syntax.root_items().find_map(|item| match item {
@@ -503,10 +503,12 @@ fn carrier_satisfies_declared_bounds(
 
 /// The declared properties every builtin scalar spelling answers: primitives
 /// copy freely and carry every axis permissively.
-fn primitive_scalar_properties(name: &str) -> Option<syntax_trees::item::DataProperties> {
+fn primitive_scalar_properties(
+    name: &str,
+) -> Option<tokens_to_syntax_trees::syntax_trees::item::DataProperties> {
     match name {
         "bool" | "f32" | "f64" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
-        | "addr" => Some(syntax_trees::item::DataProperties {
+        | "addr" => Some(tokens_to_syntax_trees::syntax_trees::item::DataProperties {
             multiplicity: language_core::Multiplicity::Unrestricted,
             carry: Some(language_core::CarryPolicy::PERMISSIVE),
         }),
@@ -523,7 +525,7 @@ fn primitive_scalar_properties(name: &str) -> Option<syntax_trees::item::DataPro
 /// authored spans select declarations in the fact author's source context.
 fn evaluate_selected_domain_facts(
     syntax: &SyntaxTrees,
-    domain: &syntax_trees::item::DomainDefinition,
+    domain: &tokens_to_syntax_trees::syntax_trees::item::DomainDefinition,
     domain_key: String,
     carrier: &str,
     self_binding: ConstSelfBinding<'_>,
@@ -562,7 +564,7 @@ fn evaluate_selected_domain_facts(
         // fence, and `self` still binds nothing, so facts that read the
         // abstract carrier keep needing typed application checking while
         // closed carrier-independent predicates reuse ordinary replay.
-        if parameter.bounds != syntax_trees::item::DataProperties::default()
+        if parameter.bounds != tokens_to_syntax_trees::syntax_trees::item::DataProperties::default()
             && !carrier_satisfies_declared_bounds(syntax, carrier, &parameter.bounds)
         {
             return Ok(None);
@@ -780,7 +782,7 @@ fn evaluate_indexed_const_domain(
     self_binding: ConstSelfBinding<'_>,
     const_values: &HashMap<String, i128>,
     argument_values: &HashMap<String, ConstScalarValue>,
-    argument_parameters: &[syntax_trees::item::TypeParameter],
+    argument_parameters: &[tokens_to_syntax_trees::syntax_trees::item::TypeParameter],
     visiting: &mut Vec<(source::SourceSpan, String)>,
     reference: source::SourceSpan,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
@@ -932,7 +934,7 @@ fn evaluate_domain_index_argument(
     argument: TypeReferenceHandle,
     const_values: &HashMap<String, i128>,
     argument_values: &HashMap<String, ConstScalarValue>,
-    argument_parameters: &[syntax_trees::item::TypeParameter],
+    argument_parameters: &[tokens_to_syntax_trees::syntax_trees::item::TypeParameter],
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstScalarValue>, String> {
@@ -974,7 +976,7 @@ fn evaluate_domain_index_argument(
                 // Forwarding binds a declared value, not an anonymous integer.
                 // Retain the caller telescope until its carrier is checked;
                 // reducing to i128 first would let `u64` silently become `u8`.
-                let Some(syntax_trees::item::TypeParameter {
+                let Some(tokens_to_syntax_trees::syntax_trees::item::TypeParameter {
                     kind: TypeParameterKind::Const { type_reference },
                     ..
                 }) = argument_parameters
@@ -1428,7 +1430,7 @@ fn const_type_mentions_domain_leaf(
     type_reference: TypeReferenceHandle,
     visiting: &mut Vec<source::SourceSpan>,
 ) -> bool {
-    use syntax_trees::item::DataMember;
+    use tokens_to_syntax_trees::syntax_trees::item::DataMember;
     fn named_data(
         syntax: &SyntaxTrees,
         name: &str,

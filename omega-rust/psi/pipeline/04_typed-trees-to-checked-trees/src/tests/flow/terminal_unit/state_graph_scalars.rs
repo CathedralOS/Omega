@@ -3,12 +3,12 @@ use super::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
     PrimitiveType,
 };
-use crate::tests::flow::terminal_unit::checked;
-use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedScalarBindingDestination,
     CheckedScalarBindingValue, CheckedStructuralScalarArgumentSourcePlan,
 };
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 const PREFIX: &str = r#"
     data Helper {}
@@ -359,7 +359,9 @@ fn general_state_graph_retains_interleaved_scalar_storage_write() {
         .iter()
         .find(|candidate| candidate.symbol == machine)
         .unwrap();
-    let typed_trees::statement::StatementNode::LocalData(output) = &checked
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        output,
+    ) = &checked
         .statement_table
         .statements(checked.machine_states(declaration)[0].statement_nodes)[1]
     else {
@@ -375,7 +377,7 @@ fn general_state_graph_retains_interleaved_scalar_storage_write() {
         CheckedUnitEffectOperationPlan::CallUnit { coordinate: first, .. },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 5,
-            destination: checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
+            destination: crate::checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
             path,
             ..
         },
@@ -436,26 +438,28 @@ fn state_graph_composes_a_field_equality_guard_inside_a_named_state() {
     };
     assert_eq!(when_true.target_state, have.state);
     assert_eq!(when_false.target_state, stop.state);
-    let checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(boolean)) =
-        guard
+    let crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(
+        boolean,
+    )) = guard
     else {
         panic!("the equality guard is a Boolean scalar: {guard:?}")
     };
-    let checked_trees::CheckedBooleanExpression::Equal { left, right } = boolean.as_ref() else {
+    let crate::checked_trees::CheckedBooleanExpression::Equal { left, right } = boolean.as_ref()
+    else {
         panic!("the equality guard keeps the authored Equal: {boolean:?}")
     };
     assert!(matches!(
         left.as_ref(),
-        checked_trees::CheckedBooleanExpression::StructuralParameterField {
+        crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
             parameter_position: 0,
             path,
         } if path.as_slice() == [
-            checked_trees::CheckedStructuralPredicatePathSegment::Field("flag".to_owned())
+            crate::checked_trees::CheckedStructuralPredicatePathSegment::Field("flag".to_owned())
         ]
     ));
     assert!(matches!(
         right.as_ref(),
-        checked_trees::CheckedBooleanExpression::Constant(true)
+        crate::checked_trees::CheckedBooleanExpression::Constant(true)
     ));
     let _ = entry;
 }
@@ -512,19 +516,20 @@ fn state_graph_composes_a_constant_indexed_member_guard_inside_a_named_state() {
     };
     assert_eq!(when_true.target_state, have.state);
     assert_eq!(when_false.target_state, stop.state);
-    let checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(boolean)) =
-        guard
+    let crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(
+        boolean,
+    )) = guard
     else {
         panic!("the indexed guard is a Boolean scalar: {guard:?}")
     };
-    let checked_trees::CheckedBooleanExpression::IntegerComparison { kind, left, right } =
+    let crate::checked_trees::CheckedBooleanExpression::IntegerComparison { kind, left, right } =
         boolean.as_ref()
     else {
         panic!("the indexed guard keeps the authored comparison: {boolean:?}")
     };
     assert_eq!(
         *kind,
-        checked_trees::CheckedIntegerComparisonKind::LessOrEqual
+        crate::checked_trees::CheckedIntegerComparisonKind::LessOrEqual
     );
     assert!(matches!(
         left.as_ref(),
@@ -538,8 +543,8 @@ fn state_graph_composes_a_constant_indexed_member_guard_inside_a_named_state() {
             path,
             primitive_type: PrimitiveType::U8,
         } if path.as_slice() == [
-            checked_trees::CheckedStructuralPredicatePathSegment::Field("control".to_owned()),
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(3),
+            crate::checked_trees::CheckedStructuralPredicatePathSegment::Field("control".to_owned()),
+            crate::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(3),
         ]
     ));
     let _ = entry;
@@ -580,7 +585,7 @@ fn state_graph_guard_names_the_selected_comparison_computation_root() {
         });
     let entry = &plan.states[0];
     let CheckedComposedUnitControlTerminatorPlan::Conditional {
-        guard: checked_trees::CheckedCallScalarArgument::Computation(guard),
+        guard: crate::checked_trees::CheckedCallScalarArgument::Computation(guard),
         when_true,
         ..
     } = &entry.terminator
@@ -618,10 +623,10 @@ fn state_graph_guard_names_the_selected_comparison_computation_root() {
     let mut selected = 0;
     while let Some(node) = pending.pop() {
         match &computations.nodes.get(node).kind {
-            checked_trees::CheckedScalarComputationKind::SelectedComparison { .. } => {
+            crate::checked_trees::CheckedScalarComputationKind::SelectedComparison { .. } => {
                 selected += 1;
             }
-            checked_trees::CheckedScalarComputationKind::Apply { operands, .. } => {
+            crate::checked_trees::CheckedScalarComputationKind::Apply { operands, .. } => {
                 pending.extend(
                     computations
                         .operands

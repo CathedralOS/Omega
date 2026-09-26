@@ -38,7 +38,7 @@ pub(crate) fn substitute_fixed_array_const_parameters(
         .fixed_array_lengths()
         .filter(|(handle, _)| type_start.is_none_or(|start| handle.arena_index() as usize >= start))
         .filter_map(|(handle, length)| {
-            let typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = length
+            let symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = length
             else {
                 return None;
             };
@@ -152,7 +152,7 @@ pub(crate) fn candidate_const_index_expressions(
     ) {
         for contract in program.signature_contracts.span_or_empty(contracts) {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
-                if let typed_trees::domain::ProofFact::Membership(membership) = fact {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) = fact {
                     roots.extend(
                         program
                             .type_reference_table
@@ -246,7 +246,7 @@ pub(crate) fn collect_statement_expression_trees(
             collect_expression_tree(program, local.initial_value, handles)
         }
         StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
                 collect_expression_tree(program, guard, handles);
             }
             collect_transition_target_expression_trees(program, transition.target, handles);
@@ -257,28 +257,28 @@ pub(crate) fn collect_statement_expression_trees(
 
 pub(crate) fn collect_transition_target_expression_trees(
     program: &TypedTrees,
-    target: typed_trees::statement::TransitionTargetHandle,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
     handles: &mut Vec<ExpressionHandle>,
 ) {
     if !target.is_valid() {
         return;
     }
     match program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
             for argument in program.statement_table.expression_handles(*arguments) {
                 collect_expression_tree(program, *argument, handles);
             }
         }
-        typed_trees::statement::TransitionTargetNode::Value(expression) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) => {
             collect_expression_tree(program, *expression, handles)
         }
-        typed_trees::statement::TransitionTargetNode::SelfTarget
-        | typed_trees::statement::TransitionTargetNode::Terminal => {}
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::SelfTarget
+        | symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Terminal => {}
     }
 }
 
 pub(crate) fn collect_const_index_expressions_from_type(
-    table: &typed_trees::types::TypeReferenceTable,
+    table: &symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceTable,
     type_reference: TypeReferenceHandle,
     visited: &mut Vec<TypeReferenceHandle>,
     expressions: &mut Vec<ExpressionHandle>,
@@ -327,13 +327,13 @@ pub(crate) fn collect_const_index_expressions_from_type(
 }
 
 pub(crate) fn substitute_const_index_expression(
-    expressions: &mut typed_trees::expression::ExpressionTable,
+    expressions: &mut symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
     replacements: &[(
         SymbolHandle,
         String,
         SymbolHandle,
-        typed_trees::name::Identifier,
+        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
     )],
 ) {
     match expressions.expression(expression).clone() {

@@ -1,10 +1,14 @@
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionGuardNode, TransitionTargetNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 pub(super) fn place_is_used_after_call(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     target: &crate::semantic::calls::CallSite<'_>,
     symbol: SymbolHandle,
@@ -32,7 +36,7 @@ pub(super) fn place_is_used_after_call(
 }
 
 struct EvaluationTraversal<'program, 'target> {
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     target: &'target crate::semantic::calls::CallSite<'program>,
@@ -84,7 +88,7 @@ impl EvaluationTraversal<'_, '_> {
 
     fn visit_transition_target(
         &mut self,
-        target_handle: typed_trees::statement::TransitionTargetHandle,
+        target_handle: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
     ) {
         match self
             .program
@@ -116,8 +120,8 @@ impl EvaluationTraversal<'_, '_> {
                 let mut covered_booleans = [false; 2];
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
                     let mut covered =
-                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard);
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard);
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         self.visit_expression(pattern);
                         if let ExpressionNode::Boolean(value) =
                             self.program.expression_table.expression(pattern)
@@ -203,9 +207,9 @@ impl EvaluationTraversal<'_, '_> {
             expression,
         )
         .is_some_and(|place| {
-            matches!(place.root, facts::PlaceRoot::Symbol(root) if root == self.symbol)
+            matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(root) if root == self.symbol)
                 || place.segments.iter().any(|segment| {
-                    matches!(segment, facts::PlaceSegment::Field { symbol } if *symbol == self.symbol)
+                    matches!(segment, crate::fact_plan::PlaceSegment::Field { symbol } if *symbol == self.symbol)
                 })
         });
         let name_matches = matches!(

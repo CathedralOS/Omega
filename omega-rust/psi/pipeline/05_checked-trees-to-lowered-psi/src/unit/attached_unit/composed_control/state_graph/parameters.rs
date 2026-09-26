@@ -6,16 +6,16 @@ use super::CheckedComposedUnitControlMachinePlan;
 pub(super) fn validate_receiver(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &checked_trees::signature::StateParameter,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+    source: &typed_trees_to_checked_trees::checked_trees::signature::StateParameter,
+    parameter: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan,
     access: language_core::ReferenceAccess,
 ) -> Result<(), LoweringError> {
     let expected_access = match access {
         language_core::ReferenceAccess::Shared => {
-            checked_trees::CheckedStructuralAccess::SharedBorrow
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
         }
         language_core::ReferenceAccess::Mutable => {
-            checked_trees::CheckedStructuralAccess::MutableBorrow
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
         }
         _ => return unsupported("Unit graph receiver requires readable borrowed access"),
     };

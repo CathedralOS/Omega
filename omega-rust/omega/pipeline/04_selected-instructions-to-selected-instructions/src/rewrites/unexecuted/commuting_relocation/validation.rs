@@ -20,9 +20,11 @@
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
+};
 
 use super::{CommutingRelocationError, CommutingRelocationReceipt, ValidatedCommutingRelocation};
 use crate::ValidatedSelectedAnalysis;
@@ -343,11 +345,17 @@ mod independence_tests {
     use std::sync::Arc;
 
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-    use register_environment::{
+    use semantic_vocabulary::{
+        BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+        IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
+    };
+    use target::NativeTarget;
+    use target_operations_to_selected_instructions::register_environment::{
         ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
     };
-    use register_model::RegisterInstructionConstraint;
-    use selected_instructions::{
+    use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
+    use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+    use target_operations_to_selected_instructions::{
         SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
         SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
         SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
@@ -355,12 +363,6 @@ mod independence_tests {
         SelectedOperand, SelectedTerminator, VirtualRegister, VirtualRegisterId,
         VirtualRegisterOrigin,
     };
-    use semantic_vocabulary::{
-        BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-        IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
-    };
-    use target::NativeTarget;
-    use target_operations_to_selected_instructions::selected_instruction_plan_identity;
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
     use super::{
@@ -422,7 +424,7 @@ mod independence_tests {
 
     fn entry_register(
         id: VirtualRegisterId,
-        class: register_model::RegisterClassId,
+        class: target_operations_to_selected_instructions::register_model::RegisterClassId,
         parameter_index: usize,
         source_value: u64,
     ) -> VirtualRegister {
@@ -441,7 +443,7 @@ mod independence_tests {
 
     fn result_register(
         id: VirtualRegisterId,
-        class: register_model::RegisterClassId,
+        class: target_operations_to_selected_instructions::register_model::RegisterClassId,
         instruction: SelectedInstructionId,
         source_value: u64,
     ) -> VirtualRegister {

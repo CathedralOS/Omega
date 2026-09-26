@@ -132,7 +132,7 @@ positive without faking custody. Ordered legs:
 
 Live claims covering producer legs:
 
-- `representations/selected-instructions`, `representations/register-homes`,
+- `omega/pipeline/03_target-operations-to-selected-instructions`, `representations/register-homes`,
   `05_selected-instructions-to-register-homes/{lib.rs,output,assignment`,
   `assignment/post_allocation_manifest,assignment/stack_slot_coloring`,
   `rewrites/rematerialization}`, and

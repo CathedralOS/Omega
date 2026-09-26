@@ -98,9 +98,9 @@ fn structural_requires_cannot_recover_corrupted_field_identity_from_spelling() {
             .data_members(owner)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.name.as_str() == "enabled" => {
-                    Some(field.symbol)
-                }
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "enabled" => Some(field.symbol),
                 _ => None,
             })
             .unwrap();
@@ -113,9 +113,9 @@ fn structural_requires_cannot_recover_corrupted_field_identity_from_spelling() {
             .data_members(owner)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.name.as_str() == "other" => {
-                    Some(field.name.clone())
-                }
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "other" => Some(field.name.clone()),
                 _ => None,
             })
             .unwrap();
@@ -128,7 +128,7 @@ fn structural_requires_cannot_recover_corrupted_field_identity_from_spelling() {
             .machine_contracts(machine)
             .iter()
             .find(|contract| {
-                contract.kind == typed_trees::signature::SignatureContractKind::Requires
+                contract.kind == symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires
             })
             .unwrap();
         let expression = program
@@ -136,7 +136,7 @@ fn structural_requires_cannot_recover_corrupted_field_identity_from_spelling() {
             .span_or_empty(requirement.facts)
             .iter()
             .find_map(|fact| match fact {
-                typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
                 _ => None,
             })
             .unwrap();
@@ -144,20 +144,22 @@ fn structural_requires_cannot_recover_corrupted_field_identity_from_spelling() {
         let mut selected = None;
         while let Some(expression) = pending.pop() {
             match program.expression_table.expression(expression) {
-                typed_trees::expression::ExpressionNode::Member(_) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(_) => {
                     selected = Some(expression);
                     break;
                 }
-                typed_trees::expression::ExpressionNode::Binary(binary) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary) => {
                     pending.extend([binary.right, binary.left])
                 }
-                typed_trees::expression::ExpressionNode::Unary(unary) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Unary(unary) => {
                     pending.push(unary.operand)
                 }
                 _ => {}
             }
         }
-        let typed_trees::expression::ExpressionNode::Member(member) = program
+        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(
+            member,
+        ) = program
             .expression_table
             .expression_mut(selected.expect("retained Requires member"))
         else {

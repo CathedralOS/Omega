@@ -1,11 +1,11 @@
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::{StateParameterHandle, StateSignature};
+use crate::syntax_trees::types::TypeReferenceHandle;
 use crate::type_syntax::parse_type::parse_type_reference_handle_allowing_borrow;
 use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{StateParameterHandle, StateSignature};
-use syntax_trees::types::TypeReferenceHandle;
-use tokens::{KeywordKind, PunctuationKind};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 pub(crate) fn parse_optional_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -111,7 +111,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
 
             return Ok((
                 syntax_trees.items.insert_state_parameter_node(
-                    syntax_trees::item::StateParameterNode {
+                    crate::syntax_trees::item::StateParameterNode {
                         name: Identifier::generated("self"),
                         type_reference,
                         is_const,
@@ -137,7 +137,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
             parse_parameter_type_reference(syntax_trees, input)?;
         return Ok((
             syntax_trees.items.insert_state_parameter_node(
-                syntax_trees::item::StateParameterNode {
+                crate::syntax_trees::item::StateParameterNode {
                     name,
                     type_reference,
                     is_const,
@@ -156,7 +156,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
 
         return Ok((
             syntax_trees.items.insert_state_parameter_node(
-                syntax_trees::item::StateParameterNode {
+                crate::syntax_trees::item::StateParameterNode {
                     name: Identifier::generated("self"),
                     type_reference,
                     is_const,
@@ -180,16 +180,16 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
     let (type_reference, borrowed_mutable, input) =
         parse_parameter_type_reference(syntax_trees, input)?;
     Ok((
-        syntax_trees
-            .items
-            .insert_state_parameter_node(syntax_trees::item::StateParameterNode {
+        syntax_trees.items.insert_state_parameter_node(
+            crate::syntax_trees::item::StateParameterNode {
                 name,
                 type_reference,
                 is_const,
                 is_mutable: is_leading_mutable || borrowed_mutable,
                 is_self: false,
                 relevance,
-            }),
+            },
+        ),
         input,
     ))
 }
@@ -210,7 +210,7 @@ fn parse_parameter_type_reference<'tokens, 'source>(
     let (type_reference, input) = parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
     let borrowed_mutable = matches!(
         syntax_trees.type_references.type_reference(type_reference),
-        syntax_trees::types::TypeReferenceNode::Reference {
+        crate::syntax_trees::types::TypeReferenceNode::Reference {
             access: language_core::ReferenceAccess::Mutable
                 | language_core::ReferenceAccess::WriteOnly,
             ..

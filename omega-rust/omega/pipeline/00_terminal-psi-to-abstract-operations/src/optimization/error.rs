@@ -2,7 +2,7 @@ use semantic_vocabulary::{MachineId, ObligationId, OperationId};
 use terminal_codec::CodecError;
 #[derive(Debug)]
 pub enum VerifiedPsiOptimizationUnitBuildError {
-    Unit(optimization_unit::OptimizationUnitBuildError),
+    Unit(crate::optimization_unit::OptimizationUnitBuildError),
     MissingReconstructedObligation {
         machine: MachineId,
         operation: OperationId,
@@ -14,14 +14,14 @@ pub enum VerifiedPsiOptimizationUnitBuildError {
         obligation: ObligationId,
     },
     PropositionCodec(CodecError),
-    FactIndex(optimization_unit::AcceptedObligationFactIndexError),
-    ProofQuestionIndex(optimization_unit::ProofQuestionIndexError),
-    OwnershipFrontierFactIndex(optimization_unit::OwnershipFrontierFactIndexError),
+    FactIndex(crate::optimization_unit::AcceptedObligationFactIndexError),
+    ProofQuestionIndex(crate::optimization_unit::ProofQuestionIndexError),
+    OwnershipFrontierFactIndex(crate::optimization_unit::OwnershipFrontierFactIndexError),
     MissingStructuralCatalogMachine(MachineId),
     MissingStructuralFrontierMachine(MachineId),
     MissingStructuralFrontier {
         machine: MachineId,
-        site: optimization_unit::OwnershipFrontierSite,
+        site: crate::optimization_unit::OwnershipFrontierSite,
     },
 }
 
@@ -36,8 +36,10 @@ impl std::fmt::Display for VerifiedPsiOptimizationUnitBuildError {
 
 impl std::error::Error for VerifiedPsiOptimizationUnitBuildError {}
 
-impl From<optimization_unit::OptimizationUnitBuildError> for VerifiedPsiOptimizationUnitBuildError {
-    fn from(error: optimization_unit::OptimizationUnitBuildError) -> Self {
+impl From<crate::optimization_unit::OptimizationUnitBuildError>
+    for VerifiedPsiOptimizationUnitBuildError
+{
+    fn from(error: crate::optimization_unit::OptimizationUnitBuildError) -> Self {
         Self::Unit(error)
     }
 }
@@ -48,24 +50,26 @@ impl From<CodecError> for VerifiedPsiOptimizationUnitBuildError {
     }
 }
 
-impl From<optimization_unit::AcceptedObligationFactIndexError>
+impl From<crate::optimization_unit::AcceptedObligationFactIndexError>
     for VerifiedPsiOptimizationUnitBuildError
 {
-    fn from(error: optimization_unit::AcceptedObligationFactIndexError) -> Self {
+    fn from(error: crate::optimization_unit::AcceptedObligationFactIndexError) -> Self {
         Self::FactIndex(error)
     }
 }
 
-impl From<optimization_unit::OwnershipFrontierFactIndexError>
+impl From<crate::optimization_unit::OwnershipFrontierFactIndexError>
     for VerifiedPsiOptimizationUnitBuildError
 {
-    fn from(error: optimization_unit::OwnershipFrontierFactIndexError) -> Self {
+    fn from(error: crate::optimization_unit::OwnershipFrontierFactIndexError) -> Self {
         Self::OwnershipFrontierFactIndex(error)
     }
 }
 
-impl From<optimization_unit::ProofQuestionIndexError> for VerifiedPsiOptimizationUnitBuildError {
-    fn from(error: optimization_unit::ProofQuestionIndexError) -> Self {
+impl From<crate::optimization_unit::ProofQuestionIndexError>
+    for VerifiedPsiOptimizationUnitBuildError
+{
+    fn from(error: crate::optimization_unit::ProofQuestionIndexError) -> Self {
         Self::ProofQuestionIndex(error)
     }
 }

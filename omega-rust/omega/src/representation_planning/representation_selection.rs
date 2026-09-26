@@ -1,0 +1,317 @@
+//! Harvest one authoritative build's opaque representations and revalidate
+//! them against the final typed graph before downstream property-receipt construction.
+
+use crate::representation_planning::representation_trait::is_compiler_owned_opaque_representation_trait;
+use diagnostics::Diagnostic;
+use resolved_layout_to_resolved_layout::representation_selections::{
+    OpaqueRepresentationApplicationOrigin, OpaqueRepresentationLifecycleDisposition,
+    OpaqueRepresentationSelection,
+};
+use source::SourceSpan;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbols::{SymbolHandle, SymbolKind};
+
+mod carrier_closure;
+#[cfg(test)]
+mod test_support;
+#[cfg(test)]
+mod tests;
+
+const SELECTION_MARKER: &str = "select_representation";
+
+/// Harvest representation selections from the one build machine already
+/// admitted by project discovery. Calls elsewhere remain inert syntax.
+pub fn harvest_opaque_representation_selections(
+    typed: &TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
+    let mut selections = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut record = |target: &str,
+                      arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
+                      source_span: SourceSpan| {
+        if target != SELECTION_MARKER {
+            return;
+        }
+        match close_selection(typed, machine.symbol, arguments, source_span) {
+            Ok(selection) => {
+                if let Some(prior) =
+                    selections
+                        .iter()
+                        .find(|prior: &&OpaqueRepresentationSelection| {
+                            prior.opaque() == selection.opaque()
+                        })
+                {
+                    diagnostics.push(
+                        Diagnostic::error(format!(
+                            "build selects opaque representation `{}` more than once (first selection uses `{}`)",
+                            typed.symbols.display_path(selection.opaque(), "::"),
+                            typed.symbols.display_path(prior.application().declaration, "::"),
+                        ))
+                        .with_source_span(source_span),
+                    );
+                } else {
+                    selections.push(selection);
+                }
+            }
+            Err(diagnostic) => diagnostics.push(diagnostic.with_source_span(source_span)),
+        }
+    };
+
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            match statement {
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
+                        typed.expression_table.expression(*expression)
+                    {
+                        record(
+                            call.target.as_str(),
+                            &call.machine_arguments,
+                            typed.expression_table.source_span(*expression),
+                        );
+                    }
+                }
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) => {
+                    record(
+                        call.target.as_str(),
+                        &call.machine_arguments,
+                        call.source_span,
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(selections)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// Rerun selection harvest and carrier-property closure against the final
+/// typed graph. The pre-build selection is compiler custody, not a substitute
+/// for this final equality check after generated-source continuation.
+pub fn rederive_opaque_representation_selections(
+    typed: &TypedTrees,
+    selected_build_machine: Option<SymbolHandle>,
+    retained: &[OpaqueRepresentationSelection],
+) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
+    let Some(selecting_machine) = selected_build_machine else {
+        return if retained.is_empty() {
+            Ok(Vec::new())
+        } else {
+            Err(vec![Diagnostic::error(
+                "opaque representation selections exist without an authoritative build machine",
+            )])
+        };
+    };
+    if retained.iter().any(|selection| {
+        selection.selecting_machine() != selecting_machine
+            || selection.selected_application_commitment()
+                != selection.rederived_selected_application_commitment()
+    }) {
+        return Err(vec![Diagnostic::error(
+            "opaque representation selection has stale build-machine or application custody",
+        )]);
+    }
+    let machines = typed
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == selecting_machine)
+        .collect::<Vec<_>>();
+    let [machine] = machines.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "opaque representation selections map to {} final build-machine declarations; expected one",
+            machines.len(),
+        ))]);
+    };
+    let derived = harvest_opaque_representation_selections(typed, machine)?;
+    if derived != retained {
+        return Err(vec![Diagnostic::error(format!(
+            "final opaque-representation selection rederivation disagrees with retained build custody (retained {} rows, derived {} rows)",
+            retained.len(),
+            derived.len(),
+        ))]);
+    }
+    Ok(derived)
+}
+
+fn close_selection(
+    typed: &TypedTrees,
+    selecting_machine: SymbolHandle,
+    arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
+    source_span: SourceSpan,
+) -> Result<OpaqueRepresentationSelection, Diagnostic> {
+    let [opaque_argument, conformance_argument] = arguments else {
+        return Err(Diagnostic::error(
+            "opaque representation selection must retain exactly one opaque data path and one named conformance path",
+        ));
+    };
+    let opaque = product_scope_instance(
+        typed,
+        opaque_argument.symbol,
+        typed
+            .data_definitions()
+            .iter()
+            .map(|definition| definition.symbol),
+    );
+    let opaque_name = opaque_argument.display_name();
+    let conformance_symbol = product_scope_instance(
+        typed,
+        conformance_argument.symbol,
+        typed
+            .conformances()
+            .iter()
+            .map(|conformance| conformance.symbol),
+    );
+    let mut conformance_argument_owned;
+    let conformance_argument = if conformance_symbol == conformance_argument.symbol {
+        conformance_argument
+    } else {
+        conformance_argument_owned = conformance_argument.clone();
+        conformance_argument_owned.symbol = conformance_symbol;
+        &conformance_argument_owned
+    };
+    let Some(opaque_definition) = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == opaque)
+    else {
+        return Err(Diagnostic::error(format!(
+            "opaque representation subject `{opaque_name}` does not resolve to an exact data declaration"
+        )));
+    };
+    if opaque_definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque {
+        return Err(Diagnostic::error(format!(
+            "representation subject `{opaque_name}` is not boundary-opaque data"
+        )));
+    }
+
+    if typed.symbols.get(conformance_argument.symbol).kind != SymbolKind::Conformance {
+        return Err(Diagnostic::error(format!(
+            "opaque representation `{}` does not resolve to an exact named conformance",
+            conformance_argument.display_name(),
+        )));
+    }
+    let application =
+        typed_trees_to_checked_trees::close_conformance_application(typed, conformance_argument)?;
+    let conformance = typed
+        .conformances()
+        .iter()
+        .find(|candidate| candidate.symbol == application.declaration)
+        .ok_or_else(|| Diagnostic::error("selected opaque conformance disappeared"))?;
+    // The conformance and its application may carry distinct symbol instances
+    // of the same toolchain trait declaration: a source imported on both the
+    // product and build scopes is lowered once per scope, so symbol equality
+    // would reject a genuine compiler-owned relationship. Identity is the
+    // toolchain declaration itself (origin, path, and closed shape), which the
+    // helper already checks on both sides.
+    if !is_compiler_owned_opaque_representation_trait(typed, conformance.trait_symbol)
+        || !is_compiler_owned_opaque_representation_trait(typed, application.trait_definition)
+    {
+        return Err(Diagnostic::error(format!(
+            "conformance `{}` does not satisfy the exact compiler-owned `OpaqueRepresentation` trait",
+            conformance_argument.display_name(),
+        )));
+    }
+    let trait_arguments = typed
+        .type_reference_table
+        .type_reference_handles(conformance.arguments);
+    let [trait_argument] = trait_arguments else {
+        return Err(Diagnostic::error(format!(
+            "conformance `{}` does not retain exactly one opaque representation argument",
+            conformance_argument.display_name(),
+        )));
+    };
+    if typed.type_reference_table.type_symbol(*trait_argument) != opaque {
+        return Err(Diagnostic::error(format!(
+            "conformance `{}` represents `{}`, not selected opaque declaration `{opaque_name}`",
+            conformance_argument.display_name(),
+            typed.display_type_reference(*trait_argument),
+        )));
+    }
+    let carrier = conformance.carrier_symbol;
+    let Some(carrier_definition) = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == carrier)
+    else {
+        return Err(Diagnostic::error(format!(
+            "conformance `{}` has no exact concrete data carrier",
+            conformance_argument.display_name(),
+        )));
+    };
+    if carrier_definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
+        return Err(Diagnostic::error(format!(
+            "opaque representation carrier `{}` must be ordinary checked-shape data",
+            carrier_definition.name,
+        )));
+    }
+    if !typed.data_type_parameters(carrier_definition).is_empty()
+        || !carrier_definition.lifetime_parameters.is_empty()
+    {
+        return Err(Diagnostic::error(format!(
+            "opaque representation carrier `{}` is not target-closed",
+            carrier_definition.name,
+        )));
+    }
+    let copy_disposition =
+        carrier_closure::validate_inert_carrier(typed, opaque_definition, carrier_definition)?;
+
+    Ok(OpaqueRepresentationSelection::from_validated_application(
+        opaque,
+        carrier,
+        application,
+        OpaqueRepresentationLifecycleDisposition::Inert,
+        copy_disposition,
+        OpaqueRepresentationApplicationOrigin::NamedConformance,
+        selecting_machine,
+        source_span,
+    ))
+}
+
+/// The product-scope instance of the same authored declaration. A source
+/// imported on both the product and build dependency scopes is lowered once
+/// per scope, so a build-authored selection argument resolves the build
+/// instance while boundary consumers plan against the product instance. The
+/// two instances share the source's bytes and path, so declaration identity
+/// is (file path, byte span) plus the file's dependency scope. Symbols
+/// without source provenance, or already product-side, return unchanged.
+fn product_scope_instance(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    candidates: impl Iterator<Item = SymbolHandle>,
+) -> SymbolHandle {
+    let Some(declaration) = typed.symbols.symbol_provenance_source_span(symbol) else {
+        return symbol;
+    };
+    let Some(file) = typed.symbols.source_file(declaration) else {
+        return symbol;
+    };
+    if file.dependency_scope != source::DependencyScope::Build {
+        return symbol;
+    }
+    candidates
+        .filter(|candidate| *candidate != symbol)
+        .find(|candidate| {
+            typed
+                .symbols
+                .symbol_provenance_source_span(*candidate)
+                .and_then(|candidate_span| {
+                    typed
+                        .symbols
+                        .source_file(candidate_span)
+                        .map(|candidate_file| (candidate_span, candidate_file))
+                })
+                .is_some_and(|(candidate_span, candidate_file)| {
+                    candidate_file.dependency_scope == source::DependencyScope::Product
+                        && candidate_file.path == file.path
+                        && candidate_file.package_identity == file.package_identity
+                        && candidate_span.span == declaration.span
+                })
+        })
+        .unwrap_or(symbol)
+}

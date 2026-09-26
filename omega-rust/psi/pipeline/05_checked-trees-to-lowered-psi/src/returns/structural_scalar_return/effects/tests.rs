@@ -1,5 +1,5 @@
 use super::{StructuralScalarReturnTypes, validate};
-use crate::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[test]
 fn pure_primitive_reference_returns_lower_without_fabricated_effects_or_attachment() {
@@ -25,8 +25,11 @@ fn pure_primitive_reference_returns_lower_without_fabricated_effects_or_attachme
             .unwrap(),
             "primitive-reference cohort: {source}"
         );
-        let lowered =
-            crate::lower_machine(&checked, TerminalMachineSelection::Name("hold")).unwrap();
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("hold"),
+        )
+        .unwrap();
         let machine = &lowered.semantic_module.machines[0];
         assert!(machine.attachment.is_none());
         assert_eq!(
@@ -63,10 +66,8 @@ fn pure_primitive_reference_returns_reject_signature_and_return_custody_substitu
             1 => {
                 plan.structural_parameters.pop();
             }
-            2 => {
-                plan.structural_parameters[0].access =
-                    checked_trees::CheckedStructuralAccess::MutableBorrow
-            }
+            2 => plan.structural_parameters[0].access =
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow,
             3 => plan.scalar_parameters[0].source_position = 0,
             4 => plan.return_statement_ordinal = 1,
             5 => {

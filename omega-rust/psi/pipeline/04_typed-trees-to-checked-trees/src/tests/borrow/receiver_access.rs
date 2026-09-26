@@ -299,7 +299,10 @@ fn owned_record_child_cannot_be_transferred_twice() {
     );
 }
 
-fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::SymbolHandle {
+fn machine_named(
+    checked: &crate::checked_trees::CheckedTrees,
+    name: &str,
+) -> symbols::SymbolHandle {
     checked
         .machines()
         .iter()
@@ -337,16 +340,16 @@ fn mutable_self_literal_indexed_element_can_supply_shared_receiver() {
             .operations
             .iter()
             .flat_map(|operation| match operation {
-                checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+                crate::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
                     structural_arguments,
                     ..
                 } => structural_arguments.iter().collect::<Vec<_>>(),
-                checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal {
-                    value: checked_trees::CheckedCallScalarArgument::Computation(root),
+                crate::checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                    value: crate::checked_trees::CheckedCallScalarArgument::Computation(root),
                     ..
                 } => {
                     let computations = &checked.facts.values.scalar_computations;
-                    let checked_trees::CheckedScalarComputationKind::Call {
+                    let crate::checked_trees::CheckedScalarComputationKind::Call {
                         structural_arguments,
                         ..
                     } = &computations.nodes.get(*root).kind
@@ -357,11 +360,13 @@ fn mutable_self_literal_indexed_element_can_supply_shared_receiver() {
                         .structural_arguments
                         .span_or_empty(*structural_arguments)
                         .iter()
-                        .filter_map(|argument| match argument {
-                            checked_trees::CheckedScalarComputationStructuralArgument::Place(
+                        .filter_map(|argument| {
+                            match argument {
+                            crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(
                                 plan,
                             ) => Some(plan),
                             _ => None,
+                        }
                         })
                         .collect::<Vec<_>>()
                 }
@@ -374,10 +379,10 @@ fn mutable_self_literal_indexed_element_can_supply_shared_receiver() {
         assert!(
             matches!(
                 receiver.access,
-                checked_trees::CheckedStructuralAccess::SharedBorrow
+                crate::checked_trees::CheckedStructuralAccess::SharedBorrow
             ) && receiver.path.iter().any(|segment| matches!(
                 segment,
-                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)
+                crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)
             )),
             "the receiver argument lends the literal-indexed element shared: {receiver:#?}"
         );
@@ -407,9 +412,9 @@ fn mutable_self_mixed_field_index_path_can_supply_shared_receiver() {
 }
 
 fn omission_stage(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     name: &str,
-) -> checked_trees::CheckedUnitPlanOmissionStage {
+) -> crate::checked_trees::CheckedUnitPlanOmissionStage {
     let machine = machine_named(checked, name);
     let plans = &checked.facts.flow.terminal_unit_effects;
     assert!(
@@ -465,7 +470,7 @@ fn explicit_shared_dynamic_indexed_argument_still_omits_caller_in_call_operation
     assert!(
         matches!(
             stage,
-            checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. }
+            crate::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. }
                 if phase.contains("call operation")
         ),
         "a runtime index has no checked path segment, so the caller still stops in call operation: {stage:?}"
@@ -514,7 +519,7 @@ fn dynamic_indexed_parameter_receiver_can_supply_shared_receiver() {
         .operations
         .iter()
         .filter_map(|operation| match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+            crate::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
                 structural_arguments,
                 ..
             } => Some(structural_arguments),
@@ -532,11 +537,11 @@ fn dynamic_indexed_parameter_receiver_can_supply_shared_receiver() {
     // published `0..=1` entry range admits the receiver; the segment restates
     // no interval, since Terminal re-proves the bound at the call.
     assert!(
-        receiver.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+        receiver.access == crate::checked_trees::CheckedStructuralAccess::SharedBorrow
             && receiver.path.as_slice()
                 == [
-                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                        checked_trees::CheckedRuntimeIndex::Parameter { position: 0 }
+                    crate::checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        crate::checked_trees::CheckedRuntimeIndex::Parameter { position: 0 }
                     )
                 ],
         "the receiver argument lends the bounded runtime-indexed element shared: {receiver:#?}"
@@ -555,7 +560,7 @@ fn dynamic_indexed_owned_parameter_receiver_still_stops() {
     assert!(
         matches!(
             stage,
-            checked_trees::CheckedUnitPlanOmissionStage::ReceiverReconciliation
+            crate::checked_trees::CheckedUnitPlanOmissionStage::ReceiverReconciliation
         ),
         "a runtime index lends shared only from a borrowed root: an owned parameter still drops at receiver reconciliation: {stage:?}"
     );
@@ -603,7 +608,7 @@ fn dynamic_indexed_mutable_self_element_can_supply_shared_receiver() {
         .operations
         .iter()
         .filter_map(|operation| match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+            crate::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
                 structural_arguments,
                 ..
             } => Some(structural_arguments),
@@ -620,12 +625,12 @@ fn dynamic_indexed_mutable_self_element_can_supply_shared_receiver() {
     // so `self.cells[i]` retains `Field("cells")` then the bounded
     // `RuntimeIndex` hop — a mutable parent lends the selected element shared.
     assert!(
-        receiver.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+        receiver.access == crate::checked_trees::CheckedStructuralAccess::SharedBorrow
             && receiver.path.as_slice()
                 == [
-                    checked_trees::CheckedUnitStructuralPathSegment::Field("cells".into()),
-                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                        checked_trees::CheckedRuntimeIndex::Parameter { position: 0 }
+                    crate::checked_trees::CheckedUnitStructuralPathSegment::Field("cells".into()),
+                    crate::checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        crate::checked_trees::CheckedRuntimeIndex::Parameter { position: 0 }
                     ),
                 ],
         "the receiver argument lends the bounded runtime-indexed element shared: {receiver:#?}"

@@ -507,7 +507,7 @@ fn named_reference_origin_requires_a_stable_input_binding() {
         let state = &program.machine_states(machine)[0];
         let parameter = program.state_parameters(state)[0].symbol;
         assert_eq!(
-            validation::state_reference_parameter_binding_is_stable(
+            crate::validation::state_reference_parameter_binding_is_stable(
                 &program, machine, state, parameter
             ),
             stable,
@@ -520,8 +520,10 @@ fn named_reference_origin_requires_a_stable_input_binding() {
 
 #[test]
 fn named_reference_origin_requires_consistent_whole_name_symbols() {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+        StatementNode, TransitionTargetNode,
+    };
     let original = parse_typed_trees(
         r#"
         domain [u8; 4]::Utf8 requires valid_utf8(self);
@@ -655,8 +657,9 @@ fn rebased_contexts_grow_linearly_and_stay_scoped_to_their_state() {
                 assert!(
                     matches!(
                         point,
-                        facts::ProgramPoint::Global | facts::ProgramPoint::Machine { .. }
-                    ) || matches!(point, facts::ProgramPoint::State { state_symbol, .. }
+                        crate::fact_plan::ProgramPoint::Global
+                            | crate::fact_plan::ProgramPoint::Machine { .. }
+                    ) || matches!(point, crate::fact_plan::ProgramPoint::State { state_symbol, .. }
                         if state_symbol == state.state_symbol),
                     "an entry context belongs to a sibling or exit: {point:?}"
                 );
@@ -665,10 +668,10 @@ fn rebased_contexts_grow_linearly_and_stay_scoped_to_their_state() {
         sizes.push((
             semantic.contexts.len(),
             semantic
-                .context_handles_at_point(facts::ProgramPoint::Global)
+                .context_handles_at_point(crate::fact_plan::ProgramPoint::Global)
                 .count(),
             semantic
-                .context_handles_at_point(facts::ProgramPoint::Machine {
+                .context_handles_at_point(crate::fact_plan::ProgramPoint::Machine {
                     machine_symbol: machine.symbol,
                 })
                 .count(),
@@ -687,12 +690,12 @@ fn rebased_contexts_grow_linearly_and_stay_scoped_to_their_state() {
 
 #[test]
 fn crash_exits_cannot_carry_ordinary_edge_obligations() {
-    use typed_trees::statement::{
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
         StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetHandle,
     };
 
     fn transitions_mut<'a>(
-        program: &'a mut typed_trees::TypedTrees,
+        program: &'a mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         machine_name: &str,
         state_ordinal: usize,
     ) -> &'a mut [StatementNode] {
@@ -705,7 +708,11 @@ fn crash_exits_cannot_carry_ordinary_edge_obligations() {
         program.statement_table.statements_mut(span)
     }
 
-    fn expect_isolation_rejection(program: typed_trees::TypedTrees, edge: &str, context: &str) {
+    fn expect_isolation_rejection(
+        program: symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        edge: &str,
+        context: &str,
+    ) {
         let diagnostics = lower_typed_trees(program, &CheckingRequest::settled())
             .expect_err("a crash exit cannot keep ordinary edge obligations");
         assert!(
@@ -735,7 +742,9 @@ fn crash_exits_cannot_carry_ordinary_edge_obligations() {
             let StatementNode::Transition(transition) = statement else {
                 continue;
             };
-            transition.exit = TransitionExit::Crash(typed_trees::signature::CrashCause::Trap);
+            transition.exit = TransitionExit::Crash(
+                symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Trap,
+            );
         }
         expect_isolation_rejection(program, "an ordinary successor edge", source);
     }
@@ -774,9 +783,11 @@ fn crash_exits_cannot_carry_ordinary_edge_obligations() {
     // the forged guard inside the state's declared scope, isolating the edge
     // check from ordinary name resolution.
     let mut program = parse_typed_trees("machine m() -> bool crashes Trap { crash Trap; }");
-    let guard = program
-        .expression_table
-        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
+    let guard = program.expression_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(
+            true,
+        ),
+    );
     for statement in transitions_mut(&mut program, "m", 0) {
         let StatementNode::Transition(transition) = statement else {
             continue;

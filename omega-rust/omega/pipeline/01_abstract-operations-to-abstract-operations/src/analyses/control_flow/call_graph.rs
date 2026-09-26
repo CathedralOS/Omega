@@ -2,9 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::PsiOptimizationUnit;
 use terminal_psi::TerminalAffineCleanupAction;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 use super::{CallGraphAnalysis, components::strongly_connected_components};
 
@@ -38,11 +38,11 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                 } => {
                     callees.push(*callee);
                     for argument in dynamic_arguments {
-                        if let abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                        if let terminal_psi_to_abstract_operations::abstract_operations::AbstractDynamicDescriptorSource::Selection {
                             application,
                             ..
                         }
-                        | abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        | terminal_psi_to_abstract_operations::abstract_operations::AbstractDynamicDescriptorSource::Rebound {
                             application,
                             ..
                         } = &argument.source

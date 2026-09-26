@@ -7,7 +7,7 @@ use crate::common;
 
 use common::{block_id, copy_fixture, dead_scalar_fixture, machine_id, value};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
-use optimization::{PsiOptimization, PsiOptimizationSelections};
+use terminal_codec::optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::Terminator;
 use terminal_verifier::{CopyPropagationRewriteError, validate_copy_propagation};
 

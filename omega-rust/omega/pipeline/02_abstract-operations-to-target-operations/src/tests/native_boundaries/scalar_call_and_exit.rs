@@ -38,7 +38,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
         },
         AbstractOperation::BoundaryCall {
             psi_operation: OperationId::new(971).unwrap(),
-            result: abstract_operations::AbstractBoundaryResult::Unit,
+            result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
             boundary,
             arguments: vec![exit_value],
             structural_arguments: Vec::new(),
@@ -47,10 +47,10 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
         },
         return_operation,
     ]);
-    let settlement = target_operations::BoundarySettlementBinding {
+    let settlement = crate::target_operations::BoundarySettlementBinding {
         boundary,
-        execution: target_operations::ProviderExecutionBinding::from_execution_record(
-            target_operations::ProviderPlanReportIdentity::new(970).unwrap(),
+        execution: crate::target_operations::ProviderExecutionBinding::from_execution_record(
+            crate::target_operations::ProviderPlanReportIdentity::new(970).unwrap(),
             971,
             972,
             973,
@@ -58,7 +58,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
         )
         .unwrap()
         .into(),
-        realization: target_operations::HostedExitProcessI32Realization.into(),
+        realization: crate::target_operations::HostedExitProcessI32Realization.into(),
     };
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -78,11 +78,11 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
         assert!(body.blocks[0].operations.iter().any(|operation| matches!(
             operation,
             TargetUnitOperation::BoundarySettlement {
-                realization: target_operations::BoundaryRealization::HostedExitProcessI32(_),
+                realization: crate::target_operations::BoundaryRealization::HostedExitProcessI32(_),
                 runtime_scalar_arguments,
                 ..
             } if matches!(runtime_scalar_arguments[0].source,
-                target_operations::TargetUnitScalarArgumentSource::IntegerImmediate { value: IntegerValue::Signed(37), .. })
+                crate::target_operations::TargetUnitScalarArgumentSource::IntegerImmediate { value: IntegerValue::Signed(37), .. })
         )));
     }
 

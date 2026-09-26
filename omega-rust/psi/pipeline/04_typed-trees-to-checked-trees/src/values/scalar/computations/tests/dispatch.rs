@@ -92,6 +92,6 @@ fn scalar_match_wildcard_closes_executable_prefix_without_erasing_subject() {
     assert_eq!(arms.len(), 1);
     assert_eq!(
         arms[0].pattern,
-        checked_trees::CheckedScalarDispatchPattern::Wildcard
+        crate::checked_trees::CheckedScalarDispatchPattern::Wildcard
     );
 }

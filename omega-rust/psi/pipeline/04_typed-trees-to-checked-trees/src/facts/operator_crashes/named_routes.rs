@@ -31,12 +31,14 @@
 //! referent, mirroring the call-`requires` rule that a reference formal used
 //! as a predicate value reads its referent.
 
-use checked_trees::FlowFacts;
-use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan};
+use crate::checked_trees::FlowFacts;
+use crate::fact_plan::{FactContextHandle, FactPayload, FactPlace, FactPlan};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use typed_trees::signature::StateParameter;
 
 use crate::labels::{
     instantiate_operator_contract_expression_label_with_labels, semantic_boolean_fact_label,
@@ -60,7 +62,7 @@ pub(super) fn named_route_is_false(
     program: &TypedTrees,
     flow: &FlowFacts,
     semantic: &FactPlan,
-    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
+    named_use: arena::Handle<crate::checked_trees::CheckedNamedOperatorUseFact>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -303,7 +305,7 @@ fn expression_evaluates_effects(program: &TypedTrees, root: ExpressionHandle) ->
             ExpressionNode::Match(dispatch) => {
                 pending.push(dispatch.subject);
                 for arm in program.expression_table.match_arms(dispatch.arms) {
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         pending.push(pattern);
                     }
                     pending.push(arm.value);

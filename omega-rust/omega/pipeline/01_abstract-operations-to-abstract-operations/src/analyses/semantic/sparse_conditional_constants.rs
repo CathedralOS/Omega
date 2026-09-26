@@ -1,14 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{OptimizationUnitIdentity, ScalarConstantFactIdentity};
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationFact, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
     SccpValueRow, SccpValueState, derived_sccp_scalar_constant_fact_identity,
     literal_scalar_constant_fact_identity,
 };
-use semantic_vocabulary::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, ValueId};
 
 use super::{scalar_operation_successors, scalar_value_definition};
 

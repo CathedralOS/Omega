@@ -254,8 +254,8 @@ pub(super) fn validate_borrowed_argument(
         // family's ABI support no more than the fixed-array view does.
         && !matches!(
             target.source,
-            target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
-                | target_operations::TargetStructuralArgumentSource::BlockParameter { .. }
+            abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
+                | abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::BlockParameter { .. }
         )
         && element_view.is_none()
         && source.call_plan.result.is_some())
@@ -304,13 +304,13 @@ pub(super) fn validate_borrowed_argument(
         return None;
     }
     match &target.source {
-        target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             let (producer, _) = aggregate_home?;
             if aggregate.is_none() || *psi_operation != producer || producer == operation {
                 return None;
             }
         }
-        target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
             psi_operation,
         } => {
             let (producer, _, _, _) = local?;
@@ -318,7 +318,7 @@ pub(super) fn validate_borrowed_argument(
                 return None;
             }
         }
-        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::Placement(placement) => {
             let parameter = signature
                 .parameters
                 .iter()
@@ -329,7 +329,7 @@ pub(super) fn validate_borrowed_argument(
                 return None;
             }
         }
-        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
+        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
             if address_join.is_some() =>
         {
             let (owner, joined) = address_join?;
@@ -337,7 +337,7 @@ pub(super) fn validate_borrowed_argument(
                 return None;
             }
         }
-        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
+        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
             if aggregate.is_some() =>
         {
             let (owner, declaration) = aggregate_block_home?;
@@ -348,9 +348,9 @@ pub(super) fn validate_borrowed_argument(
                 return None;
             }
         }
-        target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
-        | target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
-        | target_operations::TargetStructuralArgumentSource::BlockParameter { .. } => {
+        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
+        | abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
+        | abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::BlockParameter { .. } => {
             if exclusive {
                 return None;
             }
@@ -365,7 +365,7 @@ pub(super) fn validate_borrowed_argument(
 fn exclusive_projection_shape(
     source: &LegalizedScalarFunction,
     semantic: &terminal_psi::StructuralArgument,
-    target: &target_operations::TargetStructuralArgument,
+    target: &abstract_operations_to_target_operations::target_operations::TargetStructuralArgument,
 ) -> Option<ValueShape> {
     let signature = source.structural.as_ref()?;
     let parameter = signature
@@ -417,8 +417,8 @@ fn validate_referent_argument(
     operation: semantic_vocabulary::OperationId,
     argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
-    target: &target_operations::TargetStructuralArgument,
-    signature: &legalized_operations::LegalizedStructuralContract,
+    target: &abstract_operations_to_target_operations::target_operations::TargetStructuralArgument,
+    signature: &crate::legalized_operations::LegalizedStructuralContract,
 ) -> Option<()> {
     let (last, carrier_path) = semantic.path.split_last()?;
     if !matches!(last, terminal_psi::StructuralPathSegment::Referent)
@@ -449,7 +449,7 @@ fn validate_referent_argument(
         return None;
     }
     match &target.source {
-        target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
             psi_operation,
         } => {
             let (producer, result, local_scalar, _) =
@@ -462,7 +462,7 @@ fn validate_referent_argument(
                 return None;
             }
         }
-        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::Placement(placement) => {
             let parameter = signature
                 .parameters
                 .iter()

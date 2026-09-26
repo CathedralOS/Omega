@@ -105,7 +105,7 @@ pub(super) fn work_usage(
 
 pub(super) fn next_instruction_id(
     function_index: usize,
-    function: &selected_instructions::SelectedFunction,
+    function: &target_operations_to_selected_instructions::SelectedFunction,
 ) -> Result<u32, FixedViewCopyError> {
     let mut ids = function
         .blocks
@@ -144,7 +144,7 @@ pub(super) fn next_instruction_id(
 
 pub(super) fn next_register_id(
     function_index: usize,
-    function: &selected_instructions::SelectedFunction,
+    function: &target_operations_to_selected_instructions::SelectedFunction,
 ) -> Result<u32, FixedViewCopyError> {
     if function
         .virtual_registers
@@ -165,12 +165,12 @@ pub(super) fn next_register_id(
 
 pub(super) fn find_leaf_block(
     function_index: usize,
-    function: &selected_instructions::SelectedFunction,
+    function: &target_operations_to_selected_instructions::SelectedFunction,
     instruction: SelectedInstructionId,
     operand: u16,
     source: VirtualRegisterId,
-    to_view: register_model::RegisterViewId,
-) -> Result<selected_instructions::SelectedBlockId, FixedViewCopyError> {
+    to_view: target_operations_to_selected_instructions::register_model::RegisterViewId,
+) -> Result<target_operations_to_selected_instructions::SelectedBlockId, FixedViewCopyError> {
     for block in &function.blocks {
         let SelectedTerminator::Return {
             instruction: destination,
@@ -220,12 +220,12 @@ pub(super) fn find_leaf_block(
 /// `source` under `to_view`.
 pub(super) fn find_site_block(
     function_index: usize,
-    function: &selected_instructions::SelectedFunction,
+    function: &target_operations_to_selected_instructions::SelectedFunction,
     instruction: SelectedInstructionId,
     operand: u16,
     source: VirtualRegisterId,
-    to_view: register_model::RegisterViewId,
-) -> Result<selected_instructions::SelectedBlockId, FixedViewCopyError> {
+    to_view: target_operations_to_selected_instructions::register_model::RegisterViewId,
+) -> Result<target_operations_to_selected_instructions::SelectedBlockId, FixedViewCopyError> {
     for block in &function.blocks {
         let site = block
             .instructions
@@ -267,7 +267,7 @@ pub(super) fn find_site_block(
 
 fn terminator_instruction(
     terminator: &SelectedTerminator,
-) -> &selected_instructions::SelectedInstruction {
+) -> &target_operations_to_selected_instructions::SelectedInstruction {
     match terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }

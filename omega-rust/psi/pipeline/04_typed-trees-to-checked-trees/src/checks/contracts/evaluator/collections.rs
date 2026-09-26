@@ -1,5 +1,7 @@
 use language_semantics::declaration_selection::CollectionViewOperation;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableMemberExpression,
+};
 
 use super::ContractExpressionEvaluator;
 
@@ -29,7 +31,9 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// Follow only an immutable descriptor whose binding is still unexposed at
     /// this occurrence; general initializer evaluation remains forbidden.
     fn immutable_fixed_array_view_length(&self, expression: ExpressionHandle) -> Option<usize> {
-        use typed_trees::statement::{StatementNode, TransitionGuardNode};
+        use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+            StatementNode, TransitionGuardNode,
+        };
 
         let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
         else {
@@ -104,7 +108,7 @@ impl ContractExpressionEvaluator<'_, '_> {
         ) {
             return None;
         }
-        let receiver_type = validation::declared_place_type_raw(
+        let receiver_type = crate::validation::declared_place_type_raw(
             self.program,
             self.caller_machine,
             Some(self.caller_state),
@@ -138,7 +142,9 @@ impl ContractExpressionEvaluator<'_, '_> {
 
         let data = self.target_self_data_definition()?;
         for data_member in self.program.data_members(data) {
-            let typed_trees::data::DataMember::Field(field) = data_member else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+                data_member
+            else {
                 continue;
             };
             if field.name == member.member {
@@ -154,7 +160,9 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// The data definition the TARGET machine is attached to (`Vec4` for
     /// `machine Vec4::get`), found through the machine that owns the target
     /// state. `None` for free machines (no attached data).
-    fn target_self_data_definition(&self) -> Option<&typed_trees::data::DataDefinition> {
+    fn target_self_data_definition(
+        &self,
+    ) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
         let machine =
             crate::lookup::machine_by_symbol(self.program, self.target_symbol).or_else(|| {
                 crate::semantic::calls::find_state_with_machine(self.program, self.target_symbol)

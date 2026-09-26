@@ -5,8 +5,8 @@
 //! into the new execution order. Validation independently re-derives the
 //! transform and restores the source by content.
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::SelectedInstructionId;
+use target_operations_to_selected_instructions::SelectedInstructionId;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::{CommutingRelocationError, ValidatedCommutingRelocation, admission};
 use crate::ValidatedSelectedAnalysis;

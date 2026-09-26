@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::AbstractOperation;
+use crate::abstract_operations::AbstractOperation;
 use terminal_psi::{OperationKind, TerminalDynamicDispatchCatalog, TerminalMachine};
 
 use super::{
@@ -50,7 +50,7 @@ pub(super) fn lower(
                 .ok_or(LoweringError::InvalidStructuralCaseMembership(operation.id))?;
             Ok(AbstractOperation::StructuralCaseMembership {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
+                result: crate::abstract_operations::AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,
                 },
@@ -82,7 +82,7 @@ pub(super) fn lower(
             }
             Ok(AbstractOperation::StructuralByteSequenceFieldLength {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
+                result: crate::abstract_operations::AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,
                 },
@@ -111,7 +111,7 @@ pub(super) fn lower(
             }
             Ok(AbstractOperation::StructuralByteSequenceFieldRead {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
+                result: crate::abstract_operations::AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,
                 },
@@ -207,7 +207,7 @@ pub(super) fn lower(
             }
             Ok(AbstractOperation::ByteSequenceRead {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
+                result: crate::abstract_operations::AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,
                 },
@@ -249,7 +249,7 @@ pub(super) fn lower(
             }
             Ok(AbstractOperation::ByteSequenceLength {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
+                result: crate::abstract_operations::AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,
                 },
@@ -288,7 +288,7 @@ pub(super) fn lower(
             }
             Ok(AbstractOperation::ElementViewLength {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
+                result: crate::abstract_operations::AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,
                 },
@@ -313,7 +313,7 @@ pub(super) fn lower(
                 .ok_or(LoweringError::InvalidElementViewRead(operation.id))?;
             Ok(AbstractOperation::ElementViewRead {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
+                result: crate::abstract_operations::AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,
                 },

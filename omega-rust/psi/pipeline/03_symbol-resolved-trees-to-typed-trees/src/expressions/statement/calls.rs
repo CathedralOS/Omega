@@ -1,7 +1,7 @@
 use crate::lowerer::Lowerer;
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 use super::arguments::{lower_statement_argument_span, lower_statement_path_members};
 

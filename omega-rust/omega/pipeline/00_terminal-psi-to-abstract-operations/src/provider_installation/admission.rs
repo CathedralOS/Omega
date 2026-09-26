@@ -1,9 +1,9 @@
 use super::error::ProviderInstallationError;
 use super::replay::replay_installed_provider_calls;
 use super::{AdmittedProviderInstallation, SelectedProviderAdapter};
+use crate::abstract_operations::AbstractOperationPlan;
 use crate::artifact_admission::ArtifactLoweringError;
 use crate::lowering::lower_decoded_verified_module;
-use abstract_operations::AbstractOperationPlan;
 
 pub(super) fn admit_provider_installation_with_projection(
     plan: &AbstractOperationPlan,

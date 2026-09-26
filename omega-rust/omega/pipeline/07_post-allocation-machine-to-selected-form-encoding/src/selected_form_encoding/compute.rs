@@ -1,20 +1,20 @@
-use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{SelectedInstruction, SelectedTerminator};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::{SelectedInstruction, SelectedTerminator};
 
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
-use crate::{OptimizedSelectedFormEncodingError, row_encoding::encode_row};
-use machine_code::{
+use crate::machine_code::{
     SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
     SelectedFormEncodingRow, SelectedFormEncodingState,
 };
+use crate::{OptimizedSelectedFormEncodingError, row_encoding::encode_row};
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     selected: &S,
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
-    frame: Option<&machine_code::TargetFrameLayoutPlan>,
+    frame: Option<&crate::machine_code::TargetFrameLayoutPlan>,
 ) -> Result<SelectedFormEncoding, OptimizedSelectedFormEncodingError> {
     let machine = staged.machine().plan();
     crate::frame_address::validate_frame_root(machine, frame)?;

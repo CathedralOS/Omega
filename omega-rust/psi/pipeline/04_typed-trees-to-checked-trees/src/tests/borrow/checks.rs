@@ -18,8 +18,8 @@ use crate::tests::front_end::typed_program;
 /// checker's verdict.
 pub(super) fn check_program(source: &str) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -32,7 +32,7 @@ pub(super) fn check_program(source: &str) -> Result<(), Vec<diagnostics::Diagnos
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,

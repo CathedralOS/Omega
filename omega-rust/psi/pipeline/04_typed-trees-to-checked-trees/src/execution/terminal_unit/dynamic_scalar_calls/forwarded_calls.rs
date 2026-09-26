@@ -27,8 +27,8 @@ pub(super) fn build_checked_forwarded_dynamic_calls<Lane: DynamicResultLane>(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
-    binding_facts: &checked_trees::DynamicConformanceBindingFacts,
-    plans: &mut checked_trees::CheckedDynamicDispatchPlans,
+    binding_facts: &crate::checked_trees::DynamicConformanceBindingFacts,
+    plans: &mut crate::checked_trees::CheckedDynamicDispatchPlans,
 ) {
     for machine in program.machines() {
         if !machine.attached_data_symbol.is_valid() {
@@ -66,7 +66,7 @@ pub(super) fn build_checked_forwarded_dynamic_calls<Lane: DynamicResultLane>(
                 };
                 let transfer = (*transfer).clone();
                 if transfer.source
-                    != checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+                    != crate::checked_trees::CheckedDynamicDescriptorTransferSource::Selection
                 {
                     continue;
                 }
@@ -129,8 +129,8 @@ fn passes_only_the_descriptor<Lane: DynamicResultLane>(
 fn resolve_forwarded_dynamic_call<'program, 'facts, Lane: DynamicResultLane>(
     program: &'program TypedTrees,
     facts: &'facts CheckFacts,
-    transfers: &[checked_trees::CheckedDynamicDescriptorTransferPlan],
-    root_transfer: checked_trees::CheckedDynamicDescriptorTransferPlan,
+    transfers: &[crate::checked_trees::CheckedDynamicDescriptorTransferPlan],
+    root_transfer: crate::checked_trees::CheckedDynamicDescriptorTransferPlan,
 ) -> Option<ForwardedDynamicCall<'program, 'facts, Lane::HelperBody>> {
     let mut current = root_transfer.clone();
     let mut prior_transfers = Vec::new();
@@ -216,7 +216,7 @@ fn resolve_forwarded_dynamic_call<'program, 'facts, Lane: DynamicResultLane>(
                     && transfer.coordinate == coordinate
                     && transfer.source_binding == parameter.symbol
                     && transfer.source
-                        == checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                        == crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                             parameter_position: 0,
                         }
             })
@@ -234,11 +234,11 @@ fn resolve_forwarded_dynamic_call<'program, 'facts, Lane: DynamicResultLane>(
 pub(super) fn scalar_helper_body(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    inner_call: &checked_trees::FlowCallFact,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    inner_call: &crate::checked_trees::FlowCallFact,
     inner_site: &CallSite<'_>,
-) -> Option<checked_trees::CheckedDynamicScalarHelperPlan> {
+) -> Option<crate::checked_trees::CheckedDynamicScalarHelperPlan> {
     let (scalar_control, prefix_count) =
         crate::execution::terminal_unit::control::scalar_control(program, facts, machine, state)?;
     let statements = program
@@ -262,7 +262,7 @@ pub(super) fn scalar_helper_body(
     // Every statement before the call is a local, so the call's binding
     // ordinal is its statement index.
     let call_statement = u32::try_from(inner_call.statement_index).ok()?;
-    Some(checked_trees::CheckedDynamicScalarHelperPlan {
+    Some(crate::checked_trees::CheckedDynamicScalarHelperPlan {
         machine: machine.symbol,
         state: state.symbol,
         call_result: CheckedUnitScalarResultBindingPlan {
@@ -287,11 +287,11 @@ pub(super) fn scalar_helper_body(
 pub(super) fn unit_helper_body(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    inner_call: &checked_trees::FlowCallFact,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    inner_call: &crate::checked_trees::FlowCallFact,
     inner_site: &CallSite<'_>,
-) -> Option<checked_trees::CheckedDynamicUnitHelperPlan> {
+) -> Option<crate::checked_trees::CheckedDynamicUnitHelperPlan> {
     let CallSite::Statement(call) = *inner_site else {
         return None;
     };
@@ -304,7 +304,7 @@ pub(super) fn unit_helper_body(
     {
         return None;
     }
-    Some(checked_trees::CheckedDynamicUnitHelperPlan {
+    Some(crate::checked_trees::CheckedDynamicUnitHelperPlan {
         machine: machine.symbol,
         state: state.symbol,
         call_statement_index: u32::try_from(inner_call.statement_index).ok()?,
@@ -326,7 +326,7 @@ pub(super) fn unit_helper_body(
 fn helper_scalar_locals(
     program: &TypedTrees,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statements: &[StatementNode],
     call_statement: usize,
     call_binds_result: bool,
@@ -360,18 +360,20 @@ fn helper_scalar_locals(
 pub(super) struct ForwardedDynamicCall<'program, 'facts, HelperBody> {
     /// The helper bodies, outermost first.
     pub(super) helpers: Vec<HelperBody>,
-    pub(super) machine: &'program typed_trees::machine::Machine,
-    pub(super) state: &'program typed_trees::state::State,
-    pub(super) flow_call: &'facts checked_trees::FlowCallFact,
+    pub(super) machine:
+        &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    pub(super) state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    pub(super) flow_call: &'facts crate::checked_trees::FlowCallFact,
     pub(super) call_site: CallSite<'program>,
-    pub(super) transfer: checked_trees::CheckedDynamicDescriptorTransferPlan,
-    pub(super) prior_transfers: Vec<checked_trees::CheckedDynamicDescriptorTransferPlan>,
+    pub(super) transfer: crate::checked_trees::CheckedDynamicDescriptorTransferPlan,
+    pub(super) prior_transfers: Vec<crate::checked_trees::CheckedDynamicDescriptorTransferPlan>,
 }
 
 pub(super) fn forwarded_transfer_path_is_exact<HelperBody>(
     forwarded: &ForwardedDynamicCall<'_, '_, HelperBody>,
 ) -> bool {
-    if forwarded.transfer.source != checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+    if forwarded.transfer.source
+        != crate::checked_trees::CheckedDynamicDescriptorTransferSource::Selection
     {
         return false;
     }
@@ -385,7 +387,7 @@ pub(super) fn forwarded_transfer_path_is_exact<HelperBody>(
         if transfer.caller_machine != machine
             || transfer.caller_state != state
             || transfer.source
-                != (checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                != (crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 })
         {

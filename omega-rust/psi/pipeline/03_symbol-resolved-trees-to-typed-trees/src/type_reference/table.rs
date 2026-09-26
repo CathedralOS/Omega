@@ -1,8 +1,8 @@
+use crate::typed_trees as typed;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
 
 use crate::type_reference::constraints::lower_type_constraint_node_span_from_table;
 use crate::type_reference::direct::lower_fixed_array_length;

@@ -6,7 +6,9 @@ use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, SymbolHandle,
     unsupported,
 };
-use checked_trees::{CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+};
 
 pub(crate) fn validate(
     checked: &CheckedTrees,
@@ -14,7 +16,7 @@ pub(crate) fn validate(
     state: SymbolHandle,
     statement: u32,
     expression: ExpressionHandle,
-    expected: checked_trees::types::TypeReferenceHandle,
+    expected: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
     let (owner, source_state) =
@@ -27,7 +29,8 @@ pub(crate) fn validate(
         || name.head_symbol != name.symbol
         || name.members.count() != 1
         || !argument.path.is_empty()
-        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+        || argument.access
+            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
     {
         return unsupported("owned value operand changed its whole source access");
     }
@@ -87,13 +90,16 @@ pub(crate) fn validate(
     // Whole formal forwarding transports existing leaf custody. Completion
     // independently compares its exact returned-origin map; this does not admit
     // local record moves or owned projections without their separate replay.
-    let owned_reference_parameter =
-        matches!(
-            argument.source,
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-        ) && validation::reference_result_custody::is_reference_record(&checked.typed, source);
+    let owned_reference_parameter = matches!(
+        argument.source,
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+    )
+        && typed_trees_to_checked_trees::validation::reference_result_custody::is_reference_record(
+            &checked.typed,
+            source,
+        );
     if checked.primitive_type_reference(source).is_some()
-        || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, source)
+        || !(typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, source)
             || owned_reference_parameter)
         || checked.normalized_type_identity(source) != checked.normalized_type_identity(expected)
         || checked.normalized_type_identity(source).as_str() != argument.type_identity
@@ -109,7 +115,8 @@ pub(crate) fn validate(
             .filter(|event| {
                 event.machine_symbol == machine
                     && event.state_symbol == state
-                    && event.root == facts::PlaceRoot::Symbol(name.symbol)
+                    && event.root
+                        == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(name.symbol)
                     && event.kind == language_semantics::PermissionEventKind::Transfer
                     && event.source
                         == language_semantics::PermissionEventSource::Statement {

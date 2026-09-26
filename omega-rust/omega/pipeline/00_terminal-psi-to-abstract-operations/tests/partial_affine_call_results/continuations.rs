@@ -158,7 +158,7 @@ fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
                         _ => unreachable!(),
                     }
                     changed.identity =
-                        optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+                        terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
                     assert!(
                         validate_psi_optimization_unit(&changed).is_err(),
                         "mutation {mutation} must reject after identity refresh"

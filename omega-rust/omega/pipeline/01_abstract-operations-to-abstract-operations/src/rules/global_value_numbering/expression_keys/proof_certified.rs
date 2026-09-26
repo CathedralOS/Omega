@@ -1,7 +1,7 @@
 //! Proof-certified scalar-operation classification.
 
-use abstract_operations::AbstractOperation as O;
 use semantic_vocabulary::ScalarType;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
 
 use super::{ProofCertifiedScalarExpressionKey, ScalarExpressionRow, canonical_pair};
 

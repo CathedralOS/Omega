@@ -33,7 +33,9 @@ fn foreign_context_field(program: &TypedTrees) -> SymbolHandle {
         .data_members(owner)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "context" => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == "context" =>
+            {
                 Some(field.symbol)
             }
             _ => None,
@@ -297,7 +299,7 @@ fn an_erased_projected_statement_callee_without_receiver_or_checked_evidence_rej
     replace_typed_callees(&mut checked.typed, SymbolHandle::invalid(), true);
     let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
         &mut checked.typed,
-        &checked_trees::CheckFacts::default(),
+        &crate::checked_trees::CheckFacts::default(),
     )
     .expect_err("method spelling alone cannot finalize a projected call");
     assert!(

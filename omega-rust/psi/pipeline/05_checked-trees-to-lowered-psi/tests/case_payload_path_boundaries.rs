@@ -9,11 +9,13 @@
 //! members moved to `Owned` targets; reference members and borrowed subjects
 //! decline at the sites these tests pin.
 use checked_trees_to_lowered_psi::*;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn produce(source: &str) -> Result<(), String> {
     let checked = crate::front_end::checked_program(source);
-    match terminal_production::TerminalProductionRequest::new(
+    match lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("H::run"),
     )

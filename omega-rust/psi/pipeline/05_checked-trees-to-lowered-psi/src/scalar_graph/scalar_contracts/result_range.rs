@@ -4,7 +4,7 @@ use super::super::{CheckedTrees, ClosedScalarValueContractPlan};
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, LoweringError,
 };
-use checked_trees::types::TypeReferenceNode;
+use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
 
 pub(crate) fn with_result_range(
     checked: &CheckedTrees,
@@ -19,28 +19,34 @@ pub(crate) fn with_result_range(
             .type_reference_table
             .type_reference(source.return_type),
         TypeReferenceNode::Constrained { .. }
-    ) || validation::is_arithmetic_policy_only_integer(&checked.typed, source.return_type)
-    {
+    ) || typed_trees_to_checked_trees::validation::is_arithmetic_policy_only_integer(
+        &checked.typed,
+        source.return_type,
+    ) {
         return Ok(plan.clone());
     }
     // This query describes the exact authored interval only. The guarantee
     // below still has to be proved independently at every actual normal exit.
     let (primitive_type, minimum, maximum) =
-        validation::closed_scalar_result_range(&checked.typed, source.return_type).ok_or(
-            LoweringError::Unsupported("scalar result requires one closed exact integer range"),
-        )?;
+        typed_trees_to_checked_trees::validation::closed_scalar_result_range(
+            &checked.typed,
+            source.return_type,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "scalar result requires one closed exact integer range",
+        ))?;
     let subject = CheckedScalarExpression::Parameter {
         position: result_position,
         primitive_type,
     };
     let predicate = CheckedBooleanExpression::And {
         left: Box::new(CheckedBooleanExpression::IntegerComparison {
-            kind: checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
+            kind: typed_trees_to_checked_trees::checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
             left: Box::new(CheckedScalarExpression::IntegerLiteral { literal: minimum }),
             right: Box::new(subject.clone()),
         }),
         right: Box::new(CheckedBooleanExpression::IntegerComparison {
-            kind: checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
+            kind: typed_trees_to_checked_trees::checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
             left: Box::new(subject),
             right: Box::new(CheckedScalarExpression::IntegerLiteral { literal: maximum }),
         }),

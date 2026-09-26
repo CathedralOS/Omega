@@ -1,5 +1,5 @@
+use crate::checked_trees::AcceptanceView;
 use crate::tests::front_end::checked_program;
-use checked_trees::AcceptanceView;
 
 #[test]
 fn exposes_checked_operation_acceptance_from_one_query_surface() {
@@ -35,7 +35,7 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert!(state_summary.is_accepted());
     assert_eq!(
         state_summary.checks().len(),
-        checked_trees::AcceptanceDimension::ALL.len()
+        crate::checked_trees::AcceptanceDimension::ALL.len()
     );
     assert_eq!(state_summary.rejected_checks().count(), 0);
     assert_eq!(state_summary.rejected_check_count(), 0);
@@ -46,15 +46,17 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert!(state_summary.borrow.evidence_count > 0);
     assert_eq!(
         state_summary
-            .check(checked_trees::AcceptanceDimension::Borrow)
+            .check(crate::checked_trees::AcceptanceDimension::Borrow)
             .evidence_count,
         state_summary.borrow.evidence_count
     );
-    assert!(state_summary.is_dimension_satisfied(checked_trees::AcceptanceDimension::Borrow));
+    assert!(
+        state_summary.is_dimension_satisfied(crate::checked_trees::AcceptanceDimension::Borrow)
+    );
     assert_eq!(state_summary.borrow.diagnostic_count, 0);
     assert_eq!(
         state_summary.borrow.provenance,
-        checked_trees::AcceptanceCheckProvenance::AcceptedByEvidence
+        crate::checked_trees::AcceptanceCheckProvenance::AcceptedByEvidence
     );
     assert_eq!(state_summary.proof.evidence_count, 1);
     assert_eq!(state_acceptance.statements().len(), 1);
@@ -85,18 +87,18 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert!(call_summary.is_accepted());
     assert_eq!(
         call_summary.checks().len(),
-        checked_trees::AcceptanceDimension::ALL.len()
+        crate::checked_trees::AcceptanceDimension::ALL.len()
     );
     assert_eq!(call_summary.rejected_checks().count(), 0);
     assert!(call_summary.borrow.evidence_count > 0);
     assert_eq!(call_summary.proof.evidence_count, 1);
     assert_eq!(
         call_summary.termination.verdict,
-        checked_trees::AcceptanceCheckVerdict::NotApplicable
+        crate::checked_trees::AcceptanceCheckVerdict::NotApplicable
     );
     assert_eq!(
         call_summary.termination.provenance,
-        checked_trees::AcceptanceCheckProvenance::NotRequired
+        crate::checked_trees::AcceptanceCheckProvenance::NotRequired
     );
     assert!(!call_acceptance.entry_constraints().is_empty());
     assert!(!call_acceptance.requires_constraints().is_empty());
@@ -107,11 +109,11 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert_eq!(
         operations
             .iter()
-            .map(checked_trees::StateOperationAcceptance::kind)
+            .map(crate::checked_trees::StateOperationAcceptance::kind)
             .collect::<Vec<_>>(),
         vec![
-            checked_trees::StateOperationAcceptanceKind::Statement,
-            checked_trees::StateOperationAcceptanceKind::Call,
+            crate::checked_trees::StateOperationAcceptanceKind::Statement,
+            crate::checked_trees::StateOperationAcceptanceKind::Call,
         ]
     );
     assert!(operations.iter().all(|operation| operation.is_accepted()));
@@ -124,47 +126,69 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
 
 #[test]
 fn acceptance_checks_have_diagnostic_provenance_shape_for_rejections() {
-    let rejected =
-        checked_trees::AcceptanceCheck::rejected(checked_trees::AcceptanceDimension::Borrow, 2);
+    let rejected = crate::checked_trees::AcceptanceCheck::rejected(
+        crate::checked_trees::AcceptanceDimension::Borrow,
+        2,
+    );
 
     assert_eq!(
         rejected.verdict,
-        checked_trees::AcceptanceCheckVerdict::Rejected
+        crate::checked_trees::AcceptanceCheckVerdict::Rejected
     );
     assert_eq!(rejected.evidence_count, 0);
     assert_eq!(rejected.diagnostic_count, 2);
     assert_eq!(
         rejected.provenance,
-        checked_trees::AcceptanceCheckProvenance::RejectedByDiagnostic
+        crate::checked_trees::AcceptanceCheckProvenance::RejectedByDiagnostic
     );
     assert!(!rejected.is_satisfied());
 
-    let pending =
-        checked_trees::AcceptanceCheck::rejected(checked_trees::AcceptanceDimension::Proof, 0);
+    let pending = crate::checked_trees::AcceptanceCheck::rejected(
+        crate::checked_trees::AcceptanceDimension::Proof,
+        0,
+    );
     assert_eq!(
         pending.provenance,
-        checked_trees::AcceptanceCheckProvenance::DiagnosticPending
+        crate::checked_trees::AcceptanceCheckProvenance::DiagnosticPending
     );
 }
 
 #[test]
 fn acceptance_summary_derives_rejection_from_dimension_records() {
-    let summary = checked_trees::AcceptanceSummary::with_checks(
-        checked_trees::AcceptanceCheck::accepted(checked_trees::AcceptanceDimension::Borrow, 3),
-        checked_trees::AcceptanceCheck::rejected(checked_trees::AcceptanceDimension::Proof, 1),
-        checked_trees::AcceptanceCheck::accepted(
-            checked_trees::AcceptanceDimension::ServiceReach,
+    let summary = crate::checked_trees::AcceptanceSummary::with_checks(
+        crate::checked_trees::AcceptanceCheck::accepted(
+            crate::checked_trees::AcceptanceDimension::Borrow,
+            3,
+        ),
+        crate::checked_trees::AcceptanceCheck::rejected(
+            crate::checked_trees::AcceptanceDimension::Proof,
             1,
         ),
-        checked_trees::AcceptanceCheck::accepted(checked_trees::AcceptanceDimension::Suspension, 0),
-        checked_trees::AcceptanceCheck::accepted(checked_trees::AcceptanceDimension::Blocking, 0),
-        checked_trees::AcceptanceCheck::accepted(checked_trees::AcceptanceDimension::Boundaries, 0),
-        checked_trees::AcceptanceCheck::not_applicable(
-            checked_trees::AcceptanceDimension::Termination,
+        crate::checked_trees::AcceptanceCheck::accepted(
+            crate::checked_trees::AcceptanceDimension::ServiceReach,
+            1,
+        ),
+        crate::checked_trees::AcceptanceCheck::accepted(
+            crate::checked_trees::AcceptanceDimension::Suspension,
+            0,
+        ),
+        crate::checked_trees::AcceptanceCheck::accepted(
+            crate::checked_trees::AcceptanceDimension::Blocking,
+            0,
+        ),
+        crate::checked_trees::AcceptanceCheck::accepted(
+            crate::checked_trees::AcceptanceDimension::Boundaries,
+            0,
+        ),
+        crate::checked_trees::AcceptanceCheck::not_applicable(
+            crate::checked_trees::AcceptanceDimension::Termination,
         ),
     );
 
-    assert_eq!(summary.verdict, checked_trees::AcceptanceVerdict::Rejected);
+    assert_eq!(
+        summary.verdict,
+        crate::checked_trees::AcceptanceVerdict::Rejected
+    );
     assert!(!summary.is_accepted());
     assert_eq!(summary.evidence_count(), 4);
     assert_eq!(summary.diagnostic_count(), 1);
@@ -176,17 +200,17 @@ fn acceptance_summary_derives_rejection_from_dimension_records() {
             .rejected_checks()
             .next()
             .map(|check| check.dimension),
-        Some(checked_trees::AcceptanceDimension::Proof)
+        Some(crate::checked_trees::AcceptanceDimension::Proof)
     );
 }
 
 #[test]
 fn acceptance_dimensions_have_canonical_iteration_order_and_names() {
-    let dimensions = checked_trees::AcceptanceDimension::ALL;
+    let dimensions = crate::checked_trees::AcceptanceDimension::ALL;
 
     assert_eq!(dimensions.len(), 7);
     assert_eq!(
-        dimensions.map(checked_trees::AcceptanceDimension::as_str),
+        dimensions.map(crate::checked_trees::AcceptanceDimension::as_str),
         [
             "borrow",
             "proof",
@@ -248,11 +272,11 @@ fn exposes_exit_acceptance_through_shared_view_surface() {
     assert_eq!(
         operations
             .iter()
-            .map(checked_trees::StateOperationAcceptance::kind)
+            .map(crate::checked_trees::StateOperationAcceptance::kind)
             .collect::<Vec<_>>(),
         vec![
-            checked_trees::StateOperationAcceptanceKind::Statement,
-            checked_trees::StateOperationAcceptanceKind::Exit,
+            crate::checked_trees::StateOperationAcceptanceKind::Statement,
+            crate::checked_trees::StateOperationAcceptanceKind::Exit,
         ]
     );
     assert!(operations[0].as_statement().is_some());
@@ -426,7 +450,7 @@ fn acceptance_views_publish_exact_statement_owned_qualification_correspondences(
     };
     assert_eq!(
         correspondence.formation,
-        facts::ProgramPoint::Statement {
+        crate::fact_plan::ProgramPoint::Statement {
             machine_symbol: run_machine_symbol,
             state_symbol: run_state_symbol,
             statement_index: 1,
@@ -455,7 +479,7 @@ fn acceptance_views_publish_exact_statement_owned_qualification_correspondences(
             .place_label(&checked, correspondence.destination_place),
         "self.destination"
     );
-    let facts::QualificationPayloadIdentity::DomainMembership {
+    let crate::fact_plan::QualificationPayloadIdentity::DomainMembership {
         domain,
         domain_symbol,
         semantic_domain: _,
@@ -479,11 +503,11 @@ fn acceptance_views_publish_exact_statement_owned_qualification_correspondences(
         .facts
         .get(correspondence.destination_fact);
     assert_eq!(
-        facts::QualificationPayloadIdentity::from_fact_payload(source_fact.payload),
+        crate::fact_plan::QualificationPayloadIdentity::from_fact_payload(source_fact.payload),
         Some(correspondence.payload)
     );
     assert_eq!(
-        facts::QualificationPayloadIdentity::from_fact_payload(destination_fact.payload),
+        crate::fact_plan::QualificationPayloadIdentity::from_fact_payload(destination_fact.payload),
         Some(correspondence.payload)
     );
     assert_eq!(source_fact.evidence, correspondence.evidence);
@@ -601,12 +625,12 @@ fn source_lowering_retains_prior_state_local_qualification_transfer_endpoints() 
             .map(|row| row.formation)
             .collect::<Vec<_>>(),
         [
-            facts::ProgramPoint::Statement {
+            crate::fact_plan::ProgramPoint::Statement {
                 machine_symbol: run.symbol,
                 state_symbol: state.symbol,
                 statement_index: 2,
             },
-            facts::ProgramPoint::Statement {
+            crate::fact_plan::ProgramPoint::Statement {
                 machine_symbol: run.symbol,
                 state_symbol: state.symbol,
                 statement_index: 3,
@@ -635,17 +659,17 @@ fn source_lowering_retains_prior_state_local_qualification_transfer_endpoints() 
     );
 }
 
-fn assert_acceptance_view_is_queryable(view: &impl checked_trees::AcceptanceView) {
+fn assert_acceptance_view_is_queryable(view: &impl crate::checked_trees::AcceptanceView) {
     let summary = view.summary();
 
     assert_eq!(view.verdict(), summary.verdict);
     assert_eq!(view.is_accepted(), summary.is_accepted());
     assert_eq!(
-        view.check(checked_trees::AcceptanceDimension::Borrow),
+        view.check(crate::checked_trees::AcceptanceDimension::Borrow),
         summary.borrow
     );
     assert_eq!(
-        view.is_dimension_satisfied(checked_trees::AcceptanceDimension::Proof),
+        view.is_dimension_satisfied(crate::checked_trees::AcceptanceDimension::Proof),
         summary.proof.is_satisfied()
     );
     assert_eq!(view.evidence_count(), summary.evidence_count());
@@ -654,6 +678,6 @@ fn assert_acceptance_view_is_queryable(view: &impl checked_trees::AcceptanceView
     assert_eq!(view.has_diagnostics(), summary.has_diagnostics());
     assert_eq!(
         summary.checks().len(),
-        checked_trees::AcceptanceDimension::ALL.len()
+        crate::checked_trees::AcceptanceDimension::ALL.len()
     );
 }

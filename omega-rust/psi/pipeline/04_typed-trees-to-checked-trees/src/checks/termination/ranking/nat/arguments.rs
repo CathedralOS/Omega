@@ -1,12 +1,14 @@
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
 
 use super::super::patterns;
 
 pub(super) fn argument_is_parameter_minus_one(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     argument: ExpressionHandle,
-    parameter: &typed_trees::signature::StateParameter,
+    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
 ) -> bool {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(argument) else {
         return false;
@@ -21,10 +23,10 @@ pub(super) fn argument_is_parameter_minus_one(
 }
 
 pub(super) fn argument_is_parameter_plus_one(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     argument: ExpressionHandle,
-    parameter: &typed_trees::signature::StateParameter,
+    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
 ) -> bool {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(argument) else {
         return false;
@@ -39,10 +41,10 @@ pub(super) fn argument_is_parameter_plus_one(
 }
 
 pub(super) fn argument_rebuilds_parameter_with_member_minus_one(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     argument: ExpressionHandle,
-    parameter: &typed_trees::signature::StateParameter,
+    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
     member_name: &str,
 ) -> bool {
     let ExpressionNode::StructLiteral(struct_literal) =
@@ -68,10 +70,10 @@ pub(super) fn argument_rebuilds_parameter_with_member_minus_one(
 }
 
 fn argument_is_parameter_member_minus_one(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     argument: ExpressionHandle,
-    parameter: &typed_trees::signature::StateParameter,
+    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
     member_name: &str,
 ) -> bool {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(argument) else {

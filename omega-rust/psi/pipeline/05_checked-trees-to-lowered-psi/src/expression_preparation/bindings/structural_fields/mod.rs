@@ -138,7 +138,7 @@ impl StructuralScalarFieldBinding {
 pub(crate) fn resolve(
     fields: &[StructuralScalarFieldBinding],
     position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
     scalar_type: ScalarType,
 ) -> Result<
     (
@@ -175,7 +175,7 @@ pub(crate) fn resolve(
         if declarations.next().is_some() {
             return unsupported("runtime field observation has ambiguous carrier declarations");
         }
-        if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
+        if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
             segment
         {
             // One literal fixed-array index may end the carrier, mirroring
@@ -198,7 +198,7 @@ pub(crate) fn resolve(
             structural_type = *element;
             continue;
         }
-        let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
+        let typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
             return unsupported("runtime field observation requires a record-only field path");
         };
         let StructuralTypeShape::Record { fields } = &declaration.shape else {
@@ -249,7 +249,7 @@ pub(crate) fn resolve(
 pub(crate) fn resolve_case_payload(
     fields: &[StructuralScalarFieldBinding],
     position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
     scalar_type: ScalarType,
 ) -> Result<CasePayloadRead, LoweringError> {
     let mut matching = fields
@@ -261,8 +261,12 @@ pub(crate) fn resolve_case_payload(
     if matching.next().is_some() {
         return unsupported("case payload observation has ambiguous bindings");
     }
-    let Some((checked_trees::CheckedStructuralPredicatePathSegment::Case(case_identity), tail)) =
-        path.split_first()
+    let Some((
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Case(
+            case_identity,
+        ),
+        tail,
+    )) = path.split_first()
     else {
         return unsupported("case payload observation requires one case and one payload field");
     };
@@ -289,7 +293,7 @@ pub(crate) fn resolve_case_payload(
         return unsupported("case payload observation has an erased or ambiguous payload");
     }
     let (member, field) = match tail {
-        [checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity)] => {
+        [typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity)] => {
             let mut payload = case
                 .fields
                 .iter()
@@ -313,8 +317,8 @@ pub(crate) fn resolve_case_payload(
             (None, field.id)
         }
         [
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(member_identity),
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(leaf_identity),
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(member_identity),
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(leaf_identity),
         ] => {
             let mut members = case
                 .fields
@@ -514,7 +518,7 @@ pub(crate) fn plan_case_payload_leaf(
 pub(crate) fn resolve_byte_length(
     fields: &[StructuralScalarFieldBinding],
     position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<
     (
         PlaceId,
@@ -532,18 +536,22 @@ pub(crate) fn resolve_byte_length(
     if matching.next().is_some() {
         return unsupported("byte field length has ambiguous bindings");
     }
-    let Some((checked_trees::CheckedStructuralPredicatePathSegment::Field(identity), carrier)) =
-        path.split_last()
+    let Some((
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(
+            identity,
+        ),
+        carrier,
+    )) = path.split_last()
     else {
         return unsupported("byte field length requires an exact field endpoint");
     };
     let carrier = carrier
         .iter()
         .map(|segment| match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
                 Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
             }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
                 Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
             }
             _ => unsupported("byte field length has an unsupported case path"),
@@ -576,7 +584,7 @@ pub(crate) fn resolve_byte_length(
 pub(crate) fn resolve_indexed_array(
     fields: &[StructuralScalarFieldBinding],
     position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<
     Option<(
         PlaceId,
@@ -597,10 +605,10 @@ pub(crate) fn resolve_indexed_array(
     let carrier = path
         .iter()
         .map(|segment| match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
                 Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
             }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
                 Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
             }
             _ => unsupported("indexed field read has an unsupported case path"),
@@ -618,7 +626,7 @@ pub(crate) fn resolve_indexed_array(
 pub(crate) fn resolve_primitive(
     fields: &[StructuralScalarFieldBinding],
     position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
     scalar_type: ScalarType,
 ) -> Result<(PlaceId, Vec<terminal_psi::StructuralPathSegment>), LoweringError> {
     let mut matching = fields
@@ -633,10 +641,10 @@ pub(crate) fn resolve_primitive(
     let path = path
         .iter()
         .map(|segment| match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
                 Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
             }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
                 Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
             }
             _ => unsupported("primitive observation has an unsupported case path"),

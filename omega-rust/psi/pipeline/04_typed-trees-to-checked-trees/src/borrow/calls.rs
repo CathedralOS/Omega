@@ -1,7 +1,7 @@
 use crate::authored_selections::is_boundary_acceptance_marker;
+use crate::checked_trees::statement::{StatementNode, TransitionGuardNode};
+use crate::checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 use crate::lookup::{statement_call_can_dispatch_to_machine, statement_call_receiver_path};
-use checked_trees::statement::{StatementNode, TransitionGuardNode};
-use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 mod collection;
 mod expression;
 mod transitions;
@@ -10,13 +10,13 @@ use collection::BorrowCallCollection;
 use transitions::collect_transition_target_borrow_calls;
 
 pub(crate) fn collect_statement_borrow_calls(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     statement: &StatementNode,
     call_ordinal: &mut usize,
-    access_segments: &mut arena::Arena<facts::PlaceSegment>,
+    access_segments: &mut arena::Arena<crate::fact_plan::PlaceSegment>,
     argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
     calls: &mut arena::Arena<BorrowCallFact>,
     state_calls: &mut arena::HandleSpan<BorrowCallFact>,

@@ -11,7 +11,7 @@ use crate::selection::construction::scalar_graph::structural::transport_register
 pub(in crate::selection) fn entry(
     function: usize,
     source: &LegalizedScalarFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     if crate::structural_inputs::unobserved_owned_input::accepts(source) {
@@ -91,7 +91,7 @@ pub(in crate::selection) fn entry(
                 let address = transport_register(builder, place, 0)?;
                 builder.emit(
                     SelectedInstructionKind::FrameAddress {
-                        slot: selected_instructions::FrameStorageSlotId::Incoming {
+                        slot: crate::selected_instructions::FrameStorageSlotId::Incoming {
                             parameter_index: native_parameter.try_into().map_err(|_| invalid())?,
                             abi_stack_byte_offset: *base,
                         },
@@ -189,7 +189,7 @@ pub(in crate::selection) fn entry(
             let address = transport_register(builder, place, 0)?;
             builder.emit(
                 SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Incoming {
+                    slot: crate::selected_instructions::FrameStorageSlotId::Incoming {
                         parameter_index: native_parameter.try_into().map_err(|_| invalid())?,
                         abi_stack_byte_offset,
                     },
@@ -272,19 +272,19 @@ pub(in crate::selection) fn entry(
 /// transport. This is value storage, never a copy of a borrowed referent.
 fn retain_owned_home(
     source: &LegalizedScalarFunction,
-    parameter: &legalized_operations::LegalizedCallUnitParameter,
+    parameter: &crate::legalized_operations::LegalizedCallUnitParameter,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let place = parameter.semantic.place;
     if !crate::selection::aggregate_result_input::parameter_home_required(source, place) {
         return Ok(());
     }
-    let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+    let slot = crate::selected_instructions::LocalStorageSlotId::StructuralParameter { place };
     let shape = parameter.target.shape;
     builder
         .transport
         .local_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
+        .push(crate::selected_instructions::SelectedLocalStorageSlot {
             id: slot,
             byte_size: u32::from(shape.byte_size),
             alignment: shape.alignment,
@@ -296,11 +296,11 @@ fn retain_owned_home(
         place,
         0,
         u32::from(shape.byte_size),
-        selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
+        crate::selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
     )?;
     builder.emit(
         SelectedInstructionKind::FrameAddress {
-            slot: selected_instructions::FrameStorageSlotId::Local(slot),
+            slot: crate::selected_instructions::FrameStorageSlotId::Local(slot),
             byte_offset: 0,
         },
         builder
@@ -338,7 +338,7 @@ fn retain_owned_home(
             place,
             offset,
             u32::from(width),
-            selected_instructions::SelectedMemoryAccessRole::WritePlace,
+            crate::selected_instructions::SelectedMemoryAccessRole::WritePlace,
         )?;
         super::super::aggregate_memory::store(builder, pointer, value, offset, width)?;
     }

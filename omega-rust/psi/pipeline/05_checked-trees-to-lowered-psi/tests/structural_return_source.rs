@@ -825,10 +825,10 @@ impl TerminalEffectHandler for ResultBoundaryHandler {
     }
 }
 
-fn checked_source() -> checked_trees::CheckedTrees {
+fn checked_source() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     crate::front_end::checked_program(SOURCE)
 }
 
-fn checked_result_boundary_source() -> checked_trees::CheckedTrees {
+fn checked_result_boundary_source() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     crate::front_end::checked_program(RESULT_BOUNDARY_CUSTODY_SOURCE)
 }

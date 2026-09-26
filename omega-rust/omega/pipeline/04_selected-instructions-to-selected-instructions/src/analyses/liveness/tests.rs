@@ -1,16 +1,16 @@
 //! Liveness fixtures and focused transfer tests.
 
 use optimization_core::AcceptedObligationFactIdentity;
-use register_model::{
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, ObligationId};
+use target_operations_to_selected_instructions::register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     RegisterUnitId, validate_physical_register_model,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedSuccessor,
     SelectedTerminator, VirtualRegisterId,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, ObligationId};
 
 use super::compute::{compute_function, reject_unsupported_constraints};
 use crate::LivenessError;
@@ -46,7 +46,7 @@ fn ordinary_call_and_return_retain_exact_unit_liveness() {
     assert_eq!(liveness.blocks[0].instructions.len(), 2);
     assert_eq!(
         liveness.blocks[0].instructions[0].position,
-        selected_instructions::LivenessPosition(0)
+        target_operations_to_selected_instructions::LivenessPosition(0)
     );
     assert_eq!(
         liveness.blocks[0].instructions[0].unit_live_out,
@@ -97,7 +97,7 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
         provenance: SelectedInstructionProvenance::default(),
     };
     let successor = |edge, block, source_target| SelectedSuccessor {
-        role: selected_instructions::SelectedSuccessorRole::Semantic,
+        role: target_operations_to_selected_instructions::SelectedSuccessorRole::Semantic,
         structural_case: None,
         structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(edge).unwrap(),
@@ -144,7 +144,7 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
             blocks: vec![
                 SelectedBlock {
                     id: SelectedBlockId(0),
-                    origin: selected_instructions::SelectedBlockOrigin::Source(
+                    origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
                         BlockId::new(1).unwrap(),
                     ),
                     instructions: Vec::new(),
@@ -152,7 +152,7 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
                 },
                 SelectedBlock {
                     id: SelectedBlockId(1),
-                    origin: selected_instructions::SelectedBlockOrigin::Source(
+                    origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
                         BlockId::new(2).unwrap(),
                     ),
                     instructions: Vec::new(),
@@ -163,7 +163,7 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
                 },
                 SelectedBlock {
                     id: SelectedBlockId(2),
-                    origin: selected_instructions::SelectedBlockOrigin::Source(
+                    origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
                         BlockId::new(3).unwrap(),
                     ),
                     instructions: Vec::new(),
@@ -222,7 +222,9 @@ pub(crate) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
         virtual_registers: Vec::new(),
         blocks: vec![SelectedBlock {
             id: SelectedBlockId(0),
-            origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
+            origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                BlockId::new(1).unwrap(),
+            ),
             instructions: vec![instruction],
             terminator: SelectedTerminator::Return {
                 instruction: SelectedInstruction {
@@ -760,15 +762,28 @@ fn catalog_remainder_rows_are_liveness_admissible() {
     // RDX output beside an ordinary fixed RAX result: a shape this gate
     // refuses for mixing early and ordinary definitions, and which
     // fixed-precolored interval validation refuses outright.
-    let x86_64_model =
-        validate_physical_register_model(isa_x86_64::x86_64_physical_register_model()).unwrap();
-    let x86_64 = isa_x86_64::x86_64_register_constraint_catalog(&x86_64_model);
-    let aarch64_model =
-        validate_physical_register_model(isa_aarch64::aarch64_physical_register_model()).unwrap();
-    let aarch64 = isa_aarch64::aarch64_register_constraint_catalog(&aarch64_model);
+    let x86_64_model = validate_physical_register_model(
+        target_operations_to_selected_instructions::isa_x86_64::x86_64_physical_register_model(),
+    )
+    .unwrap();
+    let x86_64 =
+        target_operations_to_selected_instructions::isa_x86_64::x86_64_register_constraint_catalog(
+            &x86_64_model,
+        );
+    let aarch64_model = validate_physical_register_model(
+        target_operations_to_selected_instructions::isa_aarch64::aarch64_physical_register_model(),
+    )
+    .unwrap();
+    let aarch64 = target_operations_to_selected_instructions::isa_aarch64::aarch64_register_constraint_catalog(&aarch64_model);
     for (catalog, key) in [
-        (&x86_64, isa_x86_64::X86_64_REMAINDER_I64),
-        (&aarch64, isa_aarch64::AARCH64_REMAINDER_I64),
+        (
+            &x86_64,
+            target_operations_to_selected_instructions::isa_x86_64::X86_64_REMAINDER_I64,
+        ),
+        (
+            &aarch64,
+            target_operations_to_selected_instructions::isa_aarch64::AARCH64_REMAINDER_I64,
+        ),
     ] {
         let row = catalog
             .constraints
@@ -812,7 +827,8 @@ fn catalog_remainder_rows_are_liveness_admissible() {
         obligation: ObligationId::new(1).unwrap(),
         accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
     };
-    instruction.constraint = isa_x86_64::X86_64_REMAINDER_I64;
+    instruction.constraint =
+        target_operations_to_selected_instructions::isa_x86_64::X86_64_REMAINDER_I64;
     instruction.operands = [
         (RegisterOperandAccess::Use, Some(rax), false),
         (RegisterOperandAccess::Use, None, false),

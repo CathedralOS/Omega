@@ -1,15 +1,15 @@
 //! Independent ordered replay, byte validation, and action reconstruction.
 
-use isa_x86_64::{
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use target_operations_to_selected_instructions::isa_x86_64::{
     validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
-use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
 
-use machine_code::ResolvedConditionalBranchPredicate;
+use post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedConditionalBranchPredicate;
 use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::super::{
@@ -62,7 +62,7 @@ pub(super) fn replay_trace(
             let branch = row
                 .branch
                 .as_deref()
-                .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+                .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
                 .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                     row.instruction,
                 ))?;
@@ -113,7 +113,7 @@ pub(super) fn replay_trace(
         let predicate = old
             .branch
             .as_deref()
-            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+            .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
             .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                 old.instruction,
             ))?
@@ -181,7 +181,7 @@ pub(super) fn replay_trace(
             old_displacement: old
                 .branch
                 .as_deref()
-                .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+                .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
                 .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                     old.instruction,
                 ))?
@@ -189,7 +189,7 @@ pub(super) fn replay_trace(
             new_displacement: new
                 .branch
                 .as_deref()
-                .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+                .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
                 .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                     new.instruction,
                 ))?

@@ -27,7 +27,7 @@ fn named_tail_call_coordinates_match_borrow_and_semantic_traversal() {
             .machine_states(machine)
             .first()
             .expect("entry state");
-        let operational = validation::infer_operational_may(&checked);
+        let operational = crate::validation::infer_operational_may(&checked);
         let state_summary = operational
             .states
             .iter()
@@ -99,17 +99,17 @@ fn named_tail_helper_propagates_synchronous_invocation_contract() {
         .find(|definition| definition.name.as_str() == "Host")
         .expect("Host service")
         .symbol;
-    let invocations = validation::infer_synchronous_invocations(&checked);
+    let invocations = crate::validation::infer_synchronous_invocations(&checked);
     let summary = invocations
         .for_machine(machine.symbol)
         .expect("tail invocation summary");
     assert_eq!(
         summary.effective,
-        [flow_effects::InvocationTarget::Service(host)]
+        [crate::flow_effects::InvocationTarget::Service(host)]
     );
     assert_eq!(
         summary.inferred_transitive,
-        [flow_effects::InvocationTarget::Service(host)]
+        [crate::flow_effects::InvocationTarget::Service(host)]
     );
 }
 

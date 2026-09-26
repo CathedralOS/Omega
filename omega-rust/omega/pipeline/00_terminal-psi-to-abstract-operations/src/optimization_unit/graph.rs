@@ -1,0 +1,202 @@
+//! Executable CFG, value-flow, effect, fuel, and ownership-event carriers.
+
+use super::MachineId;
+use super::{
+    AbstractFunctionResult, AbstractOperation, BTreeSet, BlockId, ClaimId, ContentEntryClaim,
+    EdgeId, EntryClaim, EvidenceContractLane, IntegerValue, MachineContract, ObligationId,
+    OperationId, PlaceId, ScalarType, ServiceId, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeId, TerminalAffineCleanupAction, ValueBinding,
+    ValueId,
+};
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PsiProvenance {
+    Operation(OperationId),
+    Edge(EdgeId),
+}
+
+/// One source logical-fuel settlement. Native lowering must retain this even
+/// when several source nodes become one physical instruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FuelSettlement {
+    pub site: PsiProvenance,
+    pub units: u64,
+}
+
+/// A conservative semantic sequencing token. Initially every node is chained;
+/// analyses may later prove selected scalar nodes independent without erasing
+/// the source order represented here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EffectLink {
+    pub input: u64,
+    pub output: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ValueDefinitionSite {
+    FunctionParameter(u32),
+    BlockParameter { block: BlockId, position: u32 },
+    Node { block: BlockId, node: u32 },
+}
+
+/// The canonical identity encoding of [`ValueDefinitionSite`].
+///
+/// The variant tags written here — `0` for `FunctionParameter`, `1` for
+/// `BlockParameter`, `2` for `Node` — and the little-endian field order that
+/// follows each tag *are* the identity: selected-instruction plan identities,
+/// register-home recovery plans, legalized-operation scalar identities and the
+/// replay evidence derived from them all hash exactly these bytes. Changing a
+/// tag or reordering a field changes every artifact that embeds a definition
+/// site.
+///
+/// Consumers must call this function rather than repeat the table. A second
+/// copy is how two crates that are supposed to agree drift apart silently: the
+/// encoding stays compilable, each side keeps producing bytes, and only a
+/// mismatched artifact identity reveals it.
+pub fn encode_value_definition_site_identity(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
+    match site {
+        ValueDefinitionSite::FunctionParameter(position) => {
+            bytes.push(0);
+            bytes.extend_from_slice(&position.to_le_bytes());
+        }
+        ValueDefinitionSite::BlockParameter { block, position } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            bytes.extend_from_slice(&position.to_le_bytes());
+        }
+        ValueDefinitionSite::Node { block, node } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            bytes.extend_from_slice(&node.to_le_bytes());
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ValueDefinition {
+    pub value: ValueId,
+    pub scalar_type: ScalarType,
+    pub site: ValueDefinitionSite,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ValueUse {
+    pub value: ValueId,
+    pub block: BlockId,
+    pub node: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptimizationEdge {
+    pub psi_edge: EdgeId,
+    pub target: BlockId,
+    pub bindings: Vec<ValueBinding>,
+    pub structural_bindings: Vec<crate::abstract_operations::AbstractStructuralBinding>,
+    /// Exact ordered affine discard work executed on this edge.
+    pub trivial_affine_discards: Vec<PlaceId>,
+    /// Ordered partial-owner cleanup performed before successor entry.
+    pub residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
+    /// Ordered source custody charged only when this exact CFG edge is taken.
+    /// The edge's own Psi identity is first; independently validated rewrites
+    /// may append inherited edge sources that execute on the same path.
+    pub provenance: Vec<PsiProvenance>,
+    /// One ordered settlement per edge provenance source.
+    pub fuel: Vec<FuelSettlement>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OwnershipEvent {
+    ClaimTransfer(Vec<ClaimId>),
+    ClaimCompletion(Vec<ClaimId>),
+    Cleanup(Vec<TerminalAffineCleanupAction>),
+    StructuralReturn(Vec<ClaimId>),
+    CrashFrontier(Vec<ClaimId>),
+}
+
+/// A proof/range fact is always indexed by its exact source support. The first
+/// builder only emits facts reconstructed directly from literal operations;
+/// proof-derived facts remain absent (and therefore unavailable to rules)
+/// until their verified evidence is retained across the lowering boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptimizationFact {
+    /// A proof-bearing operation's obligation lookup key. This reference is
+    /// not itself accepted evidence: publication must resolve it against the
+    /// verifier-owned context for the immutable Terminal Psi artifact.
+    OperationObligationReference {
+        obligation: ObligationId,
+        support: OperationId,
+    },
+    BooleanConstant {
+        value: ValueId,
+        constant: bool,
+        support: OperationId,
+    },
+    IntegerConstant {
+        value: ValueId,
+        constant: IntegerValue,
+        support: OperationId,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptimizationNode {
+    pub operation: AbstractOperation,
+    /// Ordered logical source custody. Normally this is the operation's exact
+    /// source roster. A validator-authorized unconditional Jump fusion keeps
+    /// its own edge first and may append only co-executed inherited edges.
+    pub provenance: Vec<PsiProvenance>,
+    /// One ordered settlement per provenance source, in the same order.
+    pub fuel: Vec<FuelSettlement>,
+    pub effect: EffectLink,
+    pub definitions: Vec<ValueDefinition>,
+    pub uses: Vec<ValueUse>,
+    pub successors: Vec<OptimizationEdge>,
+    pub ownership: Vec<OwnershipEvent>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptimizationBlock {
+    pub id: BlockId,
+    pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    pub parameters: Vec<ValueDefinition>,
+    pub nodes: Vec<OptimizationNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PsiOptimizationFunction {
+    pub machine: MachineId,
+    /// Exact nominal receiver attachment from the verified Terminal-Psi
+    /// signature. Optimization may inspect but never rewrite this identity.
+    pub attachment: Option<StructuralTypeId>,
+    pub entry: BlockId,
+    pub parameters: Vec<ValueDefinition>,
+    pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    /// Complete verifier-owned structural-place roster, including each root's
+    /// exact role, producer, and concrete structural type.
+    pub structural_places: Vec<StructuralPlaceDeclaration>,
+    /// Exact normal result signature retained independently of executable
+    /// return nodes, including Unit and structural-result distinctions.
+    pub result: AbstractFunctionResult,
+    pub declared_places: BTreeSet<PlaceId>,
+    /// Full ordered caller/root claim signature. `entry_claims` below is the
+    /// independently checked membership index used by ownership validation.
+    pub entry_claim_declarations: Vec<EntryClaim>,
+    /// Complete verifier-owned content-claim signature. Content projection
+    /// authority cannot be reconstructed from ordinary claims alone.
+    pub content_entry_claims: Vec<ContentEntryClaim>,
+    /// Complete verifier-owned machine contract. Bare reconstruction seeds do
+    /// not carry verifier authority and therefore leave this absent.
+    pub verified_contract: Option<MachineContract>,
+    /// Complete module evidence-contract roster for this machine. Its absence
+    /// is semantically meaningful to exact payloadless-call classification.
+    pub evidence_contract_lanes: Vec<EvidenceContractLane>,
+    pub entry_claims: BTreeSet<ClaimId>,
+    /// Exact verifier-normalized service ceiling in canonical Terminal-Psi
+    /// order. It is semantic custody, not an optimizer-selected reach set.
+    pub published_service_ceiling: Vec<ServiceId>,
+    /// The Terminal machine's authored fixed service contribution. Root reach
+    /// replay counts it as concrete for every reachable machine, inert bodies
+    /// included; bare reconstruction seeds leave it empty.
+    pub declared_service_reach: Vec<ServiceId>,
+    pub facts: Vec<OptimizationFact>,
+    pub blocks: Vec<OptimizationBlock>,
+}

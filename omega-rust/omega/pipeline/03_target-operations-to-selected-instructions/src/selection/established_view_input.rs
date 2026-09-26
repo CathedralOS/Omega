@@ -1,10 +1,12 @@
 //! Exact view-source joins. The validated source graph establishes descriptor
 //! availability; selected SSA checks the separate physical address lifetime.
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarFunction, LegalizedScalarInstructionKind,
 };
+use abstract_operations_to_target_operations::target_operations::{
+    TargetStructuralArgument, TargetStructuralArgumentSource,
+};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
-use target_operations::{TargetStructuralArgument, TargetStructuralArgumentSource};
 use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
@@ -24,15 +26,15 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
 pub(super) fn transferred(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     source.blocks.iter().any(|block| {
         let successors = match &block.terminator {
-            legalized_operations::LegalizedScalarTerminator::Crash { .. }
-            | legalized_operations::LegalizedScalarTerminator::Return(_)
-            | legalized_operations::LegalizedScalarTerminator::StructuralCase { .. } => {
+            crate::legalized_operations::LegalizedScalarTerminator::Crash { .. }
+            | crate::legalized_operations::LegalizedScalarTerminator::Return(_)
+            | crate::legalized_operations::LegalizedScalarTerminator::StructuralCase { .. } => {
                 [None, None]
             }
-            legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => {
+            crate::legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => {
                 [Some(successor), None]
             }
-            legalized_operations::LegalizedScalarTerminator::Conditional {
+            crate::legalized_operations::LegalizedScalarTerminator::Conditional {
                 when_true,
                 when_false,
                 ..

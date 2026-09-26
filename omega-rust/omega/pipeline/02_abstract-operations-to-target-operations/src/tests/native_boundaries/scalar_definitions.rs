@@ -4,7 +4,7 @@ use super::super::{
     ScalarType, TargetUnitOperation, ValueId, ValueShape,
 };
 
-use target_operations::TargetOperationPlan;
+use crate::target_operations::TargetOperationPlan;
 
 fn integer(sign: IntegerSign, bits: u16) -> IntegerType {
     IntegerType::new(sign, bits).unwrap()
@@ -46,9 +46,9 @@ fn lower(
             settlements: &[crate::AdmittedBoundarySettlement {
                 boundary: plan.boundary_machines[0].id,
                 execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                    target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                    crate::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
                 ),
-                realization: target_operations::HostedWriteByteI32Realization.into(),
+                realization: crate::target_operations::HostedWriteByteI32Realization.into(),
             }],
             installation: None,
             ieee_float_fma: &[],
@@ -86,7 +86,7 @@ fn unit_widening_has_exact_definition_and_boundary_source() {
         };
         assert_eq!(
             runtime_scalar_arguments[0].source,
-            target_operations::TargetUnitScalarArgumentSource::Home(*result_home)
+            crate::target_operations::TargetUnitScalarArgumentSource::Home(*result_home)
         );
     }
 }
@@ -147,8 +147,9 @@ fn successive_unit_definitions_reference_the_prior_home_once() {
     };
     let TargetUnitOperation::ScalarDefinition {
         expression:
-            target_operations::TargetScalarExpression::Integer {
-                expression: target_operations::TargetIntegerExpression::IntegerWiden { operand, .. },
+            crate::target_operations::TargetScalarExpression::Integer {
+                expression:
+                    crate::target_operations::TargetIntegerExpression::IntegerWiden { operand, .. },
                 ..
             },
         ..
@@ -158,7 +159,7 @@ fn successive_unit_definitions_reference_the_prior_home_once() {
     };
     assert_eq!(
         operand.as_ref(),
-        &target_operations::TargetIntegerExpression::ScalarHome(*result_home)
+        &crate::target_operations::TargetIntegerExpression::ScalarHome(*result_home)
     );
 }
 

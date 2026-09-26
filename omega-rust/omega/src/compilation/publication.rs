@@ -6,12 +6,12 @@
 use std::path::{Path, PathBuf};
 
 pub fn publish_compilation(
-    report: compiler::CompileReport,
+    report: crate::compiler::CompileReport,
     build_dir: &Path,
-) -> Result<(compiler::CompileReport, Option<PathBuf>), String> {
+) -> Result<(crate::compiler::CompileReport, Option<PathBuf>), String> {
     let report = match report.output_kind() {
-        compiler::CompileOutputKind::BuildArtifacts => report,
-        compiler::CompileOutputKind::RetainedNativeArtifact => {
+        crate::compiler::CompileOutputKind::BuildArtifacts => report,
+        crate::compiler::CompileOutputKind::RetainedNativeArtifact => {
             report.publish_retained_native_artifact(build_dir)?
         }
         _ => return Err("compilation did not retain a publishable product".into()),
@@ -24,10 +24,10 @@ pub fn publish_compilation(
 }
 
 pub fn publish_native_artifact(
-    report: compiler::CompileReport,
+    report: crate::compiler::CompileReport,
     build_dir: &Path,
-) -> Result<(compiler::CompileReport, PathBuf), String> {
-    if report.output_kind() == compiler::CompileOutputKind::BuildArtifacts {
+) -> Result<(crate::compiler::CompileReport, PathBuf), String> {
+    if report.output_kind() == crate::compiler::CompileOutputKind::BuildArtifacts {
         return Err("an artifact-only build has no executable to run".into());
     }
     let (published, path) = publish_compilation(report, build_dir)?;

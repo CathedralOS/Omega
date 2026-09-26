@@ -67,7 +67,7 @@ fn retains_static_boundary_scalar_parameter_and_literal_argument() {
     assert_eq!(scalar_arguments.len(), 1);
     assert!(matches!(
         &scalar_arguments[0],
-        checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal })
+        crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal })
             if literal.landing().is_some_and(|landing|
                 landing.landed_type == numerics::literals::LandedIntegerType::I32)
     ));
@@ -127,7 +127,7 @@ fn static_boundary_reaches_keep_every_direct_intrinsic_and_requirement_call() {
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
     assert_eq!(calls.len(), 5);
-    let retained = |plans: &checked_trees::CheckedUnitEffectPlans, symbol| {
+    let retained = |plans: &crate::checked_trees::CheckedUnitEffectPlans, symbol| {
         plans
             .boundary_machines
             .iter()
@@ -469,7 +469,7 @@ fn retains_boundary_scalar_result_local_consumed_by_later_unit_call() {
     assert_eq!(result.primitive_type, PrimitiveType::I32);
     assert!(matches!(
         result_arguments.as_slice(),
-        [checked_trees::CheckedCallScalarArgument::Pure(
+        [crate::checked_trees::CheckedCallScalarArgument::Pure(
             CheckedScalarExpression::IntegerLiteral { .. }
         )]
     ));
@@ -479,7 +479,7 @@ fn retains_boundary_scalar_result_local_consumed_by_later_unit_call() {
     );
     assert!(matches!(
         consumer_arguments.as_slice(),
-        [checked_trees::CheckedCallScalarArgument::Pure(
+        [crate::checked_trees::CheckedCallScalarArgument::Pure(
             CheckedScalarExpression::Local {
                 position: 0,
                 primitive_type: PrimitiveType::I32,
@@ -531,7 +531,7 @@ fn retains_branch_free_scalar_local_after_boundary_scalar_result() {
             && matches!(
                 value.as_pure(),
                 Some(CheckedScalarExpression::IntegerBinary {
-                    kind: checked_trees::CheckedIntegerBinaryKind::ExactAdd,
+                    kind: crate::checked_trees::CheckedIntegerBinaryKind::ExactAdd,
                     primitive_type: PrimitiveType::I32,
                     left,
                     right,
@@ -548,7 +548,7 @@ fn retains_branch_free_scalar_local_after_boundary_scalar_result() {
             )
             && matches!(
                 scalar_arguments.as_slice(),
-                [checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
+                [crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 1,
                     primitive_type: PrimitiveType::I32,
                 })]
@@ -655,7 +655,7 @@ fn retains_provider_attached_boundary_scalar_result_and_exact_requirements() {
     assert_eq!(result.binding_ordinal, 0);
     assert!(matches!(
         scalar_arguments.as_slice(),
-        [checked_trees::CheckedCallScalarArgument::Pure(
+        [crate::checked_trees::CheckedCallScalarArgument::Pure(
             CheckedScalarExpression::Local {
                 position: 0,
                 primitive_type: PrimitiveType::I32,
@@ -761,11 +761,11 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
         .filter_map(|(_, value)| {
             matches!(
                 value.origin,
-                checked_trees::CheckedValueOrigin::StateStatement {
+                crate::checked_trees::CheckedValueOrigin::StateStatement {
                     machine_symbol,
                     state_symbol,
                     statement_index: 0,
-                    role: checked_trees::CheckedValueStatementRole::CallArgument,
+                    role: crate::checked_trees::CheckedValueStatementRole::CallArgument,
                 } if machine_symbol == helper_symbol && state_symbol == helper.state
             )
             .then_some(value)
@@ -848,7 +848,7 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     assert!(matches!(
         helper.operations[0],
         CheckedUnitEffectOperationPlan::PortWrite {
-            coordinate: checked_trees::CheckedUnitCallCoordinate {
+            coordinate: crate::checked_trees::CheckedUnitCallCoordinate {
                 statement_index: 0,
                 call_ordinal: 0,
             },

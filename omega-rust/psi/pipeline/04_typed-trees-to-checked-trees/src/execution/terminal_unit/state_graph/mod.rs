@@ -51,8 +51,8 @@ pub(super) fn build(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
     build_traced(
         program,
@@ -72,8 +72,8 @@ pub(super) fn build_traced(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
     trace.phase("state graph: shape");
@@ -84,7 +84,7 @@ pub(super) fn build_traced(
     }
     trace.phase("state graph: result signature");
     let result = returns::signature(program, shapes, states[0].return_type)?;
-    if matches!(&result, checked_trees::CheckedControlResultPlan::Structural(result)
+    if matches!(&result, crate::checked_trees::CheckedControlResultPlan::Structural(result)
         if result.multiplicity == Multiplicity::Linear)
         && !program.machine_contracts(machine).is_empty()
     {
@@ -93,7 +93,7 @@ pub(super) fn build_traced(
         return None;
     }
     if states.len() < 2
-        && result == checked_trees::CheckedControlResultPlan::Unit
+        && result == crate::checked_trees::CheckedControlResultPlan::Unit
         && !facts
             .values
             .structural_values
@@ -103,7 +103,7 @@ pub(super) fn build_traced(
     {
         return None;
     }
-    if let checked_trees::CheckedControlResultPlan::Scalar { .. } = result {
+    if let crate::checked_trees::CheckedControlResultPlan::Scalar { .. } = result {
         // A single-state body completes its scalar through the ordinary
         // sequence, and a machine another scalar producer already owns keeps
         // that owner: this route takes only the multi-state bodies no other
@@ -192,7 +192,7 @@ pub(super) fn build_traced(
         // the state's proof-only contract roster; any other shape stays
         // outside the state graph's admitted custody.
         let Some(contract_predicates) =
-            validation::structural_state_contract_scalar_predicates(program, state)
+            crate::validation::structural_state_contract_scalar_predicates(program, state)
         else {
             trace.phase("state graph: state signature: contract shape unadmitted");
             return None;
@@ -200,7 +200,7 @@ pub(super) fn build_traced(
         let mut requires = Vec::with_capacity(contract_predicates.len());
         for row in contract_predicates {
             let predicate = match row {
-                validation::StateScalarContractRow::Expression(expression) => {
+                crate::validation::StateScalarContractRow::Expression(expression) => {
                     crate::values::lower_state_scalar_contract_predicate(
                         program,
                         &facts.operators,
@@ -210,7 +210,7 @@ pub(super) fn build_traced(
                         &mut 4096,
                     )
                 }
-                validation::StateScalarContractRow::Interval {
+                crate::validation::StateScalarContractRow::Interval {
                     parameter,
                     minimum,
                     maximum,
@@ -222,9 +222,9 @@ pub(super) fn build_traced(
                 trace.phase("state graph: state signature: predicate lowering failed");
                 return None;
             };
-            requires.push(Some(checked_trees::ClosedScalarContractValue::Predicate(
-                predicate,
-            )));
+            requires.push(Some(
+                crate::checked_trees::ClosedScalarContractValue::Predicate(predicate),
+            ));
         }
         state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
@@ -289,7 +289,7 @@ pub(super) fn build_traced(
             .iter()
             .position(|statement| {
                 matches!(statement, StatementNode::Transition(_))
-                    || (result != checked_trees::CheckedControlResultPlan::Unit
+                    || (result != crate::checked_trees::CheckedControlResultPlan::Unit
                         && matches!(statement, StatementNode::Expression(_)))
             })
             .unwrap_or(statements.len());
@@ -473,7 +473,7 @@ pub(super) fn build_traced(
                         return None;
                     }
                     if parameter.multiplicity != Multiplicity::Linear
-                        && !validation::has_plain_owned_contents_with_numeric_constraints(
+                        && !crate::validation::has_plain_owned_contents_with_numeric_constraints(
                             program,
                             reference(),
                         )
@@ -511,7 +511,7 @@ pub(super) fn build_traced(
                             )
                     );
                     if !borrowed_named_referent
-                        && !checked_trees::is_borrowed_view(byte_sequence_carrier(
+                        && !crate::checked_trees::is_borrowed_view(byte_sequence_carrier(
                             program,
                             reference,
                             &[],
@@ -565,7 +565,7 @@ pub(super) fn build_traced(
     // state has no sources to publish.
     if matches!(
         result,
-        checked_trees::CheckedControlResultPlan::Structural(_)
+        crate::checked_trees::CheckedControlResultPlan::Structural(_)
     ) && super::reference_results::is_reference_record(program, states[0].return_type)
     {
         if states.len() != 1 {
@@ -584,8 +584,8 @@ pub(super) fn build_traced(
 fn return_cleanup_is_whole(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural: &[CheckedUnitStructuralParameterPlan],
     operations: &[CheckedUnitEffectOperationPlan],
     shapes: &ShapeCollector<'_>,
@@ -622,7 +622,7 @@ fn retained_guard(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     statement_ordinal: u32,
-) -> Option<checked_trees::CheckedCallScalarArgument> {
+) -> Option<crate::checked_trees::CheckedCallScalarArgument> {
     let role = CheckedScalarExpressionRole::Guard;
     if let Some(expression) =
         facts
@@ -630,23 +630,25 @@ fn retained_guard(
             .scalar_expressions
             .expression_at(state, statement_ordinal, role)
     {
-        return Some(checked_trees::CheckedCallScalarArgument::Pure(
+        return Some(crate::checked_trees::CheckedCallScalarArgument::Pure(
             expression.clone(),
         ));
     }
     let computations = &facts.values.scalar_computations;
     let root = computations.root_at(state, statement_ordinal, role)?;
-    (root.machine == machine && computations.nodes.is_valid(root.root)).then_some(
-        checked_trees::CheckedCallScalarArgument::Computation(root.root),
-    )
+    (root.machine == machine && computations.nodes.is_valid(root.root))
+        .then_some(crate::checked_trees::CheckedCallScalarArgument::Computation(root.root))
 }
 
-fn guard_is_boolean(facts: &CheckFacts, guard: &checked_trees::CheckedCallScalarArgument) -> bool {
+fn guard_is_boolean(
+    facts: &CheckFacts,
+    guard: &crate::checked_trees::CheckedCallScalarArgument,
+) -> bool {
     match guard {
-        checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+        crate::checked_trees::CheckedCallScalarArgument::Pure(expression) => {
             matches!(expression, CheckedScalarExpression::Boolean(_))
         }
-        checked_trees::CheckedCallScalarArgument::Computation(root) => {
+        crate::checked_trees::CheckedCallScalarArgument::Computation(root) => {
             facts
                 .values
                 .scalar_computations
@@ -665,11 +667,11 @@ fn guard_is_boolean(facts: &CheckFacts, guard: &checked_trees::CheckedCallScalar
 fn prefix_initializers(
     program: &TypedTrees,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     bindings: &[CheckedScalarBinding],
     trace: &control::LocalConstructionTrace,
 ) -> Option<Vec<CheckedScalarExpression>> {
-    use checked_trees::CheckedScalarBindingDestination;
+    use crate::checked_trees::CheckedScalarBindingDestination;
 
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut immutable_ordinal = 0u32;
@@ -798,7 +800,7 @@ fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
             result.multiplicity == Multiplicity::Linear
                 || matches!(
                     operand_source,
-                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
+                    Some(crate::checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
                 )
         }
         CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
@@ -844,7 +846,7 @@ fn call_consumes_result_argument(
 /// order they read.
 fn call_custody_refusal(
     structural_arguments: &[CheckedUnitStructuralArgumentPlan],
-    claim_transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+    claim_transfers: &[crate::checked_trees::CheckedUnitClaimTransferPlan],
     earlier: &[CheckedUnitEffectOperationPlan],
 ) -> &'static str {
     if !claim_transfers.is_empty() {
@@ -1009,11 +1011,11 @@ impl SuccessorEdge {
 fn successor(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     source_index: usize,
     signatures: &[Signature],
     operations: &[CheckedUnitEffectOperationPlan],
-    transition: &typed_trees::statement::TableTransition,
+    transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
     ordinal: u32,
     edge: SuccessorEdge,
     trace: &control::LocalConstructionTrace,
@@ -1057,11 +1059,11 @@ fn successor(
 fn successor_bindings(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     source_index: usize,
     signatures: &[Signature],
     operations: &[CheckedUnitEffectOperationPlan],
-    transition: &typed_trees::statement::TableTransition,
+    transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
     ordinal: u32,
     payload_parameters: &[u32],
     edge: SuccessorEdge,
@@ -1145,7 +1147,7 @@ fn successor_bindings(
             ordinal as usize,
             argument,
         )?;
-        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
             return None;
         };
         if !place.segments.is_empty() {
@@ -1167,7 +1169,7 @@ fn successor_bindings(
                     return None;
                 }
                 return Some(CheckedStructuralControlTransferPlan {
-                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                    source: crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                         index: u32::try_from(source_index).ok()?,
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
@@ -1183,7 +1185,7 @@ fn successor_bindings(
                 let subslice = calls::view_subslice::admit(
                     program, facts, machine, source, source_structural,
                     target_parameter.type_reference, expression, ordinal as usize,
-                    checked_trees::CheckedSubsliceSite::TransitionArgument {
+                    crate::checked_trees::CheckedSubsliceSite::TransitionArgument {
                         argument_ordinal: target.position,
                     },
                 )?;
@@ -1213,12 +1215,12 @@ fn successor_bindings(
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. }
                         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
                         _ => None,
-                    }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));
+                    }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == crate::fact_plan::PlaceRoot::Symbol(local.symbol)));
                     if let Some(result) = matches.next() {
                         if matches.next().is_some() { return None; }
                         if result.type_identity != target.type_identity || result.multiplicity != target.multiplicity { return None; }
                         return Some(CheckedStructuralControlTransferPlan {
-                            source: checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal },
+                            source: crate::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal },
                             target_parameter_index: u32::try_from(target_index).ok()?,
                         });
                     }
@@ -1257,7 +1259,7 @@ fn successor_bindings(
                 return None;
             }
             Some(CheckedStructuralControlTransferPlan {
-                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                source: crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                     index: u32::try_from(source_index).ok()?,
                 },
                 target_parameter_index: u32::try_from(target_index).ok()?,
@@ -1330,11 +1332,11 @@ fn successor_bindings(
                 if source_scalar[source_index].primitive_type != target.primitive_type {
                     return None;
                 }
-                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                     index: u32::try_from(source_index).ok()?,
                 }
             } else {
-                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
             };
             Some(CheckedStructuralScalarArgumentPlan {
                 argument_ordinal: target.source_position,
@@ -1373,7 +1375,8 @@ fn successor_bindings(
                 }
                 Some(CheckedStructuralScalarArgumentPlan {
                     argument_ordinal: target.source_position,
-                    source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression,
+                    source:
+                        crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression,
                     target_scalar_parameter_index: u32::try_from(erased_index).ok()?,
                     primitive_type: target.primitive_type,
                 })
@@ -1393,7 +1396,7 @@ fn successor_bindings(
                     .term_at(
                         source.symbol,
                         ordinal,
-                        checked_trees::CheckedProofTermRole::TransitionArgument {
+                        crate::checked_trees::CheckedProofTermRole::TransitionArgument {
                             argument_ordinal: target.source_position,
                         },
                     )
@@ -1426,10 +1429,10 @@ fn case_payload_transfer(
     place: crate::flow::CanonicalPlace,
     subject_place: &crate::flow::CanonicalPlace,
     selected_case: symbols::SymbolHandle,
-    source: &typed_trees::state::State,
+    source: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     source_structural: &[CheckedUnitStructuralParameterPlan],
     target: &CheckedUnitStructuralParameterPlan,
-) -> Option<checked_trees::CheckedStructuralControlTransferSourcePlan> {
+) -> Option<crate::checked_trees::CheckedStructuralControlTransferSourcePlan> {
     // The argument must name exactly one payload field beneath the edge's
     // proven case: `subject-place ++ [Case{selected}, Field{payload}]`.
     // Longer tails reach inside the payload field's own subtree and stay
@@ -1441,8 +1444,8 @@ fn case_payload_transfer(
         return None;
     }
     let [
-        facts::PlaceSegment::Case { variant },
-        facts::PlaceSegment::Field {
+        crate::fact_plan::PlaceSegment::Case { variant },
+        crate::fact_plan::PlaceSegment::Field {
             symbol: field_symbol,
         },
     ] = &place.segments[subject_place.segments.len()..]
@@ -1456,7 +1459,10 @@ fn case_payload_transfer(
     // subtree's identity and type.
     let field = program.data_definitions().iter().find_map(|data| {
         program.data_members(data).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) = member
+            else {
                 return None;
             };
             (variant.symbol == selected_case)
@@ -1494,8 +1500,10 @@ fn case_payload_transfer(
         }
     };
     let admitted_shape = if target.access == CheckedStructuralAccess::Owned {
-        validation::has_plain_owned_contents_with_numeric_constraints(program, field.type_reference)
-            && normalized(field.type_reference) == target.type_identity
+        crate::validation::has_plain_owned_contents_with_numeric_constraints(
+            program,
+            field.type_reference,
+        ) && normalized(field.type_reference) == target.type_identity
     } else {
         target.access == CheckedStructuralAccess::SharedBorrow
             && super::types::structural_access_for_type_reference(program, field.type_reference)
@@ -1506,7 +1514,7 @@ fn case_payload_transfer(
         return None;
     }
     // The tested subject resolves to a retained structural parameter.
-    let facts::PlaceRoot::Symbol(root) = subject_place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root) = subject_place.root else {
         return None;
     };
     let position = program
@@ -1528,12 +1536,15 @@ fn case_payload_transfer(
         .segments
         .iter()
         .map(|segment| {
-            let facts::PlaceSegment::Field { symbol } = segment else {
+            let crate::fact_plan::PlaceSegment::Field { symbol } = segment else {
                 return None;
             };
             subject_type = program.data_definitions().iter().find_map(|data| {
                 program.data_members(data).iter().find_map(|member| {
-                    let typed_trees::data::DataMember::Field(field) = member else {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                        field,
+                    ) = member
+                    else {
                         return None;
                     };
                     (field.symbol == *symbol).then_some(field.type_reference)
@@ -1545,14 +1556,17 @@ fn case_payload_transfer(
         .collect::<Option<Vec<_>>>()?;
     let variant = program.data_definitions().iter().find_map(|data| {
         program.data_members(data).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) = member
+            else {
                 return None;
             };
             (variant.symbol == selected_case).then_some(variant)
         })
     })?;
     Some(
-        checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+        crate::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
             subject: CheckedUnitStructuralArgumentPlan {
                 source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: u32::try_from(parameter_index).ok()?,

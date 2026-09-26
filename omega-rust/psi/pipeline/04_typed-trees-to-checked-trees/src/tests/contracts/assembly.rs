@@ -158,8 +158,8 @@ fn canonical_asm_services_enter_normalized_reach_inference() {
     "#;
 
     let typed = parse_typed_trees(source);
-    let operations = validation::infer_operational_may(&typed);
-    let reaches = validation::infer_service_reaches(&typed, &operations);
+    let operations = crate::validation::infer_operational_may(&typed);
+    let reaches = crate::validation::infer_service_reaches(&typed, &operations);
     let machine = typed
         .machines()
         .iter()
@@ -310,7 +310,7 @@ fn asm_value_intrinsic_result_types_reach_the_call_operation_frontier() {
         assert!(
             matches!(
                 omission.stage,
-                checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+                crate::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
                     phase: "call operation: target state",
                     ..
                 }

@@ -9,7 +9,7 @@ use super::{
 pub(super) struct Consequences<'a> {
     program: &'a TypedTrees,
     parameter_names: &'a [String],
-    content_conservation: &'a [validation::ContentConservationSourcePlan],
+    content_conservation: &'a [crate::validation::ContentConservationSourcePlan],
     integer_types: &'a super::super::IntegerTypeClassification,
     remaining: usize,
 }
@@ -24,7 +24,7 @@ impl<'a> Consequences<'a> {
     pub(super) fn new(
         program: &'a TypedTrees,
         parameter_names: &'a [String],
-        content_conservation: &'a [validation::ContentConservationSourcePlan],
+        content_conservation: &'a [crate::validation::ContentConservationSourcePlan],
         integer_types: &'a super::super::IntegerTypeClassification,
     ) -> Self {
         Self {

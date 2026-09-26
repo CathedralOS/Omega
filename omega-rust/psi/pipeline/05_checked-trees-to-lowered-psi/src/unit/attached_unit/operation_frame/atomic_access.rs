@@ -17,9 +17,11 @@ use crate::unit::{
     CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult,
     ValueDeclaration, allocate_dense, terminal_scalar_type, unsupported,
 };
-use checked_trees::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite};
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, StructuralAccess, StructuralFieldType,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite,
 };
 
 impl OperationFrame<'_, '_> {
@@ -165,7 +167,7 @@ impl OperationFrame<'_, '_> {
                 };
                 if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {
                     bindings.append(
-                        checked_trees::CheckedScalarBindingDestination::Immutable,
+                        typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable,
                         scalar_type,
                         self.values.len(),
                     )?;

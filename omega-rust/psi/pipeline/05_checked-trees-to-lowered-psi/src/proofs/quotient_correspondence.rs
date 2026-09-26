@@ -17,7 +17,7 @@
 //! quotient lowering exists
 //! ([published quotient correspondence](../../../../../../wiki/spec/proofs/quotients.md#published-quotient-correspondence)).
 //!
-//! Boundary: ordinary checked validation (`validation::validate_program`,
+//! Boundary: ordinary checked validation (`typed_trees_to_checked_trees::validation::validate_program`,
 //! `reject_quotient_operation_requests`) still rejects every request before
 //! checked trees exist, and the checked stage exits every value path whose
 //! call carries `quotient_operation`, so on the current route the production
@@ -25,10 +25,10 @@
 //! program into a checked baseline, the same input the extractor reads, and
 //! answer termination from `facts.termination` as the compiler route does.
 
-use checked_trees::CheckedTrees;
-use checked_trees::expression::ExpressionNode;
 use terminal_psi::{TerminalModule, retain_non_executable_quotient_correspondence};
-use validation::NonExecutableQuotientCorrespondenceBatch;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::validation::NonExecutableQuotientCorrespondenceBatch;
 
 use crate::lowering_error::LoweringError;
 
@@ -81,7 +81,7 @@ pub(crate) fn retain_checked_quotient_correspondences(
             .for_machine(machine)
             .map(|plan| plan.checked_summary.clone())
     };
-    let batch = validation::extract_non_executable_quotient_correspondences_with_termination(
+    let batch = typed_trees_to_checked_trees::validation::extract_non_executable_quotient_correspondences_with_termination(
         &checked.typed,
         &checked_termination,
     )
@@ -122,7 +122,7 @@ mod tests {
     use semantic_vocabulary::PackageKeyIdentity;
     use source::{SourceMap, SourceOrigin};
 
-    use typed_trees::TypedTrees;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
     use typed_trees_to_checked_trees::CheckingRequest;
     use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -254,7 +254,7 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
     /// eligibility machine, the way `build_check_facts` records what the
     /// checked stage proved.
     fn record_checked_termination(
-        checked: &mut checked_trees::CheckedTrees,
+        checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
         guarantee: language_semantics::TerminationGuarantee,
     ) {
         for symbol in eligibility_machines(&checked.typed) {
@@ -271,18 +271,16 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
                 .termination
                 .machines
                 .retain(|fact| fact.machine != symbol);
-            checked
-                .facts
-                .termination
-                .machines
-                .push(checked_trees::MachineTerminationFact {
+            checked.facts.termination.machines.push(
+                typed_trees_to_checked_trees::checked_trees::MachineTerminationFact {
                     machine: symbol,
                     plan,
-                });
+                },
+            );
         }
     }
 
-    fn baseline_checked() -> checked_trees::CheckedTrees {
+    fn baseline_checked() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
         let source = r#"
             machine baseline(value: i32) -> i32
             requires 0i32 == 0i32
@@ -306,7 +304,9 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
     /// The checked baseline with a request-bearing typed program substituted
     /// as its retained input and the eligibility machines' checked termination
     /// facts recorded as proved: the two inputs the production entrance reads.
-    fn checked_with_requests(source: &str) -> checked_trees::CheckedTrees {
+    fn checked_with_requests(
+        source: &str,
+    ) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
         let mut checked = baseline_checked();
         checked.typed = quotient_program(source);
         record_checked_termination(
@@ -351,7 +351,7 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
             language_semantics::TerminationGuarantee::NoGuarantee
         )));
         assert!(
-            validation::extract_non_executable_quotient_correspondences(&checked.typed).is_err()
+            typed_trees_to_checked_trees::validation::extract_non_executable_quotient_correspondences(&checked.typed).is_err()
         );
         let mut module = baseline_module();
         retain_checked_quotient_correspondences(&checked, &mut module)
@@ -364,7 +364,7 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
             language_semantics::quotient_correspondence::QuotientCorrespondenceOperationKind::Define
         );
         let mut rederived =
-            validation::extract_non_executable_quotient_correspondences_with_termination(
+            typed_trees_to_checked_trees::validation::extract_non_executable_quotient_correspondences_with_termination(
                 &checked.typed,
                 &|machine: symbols::SymbolHandle| {
                     checked
@@ -445,7 +445,7 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
             language_semantics::TerminationGuarantee::NoGuarantee,
         );
         assert!(
-            validation::extract_non_executable_quotient_correspondences(&typed_only.typed).is_ok(),
+            typed_trees_to_checked_trees::validation::extract_non_executable_quotient_correspondences(&typed_only.typed).is_ok(),
             "the typed summaries alone would admit"
         );
         let error = retain_checked_quotient_correspondences(&typed_only, &mut module)
@@ -497,7 +497,7 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
     /// `lower_typed_trees` admits the direct define after proving
     /// termination, so the checked trees carry the request as the compiler
     /// sees it.
-    fn managed_checked_program() -> checked_trees::CheckedTrees {
+    fn managed_checked_program() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
         let typed = quotient_program(&format!(
             "{EQUIVALENCE_PRELUDE}{DIRECT_DEFINE_REQUEST}\ndata Main {{\n}}\n\nmachine Main::main(&mut self) {{\n}}\n"
         ));

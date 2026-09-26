@@ -8,13 +8,19 @@ use crate::conformance::conformance_applications::{
     static_argument_identity, substituted_type_identity_with_lifetimes,
 };
 use diagnostics::Diagnostic;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, StaticMachineArgument,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementHandle, StatementNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
-use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
-use typed_trees::name::Identifier;
-use typed_trees::statement::{StatementHandle, StatementNode};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone, Copy)]
 enum ElisionCallSite {
@@ -63,7 +69,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         let parameters = program.state_parameters(callee_state);
         let skip = parameters.len().saturating_sub(call.arguments.len());
         for (argument, parameter) in call.arguments.iter().zip(parameters.iter().skip(skip)) {
-            let Some(actual) = validation::declared_place_type_raw(
+            let Some(actual) = crate::validation::declared_place_type_raw(
                 program,
                 caller_machine,
                 caller_state,
@@ -409,7 +415,7 @@ fn collect_expression_elision_calls(
                 calls,
             );
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     collect_expression_elision_calls(
                         program,
                         caller_machine,
@@ -793,7 +799,7 @@ fn collect_conformance_lifetime_bindings(
 
 fn machine_static_substitutions(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     arguments: &[StaticMachineArgument],
 ) -> Vec<(SymbolHandle, String)> {
     let parameters = program.machine_type_parameters(machine);
@@ -802,7 +808,7 @@ fn machine_static_substitutions(
 
 fn conformance_static_substitutions(
     program: &TypedTrees,
-    conformance: &typed_trees::trait_definition::Conformance,
+    conformance: &symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::Conformance,
     arguments: &[StaticMachineArgument],
 ) -> Vec<(SymbolHandle, String)> {
     static_substitutions(
@@ -814,7 +820,7 @@ fn conformance_static_substitutions(
 
 fn static_substitutions(
     program: &TypedTrees,
-    parameters: &[typed_trees::data::TypeParameter],
+    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
 ) -> Vec<(SymbolHandle, String)> {
     let mut substitutions = Vec::new();

@@ -1,6 +1,6 @@
 use crate::tests::front_end::typed_program;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 #[test]
 fn saved_provider_call_keeps_its_unresolved_tuple_after_live_specialization() {

@@ -293,7 +293,7 @@ pub(crate) fn lower_structural_return_machine(
 
 fn lower_structural_domain_plans(
     checked: &CheckedTrees,
-    plans: &[checked_trees::CheckedUnitStructuralDomainPlan],
+    plans: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralDomainPlan],
     type_ids: &[(String, StructuralTypeId)],
 ) -> Result<
     (

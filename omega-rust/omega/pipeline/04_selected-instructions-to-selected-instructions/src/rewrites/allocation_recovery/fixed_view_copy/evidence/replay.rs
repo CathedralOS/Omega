@@ -3,19 +3,19 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::OptimizationWorkUsage;
-use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::MachineId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
 
-use crate::{
-    FixedViewCopyError, ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
-    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
-    ValidatedLiveRanges,
-};
-use register_homes::{
+use crate::register_homes::{
     FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePolicy,
     FixedPrecoloredSourceSegmentHome, FixedPrecoloredSourceSegmentId,
     FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPolicy,
     FunctionFixedPrecoloredSegmentHomes, FunctionFixedPrecoloredSplitRequirements,
+};
+use crate::{
+    FixedViewCopyError, ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
+    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
+    ValidatedLiveRanges,
 };
 
 use super::{AuthenticatedFixedViewBoundary, FixedViewBoundaryEvidence};
@@ -214,9 +214,9 @@ fn replay_roster(
 
 fn replay_assignment(
     register: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     segment: FixedPrecoloredSourceSegmentId,
-    candidates: &[register_model::RegisterViewId],
+    candidates: &[target_operations_to_selected_instructions::register_model::RegisterViewId],
     assignment: &FixedPrecoloredSourceSegmentHome,
 ) -> Result<(), FixedViewCopyError> {
     if assignment.virtual_register != register

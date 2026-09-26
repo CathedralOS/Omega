@@ -14,8 +14,8 @@ use super::{
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use checked_trees::CheckedUnitStructuralArgumentPlan;
-use checked_trees::data::DataMember;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan;
+use typed_trees_to_checked_trees::checked_trees::data::DataMember;
 
 #[derive(Clone)]
 pub(crate) struct Binding {
@@ -77,7 +77,7 @@ pub(crate) fn prepare(
                 })
                 .ok_or(LoweringError::Unsupported("record read field is absent"))?;
             let identity = authored.path_identity();
-            let source = validation::local_scalar_record_field(
+            let source = typed_trees_to_checked_trees::validation::local_scalar_record_field(
                 &checked.typed,
                 machine,
                 root.state,
@@ -99,7 +99,7 @@ pub(crate) fn prepare(
             }
             let mut path = Vec::new();
             for segment in &subject.path {
-                let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
+                let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
                 else {
                     return unsupported("record read requires declared record field projections");
                 };
@@ -162,8 +162,8 @@ pub(crate) fn prepare(
 pub(super) fn observation(
     fields: &[Binding],
     bindings: &storage::ScalarBindings,
-    machine: &checked_trees::machine::Machine,
-    parameters: &[checked_trees::signature::StateParameter],
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    parameters: &[typed_trees_to_checked_trees::checked_trees::signature::StateParameter],
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
     primitive: PrimitiveType,

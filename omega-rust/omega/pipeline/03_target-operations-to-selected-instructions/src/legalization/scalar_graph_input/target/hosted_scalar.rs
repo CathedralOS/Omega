@@ -5,7 +5,7 @@ use super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::i32_type;
-use target_operations::{
+use abstract_operations_to_target_operations::target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetBoundaryResult,
     TargetUnitScalarArgumentSource,
 };
@@ -35,7 +35,8 @@ pub(super) fn validate(
         AbstractOperation::BoundaryCall {
             psi_operation: expected_operation,
             boundary: expected_boundary,
-            result: abstract_operations::AbstractBoundaryResult::Unit,
+            result:
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
             arguments,
             structural_arguments,
             completion_claim_sources: expected_claims,
@@ -56,17 +57,17 @@ pub(super) fn validate(
         (
             BoundaryExecutionBinding::AdmittedProvider(_),
             BoundaryRealization::HostedWriteByteI32(_),
-        ) => target_operations::HostedWriteByteI32Realization::supports_target(native),
+        ) => abstract_operations_to_target_operations::target_operations::HostedWriteByteI32Realization::supports_target(native),
         (
             BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
             BoundaryRealization::HostedWriteByteI32(_),
-        ) => target_operations::HostedWriteByteI32Realization::supports_target(native),
+        ) => abstract_operations_to_target_operations::target_operations::HostedWriteByteI32Realization::supports_target(native),
         (
             BoundaryExecutionBinding::CompilerBuiltin(
                 CompilerBuiltinExecution::HostedExitProcessI32,
             ),
             BoundaryRealization::HostedExitProcessI32(_),
-        ) => target_operations::HostedExitProcessI32Realization::supports_target(native),
+        ) => abstract_operations_to_target_operations::target_operations::HostedExitProcessI32Realization::supports_target(native),
         _ => false,
     };
     let mut declarations = plan

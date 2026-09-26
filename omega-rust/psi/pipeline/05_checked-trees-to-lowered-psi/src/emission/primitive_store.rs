@@ -53,7 +53,7 @@ pub(crate) fn emit_assignment(
     statement_index: u32,
     destination: Destination,
     role: CheckedScalarExpressionRole,
-    value: &checked_trees::CheckedCallScalarArgument,
+    value: &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument,
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
     source_value_count: usize,
     values: &mut Vec<ValueDeclaration>,
@@ -110,7 +110,7 @@ pub(crate) fn validate_assignment(
     statement_index: u32,
     destination: &CheckedUnitStructuralParameterPlan,
     path: &[CheckedUnitStructuralPathSegment],
-    value: &checked_trees::CheckedCallScalarArgument,
+    value: &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
@@ -136,7 +136,7 @@ pub(crate) fn validate_symbol_assignment(
     statement_index: u32,
     destination: symbols::SymbolHandle,
     path: &[CheckedUnitStructuralPathSegment],
-    value: &checked_trees::CheckedCallScalarArgument,
+    value: &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     let (assignment, target) = authored_store(checked, state_symbol, statement_index)?;
     if !destination.is_valid() || target.root != destination {
@@ -177,13 +177,13 @@ pub(crate) fn value_role(
 pub(crate) fn validate_element_rosters(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
-    operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+    operations: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan],
 ) -> Result<(), LoweringError> {
     let mismatch =
         || LoweringError::Unsupported("array literal element stores are not its complete roster");
     let mut rosters: Vec<(u32, Vec<&[CheckedUnitStructuralPathSegment]>)> = Vec::new();
     for operation in operations {
-        let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index,
             path,
             ..
@@ -206,15 +206,20 @@ pub(crate) fn validate_element_rosters(
         let (assignment, target) = authored_store(checked, state_symbol, statement_index)?;
         let (machine, state) =
             crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
-        let elements = validation::declared_place_type_raw(
+        let elements = typed_trees_to_checked_trees::validation::declared_place_type_raw(
             &checked.typed,
             machine,
             Some(state),
             assignment.target,
         )
-        .and_then(|declared| validation::closed_array_store_type(&checked.typed, declared))
+        .and_then(|declared| {
+            typed_trees_to_checked_trees::validation::closed_array_store_type(
+                &checked.typed,
+                declared,
+            )
+        })
         .and_then(|expected| {
-            validation::scalar_array_elements(
+            typed_trees_to_checked_trees::validation::scalar_array_elements(
                 &checked.typed,
                 machine.symbol,
                 assignment.value,
@@ -227,7 +232,7 @@ pub(crate) fn validate_element_rosters(
         }
         for (ordinal, path) in paths.into_iter().enumerate() {
             let expected = CheckedScalarExpressionRole::ArrayElement {
-                source: checked_trees::CheckedArrayConstructionSource::Statement,
+                source: typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::Statement,
                 element_ordinal: u32::try_from(ordinal).map_err(|_| mismatch())?,
             };
             if value_role_at(checked, state_symbol, assignment, &target.path, path)? != expected {
@@ -246,12 +251,12 @@ fn authored_store(
     statement_index: u32,
 ) -> Result<
     (
-        &checked_trees::statement::TableAssignment,
+        &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
         crate::emission::call_source_custody::projected_receivers::ReceiverSource,
     ),
     LoweringError,
 > {
-    use checked_trees::statement::StatementNode;
+    use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     let Some(StatementNode::Assignment(assignment)) = checked
@@ -274,11 +279,11 @@ fn authored_store(
 fn value_role_at(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
-    assignment: &checked_trees::statement::TableAssignment,
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
     target_path: &[CheckedUnitStructuralPathSegment],
     path: &[CheckedUnitStructuralPathSegment],
 ) -> Result<CheckedScalarExpressionRole, LoweringError> {
-    use checked_trees::types::{FixedArrayLength, TypeReferenceNode};
+    use typed_trees_to_checked_trees::checked_trees::types::{FixedArrayLength, TypeReferenceNode};
     if target_path == path {
         return Ok(CheckedScalarExpressionRole::AssignmentValue);
     }
@@ -293,13 +298,15 @@ fn value_role_at(
         .ok_or_else(mismatch)?;
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
-    let mut reference = validation::declared_place_type_raw(
+    let mut reference = typed_trees_to_checked_trees::validation::declared_place_type_raw(
         &checked.typed,
         machine,
         Some(state),
         assignment.target,
     )
-    .and_then(|declared| validation::closed_array_store_type(&checked.typed, declared))
+    .and_then(|declared| {
+        typed_trees_to_checked_trees::validation::closed_array_store_type(&checked.typed, declared)
+    })
     .ok_or_else(mismatch)?;
     let mut ordinal = 0_u64;
     let mut indices = indices.iter();
@@ -325,7 +332,8 @@ fn value_role_at(
         return Err(mismatch());
     }
     Ok(CheckedScalarExpressionRole::ArrayElement {
-        source: checked_trees::CheckedArrayConstructionSource::Statement,
+        source:
+            typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::Statement,
         element_ordinal: u32::try_from(ordinal).map_err(|_| mismatch())?,
     })
 }
@@ -337,9 +345,9 @@ fn validate_array_element_value(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
-    assignment: &checked_trees::statement::TableAssignment,
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
     role: CheckedScalarExpressionRole,
-    value: &checked_trees::CheckedCallScalarArgument,
+    value: &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     let mismatch =
         || LoweringError::Unsupported("array element store differs from its authored literal");
@@ -351,15 +359,17 @@ fn validate_array_element_value(
     };
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
-    let expected = validation::declared_place_type_raw(
+    let expected = typed_trees_to_checked_trees::validation::declared_place_type_raw(
         &checked.typed,
         machine,
         Some(state),
         assignment.target,
     )
-    .and_then(|declared| validation::closed_array_store_type(&checked.typed, declared))
+    .and_then(|declared| {
+        typed_trees_to_checked_trees::validation::closed_array_store_type(&checked.typed, declared)
+    })
     .ok_or_else(mismatch)?;
-    let element = validation::scalar_array_elements(
+    let element = typed_trees_to_checked_trees::validation::scalar_array_elements(
         &checked.typed,
         machine.symbol,
         assignment.value,
@@ -368,7 +378,8 @@ fn validate_array_element_value(
     .and_then(|array| array.elements.get(element_ordinal as usize).copied())
     .map(|(element, _)| element)
     .ok_or_else(mismatch)?;
-    let checked_trees::CheckedCallScalarArgument::Pure(value) = value else {
+    let typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(value) = value
+    else {
         return Err(mismatch());
     };
     let (binding, expression) = checked
@@ -388,10 +399,10 @@ fn validate_assignment_value(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
-    assignment: &checked_trees::statement::TableAssignment,
-    value: &checked_trees::CheckedCallScalarArgument,
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
+    value: &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
-    use checked_trees::expression::ExpressionNode;
+    use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
     let (machine, _state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     let binding_destination = match checked.expression_table.expression(assignment.target) {
@@ -414,7 +425,9 @@ fn validate_assignment_value(
         return unsupported("primitive store has duplicate RHS computation roots");
     }
     let value = match value {
-        checked_trees::CheckedCallScalarArgument::Computation(handle) => {
+        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
+            handle,
+        ) => {
             let root = root.ok_or(LoweringError::Unsupported(
                 "primitive store lost its RHS computation root",
             ))?;
@@ -478,7 +491,7 @@ fn validate_assignment_value(
                 value,
             );
         }
-        checked_trees::CheckedCallScalarArgument::Pure(value) => {
+        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(value) => {
             if root.is_some() {
                 return unsupported(
                     "primitive store replaced its RHS computation with a pure value",
@@ -552,15 +565,15 @@ pub(crate) fn emit(
             CheckedScalarExpression::Boolean(expression)
                 if matches!(
                     expression.as_ref(),
-                    checked_trees::CheckedBooleanExpression::Constant(_)
+                    typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Constant(_)
                 )
         );
     let direct_parameter = match value {
         CheckedScalarExpression::Parameter { position, .. } => *position < scalar_parameter_count,
         CheckedScalarExpression::Boolean(expression) => match expression.as_ref() {
-            checked_trees::CheckedBooleanExpression::Parameter { position } => {
-                *position < scalar_parameter_count
-            }
+            typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Parameter {
+                position,
+            } => *position < scalar_parameter_count,
             _ => false,
         },
         _ => false,
@@ -738,7 +751,7 @@ fn walk_path(
             }
             (
                 CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+                    typed_trees_to_checked_trees::checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
                 ),
                 StructuralTypeShape::FixedArray { element, .. },
             ) if !result.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) => {

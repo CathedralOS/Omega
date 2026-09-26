@@ -1,6 +1,6 @@
 use super::super::queries::{assert_origin, typed_fixture};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
 
 #[test]
 fn a_shared_input_move_transports_the_actual_selected_case() {

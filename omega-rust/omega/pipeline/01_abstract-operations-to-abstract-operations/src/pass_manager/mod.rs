@@ -43,13 +43,13 @@ use optimization_core::{
     OptimizationRuleIdentity, OptimizationSelections, OptimizationUnitIdentity,
     OptimizationWorkBudget,
 };
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::optimization_unit::{
     InvalidPsiTransformationLedger, PsiOptimizationUnit, PsiTransformationLedger,
 };
-pub use optimization_unit::{
+pub use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration,
 };
-use optimization_unit_semantics::OptimizationUnitValidationError;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError;
 use terminal_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
 };

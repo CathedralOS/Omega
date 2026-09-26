@@ -1,6 +1,6 @@
 use super::{CheckedBoundaryOperatorApplicationOccurrence, unsupported};
-use checked_trees::CheckedTrees;
-use lowered_psi::LoweredPsi;
+use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 pub(super) fn replay(
     checked: &CheckedTrees,
@@ -42,10 +42,10 @@ pub(super) fn replay(
             .selected_float_comparison(&checked.typed, comparison.operator_use);
         let expected_primitive = match comparison.format {
             semantic_vocabulary::IeeeFloatFormat::Binary32 => {
-                checked_trees::types::PrimitiveType::F32
+                typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::F32
             }
             semantic_vocabulary::IeeeFloatFormat::Binary64 => {
-                checked_trees::types::PrimitiveType::F64
+                typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::F64
             }
         };
         if operator_use.application_site() != comparison.application_site

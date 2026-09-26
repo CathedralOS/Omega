@@ -1,7 +1,9 @@
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{CheckFacts, FlowStateFact};
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
-use typed_trees::statement::{AssemblyFactKind, StatementNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    AssemblyFactKind, StatementNode,
+};
 
 use super::prover::semantic_contexts_prove_boolean_expression;
 use crate::flow::{
@@ -15,7 +17,7 @@ use crate::labels::machine_name;
 /// adjusted flow contexts supply the block entry and exit environments. These
 /// assertions consume facts only; they never add a fact to the context.
 pub(super) fn check_assembly_fact_contracts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -25,7 +27,7 @@ pub(super) fn check_assembly_fact_contracts(
 }
 
 fn check_state_assembly_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
@@ -92,7 +94,7 @@ fn check_state_assembly_facts(
 /// asm postcondition must not reuse such a stale entry constraint after an
 /// instruction wrote one of the places it reads.
 fn asm_block_writes_fact_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: symbols::SymbolHandle,
     statements: &[StatementNode],
     ensures_index: usize,
@@ -143,7 +145,7 @@ fn asm_block_writes_fact_place(
 }
 
 pub(super) fn expression_reads_overlapping_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: symbols::SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -166,7 +168,7 @@ pub(super) fn expression_reads_overlapping_place(
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Match(dispatch) => recurse(dispatch.subject)
             || program.expression_table.match_arms(dispatch.arms).iter().any(|arm| {
-                matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern) if recurse(pattern))
+                matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) if recurse(pattern))
                     || recurse(arm.value)
             }),
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => expression_place_may_overlap(
@@ -222,7 +224,7 @@ pub(super) fn expression_reads_overlapping_place(
 }
 
 fn expression_place_may_overlap(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: symbols::SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,

@@ -76,10 +76,10 @@ fn explicit_conformance_binder_selects_and_substitutes_one_closed_map() {
                 .any(|statement| {
                     matches!(
                         statement,
-                        typed_trees::statement::StatementNode::Expression(expression)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(expression)
                             if matches!(
                                 checked.expression_table.expression(*expression),
-                                typed_trees::expression::ExpressionNode::Call(call)
+                                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call)
                                     if call.target_symbol == selected_row.realization_state
                             )
                     )
@@ -302,7 +302,7 @@ fn selected_bound_application_substitutes_forwarded_type_const_and_machine_argum
     };
     assert_eq!(application.type_arguments, ["Card", "Message"]);
     let [
-        typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
+        symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
             parameter_carrier,
             declared_carrier,
             value,

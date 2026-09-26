@@ -18,12 +18,12 @@ use crate::unit::dynamic_composed_unit::dynamic_lanes::{
     DynamicCall, DynamicCallView, DynamicLoweringLane, ForwardedOrigin,
 };
 use crate::unit::{CheckedTrees, LoweringError, unsupported};
-use checked_trees::TypeIdentityRequest;
-use checked_trees::{
+use language_semantics::Multiplicity;
+use typed_trees_to_checked_trees::checked_trees::TypeIdentityRequest;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedDynamicSelectionPlan, CheckedStructuralAccess, CheckedStructuralScalarFieldStorePlan,
     CheckedUnitStructuralPathSegment,
 };
-use language_semantics::Multiplicity;
 
 /// Validate one call plan against checked custody under its lowering lane.
 pub(crate) fn validate_exact_plan<Call: DynamicCall>(
@@ -120,7 +120,7 @@ fn validate_stored_descriptor(
     plan: &DynamicCallView<'_>,
     store: Option<&CheckedStructuralScalarFieldStorePlan>,
     helper_body_count: usize,
-    stored: &checked_trees::CheckedDynamicStoredDescriptorPlan,
+    stored: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicStoredDescriptorPlan,
 ) -> Result<(), LoweringError> {
     let machines = checked
         .typed
@@ -144,8 +144,9 @@ fn validate_stored_descriptor(
         .typed
         .statement_table
         .statements(state.statement_nodes);
-    let Some(checked_trees::statement::StatementNode::LocalData(destination)) =
-        statements.get(stored.storage.statement_index)
+    let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+        destination,
+    )) = statements.get(stored.storage.statement_index)
     else {
         return unsupported("stored dynamic descriptor drifted from checked aggregate custody");
     };
@@ -155,7 +156,9 @@ fn validate_stored_descriptor(
         .iter()
         .flat_map(|definition| checked.typed.data_members(definition))
         .filter_map(|member| {
-            let checked_trees::data::DataMember::Field(field) = member else {
+            let typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(field) =
+                member
+            else {
                 return None;
             };
             (field.symbol == stored.storage.destination_field).then_some(field)
@@ -511,7 +514,7 @@ fn validate_forwarding_transfer_path(
                 && transfer.target_trait == plan.target_trait
                 && transfer.source_binding == plan.receiver_binding
                 && transfer.source
-                    == checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+                    == typed_trees_to_checked_trees::checked_trees::CheckedDynamicDescriptorTransferSource::Selection
                 && transfer.sole_selection() == Some(plan.selection)
         })
         .collect::<Vec<_>>();
@@ -537,7 +540,7 @@ fn validate_forwarding_transfer_path(
             || transfer.target_trait != plan.target_trait
             || transfer.source_binding != source_parameter
             || transfer.source
-                != (checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                != (typed_trees_to_checked_trees::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 })
             || !validate_parameter_forwarding_call(checked, transfer)?
@@ -559,7 +562,7 @@ fn validate_forwarding_transfer_path(
 /// transfer's receiver-free call into the next helper, without service reach.
 fn validate_parameter_forwarding_call(
     checked: &CheckedTrees,
-    transfer: &checked_trees::CheckedDynamicDescriptorTransferPlan,
+    transfer: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicDescriptorTransferPlan,
 ) -> Result<bool, LoweringError> {
     let selections = checked
         .facts
@@ -572,7 +575,7 @@ fn validate_parameter_forwarding_call(
     let [selection] = selections.as_slice() else {
         return Ok(false);
     };
-    if selection.signature != checked_trees::CheckedTerminalSignatureEligibility::Eligible {
+    if selection.signature != typed_trees_to_checked_trees::checked_trees::CheckedTerminalSignatureEligibility::Eligible {
         return Ok(false);
     }
     let states = checked
@@ -624,7 +627,7 @@ fn validate_forwarded_dynamic_call(
     let [selection] = selections.as_slice() else {
         return Ok(false);
     };
-    if selection.signature != checked_trees::CheckedTerminalSignatureEligibility::Eligible {
+    if selection.signature != typed_trees_to_checked_trees::checked_trees::CheckedTerminalSignatureEligibility::Eligible {
         return Ok(false);
     }
     let state_facts = checked

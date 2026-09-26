@@ -13,13 +13,15 @@
 //! cannot claim an entry position at all — machine-rooted projections,
 //! qualified names, constants — keep their existing opaque atoms.
 
-use symbols::SymbolHandle;
-use typed_trees::machine::Machine;
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
-use typed_trees::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionGuardNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
 };
+use symbols::SymbolHandle;
 
 /// Where each `when` guard in `machine` was evaluated: the guard's own
 /// transition statement. A guard edge carries its fact into joined and
@@ -61,7 +63,7 @@ pub(super) fn entry_meaning_conjuncts(
     guard: ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
 ) -> Vec<(ExpressionHandle, bool)> {
     let Some(eval_site) = eval_sites
         .iter()
@@ -94,7 +96,7 @@ struct GuardContext<'a> {
     /// `(state, statement ordinal)` where the guard expression ran.
     eval_site: (SymbolHandle, usize),
     parameter_names: &'a [String],
-    content_conservation: &'a [validation::ContentConservationSourcePlan],
+    content_conservation: &'a [crate::validation::ContentConservationSourcePlan],
 }
 
 impl GuardContext<'_> {
@@ -191,7 +193,7 @@ impl GuardContext<'_> {
                 ExpressionNode::Match(dispatch) => {
                     pending.push(dispatch.subject);
                     for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                        if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                             pending.push(pattern);
                         }
                         pending.push(arm.value);
@@ -300,7 +302,7 @@ impl GuardContext<'_> {
             self.eval_site.1,
             leaf,
         )
-        .map(checked_trees::CrashPredicateIdentity::from_expression);
+        .map(crate::checked_trees::CrashPredicateIdentity::from_expression);
         proven
             == Some(crate::facts::canonical_crash_path_predicate(
                 self.program,

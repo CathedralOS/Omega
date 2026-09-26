@@ -27,7 +27,7 @@ fn incoming_guard_certifies_disjoint_write_and_call_after_parameter_forwarding()
             .mutation_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == checked_trees::BorrowCompatibilityDerivation::Premised)
+                == crate::checked_trees::BorrowCompatibilityDerivation::Premised)
     );
     assert!(
         checked
@@ -36,7 +36,7 @@ fn incoming_guard_certifies_disjoint_write_and_call_after_parameter_forwarding()
             .call_compatibility_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == checked_trees::BorrowCompatibilityDerivation::Premised)
+                == crate::checked_trees::BorrowCompatibilityDerivation::Premised)
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("guard-established borrow evidence replays");
@@ -56,7 +56,7 @@ fn incoming_guard_certifies_a_second_disjoint_loan_without_widening_authority() 
             .compatibility_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == checked_trees::BorrowCompatibilityDerivation::Premised
+                == crate::checked_trees::BorrowCompatibilityDerivation::Premised
                 && certificate.conclusion.disjoint)
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
@@ -119,7 +119,7 @@ fn guard_polarity_boolean_structure_and_transitive_forwarding_replay() {
                 .any(
                     |(_, certificate)| certificate.premises.iter().any(|premise| matches!(
                         premise.source,
-                        checked_trees::BorrowCompatibilityPremiseSource::IncomingGuard { .. }
+                        crate::checked_trees::BorrowCompatibilityPremiseSource::IncomingGuard { .. }
                     ))
                 )
         );
@@ -186,7 +186,7 @@ fn incoming_guard_identity_and_polarity_are_replayed_not_trusted() {
         for handle in certificates {
             let certificate = checked.facts.borrow.mutation_certificates.get_mut(handle);
             for premise in &mut certificate.premises {
-                if let checked_trees::BorrowCompatibilityPremiseSource::IncomingGuard {
+                if let crate::checked_trees::BorrowCompatibilityPremiseSource::IncomingGuard {
                     expression,
                     negated,
                 } = &mut premise.source
@@ -196,7 +196,7 @@ fn incoming_guard_identity_and_polarity_are_replayed_not_trusted() {
                         1 => *negated = !*negated,
                         _ => {
                             premise.relation =
-                                checked_trees::BorrowCompatibilityPremiseRelation::Equal
+                                crate::checked_trees::BorrowCompatibilityPremiseRelation::Equal
                         }
                     }
                 }
@@ -216,8 +216,10 @@ fn incoming_guard_identity_and_polarity_are_replayed_not_trusted() {
 
 #[test]
 fn replay_reconstructs_changed_guard_and_intermediate_argument_source() {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+        StatementNode, TransitionTargetNode,
+    };
     for change_guard in [false, true] {
         let mut checked = checked_program(&forwarded_window());
         if change_guard {
@@ -228,7 +230,7 @@ fn replay_reconstructs_changed_guard_and_intermediate_argument_source() {
                 .iter()
                 .flat_map(|(_, certificate)| &certificate.premises)
                 .find_map(|premise| match premise.source {
-                    checked_trees::BorrowCompatibilityPremiseSource::IncomingGuard {
+                    crate::checked_trees::BorrowCompatibilityPremiseSource::IncomingGuard {
                         expression,
                         ..
                     } => Some(expression),

@@ -4,12 +4,12 @@
 //! admitted operation from member parameters to their representatives.
 
 use super::place_observations::member_place_references;
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::{
-    OptimizationNode, OptimizerCycleComponent, OwnershipEvent, PsiOptimizationFunction,
-};
 use semantic_vocabulary::{BlockId, PlaceId, ScalarTerm, StructuralPlaceKind, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    OptimizationNode, OptimizerCycleComponent, OwnershipEvent, PsiOptimizationFunction,
+};
 
 /// Whether the affine scalar-case, empty-record, or structural-call result
 /// — or the affine trivial-local place — `picked` stays

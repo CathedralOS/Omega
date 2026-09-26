@@ -1,56 +1,58 @@
 /// A missing field or case identity gives no information about its descendants.
 /// Runtime indexes retain their separate conservative selector semantics.
-pub(crate) fn place_segment_has_unresolved_identity(segment: facts::PlaceSegment) -> bool {
+pub(crate) fn place_segment_has_unresolved_identity(
+    segment: crate::fact_plan::PlaceSegment,
+) -> bool {
     match segment {
-        facts::PlaceSegment::Field { symbol } => !symbol.is_valid(),
-        facts::PlaceSegment::Case { variant } => !variant.is_valid(),
+        crate::fact_plan::PlaceSegment::Field { symbol } => !symbol.is_valid(),
+        crate::fact_plan::PlaceSegment::Case { variant } => !variant.is_valid(),
         _ => false,
     }
 }
 
 pub(crate) fn canonical_place_segments_equal(
-    left: facts::PlaceSegment,
-    right: facts::PlaceSegment,
+    left: crate::fact_plan::PlaceSegment,
+    right: crate::fact_plan::PlaceSegment,
 ) -> bool {
     if place_segment_has_unresolved_identity(left) || place_segment_has_unresolved_identity(right) {
         return false;
     }
     match (left, right) {
         (
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: left_symbol,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: right_symbol,
             },
         ) => left_symbol == right_symbol,
         (
-            facts::PlaceSegment::Case {
+            crate::fact_plan::PlaceSegment::Case {
                 variant: left_variant,
             },
-            facts::PlaceSegment::Case {
+            crate::fact_plan::PlaceSegment::Case {
                 variant: right_variant,
             },
         ) => left_variant == right_variant,
         (
-            facts::PlaceSegment::FixedIndex { index: left_index },
-            facts::PlaceSegment::FixedIndex { index: right_index },
+            crate::fact_plan::PlaceSegment::FixedIndex { index: left_index },
+            crate::fact_plan::PlaceSegment::FixedIndex { index: right_index },
         ) => left_index == right_index,
         (
-            facts::PlaceSegment::FixedRange {
+            crate::fact_plan::PlaceSegment::FixedRange {
                 start: left_start,
                 end: left_end,
             },
-            facts::PlaceSegment::FixedRange {
+            crate::fact_plan::PlaceSegment::FixedRange {
                 start: right_start,
                 end: right_end,
             },
         ) => left_start == right_start && left_end == right_end,
         (
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::Index {
                 expression: left_expression,
             },
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::Index {
                 expression: right_expression,
             },
         ) => left_expression == right_expression,
@@ -58,12 +60,12 @@ pub(crate) fn canonical_place_segments_equal(
     }
 }
 
-use checked_trees::expression::ExpressionHandle;
+use crate::checked_trees::expression::ExpressionHandle;
 
 #[allow(dead_code)]
 pub(crate) fn canonical_place_overlaps_segments(
-    left: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
+    left: &[crate::fact_plan::PlaceSegment],
+    right: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
     let shared_len = left.len().min(right.len());
     left.iter()
@@ -75,9 +77,9 @@ pub(crate) fn canonical_place_overlaps_segments(
 }
 
 pub(crate) fn canonical_place_segments_may_overlap(
-    program: &typed_trees::TypedTrees,
-    left: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    left: &[crate::fact_plan::PlaceSegment],
+    right: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
     for (&left_segment, &right_segment) in left.iter().zip(right) {
         if place_segment_has_unresolved_identity(left_segment)
@@ -93,10 +95,10 @@ pub(crate) fn canonical_place_segments_may_overlap(
 }
 
 pub(crate) fn canonical_place_joined_segments_may_overlap(
-    program: &typed_trees::TypedTrees,
-    prefix: &[facts::PlaceSegment],
-    suffix: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    prefix: &[crate::fact_plan::PlaceSegment],
+    suffix: &[crate::fact_plan::PlaceSegment],
+    right: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
     for (&left_segment, &right_segment) in prefix.iter().chain(suffix).zip(right) {
         if place_segment_has_unresolved_identity(left_segment)
@@ -112,67 +114,71 @@ pub(crate) fn canonical_place_joined_segments_may_overlap(
 }
 
 fn canonical_place_segment_pair_may_overlap(
-    program: &typed_trees::TypedTrees,
-    left: facts::PlaceSegment,
-    right: facts::PlaceSegment,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    left: crate::fact_plan::PlaceSegment,
+    right: crate::fact_plan::PlaceSegment,
 ) -> bool {
     match (left, right) {
         (
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: left_symbol,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: right_symbol,
             },
         ) => left_symbol == right_symbol,
         (
-            facts::PlaceSegment::Case {
+            crate::fact_plan::PlaceSegment::Case {
                 variant: left_variant,
             },
-            facts::PlaceSegment::Case {
+            crate::fact_plan::PlaceSegment::Case {
                 variant: right_variant,
             },
         ) => left_variant == right_variant,
         (
-            facts::PlaceSegment::FixedIndex { index: left_index },
-            facts::PlaceSegment::FixedIndex { index: right_index },
+            crate::fact_plan::PlaceSegment::FixedIndex { index: left_index },
+            crate::fact_plan::PlaceSegment::FixedIndex { index: right_index },
         ) => left_index == right_index,
         (
-            facts::PlaceSegment::FixedRange {
+            crate::fact_plan::PlaceSegment::FixedRange {
                 start: left_start,
                 end: left_end,
             },
-            facts::PlaceSegment::FixedRange {
+            crate::fact_plan::PlaceSegment::FixedRange {
                 start: right_start,
                 end: right_end,
             },
         ) => fixed_ranges_overlap(left_start, left_end, right_start, right_end),
         (
-            facts::PlaceSegment::FixedRange { start, end },
-            facts::PlaceSegment::FixedIndex { index },
+            crate::fact_plan::PlaceSegment::FixedRange { start, end },
+            crate::fact_plan::PlaceSegment::FixedIndex { index },
         )
         | (
-            facts::PlaceSegment::FixedIndex { index },
-            facts::PlaceSegment::FixedRange { start, end },
+            crate::fact_plan::PlaceSegment::FixedIndex { index },
+            crate::fact_plan::PlaceSegment::FixedRange { start, end },
         ) => fixed_range_contains(start, end, index),
         (
-            facts::PlaceSegment::FixedRange { start, end },
-            facts::PlaceSegment::Index { expression },
+            crate::fact_plan::PlaceSegment::FixedRange { start, end },
+            crate::fact_plan::PlaceSegment::Index { expression },
         )
         | (
-            facts::PlaceSegment::Index { expression },
-            facts::PlaceSegment::FixedRange { start, end },
+            crate::fact_plan::PlaceSegment::Index { expression },
+            crate::fact_plan::PlaceSegment::FixedRange { start, end },
         ) => expression_static_index(program, expression)
             .is_none_or(|index| fixed_range_contains(start, end, index)),
-        (facts::PlaceSegment::FixedIndex { index }, facts::PlaceSegment::Index { expression })
-        | (facts::PlaceSegment::Index { expression }, facts::PlaceSegment::FixedIndex { index }) => {
-            expression_static_index(program, expression).is_none_or(|value| value == index)
-        }
         (
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::FixedIndex { index },
+            crate::fact_plan::PlaceSegment::Index { expression },
+        )
+        | (
+            crate::fact_plan::PlaceSegment::Index { expression },
+            crate::fact_plan::PlaceSegment::FixedIndex { index },
+        ) => expression_static_index(program, expression).is_none_or(|value| value == index),
+        (
+            crate::fact_plan::PlaceSegment::Index {
                 expression: left_expression,
             },
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::Index {
                 expression: right_expression,
             },
         ) => index_expressions_may_overlap(program, left_expression, right_expression),
@@ -197,7 +203,7 @@ fn fixed_ranges_overlap(
 }
 
 fn expression_static_index(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<usize> {
     program
@@ -221,7 +227,7 @@ fn expression_static_index(
 /// fact's dependency path — which the joined-segment matcher handles independently of
 /// this index comparison.
 fn index_expressions_may_overlap(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
@@ -234,8 +240,8 @@ fn index_expressions_may_overlap(
         program.expression_table.expression(right),
     ) {
         (
-            checked_trees::expression::ExpressionNode::Integer(left_value),
-            checked_trees::expression::ExpressionNode::Integer(right_value),
+            crate::checked_trees::expression::ExpressionNode::Integer(left_value),
+            crate::checked_trees::expression::ExpressionNode::Integer(right_value),
         ) => left_value == right_value,
         _ => true,
     }
@@ -246,66 +252,67 @@ mod tests {
     use super::ExpressionHandle;
     use crate::flow::canonical_place_segments_may_overlap;
 
-    fn integer_expression(program: &mut typed_trees::TypedTrees, value: i64) -> ExpressionHandle {
+    fn integer_expression(
+        program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        value: i64,
+    ) -> ExpressionHandle {
         program
             .expression_table
-            .insert(checked_trees::expression::ExpressionNode::Integer(
+            .insert(crate::checked_trees::expression::ExpressionNode::Integer(
                 numerics::literals::IntegerLiteral::from_value(value),
             ))
     }
 
     #[test]
     fn indexed_segment_overlap_uses_literal_values_not_handle_identity() {
-        let mut program = typed_trees::TypedTrees::default();
+        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
         let left_zero = integer_expression(&mut program, 0);
         let right_zero = integer_expression(&mut program, 0);
         let one = integer_expression(&mut program, 1);
 
         assert!(canonical_place_segments_may_overlap(
             &program,
-            &[facts::PlaceSegment::Index {
+            &[crate::fact_plan::PlaceSegment::Index {
                 expression: left_zero,
             }],
-            &[facts::PlaceSegment::Index {
+            &[crate::fact_plan::PlaceSegment::Index {
                 expression: right_zero,
             }],
         ));
         assert!(!canonical_place_segments_may_overlap(
             &program,
-            &[facts::PlaceSegment::Index {
+            &[crate::fact_plan::PlaceSegment::Index {
                 expression: left_zero,
             }],
-            &[facts::PlaceSegment::Index { expression: one }],
+            &[crate::fact_plan::PlaceSegment::Index { expression: one }],
         ));
     }
 
     #[test]
     fn indexed_segment_overlap_is_conservative_for_non_literal_indices() {
-        let mut program = typed_trees::TypedTrees::default();
-        let left =
-            program
-                .expression_table
-                .insert(checked_trees::expression::ExpressionNode::Name(
-                    checked_trees::expression::TableNamePath::default(),
-                ));
-        let right =
-            program
-                .expression_table
-                .insert(checked_trees::expression::ExpressionNode::Name(
-                    checked_trees::expression::TableNamePath::default(),
-                ));
+        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+        let left = program.expression_table.insert(
+            crate::checked_trees::expression::ExpressionNode::Name(
+                crate::checked_trees::expression::TableNamePath::default(),
+            ),
+        );
+        let right = program.expression_table.insert(
+            crate::checked_trees::expression::ExpressionNode::Name(
+                crate::checked_trees::expression::TableNamePath::default(),
+            ),
+        );
 
         assert!(canonical_place_segments_may_overlap(
             &program,
-            &[facts::PlaceSegment::Index { expression: left }],
-            &[facts::PlaceSegment::Index { expression: right }],
+            &[crate::fact_plan::PlaceSegment::Index { expression: left }],
+            &[crate::fact_plan::PlaceSegment::Index { expression: right }],
         ));
     }
 
     #[test]
     fn fixed_ranges_use_half_open_overlap() {
-        let program = typed_trees::TypedTrees::default();
-        let range = |start, end| facts::PlaceSegment::FixedRange { start, end };
+        let program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+        let range = |start, end| crate::fact_plan::PlaceSegment::FixedRange { start, end };
 
         assert!(canonical_place_segments_may_overlap(
             &program,
@@ -325,12 +332,12 @@ mod tests {
         assert!(canonical_place_segments_may_overlap(
             &program,
             &[range(1, 3)],
-            &[facts::PlaceSegment::FixedIndex { index: 2 }],
+            &[crate::fact_plan::PlaceSegment::FixedIndex { index: 2 }],
         ));
         assert!(!canonical_place_segments_may_overlap(
             &program,
             &[range(1, 3)],
-            &[facts::PlaceSegment::FixedIndex { index: 3 }],
+            &[crate::fact_plan::PlaceSegment::FixedIndex { index: 3 }],
         ));
     }
 }

@@ -8,7 +8,7 @@ use terminal_psi::{OperationKind as O, TerminalMachine, Terminator};
 
 pub(super) fn eliminate(
     machine: &mut TerminalMachine,
-    source_calls: &[lowered_psi::LoweredSourceCallOccurrence],
+    source_calls: &[checked_trees_to_lowered_psi::lowered_psi::LoweredSourceCallOccurrence],
     retained_values: &[ValueId],
 ) {
     let operations = machine
@@ -956,7 +956,7 @@ mod tests {
         // Positive: a join naming a present operation keeps the producer of
         // every captured environment value. Boundary: a join naming an absent
         // operation demands nothing.
-        use lowered_psi::LoweredSourceCallOccurrence;
+        use checked_trees_to_lowered_psi::lowered_psi::LoweredSourceCallOccurrence;
         use semantic_vocabulary::{OperationId, ScalarType};
         use terminal_psi::ValueDeclaration;
 

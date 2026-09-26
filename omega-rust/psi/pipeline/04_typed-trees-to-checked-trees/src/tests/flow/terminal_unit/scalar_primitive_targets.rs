@@ -150,7 +150,7 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 1,
             destination:
-                checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             ..
         },
         CheckedUnitEffectOperationPlan::Complete { .. },
@@ -171,7 +171,7 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
     assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
     assert_eq!(
         structural_arguments[0].access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
+        crate::checked_trees::CheckedStructuralAccess::MutableBorrow
     );
     assert!(structural_arguments[0].path.is_empty());
     let ordered_callee = checked
@@ -202,7 +202,7 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
         (1, PrimitiveType::U64)
     );
     assert!(
-        matches!(value, checked_trees::CheckedCallScalarArgument::Pure(
+        matches!(value, crate::checked_trees::CheckedCallScalarArgument::Pure(
         CheckedScalarExpression::IntegerLiteral { literal }) if literal.value_i64() == Some(7))
     );
 
@@ -258,7 +258,7 @@ fn primitive_discovery_keeps_nominal_return_cleanup_in_the_dependent_phase() {
         .clone();
     assert!(matches!(
         nominal.cleanup_actions.as_slice(),
-        [checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)]
+        [crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)]
     ));
     let independent =
         crate::execution::terminal_unit::returns::build_checked_primitive_store_scalar_return_plans(
@@ -307,7 +307,7 @@ fn primitive_scalar_call_keeps_dense_scalar_actual_positions() {
     assert_eq!(scalar_arguments.len(), 2);
     for (argument, expected) in scalar_arguments.iter().zip([3, 7]) {
         assert!(matches!(argument,
-            checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal })
+            crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal })
             if literal.value_i64() == Some(expected)));
     }
     let callee = checked
@@ -346,7 +346,9 @@ fn declared_range_runtime_index_produces_a_runtime_element_store() {
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
                 destination:
-                    checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                    crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                        parameter_index: 0,
+                    },
                 path,
                 value,
             },
@@ -358,14 +360,14 @@ fn declared_range_runtime_index_produces_a_runtime_element_store() {
         assert_eq!(
             path.as_slice(),
             [
-                checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
+                crate::checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    crate::checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
                 )
             ],
             "the runtime selector is the path's element segment, not an operand"
         );
         assert!(matches!(value,
-            checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal })
+            crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal })
             if literal.value_u64() == Some(17)));
     }
 }
@@ -406,7 +408,7 @@ fn requires_bound_runtime_index_produces_a_runtime_element_store() {
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: 0,
                     destination:
-                        checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                        crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                             parameter_index: 0,
                         },
                     path,
@@ -420,8 +422,8 @@ fn requires_bound_runtime_index_produces_a_runtime_element_store() {
             assert_eq!(
                 path.as_slice(),
                 [
-                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                        checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
+                    crate::checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        crate::checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
                     )
                 ],
                 "{access} {requires}: the runtime selector is the path's element segment"
@@ -494,9 +496,7 @@ fn literal_index_store_stays_on_the_static_path() {
     };
     assert!(matches!(
         path.as_slice(),
-        [checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-            2
-        )]
+        [crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2)]
     ));
 }
 
@@ -524,12 +524,12 @@ fn primitive_scalar_call_borrows_the_body_for_a_deleted_registration_and_rejects
             2 => plans[position].effects.clear(),
             3 => plans[position].state = arena::Handle::invalid(),
             4 => plans[position].result_type = PrimitiveType::Bool,
-            5 => plans[position]
-                .cleanup_actions
-                .push(checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0)),
+            5 => plans[position].cleanup_actions.push(
+                crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0),
+            ),
             6 => {
                 plans[position].structural_parameters[0].access =
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                    crate::checked_trees::CheckedStructuralAccess::SharedBorrow
             }
             _ => unreachable!(),
         }
@@ -587,9 +587,9 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
             path: store_path,
             statement_index: 1,
             destination:
-                checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             value:
-                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
+                crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 1,
                     primitive_type: PrimitiveType::U64,
                 }),
@@ -605,7 +605,7 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
     assert!(claim_transfers.is_empty());
     assert!(matches!(
         scalar_arguments.as_slice(),
-        [checked_trees::CheckedCallScalarArgument::Pure(
+        [crate::checked_trees::CheckedCallScalarArgument::Pure(
             CheckedScalarExpression::Parameter {
                 position: 0,
                 primitive_type: PrimitiveType::U64,
@@ -616,7 +616,7 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
     assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
     assert_eq!(
         structural_arguments[0].access,
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     );
     assert!(structural_arguments[0].path.is_empty());
     for substituted_position in [0, 2] {

@@ -1,10 +1,12 @@
 //! Semantic cast custody is independent of the pure scalar payload grammar.
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::types::TypeReferenceHandle;
-use typed_trees::types::TypeReferenceNode;
-use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    DomainConstraintSubject, TypeConstraintNode,
+};
 
 pub(super) fn result_type(
     program: &TypedTrees,
@@ -13,7 +15,7 @@ pub(super) fn result_type(
 ) -> Option<TypeReferenceHandle> {
     crate::semantic::calls::find_state_with_machine(program, state_symbol).and_then(
         |(machine, state)| {
-            validation::expression_result_type_reference(program, machine, state, expression)
+            crate::validation::expression_result_type_reference(program, machine, state, expression)
         },
     )
 }
@@ -46,12 +48,12 @@ pub(super) fn has_declared_domains(program: &TypedTrees, reference: TypeReferenc
 fn is_interval_domain(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
-    domain: &typed_trees::types::DomainConstraint,
+    domain: &symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint,
 ) -> bool {
     program
         .primitive_type_reference(reference)
         .and_then(|primitive| {
-            validation::exact_declared_domain_carrier_interval(program, primitive, domain)
+            crate::validation::exact_declared_domain_carrier_interval(program, primitive, domain)
                 .filter(|(minimum, maximum)| minimum <= maximum)
         })
         .is_some()
@@ -112,7 +114,7 @@ pub(super) fn requires_custody(
         ExpressionNode::Unary(unary) => child(unary.operand),
         ExpressionNode::Match(dispatch) => child(dispatch.subject)
             || program.expression_table.match_arms(dispatch.arms).iter().any(|arm| {
-                matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern) if child(pattern))
+                matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) if child(pattern))
                     || child(arm.value)
             }),
         ExpressionNode::Call(call) => child(call.receiver)

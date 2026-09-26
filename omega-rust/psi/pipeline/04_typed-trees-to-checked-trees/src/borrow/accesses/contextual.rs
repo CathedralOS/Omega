@@ -1,18 +1,18 @@
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::statement::StatementNode;
 use crate::flow::{
     effective_member_symbol, resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 use crate::lookup::first_valid_name_path_symbol;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::StatementNode;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 pub(super) fn contextual_effective_member_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     receiver: ExpressionHandle,
-    member: &typed_trees::expression::TableMemberExpression,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
     machine_symbol: SymbolHandle,
 ) -> SymbolHandle {
     if let Some(type_symbol) = contextual_expression_type_symbol(
@@ -31,7 +31,7 @@ pub(super) fn contextual_effective_member_symbol(
 }
 
 fn contextual_expression_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -82,7 +82,7 @@ fn contextual_expression_type_symbol(
 }
 
 fn contextual_symbol_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     symbol: SymbolHandle,
@@ -111,11 +111,11 @@ fn contextual_symbol_type_symbol(
 }
 
 pub(super) fn contextual_name_root_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
-    path: &typed_trees::expression::TableNamePath,
+    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
 ) -> Option<SymbolHandle> {
     if let Some(symbol) = first_valid_name_path_symbol(path, &program.expression_table) {
         return Some(symbol);

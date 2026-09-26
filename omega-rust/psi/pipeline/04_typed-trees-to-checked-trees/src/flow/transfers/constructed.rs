@@ -2,22 +2,22 @@
 //! Only current literal values or live predicate facts transfer; declarations
 //! alone do not establish the contents of a newly constructed field.
 use super::PlaceHandle;
+use crate::checked_trees::FlowSemanticContextRef;
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::statement::StatementNode;
+use crate::fact_plan::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 use crate::flow::FlowBuildContext;
 use crate::flow::expression_type_reference_in_state;
 use crate::flow::literal_value_projections;
 use crate::flow::transfers::contextual_expression_place;
 use crate::flow::transfers::projected;
 use arena::HandleSpan;
-use checked_trees::FlowSemanticContextRef;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::StatementNode;
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
-};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_constructed_field_values(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     contexts: &FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
@@ -25,7 +25,7 @@ pub(super) fn append_constructed_field_values(
     expression: ExpressionHandle,
     destination: PlaceHandle,
     point: ProgramPoint,
-    references: &mut HandleSpan<facts::FactRef>,
+    references: &mut HandleSpan<crate::fact_plan::FactRef>,
 ) {
     if !matches!(
         program.expression_table.expression(expression),
@@ -56,10 +56,10 @@ pub(super) fn append_constructed_field_values(
     };
     loop {
         match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type
             }
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
                 reference = *referee
             }
             _ => break,
@@ -90,7 +90,7 @@ pub(super) fn append_constructed_field_values(
         if !projection.remaining.is_empty() {
             continue;
         }
-        let place = semantic.append_place(facts::Place {
+        let place = semantic.append_place(crate::fact_plan::Place {
             root: destination_root.root,
             segments: HandleSpan::empty(),
         });

@@ -1,5 +1,5 @@
-use checked_trees::statement::StatementNode;
-use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
+use crate::checked_trees::statement::StatementNode;
+use crate::checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 use symbols::SymbolHandle;
 
 use super::tracker::StateLoanTracker;
@@ -15,7 +15,7 @@ mod usage;
 /// liveness outside borrow expiry; finer intra-statement ordering can extend
 /// the same query without changing carry semantics.
 pub(crate) fn place_is_used_after_statement(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     statements: arena::HandleSpan<StatementNode>,
     statement_index: usize,
     symbol: SymbolHandle,
@@ -36,7 +36,7 @@ pub(crate) fn place_is_used_after_statement(
 /// field identity must never fall back to a spelling: two unrelated records
 /// may both have a field named `value`, while their symbols remain distinct.
 pub(crate) fn place_symbol_is_used_after_statement(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statements: arena::HandleSpan<StatementNode>,
     statement_index: usize,
@@ -60,8 +60,8 @@ pub(crate) fn place_symbol_is_used_after_statement(
 }
 
 pub(crate) fn place_symbol_is_used_in_state(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     symbol: SymbolHandle,
 ) -> bool {
     program
@@ -81,14 +81,14 @@ pub(crate) fn place_symbol_is_used_in_state(
 }
 
 pub(super) fn update_state_loan_last_uses(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statements: arena::HandleSpan<StatementNode>,
     borrow_calls: &[BorrowCallFact],
-    access_segments: &arena::Arena<facts::PlaceSegment>,
+    access_segments: &arena::Arena<crate::fact_plan::PlaceSegment>,
     argument_accesses: &arena::Arena<BorrowArgumentAccessFact>,
     loan_trackers: &[StateLoanTracker],
-    loans: &mut arena::Arena<checked_trees::BorrowLoanFact>,
+    loans: &mut arena::Arena<crate::checked_trees::BorrowLoanFact>,
 ) {
     if loan_trackers.is_empty() {
         return;

@@ -8,7 +8,7 @@ use super::{
 };
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::PreparedScalarMachine;
-use checked_trees::CheckedScalarComputationKind;
+use typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind;
 
 mod discovery;
 pub(crate) use discovery::{
@@ -167,7 +167,7 @@ impl EmbeddedScalarCalls {
     /// retained argument roots participate in helper selection.
     pub(crate) fn prepare_computations(
         checked: &CheckedTrees,
-        roots: &[checked_trees::CheckedScalarComputationHandle],
+        roots: &[typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationHandle],
         excluded_sources: &[symbols::SymbolHandle],
         reserved_prefix: usize,
     ) -> Result<Self, LoweringError> {
@@ -243,7 +243,7 @@ impl EmbeddedScalarCalls {
 
 pub(crate) fn computation_targets(
     checked: &CheckedTrees,
-    roots: &[checked_trees::CheckedScalarComputationHandle],
+    roots: &[typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationHandle],
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let nodes = &checked.facts.values.scalar_computations.nodes;
     let mut targets = Vec::new();

@@ -3,15 +3,15 @@
 #[path = "partial_affine_call_results/continuations.rs"]
 mod continuations;
 
-use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use optimization_unit_semantics::validate_psi_optimization_unit;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{StructuralPathSegment, TerminalAffineCleanupAction};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit;
 use terminal_psi_to_abstract_operations::{build_verified_psi_optimization_unit, lower_artifact};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;

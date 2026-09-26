@@ -2,6 +2,9 @@
 //! `statement_storage_writes`, `call_mutated_places` (which falls back to the
 //! declared signature ceiling in `ceiling`), and `frame_storage_writes`. When a
 //! statement's or call's write set is `None`, flow drops every active context.
+use crate::checked_trees::expression::ExpressionNode;
+use crate::checked_trees::statement::StatementNode;
+use crate::checked_trees::{BorrowCallFact, BorrowFacts};
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
@@ -13,9 +16,6 @@ use crate::semantic::calls::CallSite;
 use crate::semantic::calls::call_site_argument_expressions;
 use crate::semantic::calls::find_call_site;
 use crate::semantic::calls::find_state;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
-use checked_trees::{BorrowCallFact, BorrowFacts};
 use symbols::SymbolHandle;
 mod ceiling;
 mod local_origins;
@@ -48,13 +48,13 @@ pub(super) enum WritePlaceNamespace {
 /// Reuse the resolver prepared for this immutable program; local origins still
 /// resolve at the exact caller prefix, not from an earlier query's facts.
 pub(crate) fn call_mutated_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     state_mutation_summaries: &StateMutationSummaryCache,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let site = find_call_site(
         program,
@@ -99,7 +99,7 @@ pub(crate) fn call_mutated_places(
 /// The access route retains the local loan owner; storage rebasing must not
 /// turn a write through that loan into an independent write to its referent.
 pub(crate) fn call_write_accesses(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -120,14 +120,14 @@ pub(crate) fn call_write_accesses(
 }
 
 fn call_write_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     state_mutation_summaries: &StateMutationSummaryCache,
     namespace: WritePlaceNamespace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let summarized_places = instantiate_known_call_mutation_summary_places(
         program,
@@ -261,12 +261,12 @@ fn call_write_places(
 }
 
 fn shared_call_storage_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let machine = crate::lookup::machine_by_symbol(program, caller_machine_symbol)?;
     let state = find_state(program, caller_state_symbol)?;
@@ -362,13 +362,13 @@ fn shared_call_storage_places(
 /// own place. `false` disables refinement entirely when an exclusive actual
 /// cannot be spelled as caller storage at all.
 fn boundary_frame_access_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     site: &CallSite<'_>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> (Vec<CanonicalPlace>, Vec<CanonicalPlace>, bool) {
     let mut exclusive_referents = Vec::new();
     let mut coarse_anchors = Vec::new();
@@ -448,7 +448,7 @@ fn boundary_frame_access_places(
                     refinable = false;
                     break;
                 };
-                if !matches!(actual.root, facts::PlaceRoot::Symbol(_)) {
+                if !matches!(actual.root, crate::fact_plan::PlaceRoot::Symbol(_)) {
                     refinable = false;
                     break;
                 }
@@ -527,12 +527,12 @@ fn boundary_frame_access_places(
     (exclusive_referents, coarse_anchors, refinable)
 }
 
-fn is_index_place_segment(segment: facts::PlaceSegment) -> bool {
+fn is_index_place_segment(segment: crate::fact_plan::PlaceSegment) -> bool {
     matches!(
         segment,
-        facts::PlaceSegment::FixedIndex { .. }
-            | facts::PlaceSegment::FixedRange { .. }
-            | facts::PlaceSegment::Index { .. }
+        crate::fact_plan::PlaceSegment::FixedIndex { .. }
+            | crate::fact_plan::PlaceSegment::FixedRange { .. }
+            | crate::fact_plan::PlaceSegment::Index { .. }
     )
 }
 
@@ -541,7 +541,7 @@ fn is_index_place_segment(segment: facts::PlaceSegment) -> bool {
 /// and the authored `self` parameter maps to the machine symbol, matching how
 /// seeded field facts normalize.
 fn storage_normalized_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     place: &CanonicalPlace,
@@ -562,7 +562,7 @@ fn storage_normalized_place(
 /// frame path could have coarsened away. An equal-length place (including a
 /// whole-collection borrow or receiver) also counts: it contributed the path.
 fn storage_extends_frame_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     exact: &CanonicalPlace,
     coarse: &CanonicalPlace,
 ) -> bool {
@@ -578,7 +578,7 @@ fn storage_extends_frame_place(
 }
 
 fn call_is_storage_free_asm_intrinsic(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     call: &BorrowCallFact,
 ) -> bool {
     // These canonical intrinsics affect machine services, not caller storage.
@@ -590,7 +590,7 @@ fn call_is_storage_free_asm_intrinsic(
 }
 
 pub(crate) fn statement_mutated_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -616,12 +616,12 @@ pub(crate) fn statement_mutated_place(
 /// Storage writes for fact invalidation, including compiler-owned operations
 /// on borrowed receivers. An unresolved origin requires full invalidation.
 pub(crate) fn statement_storage_writes(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     if !matches!(
         statement,
@@ -665,12 +665,12 @@ pub(crate) fn statement_storage_writes(
 /// Project a shared complete call frame into the exact caller storage namespace.
 /// Coarse selectors remain conservative writes; they are not value provenance.
 pub(crate) fn frame_storage_writes(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    frame: &facts::NormalizedWriteFrame,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    frame: &crate::fact_plan::NormalizedWriteFrame,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let state = find_state(program, state_symbol)?;
     let mut places = Vec::new();
@@ -699,14 +699,14 @@ pub(crate) fn frame_storage_writes(
 }
 
 fn normalize_write_only_range_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     place: &mut CanonicalPlace,
 ) {
     // Keep ordinary borrow selectors expression-backed for certificate replay.
     // Only an admitted write-only mutation may collapse immutable copy bounds
     // into the exact caller-visible range footprint.
-    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = place.root else {
         return;
     };
     let Some(state) = find_state(program, state_symbol) else {
@@ -732,7 +732,7 @@ fn normalize_write_only_range_place(
         .is_some_and(|type_reference| {
             matches!(
                 program.type_reference_table.type_reference(type_reference),
-                typed_trees::types::TypeReferenceNode::Reference {
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference {
                     access: language_semantics::ReferenceAccess::WriteOnly,
                     ..
                 }
@@ -746,16 +746,16 @@ fn normalize_write_only_range_place(
     // need it, so build it on the first one rather than for every place.
     let mut bound_lookup = None;
     for segment in &mut place.segments {
-        let facts::PlaceSegment::Index { expression } = *segment else {
+        let crate::fact_plan::PlaceSegment::Index { expression } = *segment else {
             continue;
         };
         let ExpressionNode::Range(range) = program.expression_table.expression(expression) else {
             continue;
         };
-        let bound_lookup =
-            bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program));
+        let bound_lookup = bound_lookup
+            .get_or_insert_with(|| crate::validation::ImmutableBoundLookup::new(program));
         let start = if range.start.is_valid() {
-            validation::normalize_immutable_integer_bound_to_usize(
+            crate::validation::normalize_immutable_integer_bound_to_usize(
                 program,
                 bound_lookup,
                 range.start,
@@ -766,17 +766,21 @@ fn normalize_write_only_range_place(
         let end = if !range.end.is_valid() {
             None
         } else {
-            validation::normalize_immutable_integer_bound_to_usize(program, bound_lookup, range.end)
-                .and_then(|end| {
-                    if range.end_inclusive {
-                        end.checked_add(1)
-                    } else {
-                        Some(end)
-                    }
-                })
+            crate::validation::normalize_immutable_integer_bound_to_usize(
+                program,
+                bound_lookup,
+                range.end,
+            )
+            .and_then(|end| {
+                if range.end_inclusive {
+                    end.checked_add(1)
+                } else {
+                    Some(end)
+                }
+            })
         };
         if let (Some(start), Some(end)) = (start, end) {
-            *segment = facts::PlaceSegment::FixedRange { start, end };
+            *segment = crate::fact_plan::PlaceSegment::FixedRange { start, end };
         }
     }
 }

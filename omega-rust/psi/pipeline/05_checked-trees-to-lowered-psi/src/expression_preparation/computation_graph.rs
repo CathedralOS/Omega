@@ -1,10 +1,10 @@
 use crate::lowering_error::{LoweringError, unsupported};
-use checked_trees::CheckedTrees;
-use checked_trees::{
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarComputationKind,
     CheckedScalarComputationStructuralArgument,
 };
-type Computation = checked_trees::CheckedScalarComputationHandle;
+type Computation = typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationHandle;
 
 pub(crate) fn call_targets(
     checked: &CheckedTrees,
@@ -96,7 +96,7 @@ pub(crate) fn reachable_nodes(
                         "scalar dispatch closure has stale arms",
                     ))?
                 {
-                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
+                    if let typed_trees_to_checked_trees::checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
                     {
                         pending.push(pattern);
                     }
@@ -126,7 +126,7 @@ pub(crate) fn reachable_nodes(
                 ))?;
                 extend_elements(plans, structural_arguments, &mut pending)?;
                 for argument in structural_arguments {
-                    if let checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                    if let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Case(
                         subject,
                     ) = argument
                     {
@@ -150,7 +150,7 @@ pub(crate) fn reachable_nodes(
     Ok(visited)
 }
 pub(crate) fn extend_elements(
-    plans: &checked_trees::CheckedScalarComputationPlans,
+    plans: &typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationPlans,
     arguments: &[CheckedScalarComputationStructuralArgument],
     pending: &mut Vec<Computation>,
 ) -> Result<(), LoweringError> {

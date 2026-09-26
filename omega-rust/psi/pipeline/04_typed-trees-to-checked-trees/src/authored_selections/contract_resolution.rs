@@ -5,9 +5,9 @@
 //! late-bound call symbols after contract cloning. Exact checked owners supply
 //! the missing parameter/result types; ambiguous reconstruction stays closed.
 
-use checked_trees::{CheckFacts, ContractProofFactOwner};
+use crate::checked_trees::{CheckFacts, ContractProofFactOwner};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{TypedTrees, expression::ExpressionNode};
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, expression::ExpressionNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CheckedContractOperatorResolution {
@@ -20,7 +20,7 @@ pub(crate) enum CheckedContractOperatorResolution {
 pub(super) fn checked_operator_resolution(
     program: &TypedTrees,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
     owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> Option<CheckedContractOperatorResolution> {
@@ -35,10 +35,10 @@ pub(super) fn checked_operator_resolution(
 pub(super) fn checked_operand_type(
     program: &TypedTrees,
     facts: &CheckFacts,
-    containing_expression: typed_trees::expression::ExpressionHandle,
-    operand: typed_trees::expression::ExpressionHandle,
+    containing_expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    operand: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     crate::authored_selections::operator_targets::authored_operand_type(program, operand)
         .or_else(|| {
             super::contexts::checked_expression_type_reference_from_exact_owner(
@@ -71,11 +71,12 @@ pub(super) fn checked_operand_type(
 pub(super) fn checked_named_operator_call<'program>(
     program: &'program TypedTrees,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     source_span: source::SourceSpan,
     owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
-) -> Option<&'program typed_trees::operator::OperatorDefinition> {
+) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition>
+{
     let arguments = program.expression_table.expression_handles(call.arguments);
     let operand_types = arguments
         .iter()
@@ -96,7 +97,7 @@ pub(super) fn checked_named_operator_call<'program>(
         return None;
     }
 
-    let candidates = typed_trees::operator::named_expression_call_candidates(program, call)
+    let candidates = symbol_resolved_trees_to_typed_trees::typed_trees::operator::named_expression_call_candidates(program, call)
         .into_iter()
         .filter(|operator| {
             program
@@ -131,12 +132,12 @@ pub(super) fn checked_named_operator_call<'program>(
 fn checked_spelled_operator_resolution(
     program: &TypedTrees,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
     owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> Option<CheckedContractOperatorResolution> {
     use language_core::OperatorSpelling;
-    use typed_trees::expression::BinaryOperator;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
 
     let ExpressionNode::Binary(binary) = node else {
         return None;
@@ -169,12 +170,13 @@ fn checked_spelled_operator_resolution(
     if operand_types.iter().all(Option::is_none) {
         return None;
     }
-    let candidates = typed_trees::operator::resolve_spelling_for_operands(
-        program,
-        spelling,
-        &operand_types,
-        program.expression_table.source_span(expression),
-    );
+    let candidates =
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_spelling_for_operands(
+            program,
+            spelling,
+            &operand_types,
+            program.expression_table.source_span(expression),
+        );
     match candidates.as_slice() {
         [] => Some(CheckedContractOperatorResolution::Builtin),
         [candidate] => Some(CheckedContractOperatorResolution::Declaration(
@@ -189,20 +191,22 @@ fn checked_spelled_operator_resolution(
 fn checked_float_meaning_equality(
     program: &TypedTrees,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
     owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> bool {
     let ExpressionNode::Binary(binary) = node else {
         return false;
     };
-    if binary.operator != typed_trees::expression::BinaryOperator::Equal {
+    if binary.operator
+        != symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal
+    {
         return false;
     }
     [binary.left, binary.right].into_iter().all(|operand| {
         checked_operand_type(program, facts, expression, operand, owner_index).is_some_and(
             |type_reference| {
-                validation::is_exact_toolchain_float_meaning_type(program, type_reference)
+                crate::validation::is_exact_toolchain_float_meaning_type(program, type_reference)
             },
         )
     })
@@ -213,14 +217,14 @@ fn checked_float_meaning_equality(
 fn checked_resultless_law_equality(
     program: &TypedTrees,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
     owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> bool {
     if !matches!(
         node,
         ExpressionNode::Binary(binary)
-            if binary.operator == typed_trees::expression::BinaryOperator::Equal
+            if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal
     ) {
         return false;
     }
@@ -266,23 +270,25 @@ fn checked_resultless_law_equality(
 
 fn contract_contains_expression(
     program: &TypedTrees,
-    fact: arena::Handle<typed_trees::domain::ProofFact>,
-    expression: typed_trees::expression::ExpressionHandle,
+    fact: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
     match program.proof_facts.get(fact) {
-        typed_trees::domain::ProofFact::Expression(root) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(root) => {
             crate::authored_selections::member_targets::expression_contains(
                 program, *root, expression,
             )
         }
-        typed_trees::domain::ProofFact::Membership(membership) => {
-            crate::authored_selections::member_targets::expression_contains(
-                program,
-                membership.value,
-                expression,
-            )
-        }
-        typed_trees::domain::ProofFact::Proposition(application) => program
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) => crate::authored_selections::member_targets::expression_contains(
+            program,
+            membership.value,
+            expression,
+        ),
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+            application,
+        ) => program
             .expression_table
             .expression_handles(application.arguments)
             .iter()
@@ -335,10 +341,10 @@ fn resultless_machine_state(
 
 fn type_reference_is_unit(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     matches!(
         program.type_reference_table.type_reference(type_reference),
-        typed_trees::types::TypeReferenceNode::Unit
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit
     )
 }

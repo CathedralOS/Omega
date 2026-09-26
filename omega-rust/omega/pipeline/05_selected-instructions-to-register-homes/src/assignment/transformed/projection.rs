@@ -1,5 +1,5 @@
 use optimization_core::PrePhysicalOptimizationManifestIdentity;
-use register_homes::PostAllocationSelectedTransformation;
+use selected_instructions_to_selected_instructions::register_homes::PostAllocationSelectedTransformation;
 
 use selected_instructions_to_selected_instructions::{
     StagedOptimizedLiteralFoldCustodyReceipt, StagedPreAllocationOptimizationCustodyReceipt,

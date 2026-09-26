@@ -66,7 +66,9 @@ pub struct LoweredContentPartitionComposition {
 fn content_field_identity(checked: &CheckedTrees, symbol: symbols::SymbolHandle) -> Option<String> {
     checked.data_definitions().iter().find_map(|definition| {
         checked.data_members(definition).iter().find_map(|member| {
-            let checked_trees::data::DataMember::Field(field) = member else {
+            let typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(field) =
+                member
+            else {
                 return None;
             };
             (field.symbol == symbol).then(|| field.path_identity())
@@ -1003,7 +1005,7 @@ fn checked_partition_term_contains_subject(
 
 fn replay_checked_partition_term(
     term: &CheckedContentConservationTerm,
-    substitutions: &[checked_trees::ContentPartitionPlaceSubstitution],
+    substitutions: &[typed_trees_to_checked_trees::checked_trees::ContentPartitionPlaceSubstitution],
 ) -> Result<CheckedContentConservationTerm, LoweringError> {
     match term {
         CheckedContentConservationTerm::Projection {

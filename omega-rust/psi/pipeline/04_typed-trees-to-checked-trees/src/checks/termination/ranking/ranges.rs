@@ -1,9 +1,11 @@
 //! Range constraints concern the produced rank, not its subject's carrier.
 
 use super::{DecreaseMeasure, RankingOrder};
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
 
 mod endpoints;
 mod relational;
@@ -13,7 +15,7 @@ pub(super) fn proves_entry_requirements(
     machine: &Machine,
     order: &RankingOrder,
     measure: DecreaseMeasure,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     relational::prove_with_entry_requirements(program, machine, measure, order, true, call_frames)
 }
@@ -30,7 +32,7 @@ pub(super) fn check(
     range: &language_semantics::RankRange,
     order: &RankingOrder,
     measure: DecreaseMeasure,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Result<RangeProof, String> {
     if proves_range(program, machine, order, measure, call_frames) == Some(true) {
         return Ok(RangeProof {
@@ -76,7 +78,7 @@ pub(super) fn proves_relational_decrease(
     machine: &Machine,
     order: &RankingOrder,
     measure: DecreaseMeasure,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     relational::prove(program, machine, measure, order, call_frames)
 }
@@ -86,7 +88,7 @@ fn proves_range(
     machine: &Machine,
     order: &RankingOrder,
     measure: DecreaseMeasure,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
     // Source custody, not normalized display strings, selects the endpoints.
     let custody = program.ranking_expression_custody_for(machine.symbol)?;
@@ -111,7 +113,8 @@ fn proves_range(
             // Order resolution already joined the exact parameter, field and
             // nominal carrier. Its store-enforced type range bounds the
             // produced rank; reconstruction and descent remain separate checks.
-            let (low, high) = validation::enforced_integer_type_bounds(program, *field_type)?;
+            let (low, high) =
+                crate::validation::enforced_integer_type_bounds(program, *field_type)?;
             (
                 Bounds {
                     low: i128::from(low),
@@ -167,7 +170,7 @@ fn endpoint_bounds(
     machine: &Machine,
     expression: ExpressionHandle,
     pinned_bound: Option<(ExpressionHandle, i128, i128)>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Bounds> {
     // The IncreasingTo edge proof already pins this exact bound. Other scalar
     // endpoints need their own occurrence and write-preservation judgment.
@@ -197,7 +200,7 @@ fn same_parameter(program: &TypedTrees, left: ExpressionHandle, right: Expressio
 fn bounds(program: &TypedTrees, machine: &Machine, expression: ExpressionHandle) -> Option<Bounds> {
     let state = program.machine_states(machine).first()?;
     if let Some((low, high)) =
-        validation::immutable_integer_expression_bounds(program, machine, state, expression)
+        crate::validation::immutable_integer_expression_bounds(program, machine, state, expression)
     {
         return (low <= high).then_some(Bounds {
             low: i128::from(low),
@@ -218,7 +221,7 @@ fn bounds(program: &TypedTrees, machine: &Machine, expression: ExpressionHandle)
             && !parameter.is_const
     })?;
     (program.primitive_type_reference(parameter.type_reference)
-        == Some(typed_trees::types::PrimitiveType::U64))
+        == Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U64))
     .then_some(Bounds {
         low: 0,
         high: i128::from(u64::MAX),

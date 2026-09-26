@@ -7,7 +7,7 @@ use crate::unsequenced_spill_stages::{
     HomedSpillPseudoInstructionPlanIdentity, HomedSpillPseudoInstructionPolicy,
     SpillPseudoStoredValue,
 };
-use register_homes::LogicalSpillStorageClass;
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
 
 pub fn homed_spill_pseudo_instruction_plan_identity(
     plan: &HomedSpillPseudoInstructionPlan,

@@ -5,20 +5,22 @@ use super::crash_entry_values::{
     entry_operand_projected, formal_member_projection, substitute_entry_projected,
 };
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedCrashOperatorSite, CheckedOperatorFacts, CheckedOperatorOccurrence,
     CheckedOperatorResolutionStatus, CheckedValueOrigin, CrashPredicateIdentity, CrashRouteBucket,
     CrashRouteGuard, FlowFacts,
 };
+use crate::fact_plan::FactPlan;
 use diagnostics::Diagnostic;
-use facts::FactPlan;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, MatchPattern,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
-use typed_trees::signature::SignatureContractKind;
-use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceNode;
 
 mod named_routes;
 
@@ -108,7 +110,7 @@ pub(crate) fn build(
             continue;
         }
         let content_conservation = content_conservation
-            .get_or_insert_with(|| validation::content_conservation_plans(program));
+            .get_or_insert_with(|| crate::validation::build_content_conservation_plans(program));
         let (published, surviving) = retained_operator_crash_routes(
             program,
             operators,
@@ -145,10 +147,12 @@ pub(crate) fn build(
     // capture under that same handle, and route discharge prefers it over the
     // containing statement's entry contexts (see named_routes).
     for (named_use_handle, named_use) in operators.named_uses.iter() {
-        let Some(operator) = typed_trees::operator::declaration_by_symbol(
-            program,
-            named_use.selected_operator_symbol,
-        ) else {
+        let Some(operator) =
+            symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+                program,
+                named_use.selected_operator_symbol,
+            )
+        else {
             continue;
         };
         let contracts = program
@@ -186,7 +190,7 @@ pub(crate) fn build(
             continue;
         };
         let content_conservation = content_conservation
-            .get_or_insert_with(|| validation::content_conservation_plans(program));
+            .get_or_insert_with(|| crate::validation::build_content_conservation_plans(program));
         let (published, surviving) = retained_operator_crash_routes(
             program,
             operators,
@@ -233,7 +237,7 @@ pub(crate) fn build(
                 };
                 let Some(operator) = crate::flow::resolved_operator_statement_symbol(program, call)
                     .and_then(|symbol| {
-                        typed_trees::operator::declaration_by_symbol(program, symbol)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(program, symbol)
                     })
                 else {
                     continue;
@@ -279,16 +283,16 @@ fn retained_operator_crash_routes(
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
     semantic: &FactPlan,
-    operator_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
-    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
-    contracts: &[typed_trees::signature::SignatureContract],
-    operator: &typed_trees::operator::OperatorDefinition,
-    parameters: &[typed_trees::signature::StateParameter],
+    operator_use: arena::Handle<crate::checked_trees::CheckedOperatorUseFact>,
+    named_use: arena::Handle<crate::checked_trees::CheckedNamedOperatorUseFact>,
+    contracts: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
+    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     operands: &[ExpressionHandle],
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
 ) -> (Vec<CrashRouteBucket>, Vec<CrashRouteBucket>) {
     let published = super::derive_authored_operator_crash_buckets(
         program,
@@ -410,8 +414,8 @@ fn retained_operator_crash_routes(
 /// for a named use, so captured operand rows align with this list.
 pub(crate) fn named_call_operands(
     program: &TypedTrees,
-    call: &typed_trees::expression::TableCallExpression,
-    parameters: &[typed_trees::signature::StateParameter],
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
 ) -> Option<Vec<ExpressionHandle>> {
     let arguments = program.expression_table.expression_handles(call.arguments);
     if parameters.iter().any(|parameter| parameter.is_self) {
@@ -449,7 +453,7 @@ pub(crate) fn named_call_operands(
 /// spelling.
 pub(crate) fn named_call_operand_labels(
     program: &TypedTrees,
-    parameters: &[typed_trees::signature::StateParameter],
+    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     operands: &[ExpressionHandle],
 ) -> Vec<String> {
     operands
@@ -474,7 +478,7 @@ pub(crate) fn named_call_operand_labels(
             };
             program.render_proof_expression(
                 operand,
-                typed_trees::proposition::ProofSubstitutions::None,
+                symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions::None,
             )
         })
         .collect()
@@ -482,7 +486,7 @@ pub(crate) fn named_call_operand_labels(
 
 fn unreachable_match_arm(
     program: &TypedTrees,
-    operator_use: &checked_trees::CheckedOperatorUseFact,
+    operator_use: &crate::checked_trees::CheckedOperatorUseFact,
 ) -> bool {
     let CheckedOperatorOccurrence::MatchEquality { source_arm } = operator_use.occurrence else {
         return false;

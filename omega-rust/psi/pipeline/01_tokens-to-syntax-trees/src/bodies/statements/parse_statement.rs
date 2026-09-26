@@ -25,14 +25,14 @@ use crate::bodies::statements::statement_tables::{
 use crate::bodies::transitions::parse_transition::parse_transition_block_handles;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
-use arena::HandleSpan;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
-use syntax_trees::statement::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+use crate::syntax_trees::statement::{
     StatementHandle, StatementNode, TableAssignment, TableTransition, TransitionExit,
     TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
 };
-use tokens::{KeywordKind, PunctuationKind};
+use arena::HandleSpan;
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 pub(crate) fn parse_statement_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -123,8 +123,8 @@ fn parse_statement_handle<'tokens, 'source>(
         let input = input.take_contextual("crash")?;
         let (cause, input) = input.take_identifier()?;
         let cause = match cause.as_str() {
-            "Trap" => syntax_trees::item::CrashCause::Trap,
-            "Abort" => syntax_trees::item::CrashCause::Abort,
+            "Trap" => crate::syntax_trees::item::CrashCause::Trap,
+            "Abort" => crate::syntax_trees::item::CrashCause::Abort,
             _ => {
                 return Err(input.error_here(format!(
                     "unknown crash cause `{}`; expected `Trap` or `Abort`",

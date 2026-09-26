@@ -1,0 +1,111 @@
+//! Runs the admitted machine once and retains invocation and sponsor accounting.
+
+use crate::build_evaluation::evidence::observations::BuildEvaluationUsage;
+use crate::build_time_evaluation::{
+    BuildEvaluationSponsor, BuildMachineExecutionMode, BuildTimeValue, PreparedBuildMachineEntry,
+    PreparedBuildMachineProgram,
+};
+use crate::build_time_evaluation::{BuildMachineInvocation, PreparedBuildMachine};
+use crate::checked_interpreter::{EvaluationUsage, MeasuredBuildMachineEvaluation};
+use diagnostics::Diagnostic;
+
+/// One measured run of the admitted build machine over its initial `Build`.
+pub(super) type MeasuredBuildMachine = MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>;
+
+/// Run the admitted machine once in its admitted execution mode. A failed run
+/// reports the partial filesystem evidence the evaluator retained.
+pub(super) fn evaluate_admitted_machine(
+    prepared: &PreparedBuildMachineProgram,
+    machine_entry: &PreparedBuildMachineEntry,
+    arguments: Vec<BuildTimeValue>,
+    mode: BuildMachineExecutionMode,
+    sponsor: Option<&BuildEvaluationSponsor>,
+    machine_name: &str,
+    selected_profile: Option<target::TargetProfile>,
+) -> Result<MeasuredBuildMachine, Vec<Diagnostic>> {
+    let product_entry_compatibility =
+        crate::build_evaluation::admission::selection::ProductEntryQueryCompatibility {
+            selected_profile,
+        };
+    crate::build_time_evaluation::evaluate_build_machine_measured(
+        prepared,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Entry(machine_entry),
+            arguments,
+            mode,
+            sponsor,
+            product_entry_compatibility: Some(&product_entry_compatibility),
+        },
+    )
+    .map_err(|reason| {
+        let partial_evidence = reason
+            .observations()
+            .filter(|observations| !observations.filesystem_operation_attempts().is_empty())
+            .map(|observations| {
+                let attempts = observations.filesystem_operation_attempts();
+                let halted = attempts
+                    .iter()
+                    .filter(|attempt| {
+                        matches!(
+                            attempt.outcome(),
+                            Some(crate::checked_interpreter::FilesystemOperationAttemptOutcome::EvaluationHalted(_))
+                        )
+                    })
+                    .count();
+                let grant_refusals = attempts
+                    .iter()
+                    .map(|attempt| attempt.grant_refusals().len())
+                    .sum::<usize>();
+                let logical_handle_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.logical_handle_inputs().len())
+                    .sum::<usize>();
+                format!(
+                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {logical_handle_operands} logical-handle operand(s)",
+                    attempts.len()
+                )
+            })
+            .unwrap_or_default();
+        vec![Diagnostic::error(format!(
+            "build-time evaluation of `{machine_name}` failed: {reason}{partial_evidence}"
+        ))]
+    })
+}
+
+/// Durable accounting from the single execution and its sponsor session.
+pub(super) fn evaluation_usage(
+    usage: EvaluationUsage,
+    sponsor: Option<&BuildEvaluationSponsor>,
+) -> BuildEvaluationUsage {
+    BuildEvaluationUsage {
+        usage_schema_version: usage.schema().schema_version(),
+        step_schedule_marker: usage.schedule().marker(),
+        invocation_fuel_ceiling: usage.fuel_ceiling(),
+        sponsor_schema_version: sponsor.map(|sponsor| sponsor.limits().schema_version()),
+        session_fuel_ceiling: sponsor.map(|sponsor| sponsor.limits().maximum_fuel_units()),
+        session_build_log_byte_ceiling: sponsor
+            .map(|sponsor| sponsor.limits().maximum_build_log_bytes()),
+        session_filesystem_attempt_ceiling: sponsor
+            .map(|sponsor| sponsor.limits().maximum_filesystem_operation_attempts()),
+        session_live_filesystem_handle_ceiling: sponsor
+            .map(|sponsor| sponsor.limits().maximum_live_filesystem_handles()),
+        session_live_cell_ceiling: sponsor.map(|sponsor| sponsor.limits().maximum_live_cells()),
+        session_live_text_byte_ceiling: sponsor
+            .map(|sponsor| sponsor.limits().maximum_live_text_bytes()),
+        session_result_cell_ceiling: sponsor.map(|sponsor| sponsor.limits().maximum_result_cells()),
+        session_result_text_byte_ceiling: sponsor
+            .map(|sponsor| sponsor.limits().maximum_result_text_bytes()),
+        session_peak_live_filesystem_handles: sponsor
+            .map_or(0, BuildEvaluationSponsor::peak_live_filesystem_handles),
+        session_peak_live_cells: sponsor.map_or(0, BuildEvaluationSponsor::peak_live_cells),
+        session_peak_live_text_bytes: sponsor
+            .map_or(0, BuildEvaluationSponsor::peak_live_text_bytes),
+        fuel_units: usage.fuel_units(),
+        build_log_bytes: usage.build_log_bytes(),
+        filesystem_operation_attempts: usage.filesystem_operation_attempts(),
+        peak_live_cells: usage.peak_live_cells(),
+        peak_live_text_bytes: usage.peak_live_text_bytes(),
+        result_cells: usage.result_cells(),
+        result_text_bytes: usage.result_text_bytes(),
+    }
+}

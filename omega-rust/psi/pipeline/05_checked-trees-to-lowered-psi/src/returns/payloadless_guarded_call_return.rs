@@ -27,7 +27,7 @@ use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
 
 pub(crate) fn lower_payloadless_guarded_call_return_machine(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedPayloadlessGuardedCallReturnMachinePlan,
+    plan: &typed_trees_to_checked_trees::checked_trees::CheckedPayloadlessGuardedCallReturnMachinePlan,
 ) -> Result<LoweredPsi, LoweringError> {
     if plan.call.statement_index != 0
         || plan.call.call_ordinal != 0

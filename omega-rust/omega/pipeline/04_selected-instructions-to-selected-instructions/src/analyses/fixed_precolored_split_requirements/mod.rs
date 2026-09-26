@@ -9,17 +9,17 @@ mod error;
 mod replay;
 mod validation;
 
-pub use error::FixedPrecoloredSplitRequirementError;
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
-use register_homes::FixedPrecoloredSplitRequirementPolicy;
-use register_homes::{
+use crate::register_homes::FixedPrecoloredSplitRequirementPolicy;
+use crate::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
     FixedPrecoloredSplitRequirementPlan, FixedPrecoloredSplitRequirementPlanIdentity,
 };
-use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::LiveRangeIdentity;
+pub use error::FixedPrecoloredSplitRequirementError;
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
+use target_operations_to_selected_instructions::LiveRangeIdentity;
+use target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity;
 pub use validation::validate_fixed_precolored_split_requirements;
 
 pub fn analyze_fixed_precolored_split_requirements(

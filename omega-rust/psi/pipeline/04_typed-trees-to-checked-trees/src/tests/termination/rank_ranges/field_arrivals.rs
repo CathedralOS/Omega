@@ -388,8 +388,10 @@ fn mutable_record_parameters_prove_only_while_the_prefix_preserves_them() {
 
 #[test]
 fn field_arrival_proof_does_not_accept_foreign_same_spelled_handles() {
-    use typed_trees::data::DataMember;
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, ExpressionNode,
+    };
 
     let program = typed_program(&format!(
         "{COUNTDOWN} data Other {{ remaining: u64 [0..=5]; }}"

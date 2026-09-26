@@ -1,8 +1,8 @@
 use crate::expressions::expression::lower_expression_handle_from_table_in_fact_position;
 use crate::lowerer::Lowerer;
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(crate) fn lower_proposition_application(
     lowerer: &mut Lowerer,

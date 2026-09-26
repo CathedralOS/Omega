@@ -4,16 +4,16 @@ use super::{
     SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use crate::legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
+use crate::selected_instructions::SelectedCallContract;
 use crate::selection::validation::scalar_graph::Replay;
-use calling_conventions::ValueLocation;
-use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
-use selected_instructions::SelectedCallContract;
+use abstract_operations_to_target_operations::calling_conventions::ValueLocation;
 use terminal_psi::StructuralAccess;
 
 pub(super) fn validate(
     source: &LegalizedScalarFunction,
     operation: &LegalizedScalarInstruction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedScalarInstructionKind::Call(call) = &operation.kind else {
@@ -219,7 +219,7 @@ pub(super) fn validate(
         if crate::selection::scalar_call_abi::empty_aggregate_placement(placement) {
             return Ok(());
         }
-        use selected_instructions::{
+        use crate::selected_instructions::{
             FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot,
             SelectedMemoryAccessRole,
         };

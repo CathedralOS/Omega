@@ -12,9 +12,6 @@ use super::{
     PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, StructuralPlaceKind,
 };
 use crate::representation_specialization::admission::{bound_place, declared_structural_type};
-use optimization_unit::{
-    ForwardedFieldValue, OptimizationBlock, OptimizationNode, ValueDefinition, ValueDefinitionSite,
-};
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, StructuralCaseId, StructuralFieldId, StructuralTypeId,
     ValueId,
@@ -23,6 +20,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     RecordFieldValue, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
     StructuralPlaceDeclaration, StructuralTypeShape,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    ForwardedFieldValue, OptimizationBlock, OptimizationNode, ValueDefinition, ValueDefinitionSite,
 };
 
 /// The establishing operation the place's operation-result producer resolves

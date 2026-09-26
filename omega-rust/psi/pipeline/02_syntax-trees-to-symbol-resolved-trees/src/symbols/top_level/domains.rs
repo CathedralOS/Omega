@@ -1,4 +1,4 @@
-use symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::top_level::next_child_of_kind;

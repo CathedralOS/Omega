@@ -5,10 +5,17 @@ use crate::rewrites::unexecuted::ValidatedDeadCompare;
 use crate::rewrites::unexecuted::remove_dead_compare;
 use crate::rewrites::unexecuted::validate_dead_compare;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::{EffectLink, ValueDefinitionSite};
-use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess,
+};
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
@@ -16,16 +23,11 @@ use selected_instructions::{
     SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, ValueId,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{
     CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint, TerminalPsiIdentity,
     VocabularyMarker,
 };
+use terminal_psi_to_abstract_operations::optimization_unit::{EffectLink, ValueDefinitionSite};
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 100_000, 100, 100).unwrap()
@@ -76,7 +78,7 @@ const OUTPUT: VirtualRegisterId = VirtualRegisterId(3);
 
 fn register(
     id: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -245,7 +247,7 @@ fn fixture(target: NativeTarget) -> ValidatedDeadCompare {
 
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedDeadCompare {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(target);
@@ -261,7 +263,7 @@ fn mutated(
 
 fn remove(
     source: &ValidatedDeadCompare,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedDeadCompare, DeadCompareError> {
     remove_dead_compare(source, 0, COMPARE, environment, budget())
 }
@@ -679,7 +681,7 @@ fn kind_and_shape_table_rejects() {
     // A fixed view narrows the operand surface.
     let viewed = mutated(target, |function, _| {
         function.blocks[0].instructions[2].operands[0].fixed_view =
-            Some(register_model::RegisterViewId(0));
+            Some(target_operations_to_selected_instructions::register_model::RegisterViewId(0));
     });
     assert_eq!(
         remove(&viewed, &environment).unwrap_err(),
@@ -735,8 +737,8 @@ fn constraint_mismatches_reject() {
     );
     // A row key that resolves nowhere the environment knows.
     let unknown_row = mutated(target, |function, _| {
-        function.blocks[0].instructions[2].constraint = register_model::RegisterConstraintKey {
-            family: register_model::RegisterConstraintFamily::Instruction,
+        function.blocks[0].instructions[2].constraint = target_operations_to_selected_instructions::register_model::RegisterConstraintKey {
+            family: target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Instruction,
             variant: 65_000,
         };
     });
@@ -778,18 +780,18 @@ fn instruction_surface_rows_reject() {
         function.calls.push(SelectedCallContract {
             instruction: COMPARE,
             operation: OperationId::new(41).unwrap(),
-            call: legalized_operations::LegalizedScalarCall {
-                source: legalized_operations::NativeCallOrigin::Authored,
+            call: target_operations_to_selected_instructions::legalized_operations::LegalizedScalarCall {
+                source: target_operations_to_selected_instructions::legalized_operations::NativeCallOrigin::Authored,
                 callee: MachineId::new(42).unwrap(),
-                call_plan: calling_conventions::CallPlan {
-                    policy: calling_conventions::CallingPolicy::MicrosoftX64,
+                call_plan: abstract_operations_to_target_operations::calling_conventions::CallPlan {
+                    policy: abstract_operations_to_target_operations::calling_conventions::CallingPolicy::MicrosoftX64,
                     parameters: Vec::new(),
                     result: None,
                     callback_materializations: Vec::new(),
-                    ordinary_clobbers: calling_conventions::RegisterSet::new(std::iter::empty()),
+                    ordinary_clobbers: abstract_operations_to_target_operations::calling_conventions::RegisterSet::new(std::iter::empty()),
                     stack_alignment: 16,
                     shadow_bytes: 0,
-                    entry_control: calling_conventions::EntryControl::CallReturn,
+                    entry_control: abstract_operations_to_target_operations::calling_conventions::EntryControl::CallReturn,
                 },
                 arguments: Vec::new(),
                 result_placement: None,

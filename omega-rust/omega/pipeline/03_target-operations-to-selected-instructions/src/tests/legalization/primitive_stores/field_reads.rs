@@ -9,8 +9,8 @@ use super::{
 use crate::legalize_target_operations;
 use crate::tests::legalization::primitive_stores::integer;
 use crate::validate_legalized_operations;
-use abstract_operations::AbstractFunctionResult;
 use semantic_vocabulary::EdgeId;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractFunctionResult;
 
 mod indirect_inputs;
 
@@ -136,7 +136,7 @@ fn indexed_field_observations_replay_literal_element_offset() {
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
-            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 FuelScheduleIdentity::new(1).unwrap(),
             )
@@ -160,7 +160,7 @@ fn indexed_field_observations_replay_literal_element_offset() {
                 ]
             );
             let environment =
-                register_environment::baseline_target_register_environment(native).unwrap();
+                crate::register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = crate::selection_constraints(&legalized, &environment);
             let selected = crate::select_instructions(
                 &legalized,
@@ -177,11 +177,12 @@ fn indexed_field_observations_replay_literal_element_offset() {
                 .find(|instruction| {
                     matches!(
                         instruction.kind,
-                        selected_instructions::SelectedInstructionKind::Load32 { .. }
+                        crate::selected_instructions::SelectedInstructionKind::Load32 { .. }
                     )
                 })
                 .expect("indexed element load");
-            let selected_instructions::SelectedInstructionKind::Load32 { byte_offset } = load.kind
+            let crate::selected_instructions::SelectedInstructionKind::Load32 { byte_offset } =
+                load.kind
             else {
                 unreachable!()
             };
@@ -419,12 +420,12 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
-            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 FuelScheduleIdentity::new(1).unwrap(),
             )
             .unwrap();
-            optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+            terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit)
                 .unwrap_or_else(|error| panic!("{scalar:?} optimizer: {error:?}"));
             let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
             if byte_length {
@@ -459,7 +460,7 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
             validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
                 .unwrap();
             let environment =
-                register_environment::baseline_target_register_environment(native).unwrap();
+                crate::register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = crate::selection_constraints(&legalized, &environment);
             let selected = crate::select_instructions(
                 &legalized,
@@ -473,7 +474,7 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                     legalized.plan().scalar_functions[0].call_plan.parameters[0]
                         .locations
                         .as_slice(),
-                    [calling_conventions::ValueLocation::Indirect { .. }]
+                    [abstract_operations_to_target_operations::calling_conventions::ValueLocation::Indirect { .. }]
                 );
             let captured_fragments = if access == StructuralAccess::Owned && !indirect_owned {
                 1 + legalized.plan().scalar_functions[0].call_plan.parameters[0]
@@ -490,7 +491,7 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                 assert!(selected.plan().functions[0].local_storage_slots.is_empty());
             }
             if access == StructuralAccess::Owned && !indirect_owned {
-                use selected_instructions::{
+                use crate::selected_instructions::{
                     LocalStorageSlotId, SelectedInstructionKind as Instruction,
                 };
                 let retained = &selected.plan().functions[0];
@@ -507,7 +508,7 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                     .find(|register| {
                         matches!(
                             register.origin,
-                            selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. }
+                            crate::selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. }
                         )
                     })
                     .unwrap()
@@ -576,14 +577,14 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                     instruction.provenance.operations == vec![OperationId::new(2).unwrap()]
                         && matches!(
                             instruction.kind,
-                            selected_instructions::SelectedInstructionKind::Load8 { .. }
-                                | selected_instructions::SelectedInstructionKind::Load64 { .. }
+                            crate::selected_instructions::SelectedInstructionKind::Load8 { .. }
+                                | crate::selected_instructions::SelectedInstructionKind::Load64 { .. }
                         )
                 })
                 .expect("the second observation has its own exact load");
             match &mut instruction.kind {
-                selected_instructions::SelectedInstructionKind::Load8 { byte_offset }
-                | selected_instructions::SelectedInstructionKind::Load64 { byte_offset } => {
+                crate::selected_instructions::SelectedInstructionKind::Load8 { byte_offset }
+                | crate::selected_instructions::SelectedInstructionKind::Load64 { byte_offset } => {
                     *byte_offset = 0
                 }
                 _ => unreachable!(),

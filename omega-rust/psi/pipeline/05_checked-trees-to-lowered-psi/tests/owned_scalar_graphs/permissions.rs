@@ -55,11 +55,11 @@ fn affine_permission_cannot_erase_a_selected_cleanup_dependency() {
         .flow
         .semantic_dependencies
         .rows
-        .push(checked_trees::CheckedSemanticDependency {
+        .push(typed_trees_to_checked_trees::checked_trees::CheckedSemanticDependency {
             consumer_machine: inspect,
             dependency: inspect,
-            exposure: checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation,
-            kind: checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine,
+            exposure: typed_trees_to_checked_trees::checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation,
+            kind: typed_trees_to_checked_trees::checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine,
         });
     support::reject(&checked, "no-code graph acquired executable cleanup");
 }

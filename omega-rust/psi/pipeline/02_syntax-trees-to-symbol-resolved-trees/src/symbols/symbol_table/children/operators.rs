@@ -1,4 +1,4 @@
-use symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use crate::symbols::symbol_table::names::{
@@ -9,7 +9,7 @@ pub(in crate::symbols::symbol_table) fn insert_domain_symbol_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     domain_symbol: SymbolHandle,
-    domain: &symbol_resolved_trees::domain::DomainDefinition,
+    domain: &crate::symbol_resolved_trees::domain::DomainDefinition,
     has_sources: bool,
 ) {
     let operator_names = program
@@ -45,7 +45,7 @@ pub(in crate::symbols::symbol_table) fn insert_operator_symbol_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     operator_symbol: SymbolHandle,
-    operator: &symbol_resolved_trees::operator::OperatorDefinition,
+    operator: &crate::symbol_resolved_trees::operator::OperatorDefinition,
     has_sources: bool,
 ) {
     builder.insert_children(

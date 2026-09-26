@@ -3,12 +3,12 @@
 //! equalities lowers as one predicate, while domain-qualified operands and
 //! non-arithmetic shapes stay outside the closed language.
 
-use crate::tests::front_end::checked_program;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, ClosedScalarContractValue,
 };
-use typed_trees::types::PrimitiveType;
+use crate::tests::front_end::checked_program;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 fn ensures_clauses(machine_source: &str) -> Vec<Option<ClosedScalarContractValue>> {
     let source = format!("data Provider {{}}\n{machine_source}");

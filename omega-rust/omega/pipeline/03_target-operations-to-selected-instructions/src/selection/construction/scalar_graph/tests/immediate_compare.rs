@@ -4,7 +4,7 @@ use super::{
     SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueDefinitionSite,
     ValueId, build,
 };
-use legalized_operations::LegalizedScalarComparison as Comparison;
+use crate::legalized_operations::LegalizedScalarComparison as Comparison;
 
 fn source_with_literal(
     target: target::NativeTarget,
@@ -71,9 +71,10 @@ fn select(
 ) -> (
     SelectedFunction,
     SelectedSelectionConstraints,
-    register_environment::ValidatedTargetRegisterEnvironment,
+    crate::register_environment::ValidatedTargetRegisterEnvironment,
 ) {
-    let environment = register_environment::baseline_target_register_environment(target).unwrap();
+    let environment =
+        crate::register_environment::baseline_target_register_environment(target).unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: environment.selected_keys(),
         fixed_inputs: Vec::new(),
@@ -95,7 +96,7 @@ fn validate(
     selected: &SelectedFunction,
     target: target::NativeTarget,
     constraints: &SelectedSelectionConstraints,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
 ) {
     crate::selection::validation::scalar_graph::validate(
         0,

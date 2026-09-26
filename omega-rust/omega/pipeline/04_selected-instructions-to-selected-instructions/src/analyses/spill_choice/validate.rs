@@ -1,28 +1,28 @@
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkUsage;
-use register_model::{
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::{
     RegisterView, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
     TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
     target_register_environment_identity,
 };
-use selected_instructions::VirtualRegisterId;
 
+use crate::register_homes::{
+    FunctionSpillChoices, PressureContender, PressureResident, SpillChoice, SpillChoicePlan,
+    SpillChoicePolicy, spill_choice_identity,
+};
 use crate::{
     SpillChoiceError, SpillChoiceValidationReceipt, ValidatedAllocationLegality,
     ValidatedLiveRanges, ValidatedSpillChoices,
 };
-use register_homes::{
-    FunctionSpillChoices, PressureContender, PressureResident, SpillChoice, SpillChoicePlan,
-    SpillChoicePolicy, spill_choice_identity,
-};
-use selected_instructions::{LiveRangePoint, VirtualInterference};
+use target_operations_to_selected_instructions::{LiveRangePoint, VirtualInterference};
 
 #[derive(Clone, Copy)]
 struct ReplayResident {
     register: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     start: LiveRangePoint,
     end: LiveRangePoint,
     view: RegisterViewId,
@@ -154,8 +154,8 @@ pub fn validate_spill_choices(
 
 fn replay_function(
     function: usize,
-    legality: &register_homes::FunctionAllocationLegality,
-    ranges: &selected_instructions::FunctionLiveRanges,
+    legality: &crate::register_homes::FunctionAllocationLegality,
+    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
     work: &mut ReplayWork,
 ) -> Result<FunctionSpillChoices, SpillChoiceError> {
@@ -405,8 +405,8 @@ fn replay_function(
 #[cfg(test)]
 pub(crate) fn replay_function_for_test(
     function: usize,
-    legality: &register_homes::FunctionAllocationLegality,
-    ranges: &selected_instructions::FunctionLiveRanges,
+    legality: &crate::register_homes::FunctionAllocationLegality,
+    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(FunctionSpillChoices, OptimizationWorkUsage), SpillChoiceError> {
     let mut work = ReplayWork::default();
@@ -416,7 +416,7 @@ pub(crate) fn replay_function_for_test(
 
 fn replay_common(
     function: usize,
-    register: &register_homes::VirtualRegisterAllocationLegality,
+    register: &crate::register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<BTreeSet<RegisterViewId>, SpillChoiceError> {
     let first = register
         .points
@@ -457,8 +457,8 @@ fn replay_shape(
     register: VirtualRegisterId,
     start: LiveRangePoint,
     end: LiveRangePoint,
-    block: selected_instructions::SelectedBlockId,
-    range: &selected_instructions::VirtualLiveRange,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
+    range: &target_operations_to_selected_instructions::VirtualLiveRange,
 ) -> Result<(), SpillChoiceError> {
     if !range.edge_connectors.is_empty() || range.fragments.len() != 1 {
         return Err(SpillChoiceError::UnsupportedPressureShape {
@@ -479,7 +479,7 @@ fn replay_shape(
 fn replay_view(
     function: usize,
     register: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     id: RegisterViewId,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<&RegisterView, SpillChoiceError> {
@@ -525,7 +525,7 @@ fn replay_early_clobber_conflicts(
     incoming: VirtualRegisterId,
     view: &RegisterView,
     assigned: &[(VirtualRegisterId, RegisterViewId)],
-    ranges: &selected_instructions::FunctionLiveRanges,
+    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> bool {
     assigned.iter().any(|(seated, seated_view_id)| {

@@ -9,7 +9,7 @@ use crate::execution::terminal_unit::is_reference;
 
 pub(super) fn only_implicit_reference_self_is_omitted(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural: &[CheckedUnitStructuralParameterPlan],
     scalar: &[CheckedStructuralScalarParameterPlan],
 ) -> bool {
@@ -32,14 +32,14 @@ pub(super) fn only_implicit_reference_self_is_omitted(
 pub(super) fn successor(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    source_state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    source_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     source_parameters: &[CheckedUnitStructuralParameterPlan],
     target_parameters: &[CheckedUnitStructuralParameterPlan],
     source_claims: &[CheckedUnitEntryClaimPlan],
     target_claims: &[CheckedUnitEntryClaimPlan],
     ordinal: u32,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
     expected: SymbolHandle,
     admitted_local_discards: &[SymbolHandle],
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
@@ -68,7 +68,7 @@ pub(super) fn successor(
                 usize::try_from(ordinal).ok()?,
                 *argument,
             )?;
-            let facts::PlaceRoot::Symbol(root) = place.root else {
+            let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
                 return None;
             };
             let source_symbol = program
@@ -94,9 +94,10 @@ pub(super) fn successor(
                 return None;
             }
             vec![CheckedStructuralControlTransferPlan {
-                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
-                    index: 0,
-                },
+                source:
+                    crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                        index: 0,
+                    },
                 target_parameter_index: 0,
             }]
         }

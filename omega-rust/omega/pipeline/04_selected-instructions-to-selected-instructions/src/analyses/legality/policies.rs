@@ -1,7 +1,7 @@
+use crate::register_homes::AllocatorAvailabilityPolicy;
 use crate::{ValidatedAllocatorAvailability, materialize_allocator_availability};
-use isa_aarch64::aarch64_preservation_convention_for_target;
-use isa_x86_64::x86_64_preservation_convention_for_target;
-use register_homes::AllocatorAvailabilityPolicy;
+use target_operations_to_selected_instructions::isa_aarch64::aarch64_preservation_convention_for_target;
+use target_operations_to_selected_instructions::isa_x86_64::x86_64_preservation_convention_for_target;
 
 use crate::StagedOptimizedLiveRanges;
 
@@ -100,8 +100,11 @@ pub(super) fn active_resident_immediate_u64_multi_use_rematerialization_v1(
 
 fn active_resident_immediate_u64_multi_use_rematerialization_v1_views(
     architecture: target::Architecture,
-    model: &register_model::PhysicalRegisterModel,
-) -> Result<Vec<register_model::RegisterViewId>, OptimizedAllocationLegalityCustodyError> {
+    model: &target_operations_to_selected_instructions::register_model::PhysicalRegisterModel,
+) -> Result<
+    Vec<target_operations_to_selected_instructions::register_model::RegisterViewId>,
+    OptimizedAllocationLegalityCustodyError,
+> {
     let names = match architecture {
         target::Architecture::X86_64 => ["rax", "rcx"],
         target::Architecture::Aarch64 => ["x0", "x1"],

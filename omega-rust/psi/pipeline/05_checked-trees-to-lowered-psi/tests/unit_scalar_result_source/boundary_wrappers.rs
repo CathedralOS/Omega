@@ -2,8 +2,10 @@
 //! observing handler and the guarantee sources.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_interpreter::TerminalStructuralInputs;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 #[path = "boundary_wrappers/ordered_boolean_guarantees.rs"]
 mod ordered_boolean_guarantees;
 #[path = "boundary_wrappers/scalar_guarantees_and_boundary_requirements.rs"]
@@ -38,7 +40,9 @@ fn source() -> String {
         )
 }
 
-fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
+fn artifact(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> (Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -51,15 +55,16 @@ fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
-    let published = terminal_production::TerminalProductionRequest::new(
-        checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("source-owned shared closure publishes")
-    .into_artifact();
+    let published =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("source-owned shared closure publishes")
+        .into_artifact();
     assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
     (semantic, evidence)
 }

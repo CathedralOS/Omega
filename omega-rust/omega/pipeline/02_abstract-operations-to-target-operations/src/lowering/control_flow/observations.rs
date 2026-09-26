@@ -2,18 +2,20 @@
 
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::LoweringError;
+use crate::calling_conventions::ValueShape;
 use crate::lowering::scalar::{
     KnownInteger, KnownScalar, byte_views, element_views, equal_boolean, equal_integer,
     order_integer, scalar_parameter_location,
 };
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation, AbstractParameter};
-use calling_conventions::ValueShape;
-use semantic_vocabulary::{ScalarType, ValueId};
-use std::collections::BTreeMap;
-use target_operations::{
+use crate::target_operations::{
     ScalarAbiValue, TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
     TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
+use semantic_vocabulary::{ScalarType, ValueId};
+use std::collections::BTreeMap;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation, AbstractParameter,
 };
 #[cfg(test)]
 mod tests;
@@ -602,7 +604,7 @@ pub(super) fn scalar_values(
                     value,
                     scalar_type,
                 } => TargetIntegerExpression::BlockParameter(
-                    target_operations::TargetScalarBlockValue {
+                    crate::target_operations::TargetScalarBlockValue {
                         block,
                         value,
                         scalar_type: ScalarType::Integer(scalar_type),

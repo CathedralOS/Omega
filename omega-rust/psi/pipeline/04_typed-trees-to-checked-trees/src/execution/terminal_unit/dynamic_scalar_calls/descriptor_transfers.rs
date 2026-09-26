@@ -9,8 +9,8 @@ use crate::execution::terminal_unit::{
 pub(super) fn build_checked_dynamic_descriptor_transfers(
     program: &TypedTrees,
     facts: &CheckFacts,
-    binding_facts: &checked_trees::DynamicConformanceBindingFacts,
-) -> Vec<checked_trees::CheckedDynamicDescriptorTransferPlan> {
+    binding_facts: &crate::checked_trees::DynamicConformanceBindingFacts,
+) -> Vec<crate::checked_trees::CheckedDynamicDescriptorTransferPlan> {
     let mut transfers = Vec::new();
     let inbound_call_site_counts = inbound_call_site_counts(program, facts);
     loop {
@@ -70,7 +70,7 @@ pub(super) fn build_checked_dynamic_descriptor_transfers(
                             continue;
                         };
                         if transfers.iter().any(
-                            |transfer: &checked_trees::CheckedDynamicDescriptorTransferPlan| {
+                            |transfer: &crate::checked_trees::CheckedDynamicDescriptorTransferPlan| {
                                 transfer.caller_machine == caller.symbol
                                     && transfer.caller_state == caller_state.symbol
                                     && transfer.coordinate == coordinate
@@ -108,103 +108,105 @@ pub(super) fn build_checked_dynamic_descriptor_transfers(
                             })
                             .collect::<Vec<_>>();
                         local_selections.sort_by_key(|selection| selection.statement_index);
-                        let (source, source_predecessor_count, mut source_paths) =
-                            if let Some(selection) = local_selections.last() {
-                                (
-                                checked_trees::CheckedDynamicDescriptorTransferSource::Selection,
+                        let (source, source_predecessor_count, mut source_paths) = if let Some(
+                            selection,
+                        ) =
+                            local_selections.last()
+                        {
+                            (
+                                crate::checked_trees::CheckedDynamicDescriptorTransferSource::Selection,
                                 0,
-                                vec![checked_trees::CheckedDynamicDescriptorTransferPath {
+                                vec![crate::checked_trees::CheckedDynamicDescriptorTransferPath {
                                     selection: (*selection).clone(),
                                     edges: Vec::new(),
                                 }],
                             )
-                            } else {
-                                let source_parameters = program
-                                    .state_parameters(caller_state)
+                        } else {
+                            let source_parameters = program
+                                .state_parameters(caller_state)
+                                .iter()
+                                .filter(|parameter| !parameter.is_self)
+                                .collect::<Vec<_>>();
+                            let Some((source_parameter_position, source_parameter)) =
+                                source_parameters
                                     .iter()
-                                    .filter(|parameter| !parameter.is_self)
-                                    .collect::<Vec<_>>();
-                                let Some((source_parameter_position, source_parameter)) =
-                                    source_parameters.iter().enumerate().find(|(_, parameter)| {
-                                        parameter.symbol == source_path.symbol
-                                    })
-                                else {
-                                    continue;
-                                };
-                                if bare_dynamic_parameter_trait(
-                                    program,
-                                    source_parameter.type_reference,
-                                ) != Some(target_trait)
-                                {
-                                    continue;
-                                }
-                                let mut incoming = transfers
-                                    .iter()
-                                    .filter(|transfer| {
-                                        transfer.target_machine == caller.symbol
-                                            && transfer.target_state == caller_state.symbol
-                                            && transfer.parameter == source_parameter.symbol
-                                            && transfer.target_trait == target_trait
-                                    })
-                                    .collect::<Vec<_>>();
-                                incoming
-                                    .sort_by_key(|incoming| incoming.edge().canonical_order_key());
-                                let Some(&inbound_call_site_count) =
-                                    inbound_call_site_counts.get(&(
-                                        caller_state.symbol.arena_index(),
-                                        caller_state.symbol.generation(),
-                                    ))
-                                else {
-                                    continue;
-                                };
-                                if inbound_call_site_count != incoming.len()
-                                    || !matches!(incoming.len(), 1 | 2)
-                                    || (incoming.len() == 2
-                                        && incoming
-                                            .iter()
-                                            .any(|incoming| incoming.source_paths.len() != 1))
-                                    || incoming.iter().any(|incoming| {
-                                        !incoming.has_complete_source_custody(&transfers)
-                                    })
-                                {
-                                    continue;
-                                }
-                                let Ok(source_parameter_position) =
-                                    u32::try_from(source_parameter_position)
-                                else {
-                                    continue;
-                                };
-                                let source_paths = incoming
-                                    .into_iter()
-                                    .flat_map(|incoming| incoming.source_paths.clone())
-                                    .collect();
-                                let Ok(source_predecessor_count) =
-                                    u32::try_from(inbound_call_site_count)
-                                else {
-                                    continue;
-                                };
-                                (
-                                checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                                    .enumerate()
+                                    .find(|(_, parameter)| parameter.symbol == source_path.symbol)
+                            else {
+                                continue;
+                            };
+                            if bare_dynamic_parameter_trait(
+                                program,
+                                source_parameter.type_reference,
+                            ) != Some(target_trait)
+                            {
+                                continue;
+                            }
+                            let mut incoming = transfers
+                                .iter()
+                                .filter(|transfer| {
+                                    transfer.target_machine == caller.symbol
+                                        && transfer.target_state == caller_state.symbol
+                                        && transfer.parameter == source_parameter.symbol
+                                        && transfer.target_trait == target_trait
+                                })
+                                .collect::<Vec<_>>();
+                            incoming.sort_by_key(|incoming| incoming.edge().canonical_order_key());
+                            let Some(&inbound_call_site_count) = inbound_call_site_counts.get(&(
+                                caller_state.symbol.arena_index(),
+                                caller_state.symbol.generation(),
+                            )) else {
+                                continue;
+                            };
+                            if inbound_call_site_count != incoming.len()
+                                || !matches!(incoming.len(), 1 | 2)
+                                || (incoming.len() == 2
+                                    && incoming
+                                        .iter()
+                                        .any(|incoming| incoming.source_paths.len() != 1))
+                                || incoming.iter().any(|incoming| {
+                                    !incoming.has_complete_source_custody(&transfers)
+                                })
+                            {
+                                continue;
+                            }
+                            let Ok(source_parameter_position) =
+                                u32::try_from(source_parameter_position)
+                            else {
+                                continue;
+                            };
+                            let source_paths = incoming
+                                .into_iter()
+                                .flat_map(|incoming| incoming.source_paths.clone())
+                                .collect();
+                            let Ok(source_predecessor_count) =
+                                u32::try_from(inbound_call_site_count)
+                            else {
+                                continue;
+                            };
+                            (
+                                crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                                     parameter_position: source_parameter_position,
                                 },
                                 source_predecessor_count,
                                 source_paths,
                             )
-                            };
-                        let mut transfer = checked_trees::CheckedDynamicDescriptorTransferPlan {
-                            caller_machine: caller.symbol,
-                            caller_state: caller_state.symbol,
-                            coordinate,
-                            target_machine: target_machine.symbol,
-                            target_state: target_state.symbol,
-                            parameter_position,
-                            parameter: parameter.symbol,
-                            target_trait,
-                            source_binding: source_path.symbol,
-                            source,
-                            source_predecessor_count,
-                            source_paths: Vec::new(),
                         };
+                        let mut transfer =
+                            crate::checked_trees::CheckedDynamicDescriptorTransferPlan {
+                                caller_machine: caller.symbol,
+                                caller_state: caller_state.symbol,
+                                coordinate,
+                                target_machine: target_machine.symbol,
+                                target_state: target_state.symbol,
+                                parameter_position,
+                                parameter: parameter.symbol,
+                                target_trait,
+                                source_binding: source_path.symbol,
+                                source,
+                                source_predecessor_count,
+                                source_paths: Vec::new(),
+                            };
                         let edge = transfer.edge();
                         for path in &mut source_paths {
                             path.edges.push(edge.clone());
@@ -262,7 +264,7 @@ pub(crate) fn inbound_call_site_counts(
 
 fn bare_dynamic_parameter_trait(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {

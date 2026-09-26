@@ -4,14 +4,14 @@
 use crate::lowering::state::lower_state_parameters;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
-use arena::HandleSpan;
-use diagnostics::Diagnostic;
-use symbol_resolved_trees::data::DataProperties;
-use symbol_resolved_trees::proposition::{
+use crate::symbol_resolved_trees::data::DataProperties;
+use crate::symbol_resolved_trees::proposition::{
     PropositionBinder, PropositionBinderKind, PropositionBody, PropositionDefinition,
 };
+use arena::HandleSpan;
+use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_proposition_definition(
     lowerer: &mut Lowerer,

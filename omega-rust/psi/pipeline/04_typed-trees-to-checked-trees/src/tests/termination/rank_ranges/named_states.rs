@@ -313,8 +313,10 @@ fn named_state_cannot_reuse_a_non_inductive_machine_requirement() {
 
 #[test]
 fn foreign_same_spelled_arrival_symbols_do_not_transport_rank_facts() {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+        StatementNode, TransitionTargetNode,
+    };
 
     for actual in ["remaining", "remaining + 0"] {
         let source = format!(

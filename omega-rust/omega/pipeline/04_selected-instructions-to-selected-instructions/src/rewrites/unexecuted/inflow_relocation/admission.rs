@@ -16,8 +16,8 @@
 //! member's vacated index publishes them on arrivals that no longer run
 //! it.
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::{
     SelectedBlockOrigin, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
 };
 
@@ -60,7 +60,7 @@ pub(super) struct Admission {
 /// trap behavior is the honest bound — an execution that could fault must
 /// still run on every path that ran it before.
 fn removable(instruction: &SelectedInstruction) -> bool {
-    use selected_instructions::SelectedInstructionKind::*;
+    use target_operations_to_selected_instructions::SelectedInstructionKind::*;
     !matches!(
         instruction.kind,
         CopyBytes

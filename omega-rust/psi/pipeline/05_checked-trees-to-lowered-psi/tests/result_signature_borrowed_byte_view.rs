@@ -20,7 +20,7 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn lower() -> lowered_psi::LoweredPsi {
+fn lower() -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(SOURCE);
     checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("pick"))
         .expect("a borrowed byte-view member result lowers")

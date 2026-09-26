@@ -161,8 +161,11 @@ pub(crate) fn checked_requirement_family_rows(
         }]);
     }
     let tuples = match checked.typed.finite_signature_family(exact.signature) {
-        checked_trees::finite_family::FamilyProbe::Finite { tuples, .. } => tuples,
-        checked_trees::finite_family::FamilyProbe::NotFinite(_) => {
+        typed_trees_to_checked_trees::checked_trees::finite_family::FamilyProbe::Finite {
+            tuples,
+            ..
+        } => tuples,
+        typed_trees_to_checked_trees::checked_trees::finite_family::FamilyProbe::NotFinite(_) => {
             return unsupported(
                 "conformance requirement declares requirement-local generic binders without a \
                  finite family roster",
@@ -243,7 +246,7 @@ pub(crate) fn checked_requirement_family_rows(
 struct ExactTraitRequirement<'a> {
     /// The resolved signature; `finite_signature_family` reads its `where`
     /// clause for the family roster.
-    signature: &'a checked_trees::signature::StateSignature,
+    signature: &'a typed_trees_to_checked_trees::checked_trees::signature::StateSignature,
     /// Canonical normalized overload identity; never empty.
     overload_identity: String,
     /// Whether the signature declares requirement-local generic binders.
@@ -360,7 +363,7 @@ pub(crate) fn checked_evidence_machine_identity(
         if specializations.next().is_some() {
             return unsupported("evidence machine has ambiguous generic application identity");
         }
-        let replayed_commitment = validation::recompute_checked_machine_specialization_commitment(
+        let replayed_commitment = typed_trees_to_checked_trees::validation::recompute_checked_machine_specialization_commitment(
             checked,
             machine.symbol,
         )

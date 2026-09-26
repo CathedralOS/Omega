@@ -1,5 +1,7 @@
 use language_semantics::declaration_selection::CollectionViewOperation;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
 
 use super::super::expressions::ensured_call_result_bounds;
 use super::super::facts::RangeFacts;
@@ -15,9 +17,9 @@ use super::super::facts::RangeFacts;
 /// into the destination parameter's merged facts. Keeping the two mirrors in
 /// one function is what lets `let j = i; -> load(j)` carry `i`'s bound.
 pub(in crate::checks::ranges) fn seed_local_alias_facts(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     value: ExpressionHandle,
     symbol: symbols::SymbolHandle,
@@ -75,7 +77,7 @@ pub(in crate::checks::ranges) fn seed_local_alias_facts(
 /// call writes retire them like any other label-keyed bound — a later
 /// `i = unknown` must not keep the initializer's contract.
 pub(in crate::checks::ranges) fn seed_ensured_call_result_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     label: &str,
     value: ExpressionHandle,
@@ -101,7 +103,7 @@ pub(in crate::checks::ranges) fn seed_ensured_call_result_bounds(
 /// Returns `None` for values that do not alias a stable place (literals,
 /// arithmetic, other calls), which carry no transferable element-position facts.
 fn alias_source_label(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     value: ExpressionHandle,
 ) -> Option<String> {
     match program.expression_table.expression(value) {
@@ -131,7 +133,7 @@ fn alias_source_label(
 /// here additionally exposes it under the window's display label for proofs that
 /// resolve by label rather than by symbol.
 pub(in crate::checks::ranges) fn seed_subslice_window_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     value: ExpressionHandle,
     name: Option<&str>,

@@ -1,0 +1,249 @@
+#![forbid(unsafe_code)]
+
+//! Authority-free handoff from native realization to component
+//! deployment.
+//!
+//! The universal native artifact lives in `native-artifact`.
+//! This crate adds the component entry label, the complete source-derived
+//! selected provider-plan facts needed by deployment, any build-bound progress
+//! manifest, and emitter-derived stack demand for the canonical object entry.
+//! The stack row describes the internal body closure only: it grants no
+//! provision, lease, installed-root admission, or external-entry headroom.
+//!
+//! The canonical `ComponentDescription` carrier, its codec, and the
+//! source-free consumer `verify_component` live below this crate in
+//! `component-description`, which never imports native realization; this
+//! crate owns only the producer `describe_component` that fills the
+//! description facts from a realized candidate, and re-exports the carrier
+//! API so deployment-side callers keep one import root.
+
+pub use crate::component_description::{
+    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescription, ComponentDescriptionFacts,
+    ComponentEntry, ComponentEntryKind, ComponentVerificationRejection,
+    ComponentVerificationRequest, CustodyConstraint, CustodyEvidence, CustodyKind, DescribeError,
+    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportContract, ExportSurface,
+    ImportSlot, IndependentRealizationMismatch, InstallationObligation, InstallationServiceBound,
+    ObligationKind, OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
+    StackDemandFacts, VerifiedComponent, canonical_entry_contract_identity,
+    component_description_identity, decode_component_description, describe_component_facts,
+    description_subject, encode_component_description, port_mechanism_assumption,
+    requirement_contract_identity, requirement_export_identity, verify_component,
+};
+pub use resolved_layout_to_resolved_layout::native_artifact::{
+    NativeArtifact, NativeArtifactParts, NativeProviderExecution,
+    NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
+};
+
+pub type ComponentProviderExecution = NativeProviderExecution;
+
+#[derive(Debug)]
+pub struct ComponentCandidate {
+    native_artifact: NativeArtifact,
+    entry_machine: String,
+    selected_provider_plans:
+        abstract_operations_to_target_operations::effects::SelectedProviderPlanFacts,
+    component_progress:
+        Option<abstract_operations_to_target_operations::effects::ComponentProgressManifest>,
+    stack_demand: resolved_layout_to_resolved_layout::image_emission::StackDemand,
+}
+
+#[derive(Debug)]
+pub struct ComponentCandidateParts {
+    pub native_artifact: NativeArtifact,
+    pub entry_machine: String,
+    pub selected_provider_plans:
+        abstract_operations_to_target_operations::effects::SelectedProviderPlanFacts,
+    pub component_progress:
+        Option<abstract_operations_to_target_operations::effects::ComponentProgressManifest>,
+    pub stack_demand: resolved_layout_to_resolved_layout::image_emission::StackDemand,
+}
+
+impl ComponentCandidate {
+    /// Rejoin component policy to one already replayed native artifact.
+    pub fn checked(parts: ComponentCandidateParts) -> Result<Self, &'static str> {
+        parts.native_artifact.validate()?;
+        validate_terminal_component_stack_demand(&parts.native_artifact, &parts.stack_demand)?;
+        validate_selected_provider_closure(
+            parts
+                .native_artifact
+                .selected_provider_closure_report_identity(),
+            parts.native_artifact.selected_provider_closure_digest(),
+            parts.native_artifact.selected_provider_plans(),
+            &parts.selected_provider_plans,
+        )?;
+        if parts
+            .component_progress
+            .as_ref()
+            .is_some_and(|manifest| manifest.pending().is_empty())
+        {
+            return Err("component candidate retained an empty progress manifest");
+        }
+        Ok(Self {
+            native_artifact: parts.native_artifact,
+            entry_machine: parts.entry_machine,
+            selected_provider_plans: parts.selected_provider_plans,
+            component_progress: parts.component_progress,
+            stack_demand: parts.stack_demand,
+        })
+    }
+
+    pub const fn target(&self) -> target::NativeTarget {
+        self.native_artifact.target()
+    }
+
+    pub fn entry_machine(&self) -> &str {
+        &self.entry_machine
+    }
+
+    pub fn semantic_bytes(&self) -> &[u8] {
+        self.native_artifact.semantic_bytes()
+    }
+
+    pub fn proof_bytes(&self) -> &[u8] {
+        self.native_artifact.proof_bytes()
+    }
+
+    pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+        self.native_artifact.psi_artifact()
+    }
+
+    pub const fn object(
+        &self,
+    ) -> &resolved_layout_to_resolved_layout::image_emission::ObjectArtifact {
+        self.native_artifact.object()
+    }
+
+    pub const fn image(
+        &self,
+    ) -> &resolved_layout_to_resolved_layout::image_emission::ExecutableImage {
+        self.native_artifact.image()
+    }
+
+    pub const fn selected_provider_plans(
+        &self,
+    ) -> &abstract_operations_to_target_operations::effects::SelectedProviderPlanFacts {
+        &self.selected_provider_plans
+    }
+
+    pub fn provider_executions(&self) -> &[NativeProviderExecution] {
+        self.native_artifact.provider_executions()
+    }
+
+    pub const fn native_artifact(&self) -> &NativeArtifact {
+        &self.native_artifact
+    }
+
+    pub const fn component_progress(
+        &self,
+    ) -> Option<&abstract_operations_to_target_operations::effects::ComponentProgressManifest> {
+        self.component_progress.as_ref()
+    }
+
+    /// Exact target-specific internal call-graph stack demand for the selected
+    /// component entry. This is artifact evidence only; it is not runtime
+    /// provision, a stack lease, or installed-root admission.
+    pub const fn stack_demand(
+        &self,
+    ) -> &resolved_layout_to_resolved_layout::image_emission::StackDemand {
+        &self.stack_demand
+    }
+
+    pub fn into_parts(self) -> ComponentCandidateParts {
+        ComponentCandidateParts {
+            native_artifact: self.native_artifact,
+            entry_machine: self.entry_machine,
+            selected_provider_plans: self.selected_provider_plans,
+            component_progress: self.component_progress,
+            stack_demand: self.stack_demand,
+        }
+    }
+}
+
+/// Rejoin a checked component candidate to its canonical description.
+///
+/// The produced carrier embeds the candidate's sealed canonical artifact,
+/// the retained selected-provider facts, any pending progress manifest, the
+/// selected entry's stack demand reduced to its published facts, and the
+/// strong native-realization identity. This is publication evidence only: it
+/// cannot satisfy its own installation obligations or grant callable
+/// authority to any reader.
+pub fn describe_component(
+    candidate: &ComponentCandidate,
+) -> Result<ComponentDescription, DescribeError> {
+    let stack_demand = candidate.stack_demand();
+    describe_component_facts(ComponentDescriptionFacts {
+        artifact: candidate.artifact(),
+        selected_provider_plans: candidate.selected_provider_plans(),
+        component_progress: candidate.component_progress(),
+        stack_demand: Some(StackDemandFacts {
+            entry: stack_demand.entry(),
+            ceiling_bytes: stack_demand.ceiling_bytes(),
+            stack_alignment: stack_demand.stack_alignment(),
+        }),
+        realization_identity: Some(*candidate.native_artifact().identity().as_bytes()),
+    })
+}
+
+/// Independently rederive a component candidate's complete selected-entry
+/// stack demand. Equality includes the full native target, so equal-shaped
+/// ELF, Mach-O, and COFF closures cannot substitute for one another.
+fn validate_terminal_component_stack_demand(
+    native_artifact: &NativeArtifact,
+    supplied: &resolved_layout_to_resolved_layout::image_emission::StackDemand,
+) -> Result<(), &'static str> {
+    let expected = resolved_layout_to_resolved_layout::image_emission::derive_stack_demand(
+        native_artifact.object(),
+        native_artifact.object().entry(),
+    )
+    .map_err(|_| "component candidate could not derive its selected-entry stack demand")?;
+    if &expected != supplied {
+        return Err(
+            "component candidate stack demand disagrees with the exact selected-entry artifact closure",
+        );
+    }
+    Ok(())
+}
+
+fn validate_selected_provider_closure(
+    native_closure_report_identity: u64,
+    native_closure_digest: NativeSelectedProviderClosureDigest,
+    native_plans: &[NativeSelectedProviderPlan],
+    selected: &abstract_operations_to_target_operations::effects::SelectedProviderPlanFacts,
+) -> Result<(), &'static str> {
+    if selected.compatibility_report_identity() != native_closure_report_identity {
+        return Err(
+            "component candidate selected provider closure report identity disagrees with its native artifact",
+        );
+    }
+    if selected.identity_digest().as_bytes() != native_closure_digest.as_bytes() {
+        return Err(
+            "component candidate selected provider closure digest disagrees with its native artifact",
+        );
+    }
+    let mut projected = selected
+        .plans()
+        .iter()
+        .map(|plan| {
+            NativeSelectedProviderPlan::new(
+                plan.report_fingerprint(),
+                resolved_layout_to_resolved_layout::native_artifact::NativeSelectedProviderPlanDigest::from_digest(
+                    *plan.identity_digest().as_bytes(),
+                ),
+                plan.rows
+                    .iter()
+                    .map(|row| row.requirement_identity.clone())
+                    .collect(),
+            )
+        })
+        .collect::<Vec<_>>();
+    projected.sort_by_key(NativeSelectedProviderPlan::report_identity);
+    if projected != native_plans {
+        return Err(
+            "component candidate selected provider facts disagree with its native artifact",
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests;

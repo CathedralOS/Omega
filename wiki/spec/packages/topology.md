@@ -660,7 +660,7 @@ golden bytes (`codec.rs` ~:175) — the canonical-wire and cross-machine
 replay claims below rest on `noncanonical_and_duplicate_entries_reject` and
 the green composition legs, not the golden pins.
 
-Covered by `omega-rust/omega/packages/topology` tests
+Covered by `omega-rust/omega/src/topology_plan` and `omega-rust/omega/tests/topology_plan` tests
 (`cargo nextest run -p topology-plan`, linux x86-64):
 
 - Graph and policies: `composition.rs` pins the payment composition, both

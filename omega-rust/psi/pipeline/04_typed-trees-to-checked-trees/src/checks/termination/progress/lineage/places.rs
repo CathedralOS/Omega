@@ -1,8 +1,10 @@
 //! Finite storage partitions for parameter values, not recursive referent snapshots.
 
 use super::super::ProgressSubject;
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    TypedTrees, data::DataMember, machine::Machine,
+};
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, data::DataMember, machine::Machine};
 
 /// Select a finite owned prefix along this demand alone. Unused sibling fields
 /// are never enumerated, even when their type graph shares large subtrees.
@@ -11,7 +13,7 @@ pub(super) fn partition(
     machine: &Machine,
     subject: &ProgressSubject,
 ) -> Option<ProgressSubject> {
-    use typed_trees::types::TypeReferenceNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
     let parameter = program
         .machine_states(machine)
         .iter()
@@ -88,9 +90,9 @@ pub(super) fn matching_prefix<'places>(
 /// field type is itself an opaque leaf for the next projection.
 fn replay_partition_data(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     machine_symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
     if let Some(data) =
         crate::checks::termination::progress::qualification_correspondences::replay_data_type(
             program,
@@ -101,7 +103,7 @@ fn replay_partition_data(
         return Some(data);
     }
     match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Generic {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic {
             base_symbol,
             base_name,
             ..
@@ -120,7 +122,7 @@ fn replay_partition_data(
 fn exact_declared_field(
     program: &TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataField> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField> {
     if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Field {
         return None;
     }

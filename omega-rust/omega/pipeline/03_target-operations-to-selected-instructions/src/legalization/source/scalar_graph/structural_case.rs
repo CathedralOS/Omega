@@ -1,15 +1,15 @@
 //! Source construction of exact case destinations and structural-home layout.
 use super::{AbstractOperationPlan, Error, scalar_graph_input};
 use crate::LegalizationError;
-use abstract_operations::AbstractOperation;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarTerminator, LegalizedStructuralCasePayload, LegalizedStructuralCaseSuccessor,
     LegalizedValueDefinition,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 pub(super) fn project(
-    node: &optimization_unit::OptimizationNode,
-    function: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    function: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
     let AbstractOperation::StructuralCase { source, cases } = &node.operation else {

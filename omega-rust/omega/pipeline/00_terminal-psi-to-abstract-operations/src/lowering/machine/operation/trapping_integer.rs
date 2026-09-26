@@ -6,7 +6,7 @@
 //! and native realization checks the predicate in place.
 use std::collections::BTreeMap;
 
-use abstract_operations::AbstractOperation;
+use crate::abstract_operations::AbstractOperation;
 use semantic_vocabulary::ScalarType;
 use terminal_psi::{Operation, OperationKind, TrappingIntegerOperation};
 

@@ -7,11 +7,13 @@ use super::{
 use crate::legalize_target_operations;
 use crate::tests::legalization::primitive_stores::integer;
 use crate::validate_legalized_operations;
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunctionResult, AbstractSuccessor, ValueBinding,
+use abstract_operations_to_target_operations::target_operations::{
+    TargetBooleanExpression, TargetControlTerminator,
 };
 use semantic_vocabulary::{BlockId, EdgeId};
-use target_operations::{TargetBooleanExpression, TargetControlTerminator};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunctionResult, AbstractSuccessor, ValueBinding,
+};
 
 #[test]
 fn scalar_result_boolean_transport_rejects_binding_and_predicate_substitution() {
@@ -92,7 +94,7 @@ fn scalar_result_boolean_transport_rejects_binding_and_predicate_substitution() 
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )

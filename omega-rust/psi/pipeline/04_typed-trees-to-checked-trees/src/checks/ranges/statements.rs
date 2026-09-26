@@ -9,16 +9,20 @@ use super::facts::RangeFacts;
 use super::indexes::check_expression;
 use super::statement_transfer::{StatementTransferSink, transfer_statement_facts};
 use diagnostics::Diagnostic;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableAssignment, TransitionTargetHandle};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TableAssignment, TransitionTargetHandle,
+};
 
 pub(super) fn check_statement<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &'program Machine,
     state: &'program State,
-    call_frames: Option<&validation::CallFrameResolver<'program>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'program>>,
     facts: &mut RangeFacts<'_>,
     statement: &'program StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
@@ -29,10 +33,10 @@ pub(super) fn check_statement<'program>(
     /// its diagnostic still lands after the value's checks, matching the
     /// original statement order.
     struct CheckSink<'a, 'program> {
-        program: &'program typed_trees::TypedTrees,
+        program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         machine: &'program Machine,
         state: &'program State,
-        call_frames: Option<&'a validation::CallFrameResolver<'program>>,
+        call_frames: Option<&'a crate::validation::CallFrameResolver<'program>>,
         diagnostics: &'a mut Vec<Diagnostic>,
         extent_failed: bool,
     }
@@ -133,13 +137,13 @@ pub(super) struct ReferentExtent {
 /// truncated place names a container OF the referent, whose extent is not the
 /// bound slice's length, and multiple referents cannot pin one extent.
 pub(super) fn bound_reference_referent_extent(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     facts: &RangeFacts<'_>,
     local_symbol: symbols::SymbolHandle,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Option<ReferentExtent> {
     if !local_symbol.is_valid() {
         return None;
@@ -156,10 +160,10 @@ pub(super) fn bound_reference_referent_extent(
             return None;
         }
         match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type;
             }
-            typed_trees::types::TypeReferenceNode::Reference { .. } => break,
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. } => break,
             _ => return None,
         }
     }
@@ -205,11 +209,11 @@ pub(super) fn bound_reference_referent_extent(
 /// earlier `let` in this state — the same declared-type recovery
 /// `bound_reference_referent_place` performs for `StatementNode::Assignment`.
 pub(super) fn assigned_local_declared_type(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state: &State,
     statement_index: usize,
     local_symbol: symbols::SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     let mut declarations = program
         .statement_table
         .statements(state.statement_nodes)
@@ -226,7 +230,7 @@ pub(super) fn assigned_local_declared_type(
 }
 
 pub(super) fn expression_member_name(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, Option<&str>)> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
@@ -244,7 +248,7 @@ pub(super) fn expression_member_name(
 /// `arr[self.jp]` inside a loop where `self.i` is bounded by the loop guard
 /// (sorts, sliding windows, reversals).
 pub(super) fn seed_offset_index_bound(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     target: ExpressionHandle,
     value: ExpressionHandle,
@@ -265,7 +269,7 @@ pub(super) fn seed_offset_index_bound(
 /// Recognize `field + positiveConst` (either operand order), returning the
 /// field's display name and the constant.
 fn field_plus_positive_constant(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     value: ExpressionHandle,
 ) -> Option<(String, i64)> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(value) else {
@@ -292,19 +296,22 @@ fn field_plus_positive_constant(
 /// argument places. Prior bounds for every `&mut`-written place are
 /// forgotten regardless, ensures or not.
 pub(super) fn seed_boundary_call_ensures_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    call: &typed_trees::statement::TableCall,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
     facts: &mut RangeFacts<'_>,
 ) {
-    use typed_trees::domain::ProofFact;
-    use typed_trees::signature::SignatureContractKind;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind;
     let arguments = program.statement_table.expression_handles(call.arguments);
     // Both callers apply the complete write frame before reaching this
     // postcondition publisher. Borrow syntax alone is not a write footprint.
     // Receiver field -> declared trait -> called signature (the shared
     // TypedTrees chain).
-    let Some(signature) = typed_trees::boundary::called_boundary_signature(program, machine, call)
+    let Some(signature) =
+        symbol_resolved_trees_to_typed_trees::typed_trees::boundary::called_boundary_signature(
+            program, machine, call,
+        )
     else {
         return;
     };
@@ -330,13 +337,13 @@ pub(super) fn seed_boundary_call_ensures_facts(
 }
 
 fn seed_ensures_bound_conjunct(
-    program: &typed_trees::TypedTrees,
-    parameters: &[&typed_trees::signature::StateParameter],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    parameters: &[&symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     conjunct: ExpressionHandle,
     facts: &mut RangeFacts<'_>,
 ) {
-    use typed_trees::expression::BinaryOperator;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
     let ExpressionNode::Binary(comparison) = program.expression_table.expression(conjunct) else {
         return;
     };

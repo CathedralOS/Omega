@@ -1,10 +1,12 @@
 //! Exact referent substitution for supplied Boolean field facts at call entry.
 
-use facts::{FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, ProgramPoint};
+use crate::fact_plan::{FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, ProgramPoint};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::signature::StateParameter;
 
 use crate::flow::CanonicalPlace;
 
@@ -16,7 +18,7 @@ mod tests;
 pub(super) fn proves(
     program: &TypedTrees,
     semantic: &FactPlan,
-    context: &facts::FactContext,
+    context: &crate::fact_plan::FactContext,
     caller_state: SymbolHandle,
     statement_index: usize,
     call: &crate::semantic::calls::CallSite<'_>,

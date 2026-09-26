@@ -2,15 +2,19 @@ use source::SourceMap;
 use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::data::{DataDefinition, DataMember, DataVariant};
-use symbol_resolved_trees::domain::ProofFact;
-use symbol_resolved_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use symbol_resolved_trees::types::TypeReference;
 use syntax_trees_to_symbol_resolved_trees::ResolutionRequest;
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     GenericDataRequest, normalize_generic_data,
 };
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::{
+    DataDefinition, DataMember, DataVariant,
+};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference;
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 /// A case `where` fact over only the case's own payload names rides each

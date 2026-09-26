@@ -110,7 +110,7 @@ def build_runner() -> Path:
     """Build the runner via cargo/mbx message-format JSON; return its path."""
     tool = "mbx" if shutil_which("mbx") else "cargo"
     args = [tool, "test", "--no-run", "--message-format=json",
-            "-p", "compiler", "--test", "corpus_runner"]
+            "-p", "omega", "--test", "corpus_runner"]
     proc = subprocess.run(args, cwd=ROOT, capture_output=True, text=True)
     if proc.returncode != 0:
         sys.stderr.write(proc.stdout[-4000:])

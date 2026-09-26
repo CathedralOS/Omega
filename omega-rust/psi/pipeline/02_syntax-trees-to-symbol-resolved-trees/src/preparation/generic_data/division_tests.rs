@@ -6,14 +6,14 @@ use diagnostics::DiagnosticSeverity;
 use source::{SourceId, SourceSpan, Span};
 use source_files_to_tokens::Lexer;
 use std::collections::HashMap;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::DataDefinition;
-use syntax_trees::item::DataMember;
-use syntax_trees::item::Item;
-use syntax_trees::types::FixedArrayLength;
-use syntax_trees::types::TypeReferenceNode;
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
+use tokens_to_syntax_trees::syntax_trees::item::DataDefinition;
+use tokens_to_syntax_trees::syntax_trees::item::DataMember;
+use tokens_to_syntax_trees::syntax_trees::item::Item;
+use tokens_to_syntax_trees::syntax_trees::types::FixedArrayLength;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
 
 #[path = "division_tests/decimal.rs"]
 mod decimal;

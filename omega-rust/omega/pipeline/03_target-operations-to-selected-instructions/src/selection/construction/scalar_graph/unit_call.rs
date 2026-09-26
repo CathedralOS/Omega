@@ -4,16 +4,16 @@ use super::{
     SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation,
 };
 use crate::SelectedInstructionError;
+use crate::legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
+use crate::selected_instructions::SelectedCallContract;
 use crate::selection::construction::scalar_graph::row;
-use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
-use selected_instructions::SelectedCallContract;
 use terminal_psi::StructuralAccess;
 
 pub(super) fn emit(
     function: usize,
     source: &LegalizedScalarFunction,
     operation: &LegalizedScalarInstruction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedScalarInstructionKind::Call(call) = &operation.kind else {
@@ -205,7 +205,7 @@ pub(super) fn emit(
         if crate::selection::scalar_call_abi::empty_aggregate_placement(placement) {
             return Ok(());
         }
-        use selected_instructions::{
+        use crate::selected_instructions::{
             FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot,
             SelectedMemoryAccessRole,
         };

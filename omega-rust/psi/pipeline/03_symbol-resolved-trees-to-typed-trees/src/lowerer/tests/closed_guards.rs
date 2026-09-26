@@ -2,8 +2,8 @@
 //! `_`: `transition true { true -> done(v) }` lowers to one unconditional
 //! transition. An earlier closed-true arm keeps its guard, since arms follow
 //! it, and a guard that reads a place is never decided here.
-use typed_trees::TypedTrees;
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use crate::typed_trees::TypedTrees;
+use crate::typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 fn guards(program: &TypedTrees, machine_name: &str) -> Vec<bool> {
     let machine = program

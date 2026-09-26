@@ -1,19 +1,19 @@
 //! Receiving primitive stores retains the exact source and declared referent.
 use crate::LegalizationError;
-use abstract_operations::AbstractOperation;
-use optimization_unit::PsiOptimizationUnit;
-use semantic_vocabulary::ValueId;
-use target_operations::{
+use abstract_operations_to_target_operations::target_operations::{
     TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource as Source,
     TargetUnitWriteOnlyPrimitiveStoreSource as PrimitiveSource,
 };
+use semantic_vocabulary::ValueId;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 pub(super) fn validate(
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
     parameters: &[TargetStructuralParameter],
     sources: &[(ValueId, Source)],
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let TargetUnitOperation::WriteOnlyPrimitiveStore {
@@ -75,7 +75,7 @@ pub(super) fn validate(
 fn preceding_ieee_literal(
     source: &PrimitiveSource,
     store: semantic_vocabulary::OperationId,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
 ) -> bool {
     let PrimitiveSource::IeeeFloatImmediate {
         defining_operation,

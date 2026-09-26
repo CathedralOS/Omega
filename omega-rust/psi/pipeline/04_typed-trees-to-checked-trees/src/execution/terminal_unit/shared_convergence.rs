@@ -17,7 +17,7 @@ pub(super) fn checked_shared_boolean_convergence(
     return_expression: &CheckedScalarExpression,
     scalar_parameter_count: usize,
     cleanup_actions: &[CheckedStructuralScalarReturnCleanupAction],
-) -> Option<checked_trees::CheckedStructuralBooleanConvergencePlan> {
+) -> Option<crate::checked_trees::CheckedStructuralBooleanConvergencePlan> {
     let [binding] = bindings else {
         return None;
     };
@@ -70,13 +70,13 @@ pub(super) fn checked_shared_boolean_convergence(
             return_expression,
             CheckedScalarExpression::Boolean(expression)
                 if matches!(expression.as_ref(),
-                    checked_trees::CheckedBooleanExpression::Local { position }
+                    crate::checked_trees::CheckedBooleanExpression::Local { position }
                         if *position == scalar_parameter_count)
         )
     {
         return None;
     }
-    Some(checked_trees::CheckedStructuralBooleanConvergencePlan { binding_ordinal: 0 })
+    Some(crate::checked_trees::CheckedStructuralBooleanConvergencePlan { binding_ordinal: 0 })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -107,33 +107,33 @@ pub(super) fn shared_boolean_has_member_and_integer_inputs(
 }
 
 fn shared_boolean_runtime_inputs(
-    expression: &checked_trees::CheckedBooleanExpression,
+    expression: &crate::checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     match expression {
-        checked_trees::CheckedBooleanExpression::StorageRead { .. } => None,
-        checked_trees::CheckedBooleanExpression::Constant(_) => Some(BTreeSet::new()),
-        checked_trees::CheckedBooleanExpression::Parameter { position }
+        crate::checked_trees::CheckedBooleanExpression::StorageRead { .. } => None,
+        crate::checked_trees::CheckedBooleanExpression::Constant(_) => Some(BTreeSet::new()),
+        crate::checked_trees::CheckedBooleanExpression::Parameter { position }
             if *position < scalar_parameter_count =>
         {
             Some(BTreeSet::from([SharedBooleanRuntimeInput::BooleanScalar(
                 *position,
             )]))
         }
-        checked_trees::CheckedBooleanExpression::Not(operand) => {
+        crate::checked_trees::CheckedBooleanExpression::Not(operand) => {
             shared_boolean_runtime_inputs(operand, scalar_parameter_count)
         }
-        checked_trees::CheckedBooleanExpression::Equal { left, right } => {
+        crate::checked_trees::CheckedBooleanExpression::Equal { left, right } => {
             match (left.as_ref(), right.as_ref()) {
-                (checked_trees::CheckedBooleanExpression::Constant(_), expression)
-                | (expression, checked_trees::CheckedBooleanExpression::Constant(_)) => {
+                (crate::checked_trees::CheckedBooleanExpression::Constant(_), expression)
+                | (expression, crate::checked_trees::CheckedBooleanExpression::Constant(_)) => {
                     shared_boolean_runtime_inputs(expression, scalar_parameter_count)
                 }
                 _ => None,
             }
         }
-        checked_trees::CheckedBooleanExpression::And { left, right }
-        | checked_trees::CheckedBooleanExpression::Or { left, right } => {
+        crate::checked_trees::CheckedBooleanExpression::And { left, right }
+        | crate::checked_trees::CheckedBooleanExpression::Or { left, right } => {
             let mut parameters = shared_boolean_runtime_inputs(left, scalar_parameter_count)?;
             parameters.extend(shared_boolean_runtime_inputs(
                 right,
@@ -141,17 +141,15 @@ fn shared_boolean_runtime_inputs(
             )?);
             Some(parameters)
         }
-        checked_trees::CheckedBooleanExpression::StructuralParameterField {
+        crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
         } if matches!(
             path.as_slice(),
-            [checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                _
-            )]
+            [crate::checked_trees::CheckedStructuralPredicatePathSegment::Field(_)]
         ) =>
         {
-            let [checked_trees::CheckedStructuralPredicatePathSegment::Field(field)] =
+            let [crate::checked_trees::CheckedStructuralPredicatePathSegment::Field(field)] =
                 path.as_slice()
             else {
                 unreachable!("guarded by one field segment")
@@ -163,7 +161,9 @@ fn shared_boolean_runtime_inputs(
                 },
             ]))
         }
-        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
+            left, right, ..
+        } => {
             let mut inputs = shared_integer_runtime_inputs(left, scalar_parameter_count)?;
             inputs.extend(shared_integer_runtime_inputs(
                 right,
@@ -171,15 +171,15 @@ fn shared_boolean_runtime_inputs(
             )?);
             Some(inputs)
         }
-        checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
-        | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
-        | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => None,
-        checked_trees::CheckedBooleanExpression::Parameter { .. }
-        | checked_trees::CheckedBooleanExpression::ErasedParameter { .. }
-        | checked_trees::CheckedBooleanExpression::Local { .. }
-        | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => None,
+        crate::checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | crate::checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
+        | crate::checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | crate::checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
+        | crate::checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => None,
+        crate::checked_trees::CheckedBooleanExpression::Parameter { .. }
+        | crate::checked_trees::CheckedBooleanExpression::ErasedParameter { .. }
+        | crate::checked_trees::CheckedBooleanExpression::Local { .. }
+        | crate::checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => None,
     }
 }
 
@@ -276,7 +276,7 @@ fn shared_integer_runtime_inputs(
             primitive_type,
             operand,
         } if operand.primitive_type().is_some_and(|source_type| {
-            validation::integer_widen_is_total(source_type, *primitive_type)
+            crate::validation::integer_widen_is_total(source_type, *primitive_type)
         }) =>
         {
             shared_integer_runtime_inputs(operand, scalar_parameter_count)
@@ -322,7 +322,7 @@ mod tests {
         CheckedStructuralScalarReturnCleanupAction, PrimitiveType, SymbolHandle,
         checked_shared_boolean_convergence,
     };
-    use checked_trees::{
+    use crate::checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedBooleanExpression,
         CheckedIntegerComparisonKind, CheckedLocatedScalarExpression,
         CheckedScalarBindingDestination, CheckedScalarBindingValue,
@@ -340,7 +340,7 @@ mod tests {
         binding_expression: CheckedBooleanExpression,
         scalar_parameter_count: usize,
         cleanup_positions: &[u32],
-    ) -> Option<checked_trees::CheckedStructuralBooleanConvergencePlan> {
+    ) -> Option<crate::checked_trees::CheckedStructuralBooleanConvergencePlan> {
         let mut facts = CheckFacts::default();
         let state = SymbolHandle::from_parts(1, 1);
         facts

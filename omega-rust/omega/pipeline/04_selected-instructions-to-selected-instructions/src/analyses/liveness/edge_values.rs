@@ -1,6 +1,6 @@
 //! Explicit register transport across authored successor bindings.
 use super::LivenessError;
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     SelectedBlockOrigin, SelectedFunction, SelectedSuccessor, SelectedSuccessorRole,
     SelectedTerminator, SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin,
 };
@@ -35,7 +35,7 @@ pub(crate) fn has_edge_use(function: &SelectedFunction, register: VirtualRegiste
         };
         edges.iter().any(|edge| {
             edge.structural_case.as_ref().is_some_and(|case| case.payloads.iter().any(|payload| matches!(payload.transport,
-                selected_instructions::SelectedCasePayloadTransport::Registers { argument, .. } if argument == register)))
+                target_operations_to_selected_instructions::SelectedCasePayloadTransport::Registers { argument, .. } if argument == register)))
             || edge.bindings.iter().any(|binding| {
                 matches!(binding.transport,
             SelectedValueTransport::Registers {argument,..} if argument == register)
@@ -209,7 +209,7 @@ pub(crate) fn incoming_argument(
         return Ok(destination);
     }
     if destination_register.definition_site
-        != Some(optimization_unit::ValueDefinitionSite::BlockParameter {
+        != Some(terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::BlockParameter {
             block: successor.source_target,
             position: u32::try_from(parameter_index).map_err(|_| mismatch())?,
         })
@@ -233,7 +233,7 @@ pub(crate) fn incoming_argument(
             {
                 return Err(mismatch());
             }
-            let selected_instructions::SelectedCasePayloadTransport::Registers {
+            let target_operations_to_selected_instructions::SelectedCasePayloadTransport::Registers {
                 argument,
                 parameter,
             } = payload.transport
@@ -316,9 +316,9 @@ fn validate_case_transport(
     function_index: usize,
     function: &SelectedFunction,
     edge: &SelectedSuccessor,
-    destination: &selected_instructions::SelectedBlock,
+    destination: &target_operations_to_selected_instructions::SelectedBlock,
 ) -> Result<(), LivenessError> {
-    use selected_instructions::SelectedCasePayloadTransport;
+    use target_operations_to_selected_instructions::SelectedCasePayloadTransport;
     let mismatch = || LivenessError::FunctionMismatch {
         function: function_index,
     };

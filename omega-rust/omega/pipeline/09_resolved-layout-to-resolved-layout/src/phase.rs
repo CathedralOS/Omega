@@ -4,18 +4,18 @@ use crate::{stage_optimized_x86_branch_relaxation, x86_rel8_selected};
 use optimization_core::{OptimizationPhaseSelections, OptimizationWorkBudget};
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use register_model::ValidatedPhysicalRegisterModel;
 use selected_form_encoding_to_resolved_layout::{
     StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
 };
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
 mod error;
 mod validation;
 
 use crate::StagedOptimizedX86BranchRelaxation;
 pub use error::ResolvedLayoutOptimizationError;
-use machine_code::ResolvedMachineLayout;
+use post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedMachineLayout;
 use std::sync::Arc;
 pub use validation::validate_resolved_layout_optimization;
 

@@ -1,5 +1,5 @@
 use super::fixture::{Fixture, assert_status};
-use package_source::ImmutableSourceResolution;
+use omega::package_source::ImmutableSourceResolution;
 
 const REPOSITORY: &str = "https://github.com/CathedralOS/arithmetic-kernels.git";
 const BASELINE: &str = "998dac4a03109f67b8c2e87d53ff017007526669";

@@ -6,14 +6,16 @@
 //! declaration subjects, not live claims or authority evidence.
 
 use super::{DomainApplication, expression_names_parameter};
-use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::data::{DataMember, TypeParameterKind};
-use typed_trees::domain::ProofFact;
-use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
-use typed_trees::types::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::{DataMember, TypeParameterKind};
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::{
+    SignatureContract, SignatureContractKind, StateParameter,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use symbols::SymbolHandle;
 
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct ContentSource {

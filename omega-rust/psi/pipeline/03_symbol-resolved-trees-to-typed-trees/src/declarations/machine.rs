@@ -5,9 +5,9 @@ use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::signatures::type_parameters::lower_type_parameters;
 use crate::type_reference::lower_type_reference_into_table;
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 mod generic_data;
 
@@ -30,7 +30,7 @@ pub(crate) fn lower_machine(
 /// the binding; a clone entering the candidate set would only duplicate it).
 ///
 /// The view is how `machine + Vec2::add(...)` reaches operand-directed
-/// selection: `typed_trees::operator::resolve_spelling` enumerates
+/// selection: `crate::typed_trees::operator::resolve_spelling` enumerates
 /// `OperatorDefinition` records, so the machine's entry-state parameters and
 /// return type, its head contracts, and its type parameters are exposed under
 /// the machine's own symbol. Every span is shared with the machine record;

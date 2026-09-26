@@ -1,16 +1,16 @@
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::flow::canonical_place_from_expression;
 use crate::flow::canonical_place_segments_equal;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 mod relative;
 
 pub(crate) use relative::relative_place_segments_from_expression;
 
 pub(super) fn collect_dependency_paths_from_expression(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     self_type_symbol: Option<SymbolHandle>,
-    dependencies: &mut Vec<Vec<facts::PlaceSegment>>,
+    dependencies: &mut Vec<Vec<crate::fact_plan::PlaceSegment>>,
 ) {
     if !expression.is_valid() {
         return;
@@ -25,7 +25,7 @@ pub(super) fn collect_dependency_paths_from_expression(
                 dependencies,
             );
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     collect_dependency_paths_from_expression(
                         program,
                         pattern,
@@ -199,8 +199,11 @@ pub(super) fn collect_dependency_paths_from_expression(
     }
 }
 
-pub(super) fn dedupe_dependency_segments(dependencies: &mut Vec<Vec<facts::PlaceSegment>>) {
-    let mut unique: Vec<Vec<facts::PlaceSegment>> = Vec::with_capacity(dependencies.len());
+pub(super) fn dedupe_dependency_segments(
+    dependencies: &mut Vec<Vec<crate::fact_plan::PlaceSegment>>,
+) {
+    let mut unique: Vec<Vec<crate::fact_plan::PlaceSegment>> =
+        Vec::with_capacity(dependencies.len());
     for dependency in dependencies.drain(..) {
         if !unique.iter().any(|existing| {
             existing.len() == dependency.len()

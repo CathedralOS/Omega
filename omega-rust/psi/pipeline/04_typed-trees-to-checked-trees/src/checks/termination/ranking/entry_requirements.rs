@@ -9,29 +9,29 @@ use crate::checks::termination::ranking::ranges;
 
 #[cfg(test)]
 pub(crate) fn proves_ranked_entry_requirement(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     goal: ExpressionHandle,
 ) -> bool {
     prove(program, machine, goal, None).unwrap_or(false)
 }
 
 pub(crate) fn proves_ranked_entry_requirement_with_call_frames(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     goal: ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     prove(program, machine, goal, call_frames).unwrap_or(false)
 }
 
 fn prove(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     goal: ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
-    if !validation::arithmetic_entry_requirement_is_covered(program, machine, goal) {
+    if !crate::validation::arithmetic_entry_requirement_is_covered(program, machine, goal) {
         return None;
     }
     let root = program.machine_states(machine).first()?;

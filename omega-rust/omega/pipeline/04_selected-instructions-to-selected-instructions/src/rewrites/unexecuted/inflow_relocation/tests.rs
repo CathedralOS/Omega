@@ -1,8 +1,14 @@
 use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::{EffectLink, ValueDefinitionSite};
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralCaseId,
+    ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
@@ -11,17 +17,11 @@ use selected_instructions::{
     SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralCaseId,
-    ValueId,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{
     CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint, TerminalPsiIdentity,
     VocabularyMarker,
 };
+use terminal_psi_to_abstract_operations::optimization_unit::{EffectLink, ValueDefinitionSite};
 
 use super::{
     InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation,
@@ -75,7 +75,7 @@ const EDGE_DJ: u64 = 26;
 
 fn register(
     id: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -304,7 +304,7 @@ fn fixture(target: NativeTarget) -> ValidatedInflowRelocation {
 
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedInflowRelocation {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(target);
@@ -320,7 +320,7 @@ fn mutated(
 
 fn relocate(
     source: &ValidatedInflowRelocation,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     member: SelectedInstructionId,
     destination: SelectedInstructionId,
 ) -> Result<ValidatedInflowRelocation, InflowRelocationError> {
@@ -748,15 +748,17 @@ fn only_plain_semantic_edges_carry_the_member() {
             SelectedTerminator::Jump { successor, .. } => successor,
             _ => unreachable!(),
         };
-        successor.structural_case = Some(selected_instructions::SelectedStructuralCaseEdge {
-            source: selected_instructions::SelectedCaseDispatchSource::Local {
-                slot: selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
+        successor.structural_case = Some(
+            target_operations_to_selected_instructions::SelectedStructuralCaseEdge {
+                slot: target_operations_to_selected_instructions::LocalStorageSlotId::Spill {
+                    register: R_BOUND,
+                },
+                case: StructuralCaseId::new(1).unwrap(),
+                case_tag: 0,
+                payloads: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
-            case: StructuralCaseId::new(1).unwrap(),
-            case_tag: 0,
-            payloads: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-        });
+        );
     });
     assert_eq!(
         relocate(&case_edge, &environment, MOVING, T_TAIL).unwrap_err(),
@@ -767,8 +769,8 @@ fn only_plain_semantic_edges_carry_the_member() {
             SelectedTerminator::Jump { successor, .. } => successor,
             _ => unreachable!(),
         };
-        successor.fuel.push(optimization_unit::FuelSettlement {
-            site: optimization_unit::PsiProvenance::Operation(OperationId::new(30).unwrap()),
+        successor.fuel.push(terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+            site: terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(OperationId::new(30).unwrap()),
             units: 1,
         });
     });
@@ -786,7 +788,7 @@ fn only_plain_semantic_edges_carry_the_member() {
         successor
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(4).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(5).unwrap(),
@@ -796,7 +798,7 @@ fn only_plain_semantic_edges_carry_the_member() {
                 },
                 transport: SelectedStructuralTransport::WholeValue {
                     argument: POINTER,
-                    destination: selected_instructions::LocalStorageSlotId::Spill {
+                    destination: target_operations_to_selected_instructions::LocalStorageSlotId::Spill {
                         register: R_BOUND,
                     },
                     byte_size: 8,
@@ -817,22 +819,20 @@ fn only_plain_semantic_edges_carry_the_member() {
             SelectedTerminator::Jump { successor, .. } => successor,
             _ => unreachable!(),
         };
-        successor.fuel.push(optimization_unit::FuelSettlement {
-            site: optimization_unit::PsiProvenance::Operation(OperationId::new(30).unwrap()),
+        successor.fuel.push(terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+            site: terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(OperationId::new(30).unwrap()),
             units: 1,
         });
         successor.role = SelectedSuccessorRole::EdgeTransferContinuation;
-        successor.structural_case = Some(selected_instructions::SelectedStructuralCaseEdge {
-            source: selected_instructions::SelectedCaseDispatchSource::Local {
-                slot: selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
-            },
+        successor.structural_case = Some(target_operations_to_selected_instructions::SelectedStructuralCaseEdge {
+            slot: target_operations_to_selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
-            payloads: vec![selected_instructions::SelectedCasePayloadBinding {
-                semantic: legalized_operations::LegalizedStructuralCasePayload {
+            payloads: vec![target_operations_to_selected_instructions::SelectedCasePayloadBinding {
+                semantic: target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralCasePayload {
                     field: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
                     field_byte_offset: 0,
-                    parameter: legalized_operations::LegalizedValueDefinition {
+                    parameter: target_operations_to_selected_instructions::legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(21).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -843,7 +843,7 @@ fn only_plain_semantic_edges_carry_the_member() {
                         },
                     },
                 },
-                transport: selected_instructions::SelectedCasePayloadTransport::Registers {
+                transport: target_operations_to_selected_instructions::SelectedCasePayloadTransport::Registers {
                     argument: R_MOVE,
                     parameter: R_BOUND,
                 },
@@ -853,7 +853,7 @@ fn only_plain_semantic_edges_carry_the_member() {
         successor
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(4).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(5).unwrap(),
@@ -863,7 +863,7 @@ fn only_plain_semantic_edges_carry_the_member() {
                 },
                 transport: SelectedStructuralTransport::WholeValue {
                     argument: R_MOVE,
-                    destination: selected_instructions::LocalStorageSlotId::Spill {
+                    destination: target_operations_to_selected_instructions::LocalStorageSlotId::Spill {
                         register: R_BOUND,
                     },
                     byte_size: 8,
@@ -890,7 +890,7 @@ fn register_transports_bind_the_crossed_edge() {
     let environment = baseline_target_register_environment(target).unwrap();
     let binding =
         |argument: VirtualRegisterId, parameter: VirtualRegisterId| SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(20).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -904,7 +904,7 @@ fn register_transports_bind_the_crossed_edge() {
         };
     let member_writes = |register: VirtualRegisterId| {
         move |function: &mut SelectedFunction,
-              environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+              environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment| {
             let materialize = environment
                 .constraint(environment.selected_keys().materialize_i64)
                 .unwrap()
@@ -921,7 +921,7 @@ fn register_transports_bind_the_crossed_edge() {
     };
     let member_reads = |register: VirtualRegisterId| {
         move |function: &mut SelectedFunction,
-              environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+              environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment| {
             let copy = environment
                 .constraint(environment.selected_keys().copy_i64)
                 .unwrap()
@@ -936,7 +936,7 @@ fn register_transports_bind_the_crossed_edge() {
     };
     let on_crossed_edge = |edit: &mut dyn FnMut(
         &mut SelectedFunction,
-        &register_environment::ValidatedTargetRegisterEnvironment,
+        &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     )| {
         mutated(target, |function, environment| {
             let successor = match &mut function.blocks[1].terminator {
@@ -1056,7 +1056,7 @@ fn raw_hazard_keeps_order_through_the_edge() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let read_move = |function: &mut SelectedFunction,
-                     environment: &register_environment::ValidatedTargetRegisterEnvironment,
+                     environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
                      block: usize,
                      index: usize,
                      id: SelectedInstructionId,
@@ -1144,7 +1144,7 @@ fn war_hazard_keeps_order_through_the_edge() {
     let environment = baseline_target_register_environment(target).unwrap();
     let member_reads_pointer =
         |function: &mut SelectedFunction,
-         environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+         environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment| {
             let copy = environment
                 .constraint(environment.selected_keys().copy_i64)
                 .unwrap()
@@ -1158,7 +1158,7 @@ fn war_hazard_keeps_order_through_the_edge() {
         };
     let writes_pointer = |block: usize, index: usize, id: SelectedInstructionId| {
         move |function: &mut SelectedFunction,
-              environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+              environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment| {
             let copy = environment
                 .constraint(environment.selected_keys().copy_i64)
                 .unwrap()
@@ -1215,7 +1215,7 @@ fn waw_hazard_keeps_order_through_the_edge() {
     let environment = baseline_target_register_environment(target).unwrap();
     let writes_move = |block: usize, index: usize, id: SelectedInstructionId| {
         move |function: &mut SelectedFunction,
-              environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+              environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment| {
             let copy = environment
                 .constraint(environment.selected_keys().copy_i64)
                 .unwrap()
@@ -1275,7 +1275,7 @@ fn condition_state_couples_through_the_edge() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let flag_writer = |function: &mut SelectedFunction,
-                       environment: &register_environment::ValidatedTargetRegisterEnvironment,
+                       environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
                        block: usize,
                        index: usize,
                        id: SelectedInstructionId,
@@ -1297,7 +1297,7 @@ fn condition_state_couples_through_the_edge() {
         );
     };
     let flag_reader = |function: &mut SelectedFunction,
-                       environment: &register_environment::ValidatedTargetRegisterEnvironment,
+                       environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
                        block: usize,
                        index: usize,
                        id: SelectedInstructionId,
@@ -1386,7 +1386,7 @@ fn terminator_positions_couple() {
     let environment = baseline_target_register_environment(target).unwrap();
     let jump_reads = |register: VirtualRegisterId| {
         move |function: &mut SelectedFunction,
-              environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+              environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment| {
             let jump_row = environment
                 .constraint(environment.selected_keys().jump)
                 .unwrap()
@@ -1544,21 +1544,22 @@ fn barrier_kinds_and_call_roster_reject() {
         });
         relocate(&inflow_barrier, &environment, MOVING, T_TAIL).unwrap();
     }
-    let call_contract = |instruction: SelectedInstructionId| SelectedCallContract {
+    let call_contract = |instruction: SelectedInstructionId| {
+        SelectedCallContract {
         instruction,
         operation: OperationId::new(41).unwrap(),
-        call: legalized_operations::LegalizedScalarCall {
-            source: legalized_operations::NativeCallOrigin::Authored,
+        call: target_operations_to_selected_instructions::legalized_operations::LegalizedScalarCall {
+            source: target_operations_to_selected_instructions::legalized_operations::NativeCallOrigin::Authored,
             callee: MachineId::new(42).unwrap(),
-            call_plan: calling_conventions::CallPlan {
-                policy: calling_conventions::CallingPolicy::MicrosoftX64,
+            call_plan: abstract_operations_to_target_operations::calling_conventions::CallPlan {
+                policy: abstract_operations_to_target_operations::calling_conventions::CallingPolicy::MicrosoftX64,
                 parameters: Vec::new(),
                 result: None,
                 callback_materializations: Vec::new(),
-                ordinary_clobbers: calling_conventions::RegisterSet::new(std::iter::empty()),
+                ordinary_clobbers: abstract_operations_to_target_operations::calling_conventions::RegisterSet::new(std::iter::empty()),
                 stack_alignment: 16,
                 shadow_bytes: 0,
-                entry_control: calling_conventions::EntryControl::CallReturn,
+                entry_control: abstract_operations_to_target_operations::calling_conventions::EntryControl::CallReturn,
             },
             arguments: Vec::new(),
             result_placement: None,
@@ -1575,6 +1576,7 @@ fn barrier_kinds_and_call_roster_reject() {
             output: 0,
         },
         ownership: Vec::new(),
+    }
     };
     for (instruction_id, destination) in [
         (MOVING, T_TAIL),
@@ -1711,8 +1713,10 @@ fn member_must_be_pure_work() {
         function.blocks[3].instructions[1] = instruction(
             MOVING,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(
-                    selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    target_operations_to_selected_instructions::LocalStorageSlotId::Spill {
+                        register: R_BOUND,
+                    },
                 ),
                 byte_offset: 0,
             },
@@ -1755,7 +1759,7 @@ fn member_must_be_pure_work() {
         function.blocks[3].instructions[1] = instruction(
             MOVING,
             SelectedInstructionKind::SaturatingDivide {
-                carrier: selected_instructions::SaturatingCarrier::U64,
+                carrier: target_operations_to_selected_instructions::SaturatingCarrier::U64,
                 obligation: ObligationId::new(11).unwrap(),
                 accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
                     [7; 32],
@@ -1780,7 +1784,7 @@ fn member_must_be_pure_work() {
         function.blocks[3].instructions[1] = instruction(
             MOVING,
             SelectedInstructionKind::SaturatingRemainder {
-                carrier: selected_instructions::SaturatingCarrier::I64,
+                carrier: target_operations_to_selected_instructions::SaturatingCarrier::I64,
                 obligation: ObligationId::new(11).unwrap(),
                 accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
                     [7; 32],
@@ -1881,10 +1885,12 @@ fn member_must_be_pure_work() {
 fn member_writes_must_die_on_the_other_inflows() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let reads_move =
-        |block: usize, index: usize, id: SelectedInstructionId, output: VirtualRegisterId| {
-            move |function: &mut SelectedFunction,
-                  environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+    let reads_move = |block: usize,
+                      index: usize,
+                      id: SelectedInstructionId,
+                      output: VirtualRegisterId| {
+        move |function: &mut SelectedFunction,
+                  environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment| {
             let copy = environment
                 .constraint(environment.selected_keys().copy_i64)
                 .unwrap()
@@ -1896,10 +1902,10 @@ fn member_writes_must_die_on_the_other_inflows() {
                 &[R_MOVE, output],
             );
         }
-        };
+    };
     let writes_move = |block: usize, index: usize, id: SelectedInstructionId| {
         move |function: &mut SelectedFunction,
-              environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+              environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment| {
             let copy = environment
                 .constraint(environment.selected_keys().copy_i64)
                 .unwrap()
@@ -1933,7 +1939,7 @@ fn member_writes_must_die_on_the_other_inflows() {
     // A deeper successor block is walked across the join's exit edge.
     let deep = |edit: &mut dyn FnMut(
         &mut SelectedFunction,
-        &register_environment::ValidatedTargetRegisterEnvironment,
+        &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     )| {
         mutated(target, |function, environment| {
             let jump_row = environment
@@ -2020,7 +2026,7 @@ fn member_writes_must_die_on_the_other_inflows() {
     // F's reader on the second traversal.
     let looped = |edit: &mut dyn FnMut(
         &mut SelectedFunction,
-        &register_environment::ValidatedTargetRegisterEnvironment,
+        &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     )| {
         mutated(target, |function, environment| {
             let jump_row = environment
@@ -2058,7 +2064,7 @@ fn member_writes_must_die_on_the_other_inflows() {
             _ => unreachable!(),
         };
         successor.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(20).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -2080,7 +2086,7 @@ fn member_writes_must_die_on_the_other_inflows() {
     // set, and the T-edge carries nothing live back into the join.
     let inflow_loop = |edit: &mut dyn FnMut(
         &mut SelectedFunction,
-        &register_environment::ValidatedTargetRegisterEnvironment,
+        &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     )| {
         mutated(target, |function, environment| {
             let jump_row = environment

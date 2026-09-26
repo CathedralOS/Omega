@@ -4,7 +4,7 @@ use super::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan, OperationKind,
     StructuralAccess, unit_plan,
 };
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 #[path = "aliases/projected.rs"]
@@ -43,15 +43,16 @@ fn direct_aliases_retain_whole_field_indexed_and_sequential_receivers() {
                 calls,
             );
             let checked = crate::front_end::checked_program(&source);
-            let _artifact = terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("forward"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .unwrap_or_else(|error| panic!("{source}: {error:?}"))
-            .into_artifact();
+            let _artifact =
+                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                    &checked,
+                    TerminalMachineSelection::Name("forward"),
+                )
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default(),
+                ))
+                .unwrap_or_else(|error| panic!("{source}: {error:?}"))
+                .into_artifact();
         }
     }
 }
@@ -63,15 +64,16 @@ fn independent_aliases_keep_distinct_parameter_roots() {
         "let left: &write Record = &write first; let right: &write Record = &write second;",
         "left.replace(value); right.replace(value);",
     ));
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("forward"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("forward"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let caller = module
         .machines
@@ -108,21 +110,22 @@ fn attached_self_alias_retains_its_container() {
             "let held: &write Container = &write self;",
             "held.records[1].replace(value);",
         ));
-        let _artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Container::forward"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+        let _artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Container::forward"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap()
+            .into_artifact();
     }
 }
 
 #[test]
 fn dotted_alias_replay_rejects_changed_field_path_and_endpoint() {
-    use checked_trees::statement::StatementNode;
+    use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
     let original = crate::front_end::checked_program(&source(
         "forward(destination: &write Nested, value: u16)",
         "let held: &write Nested = &write destination;",
@@ -169,7 +172,7 @@ fn dotted_alias_replay_rejects_changed_field_path_and_endpoint() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("forward")
             )
@@ -184,8 +187,8 @@ fn dotted_alias_replay_rejects_changed_field_path_and_endpoint() {
 
 #[test]
 fn alias_replay_rejects_initializer_and_operand_substitution() {
-    use checked_trees::expression::ExpressionNode;
-    use checked_trees::statement::StatementNode;
+    use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+    use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
     let original = crate::front_end::checked_program(&source(
         "forward(destination: &mut [Record; 2], other: &mut [Record; 2], value: u16)",
         "let held: &write [Record; 2] = &write destination;",
@@ -245,7 +248,7 @@ fn alias_replay_rejects_initializer_and_operand_substitution() {
             match mutation {
                 2 => {
                     structural_arguments[0].path[0] =
-                        checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0)
+                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0)
                 }
                 3 => {
                     structural_arguments[0].source =
@@ -255,7 +258,7 @@ fn alias_replay_rejects_initializer_and_operand_substitution() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("forward")
             )
@@ -275,15 +278,16 @@ fn alias_replay_rejects_changed_source_loan_and_lifetime() {
         "let held: &write [Record; 2] = &write destination;",
         "held[1].replace(value);",
     ));
-    let _artifact = terminal_production::TerminalProductionRequest::new(
-        &original,
-        TerminalMachineSelection::Name("forward"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let _artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &original,
+            TerminalMachineSelection::Name("forward"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let resource_handle = original
         .facts
         .borrow
@@ -302,14 +306,14 @@ fn alias_replay_rejects_changed_source_loan_and_lifetime() {
         match mutation {
             0 => resource.owner_symbol = symbols::SymbolHandle::invalid(),
             1 => resource.captured_place.root_symbol = symbols::SymbolHandle::invalid(),
-            2 => resource.access = checked_trees::BorrowAccessKind::Mutable,
+            2 => resource.access = typed_trees_to_checked_trees::checked_trees::BorrowAccessKind::Mutable,
             3 => {
                 resource.activation_source =
-                    checked_trees::FlowInvalidationSource::Statement { statement_index: 1 }
+                    typed_trees_to_checked_trees::checked_trees::FlowInvalidationSource::Statement { statement_index: 1 }
             }
             4 => {
                 resource.weakening_reason =
-                    checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+                    typed_trees_to_checked_trees::checked_trees::FlowBorrowWeakeningReason::LocalReassigned
             }
             5 => resource.restoration.parent.root_symbol = symbols::SymbolHandle::invalid(),
             6 => {
@@ -330,11 +334,11 @@ fn alias_replay_rejects_changed_source_loan_and_lifetime() {
             }
             _ => {
                 checked.facts.borrow.loans.get_mut(resource.loan).kind =
-                    checked_trees::BorrowAccessKind::Mutable
+                    typed_trees_to_checked_trees::checked_trees::BorrowAccessKind::Mutable
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("forward")
             )
@@ -355,15 +359,16 @@ fn mutable_parent_alias_attenuates_before_repeated_receiver_calls() {
         "child.replace(17); child.replace(value);",
     );
     let checked = crate::front_end::checked_program(&text);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("forward"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap_or_else(|error| panic!("{text}: {error:?}"))
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("forward"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap_or_else(|error| panic!("{text}: {error:?}"))
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.reborrow_root_handoffs.len(), 1);
     assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 1);
@@ -388,15 +393,16 @@ fn nested_aliases_retain_immediate_parent_chains() {
                 "child[0].replace(value); child[1].replace(value);",
             );
             let checked = crate::front_end::checked_program(&text);
-            let artifact = terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("forward"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .unwrap_or_else(|error| panic!("{text}: {error:?}"))
-            .into_artifact();
+            let artifact =
+                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                    &checked,
+                    TerminalMachineSelection::Name("forward"),
+                )
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default(),
+                ))
+                .unwrap_or_else(|error| panic!("{text}: {error:?}"))
+                .into_artifact();
             let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
             assert_eq!(module.reborrow_root_handoffs.len(), 1);
             assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), depth);
@@ -411,15 +417,16 @@ fn nested_alias_replay_rejects_changed_immediate_parent_and_lifecycle() {
         "let held: &write [Record; 2] = &write destination; let middle: &write [Record; 2] = &write held; let child: &write [Record; 2] = &write middle;",
         "child[1].replace(value);",
     ));
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &original,
-        TerminalMachineSelection::Name("forward"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &original,
+            TerminalMachineSelection::Name("forward"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.reborrow_root_handoffs.len(), 1);
     assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 2);
@@ -455,7 +462,7 @@ fn nested_alias_replay_rejects_changed_immediate_parent_and_lifecycle() {
         match mutation {
             0 => resource.parent_loan = direct.loan,
             1 => {
-                resource.parent_resource = checked_trees::CheckedParentBorrowResource::DirectRoot {
+                resource.parent_resource = typed_trees_to_checked_trees::checked_trees::CheckedParentBorrowResource::DirectRoot {
                     resource: direct_handle,
                 }
             }
@@ -467,11 +474,11 @@ fn nested_alias_replay_rejects_changed_immediate_parent_and_lifecycle() {
                     .get_mut(child.loan)
                     .source_owner_symbol = direct.owner_symbol
             }
-            3 => resource.access = checked_trees::BorrowAccessKind::Mutable,
+            3 => resource.access = typed_trees_to_checked_trees::checked_trees::BorrowAccessKind::Mutable,
             4 => resource.captured_place.root_symbol = symbols::SymbolHandle::invalid(),
             5 => {
                 resource.parent_suspension.source =
-                    checked_trees::FlowInvalidationSource::Statement { statement_index: 0 }
+                    typed_trees_to_checked_trees::checked_trees::FlowInvalidationSource::Statement { statement_index: 0 }
             }
             6 => resource.parent_suspension.child_activation = arena::Handle::invalid(),
             7 => resource.parent_suspension.parent_entry_constraint = arena::Handle::invalid(),
@@ -483,7 +490,7 @@ fn nested_alias_replay_rejects_changed_immediate_parent_and_lifecycle() {
                     .weakenings
                     .get_mut(child.parent_end_status.child_weakening)
                     .source =
-                    checked_trees::FlowInvalidationSource::Statement { statement_index: 2 }
+                    typed_trees_to_checked_trees::checked_trees::FlowInvalidationSource::Statement { statement_index: 2 }
             }
             9 => {
                 checked
@@ -508,13 +515,13 @@ fn nested_alias_replay_rejects_changed_immediate_parent_and_lifecycle() {
             }
             _ => {
                 checked.facts.borrow.loans.get_mut(child.loan).lineage =
-                    checked_trees::BorrowLoanLineage::Reborrow {
+                    typed_trees_to_checked_trees::checked_trees::BorrowLoanLineage::Reborrow {
                         parent_loan: direct.loan,
                     }
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("forward")
             )
@@ -536,15 +543,16 @@ fn nested_alias_callee_retains_and_replays_its_handoff() {
     );
     text.push_str("machine wrapper(destination: &write [Record; 2], value: u16) { forward(&write destination, value); }");
     let original = crate::front_end::checked_program(&text);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &original,
-        TerminalMachineSelection::Name("wrapper"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &original,
+            TerminalMachineSelection::Name("wrapper"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.reborrow_root_handoffs.len(), 1);
     assert_ne!(module.reborrow_root_handoffs[0].machine, module.entry);
@@ -609,7 +617,7 @@ fn nested_alias_callee_retains_and_replays_its_handoff() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("wrapper")
             )

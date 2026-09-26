@@ -4,9 +4,9 @@ use crate::expressions::statement::lower_statement_node;
 use crate::lowerer::Lowerer;
 use crate::signatures::parameters::lower_state_parameter;
 use crate::type_reference::lower_type_reference_into_table;
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(crate) fn lower_state(
     lowerer: &mut Lowerer,

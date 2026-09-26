@@ -1,16 +1,16 @@
+use crate::symbol_resolved_trees::data::DataMember;
+use crate::symbol_resolved_trees::expression::ExpressionNode;
+use crate::symbol_resolved_trees::expression::TableCallExpression;
 use crate::symbols::expression_paths::projected_receivers::call_target;
 use crate::symbols::scope::MachineScope;
 use crate::{ResolutionRequest, resolve};
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::data::DataMember;
-use symbol_resolved_trees::expression::ExpressionNode;
-use symbol_resolved_trees::expression::TableCallExpression;
 use symbols::SymbolHandle;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 mod selection;
 
-fn payload_program() -> symbol_resolved_trees::SymbolResolvedTrees {
+fn payload_program() -> crate::symbol_resolved_trees::SymbolResolvedTrees {
     let source = r#"
         data First {} data Second {} data Result { value: u64; }
         data Choice { case Left(item: First); case Right(item: Second); }
@@ -31,8 +31,10 @@ fn payload_program() -> symbol_resolved_trees::SymbolResolvedTrees {
     resolve(ResolutionRequest::new(&syntax)).expect("resolve")
 }
 
-fn payload_calls(program: &symbol_resolved_trees::SymbolResolvedTrees) -> Vec<TableCallExpression> {
-    use symbol_resolved_trees::statement::{StatementNode, TransitionTargetNode};
+fn payload_calls(
+    program: &crate::symbol_resolved_trees::SymbolResolvedTrees,
+) -> Vec<TableCallExpression> {
+    use crate::symbol_resolved_trees::statement::{StatementNode, TransitionTargetNode};
     let machine = program
         .machines
         .iter()
@@ -179,13 +181,15 @@ fn payload_candidates_reject_foreign_fields_cases_and_roots() {
             _ => fields[0],
         };
         if matches!(mutation, "foreign_case" | "missing_case") {
-            member.case_variant = Some(symbol_resolved_trees::name::DiagnosticName::generated(
-                if mutation == "foreign_case" {
-                    "Right"
-                } else {
-                    "Absent"
-                },
-            ));
+            member.case_variant = Some(
+                crate::symbol_resolved_trees::name::DiagnosticName::generated(
+                    if mutation == "foreign_case" {
+                        "Right"
+                    } else {
+                        "Absent"
+                    },
+                ),
+            );
         }
         let root = member.receiver;
         let ExpressionNode::Name(name) = table.expression_mut(root) else {
@@ -397,7 +401,7 @@ fn indexed_candidates_follow_declared_elements_not_index_values() {
             .statements(state.statement_nodes)
             .iter()
             .find_map(|statement| match statement {
-                symbol_resolved_trees::statement::StatementNode::LocalData(local)
+                crate::symbol_resolved_trees::statement::StatementNode::LocalData(local)
                     if local.name.as_str() == "result" =>
                 {
                     Some(local)
@@ -464,7 +468,7 @@ fn indexed_candidate_rejects_foreign_and_stale_parameter_roots() {
         .find(|parameter| parameter.name.as_str() == "cells")
         .expect("foreign cells")
         .symbol;
-    let symbol_resolved_trees::statement::StatementNode::LocalData(result) = &program
+    let crate::symbol_resolved_trees::statement::StatementNode::LocalData(result) = &program
         .tables
         .bodies
         .statements

@@ -7,7 +7,7 @@ use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_legalized_operations, validate_selected_instructions,
 };
-use target_operations::TargetUnitOperation;
+use abstract_operations_to_target_operations::target_operations::TargetUnitOperation;
 
 #[test]
 fn crash_declaring_structural_calls_select_and_replay_their_continuation_roster() {
@@ -27,7 +27,7 @@ fn crash_declaring_structural_calls_select_and_replay_their_continuation_roster(
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -83,7 +83,7 @@ fn crash_declaring_structural_calls_select_and_replay_their_continuation_roster(
             .flat_map(|function| function.blocks.iter_mut())
             .flat_map(|block| block.instructions.iter_mut())
             .find_map(|instruction| {
-                if let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+                if let crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) =
                     &mut instruction.kind
                 {
                     Some(call)
@@ -119,7 +119,7 @@ fn crash_declaring_structural_calls_select_and_replay_their_continuation_roster(
             .crash_routes
             .clear();
         contract_changed.identity =
-            optimization_unit::recompute_psi_optimization_unit_identity(&contract_changed);
+            terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&contract_changed);
         assert!(legalize_target_operations(&target, &source, &contract_changed).is_err());
     }
 }
@@ -142,7 +142,7 @@ fn crash_declaring_reference_calls_select_and_replay_their_continuation_roster()
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -198,7 +198,7 @@ fn crash_declaring_reference_calls_select_and_replay_their_continuation_roster()
             .flat_map(|function| function.blocks.iter_mut())
             .flat_map(|block| block.instructions.iter_mut())
             .find_map(|instruction| {
-                if let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+                if let crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) =
                     &mut instruction.kind
                 {
                     Some(call)
@@ -234,7 +234,7 @@ fn crash_declaring_reference_calls_select_and_replay_their_continuation_roster()
             .crash_routes
             .clear();
         contract_changed.identity =
-            optimization_unit::recompute_psi_optimization_unit_identity(&contract_changed);
+            terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&contract_changed);
         assert!(legalize_target_operations(&target, &source, &contract_changed).is_err());
         // A forged roster on the call itself fails the same contract pairing.
         let mut roster_changed = unit.clone();
@@ -248,7 +248,7 @@ fn crash_declaring_reference_calls_select_and_replay_their_continuation_roster()
                 alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
             });
         roster_changed.identity =
-            optimization_unit::recompute_psi_optimization_unit_identity(&roster_changed);
+            terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&roster_changed);
         assert!(legalize_target_operations(&target, &source, &roster_changed).is_err());
     }
 }
@@ -271,7 +271,7 @@ fn crash_declaring_sum_reference_calls_select_and_replay_their_continuation_rost
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -327,7 +327,7 @@ fn crash_declaring_sum_reference_calls_select_and_replay_their_continuation_rost
             .flat_map(|function| function.blocks.iter_mut())
             .flat_map(|block| block.instructions.iter_mut())
             .find_map(|instruction| {
-                if let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+                if let crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) =
                     &mut instruction.kind
                 {
                     Some(call)
@@ -363,7 +363,7 @@ fn crash_declaring_sum_reference_calls_select_and_replay_their_continuation_rost
             .crash_routes
             .clear();
         contract_changed.identity =
-            optimization_unit::recompute_psi_optimization_unit_identity(&contract_changed);
+            terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&contract_changed);
         assert!(legalize_target_operations(&target, &source, &contract_changed).is_err());
         let mut roster_changed = unit.clone();
         roster_changed.functions[1]
@@ -376,7 +376,7 @@ fn crash_declaring_sum_reference_calls_select_and_replay_their_continuation_rost
                 alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
             });
         roster_changed.identity =
-            optimization_unit::recompute_psi_optimization_unit_identity(&roster_changed);
+            terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&roster_changed);
         assert!(legalize_target_operations(&target, &source, &roster_changed).is_err());
     }
 }
@@ -395,7 +395,7 @@ fn mixed_structural_results_select_and_replay_their_result_home() {
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -428,7 +428,7 @@ fn mixed_structural_results_select_and_replay_their_result_home() {
         );
         let TargetUnitOperation::Call {
             result:
-                target_operations::TargetCallResult::Structural {
+                abstract_operations_to_target_operations::target_operations::TargetCallResult::Structural {
                     result_home: Some(home),
                     ..
                 },
@@ -445,7 +445,7 @@ fn mixed_structural_results_select_and_replay_their_result_home() {
         };
         assert!(matches!(
             home.layout,
-            target_operations::TargetStructuralHomeLayout::Sum(_)
+            abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Sum(_)
         ));
         validate_selected_instructions(
             &legal,
@@ -459,7 +459,7 @@ fn mixed_structural_results_select_and_replay_their_result_home() {
         // legalization replay; selection output is checked verbatim.
         let mut no_home = target.clone();
         let TargetUnitOperation::Call {
-            result: target_operations::TargetCallResult::Structural { result_home, .. },
+            result: abstract_operations_to_target_operations::target_operations::TargetCallResult::Structural { result_home, .. },
             ..
         } = no_home.functions[0]
             .graph
@@ -475,7 +475,7 @@ fn mixed_structural_results_select_and_replay_their_result_home() {
         assert!(legalize_target_operations(&no_home, &source, &unit).is_err());
         let mut wrong_type = target.clone();
         let TargetUnitOperation::Call {
-            result: target_operations::TargetCallResult::Structural { result, .. },
+            result: abstract_operations_to_target_operations::target_operations::TargetCallResult::Structural { result, .. },
             ..
         } = wrong_type.functions[0]
             .graph

@@ -8,10 +8,13 @@ use crate::tests::flow::terminal_unit::machine_named;
 #[test]
 fn primitive_store_scalar_return_retains_source_effect_and_borrow() {
     for (access, expected_access) in [
-        ("mut", checked_trees::CheckedStructuralAccess::MutableBorrow),
+        (
+            "mut",
+            crate::checked_trees::CheckedStructuralAccess::MutableBorrow,
+        ),
         (
             "write",
-            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow,
+            crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow,
         ),
     ] {
         let checked = checked(&format!(
@@ -43,8 +46,8 @@ fn primitive_store_scalar_return_retains_source_effect_and_borrow() {
             [CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 path: store_path,
                 statement_index: 0,
-                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-                value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
+                destination: crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                value: crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
             }] if store_path.is_empty() && literal.value_i64() == Some(0)
         ));
         // Scalar completion shares the ordinary operation owner. Its source
@@ -74,7 +77,7 @@ fn primitive_store_scalar_return_retains_source_effect_and_borrow() {
             (1, PrimitiveType::U64)
         );
         assert!(
-            matches!(value, checked_trees::CheckedCallScalarArgument::Pure(
+            matches!(value, crate::checked_trees::CheckedCallScalarArgument::Pure(
             CheckedScalarExpression::IntegerLiteral { literal }) if literal.value_i64() == Some(0))
         );
         assert!(matches!(

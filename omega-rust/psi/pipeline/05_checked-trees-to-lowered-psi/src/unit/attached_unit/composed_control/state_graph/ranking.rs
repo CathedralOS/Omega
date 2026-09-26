@@ -26,17 +26,17 @@ use super::super::super::{OperationResult, ScalarType, TerminalMachine, Terminat
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use checked_trees::CheckedNaturalRankMeasure;
 use language_semantics::RankingViewId;
 use std::collections::BTreeMap;
 use terminal_psi::{
     OperationKind, TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
     TerminalNaturalRankEdge,
 };
+use typed_trees_to_checked_trees::checked_trees::CheckedNaturalRankMeasure;
 
 pub(super) fn validate_witness(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
     plan: &CheckedComposedUnitControlMachinePlan,
 ) -> Result<(), LoweringError> {
     let Some(witness) = &machine.termination_plan.implementation_witness else {
@@ -77,7 +77,7 @@ pub(super) fn validate_witness(
     // The measured subject, and a distance's bound, as entry parameters:
     // every ranked state names parameters of these names.
     let entry_parameter = |expression| {
-        let checked_trees::expression::ExpressionNode::Name(subject) =
+        let typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Name(subject) =
             checked.expression_table.expression(expression)
         else {
             return unsupported("Unit graph natural rank requires a parameter subject");

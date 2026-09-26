@@ -153,8 +153,8 @@ fn runtime_indexed_boundary_argument_retires_every_elements_field() {
 
 #[test]
 fn boundary_parameter_frames_require_exact_receiver_scope_and_signature() {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
     use symbols::SymbolHandle;
-    use typed_trees::statement::StatementNode;
     let original = parse_typed_trees(
         r#"
         boundary trait Console { machine write(text: &[u8]); }
@@ -221,7 +221,7 @@ fn boundary_parameter_frames_require_exact_receiver_scope_and_signature() {
         let StatementNode::Call(call) = &program.statement_table.statements(statements)[0] else {
             panic!("entry call");
         };
-        let paths = validation::CallFrameResolver::new(&program)
+        let paths = crate::validation::CallFrameResolver::new(&program)
             .expect("resolver")
             .may_write_frame(machine, call)
             .into_complete_paths();
@@ -238,7 +238,7 @@ fn boundary_parameter_frames_require_exact_receiver_scope_and_signature() {
 
 #[test]
 fn boundary_parameter_methods_do_not_acquire_builtin_empty_frames() {
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
     let program = parse_typed_trees(
         r#"
         boundary trait Console { machine bytes() -> u64; }
@@ -253,7 +253,7 @@ fn boundary_parameter_methods_do_not_acquire_builtin_empty_frames() {
     let state = &program.machine_states(machine)[0];
     let statement = &program.statement_table.statements(state.statement_nodes)[0];
     assert!(matches!(statement, StatementNode::LocalData(_)));
-    let paths = validation::CallFrameResolver::new(&program)
+    let paths = crate::validation::CallFrameResolver::new(&program)
         .expect("resolver")
         .statement_value_may_write_paths(machine, statement);
     assert_eq!(paths, Some(vec!["console".to_owned()]));
@@ -262,7 +262,7 @@ fn boundary_parameter_methods_do_not_acquire_builtin_empty_frames() {
     };
     let expression = local.initial_value;
     let mut missing = program.clone();
-    let typed_trees::expression::ExpressionNode::Call(call) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
         missing.expression_table.expression_mut(expression)
     else {
         panic!("value call");
@@ -275,7 +275,7 @@ fn boundary_parameter_methods_do_not_acquire_builtin_empty_frames() {
         .expect("run");
     let state = &missing.machine_states(machine)[0];
     let statement = &missing.statement_table.statements(state.statement_nodes)[0];
-    let paths = validation::CallFrameResolver::new(&missing)
+    let paths = crate::validation::CallFrameResolver::new(&missing)
         .expect("resolver")
         .statement_value_may_write_paths(machine, statement);
     assert!(

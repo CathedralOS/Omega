@@ -30,8 +30,8 @@ pub(crate) fn validate_assignment(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
-    assignment: &checked_trees::statement::TableAssignment,
-    store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
+    store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
 ) -> Result<(), LoweringError> {
     let (owner, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
@@ -59,7 +59,7 @@ pub(crate) fn validate_assignment(
         return unsupported("byte-field store destination differs from its authored place");
     }
     if !matches!(checked.expression_table.expression(assignment.value),
-        checked_trees::expression::ExpressionNode::String(bytes) if bytes.as_ref() == store.bytes.as_slice())
+        typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::String(bytes) if bytes.as_ref() == store.bytes.as_slice())
     {
         return unsupported("byte-field store literal differs from its authored value");
     }
@@ -103,7 +103,7 @@ pub(crate) fn literal_view_type(
 }
 
 pub(crate) fn emit(
-    store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
+    store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
     literal_places: &mut Vec<StructuralPlaceDeclaration>,

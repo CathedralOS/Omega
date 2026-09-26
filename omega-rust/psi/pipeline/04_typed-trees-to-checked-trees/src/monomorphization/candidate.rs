@@ -1,6 +1,6 @@
 use super::{CalleeState, Candidate, CandidateTemplate};
-use typed_trees::TypedTrees;
-use typed_trees::data::TypeParameterKind;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind;
 
 pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candidate<'static> {
     let machine = &program.machines()[machine_index];
@@ -14,7 +14,7 @@ pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candid
         match &parameter.kind {
             TypeParameterKind::Type => {
                 type_parameters.push((parameter.symbol, parameter.name.as_str().to_owned()));
-                parameter_bounds.push(validation::declared_property_requirements(
+                parameter_bounds.push(crate::validation::declared_property_requirements(
                     &parameter.bounds,
                 ));
             }

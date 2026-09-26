@@ -8,7 +8,7 @@
 //! Validation and checked binding share exact sealed contract and format
 //! recognition. Binding records identity; it does not itself prove equality.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
     CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
     CheckedDirectOperationFloatResult, CheckedDirectStructuralFloatLeaf,
@@ -19,19 +19,22 @@ use checked_trees::{
     CheckedProofOnlyValueType, CheckedProofPropositionId, CheckedProofValueDeclaration,
     CheckedProofValueId, ContractProofFactKind, ProofFacts,
 };
+use crate::validation::{
+    ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
+    exact_toolchain_float_format_const, exact_toolchain_float_semantic_contract,
+};
 use diagnostics::Diagnostic;
 use numerics::float_projection::FloatProjectionOperation;
 use numerics::float_semantics_catalog::{FloatSemanticContractIdentity, FloatSemanticValueKind};
 use semantic_vocabulary::IeeeFloatFormat;
-use std::collections::{HashMap, HashSet};
-use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::operator::{resolve_named_call, resolve_named_expression_call};
-use typed_trees::types::PrimitiveType;
-use validation::{
-    ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
-    exact_toolchain_float_format_const, exact_toolchain_float_semantic_contract,
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::operator::{
+    resolve_named_call, resolve_named_expression_call,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CheckedFloatProjectionSourceKey {
@@ -49,7 +52,7 @@ enum CheckedFloatProjectionSourceKey {
     },
     DirectStructuralLeaf {
         owner_machine: symbols::SymbolHandle,
-        field: checked_trees::CheckedStructuralParameterField,
+        field: crate::checked_trees::CheckedStructuralParameterField,
     },
     /// The scalar result produced at one exact checked call use. A
     /// transported `ensures` clause names the importing use's produced
@@ -62,14 +65,17 @@ enum CheckedFloatProjectionSourceKey {
     /// before the lowered occurrence join runs.
     DirectOperationResult {
         use_site: CheckedFloatUseSite,
-        use_expression: typed_trees::expression::ExpressionHandle,
+        use_expression:
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     },
     ResolvedSymbol(symbols::SymbolHandle),
     Binary32Literal(u32),
     Binary64Literal(u64),
     /// Transitional exact typed-expression custody for source forms whose
     /// artifact-reconstructible Terminal coordinate has not landed yet.
-    TypedExpression(typed_trees::expression::ExpressionHandle),
+    TypedExpression(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    ),
     /// One application of a sealed `FloatSemantics` catalog row. The key
     /// carries the exact contract, declared result format, and bound operand
     /// values, so the result dedupes only when the whole semantic
@@ -84,11 +90,11 @@ enum CheckedFloatProjectionSourceKey {
 
 fn projection_source_key(
     program: &TypedTrees,
-    carriers: &ContractCarriers,
+    proof: &ProofFacts,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> CheckedFloatProjectionSourceKey {
     match program.expression_table.expression(fact.source) {
-        ExpressionNode::Name(path) => direct_machine_parameter_source(program, carriers, fact)
+        ExpressionNode::Name(path) => direct_machine_parameter_source(program, proof, fact)
             .map(|(owner_machine, parameter)| {
                 CheckedFloatProjectionSourceKey::DirectMachineParameter {
                     owner_machine,
@@ -96,12 +102,12 @@ fn projection_source_key(
                 }
             })
             .or_else(|| {
-                direct_machine_result_source(program, carriers, fact).map(|owner_machine| {
+                direct_machine_result_source(program, proof, fact).map(|owner_machine| {
                     CheckedFloatProjectionSourceKey::DirectMachineResult { owner_machine }
                 })
             })
             .or_else(|| {
-                direct_block_parameter_source(program, carriers, fact).map(
+                direct_block_parameter_source(program, proof, fact).map(
                     |(owner_machine, owner_state, parameter)| {
                         CheckedFloatProjectionSourceKey::DirectBlockParameter {
                             owner_machine,
@@ -112,7 +118,7 @@ fn projection_source_key(
                 )
             })
             .or_else(|| {
-                direct_structural_float_leaf_source(program, carriers, fact).map(
+                direct_structural_float_leaf_source(program, proof, fact).map(
                     |(owner_machine, field)| {
                         CheckedFloatProjectionSourceKey::DirectStructuralLeaf {
                             owner_machine,
@@ -137,7 +143,7 @@ fn projection_source_key(
             }
             _ => CheckedFloatProjectionSourceKey::TypedExpression(fact.source),
         },
-        _ => direct_structural_float_leaf_source(program, carriers, fact)
+        _ => direct_structural_float_leaf_source(program, proof, fact)
             .map(
                 |(owner_machine, field)| CheckedFloatProjectionSourceKey::DirectStructuralLeaf {
                     owner_machine,
@@ -150,107 +156,47 @@ fn projection_source_key(
     }
 }
 
-/// One machine or state contract fact carrying a validated projection
-/// invocation somewhere in its expression tree.
-#[derive(Clone, Copy)]
-struct ContractCarrier {
-    machine: symbols::SymbolHandle,
-    state: Option<symbols::SymbolHandle>,
-    kind: ContractProofFactKind,
-}
-
-/// Contract facts carrying each validated projection invocation, gathered in
-/// one walk over every machine and state contract expression rather than a
-/// rescan per invocation and source class.
-struct ContractCarriers {
-    by_invocation: HashMap<ExpressionHandle, Vec<ContractCarrier>>,
-}
-
-impl ContractCarriers {
-    fn new(
-        program: &TypedTrees,
-        proof: &ProofFacts,
-        facts: &[ValidatedFloatMeaningProjectionInvocation],
-    ) -> Self {
-        let mut by_invocation = facts
-            .iter()
-            .map(|fact| (fact.invocation, Vec::new()))
-            .collect::<HashMap<_, Vec<ContractCarrier>>>();
-        if by_invocation.is_empty() {
-            return Self { by_invocation };
-        }
-        let mut visited = HashSet::new();
-        let mut pending = Vec::new();
-        for (_, contract) in proof.contract_facts.iter() {
-            let (machine, state) = match contract.owner {
-                checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
-                    (machine_symbol, None)
-                }
-                checked_trees::ContractProofFactOwner::MachineState {
-                    machine_symbol,
-                    state_symbol,
-                } => (machine_symbol, Some(state_symbol)),
-                _ => continue,
-            };
-            let carrier = ContractCarrier {
-                machine,
-                state,
-                kind: contract.kind,
-            };
-            visited.clear();
-            pending.clear();
-            pending.extend_from_slice(proof_fact_roots(program, contract.fact));
-            while let Some(expression) = pending.pop() {
-                if let Some(carried) = by_invocation.get_mut(&expression) {
-                    if !visited.contains(&expression) {
-                        carried.push(carrier);
-                    }
-                }
-                if !expression.is_valid() || !visited.insert(expression) {
-                    continue;
-                }
-                pending.extend(expression_children(program, expression));
-            }
-        }
-        Self { by_invocation }
-    }
-
-    fn of(&self, invocation: ExpressionHandle) -> &[ContractCarrier] {
-        self.by_invocation
-            .get(&invocation)
-            .map_or(&[], Vec::as_slice)
-    }
-}
-
 /// Unique machine contract owner carrying the validated invocation, retaining
 /// the owning nested state when the fact belongs to a state-owned arrival
 /// contract. Nested states admit `requires` only; their direct scalar
 /// parameters are Terminal block parameters, a distinct source class from
 /// machine parameters.
 fn direct_machine_contract_owner(
-    carriers: &ContractCarriers,
+    program: &TypedTrees,
+    proof: &ProofFacts,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<(symbols::SymbolHandle, Option<symbols::SymbolHandle>)> {
-    let [carrier] = carriers.of(fact.invocation) else {
-        return None;
-    };
-    Some((carrier.machine, carrier.state))
+    let mut owners = proof.contract_facts.iter().filter_map(|(_, contract)| {
+        let owner = match contract.owner {
+            crate::checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
+                (machine_symbol, None)
+            }
+            crate::checked_trees::ContractProofFactOwner::MachineState {
+                machine_symbol,
+                state_symbol,
+            } => (machine_symbol, Some(state_symbol)),
+            _ => return None,
+        };
+        proof_fact_contains_expression(program, contract.fact, fact.invocation).then_some(owner)
+    });
+    let owner = owners.next()?;
+    owners.next().is_none().then_some(owner)
 }
 
 fn direct_structural_float_leaf_source(
     program: &TypedTrees,
-    carriers: &ContractCarriers,
+    proof: &ProofFacts,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<(
     symbols::SymbolHandle,
-    checked_trees::CheckedStructuralParameterField,
+    crate::checked_trees::CheckedStructuralParameterField,
 )> {
-    let (owner_machine, _) = direct_machine_contract_owner(carriers, fact)?;
+    let (owner_machine, _) = direct_machine_contract_owner(program, proof, fact)?;
     let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);
     let place = crate::flow::canonical_place_from_expression(program, fact.source)?;
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
     let parameter_position = parameters
@@ -267,13 +213,17 @@ fn direct_structural_float_leaf_source(
         .segments
         .iter()
         .map(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => structural_member_identity(program, *symbol)
-                .map(checked_trees::CheckedStructuralPredicatePathSegment::Field),
-            facts::PlaceSegment::Case { variant } => structural_member_identity(program, *variant)
-                .map(checked_trees::CheckedStructuralPredicatePathSegment::Case),
-            facts::PlaceSegment::FixedIndex { .. }
-            | facts::PlaceSegment::FixedRange { .. }
-            | facts::PlaceSegment::Index { .. } => None,
+            crate::fact_plan::PlaceSegment::Field { symbol } => {
+                structural_member_identity(program, *symbol)
+                    .map(crate::checked_trees::CheckedStructuralPredicatePathSegment::Field)
+            }
+            crate::fact_plan::PlaceSegment::Case { variant } => {
+                structural_member_identity(program, *variant)
+                    .map(crate::checked_trees::CheckedStructuralPredicatePathSegment::Case)
+            }
+            crate::fact_plan::PlaceSegment::FixedIndex { .. }
+            | crate::fact_plan::PlaceSegment::FixedRange { .. }
+            | crate::fact_plan::PlaceSegment::Index { .. } => None,
         })
         .collect::<Option<Vec<_>>>()?;
     if path.is_empty() {
@@ -281,7 +231,7 @@ fn direct_structural_float_leaf_source(
     }
     Some((
         owner_machine,
-        checked_trees::CheckedStructuralParameterField {
+        crate::checked_trees::CheckedStructuralParameterField {
             parameter_position,
             path,
         },
@@ -297,25 +247,29 @@ fn structural_member_identity(
             .data_members(data)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    Some(field.path_identity())
-                }
-                typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
-                    Some(variant.path_identity())
-                }
-                typed_trees::data::DataMember::Variant(variant) => program
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.symbol == symbol => Some(field.path_identity()),
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) if variant.symbol == symbol => Some(variant.path_identity()),
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) => program
                     .data_payload_fields(variant)
                     .iter()
                     .find(|field| field.symbol == symbol)
                     .map(|field| field.path_identity()),
-                typed_trees::data::DataMember::Field(_) => None,
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(_) => {
+                    None
+                }
             })
     })
 }
 
 fn direct_machine_result_source(
     program: &TypedTrees,
-    carriers: &ContractCarriers,
+    proof: &ProofFacts,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<symbols::SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(fact.source) else {
@@ -327,11 +281,14 @@ fn direct_machine_result_source(
     if name.as_str() != "result" {
         return None;
     }
-    let (owner_machine, _) = direct_machine_contract_owner(carriers, fact)?;
-    let owning_contract = carriers.of(fact.invocation).iter().any(|carrier| {
-        carrier.machine == owner_machine
-            && carrier.state.is_none()
-            && carrier.kind == ContractProofFactKind::Ensures
+    let (owner_machine, _) = direct_machine_contract_owner(program, proof, fact)?;
+    let owning_contract = proof.contract_facts.iter().any(|(_, contract)| {
+        matches!(
+            contract.owner,
+            crate::checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+                if machine_symbol == owner_machine
+        ) && contract.kind == ContractProofFactKind::Ensures
+            && proof_fact_contains_expression(program, contract.fact, fact.invocation)
     });
     if !owning_contract {
         return None;
@@ -356,7 +313,7 @@ fn direct_machine_result_source(
 
 fn direct_machine_parameter_source(
     program: &TypedTrees,
-    carriers: &ContractCarriers,
+    proof: &ProofFacts,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
     let ExpressionNode::Name(path) = program.expression_table.expression(fact.source) else {
@@ -370,7 +327,7 @@ fn direct_machine_parameter_source(
     {
         return None;
     }
-    let (owner_machine, _) = direct_machine_contract_owner(carriers, fact)?;
+    let (owner_machine, _) = direct_machine_contract_owner(program, proof, fact)?;
     let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
     let entry = program.machine_states(machine).first()?;
     let parameter = program
@@ -395,7 +352,7 @@ fn direct_machine_parameter_source(
 /// result carrier exists here.
 fn direct_block_parameter_source(
     program: &TypedTrees,
-    carriers: &ContractCarriers,
+    proof: &ProofFacts,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<(
     symbols::SymbolHandle,
@@ -413,7 +370,7 @@ fn direct_block_parameter_source(
     {
         return None;
     }
-    let (owner_machine, owner_state) = direct_machine_contract_owner(carriers, fact)?;
+    let (owner_machine, owner_state) = direct_machine_contract_owner(program, proof, fact)?;
     let owner_state = owner_state?;
     let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
     let entry = program.machine_states(machine).first()?;
@@ -440,31 +397,35 @@ fn direct_block_parameter_source(
     Some((owner_machine, owner_state, parameter.symbol))
 }
 
-fn proof_fact_roots(
+fn proof_fact_contains_expression(
     program: &TypedTrees,
-    fact: arena::Handle<typed_trees::domain::ProofFact>,
-) -> &[ExpressionHandle] {
-    match program.proof_facts.get(fact) {
-        typed_trees::domain::ProofFact::Expression(expression) => std::slice::from_ref(expression),
-        typed_trees::domain::ProofFact::Membership(membership) => {
+    fact: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let roots: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle] = match program.proof_facts.get(fact) {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) => std::slice::from_ref(expression),
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) => {
             std::slice::from_ref(&membership.value)
         }
-        typed_trees::domain::ProofFact::Proposition(application) => program
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(application) => program
             .expression_table
             .expression_handles(application.arguments),
-    }
+    };
+    roots
+        .iter()
+        .any(|root| expression_contains(program, *root, target, &mut Vec::new()))
 }
 
 fn expression_children(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Vec<typed_trees::expression::ExpressionHandle> {
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Vec<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle> {
     let mut children = Vec::new();
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             children.push(dispatch.subject);
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     children.push(pattern);
                 }
                 children.push(arm.value);
@@ -510,6 +471,26 @@ fn expression_children(
         | ExpressionNode::ZeroValue(_) => {}
     }
     children
+}
+
+fn expression_contains(
+    program: &TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    visited: &mut Vec<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
+) -> bool {
+    if expression == target {
+        return true;
+    }
+    if !expression.is_valid() || visited.contains(&expression) {
+        return false;
+    }
+    visited.push(expression);
+    expression_children(program, expression)
+        .into_iter()
+        .any(|child| expression_contains(program, child, target, visited))
 }
 
 fn replay_invocation(
@@ -569,7 +550,7 @@ fn replay_invocation(
                 )
             })?;
     let Some((replayed_primitive, contract)) =
-        validation::exact_toolchain_float_projection_contract(program, operator, operation)
+        crate::validation::exact_toolchain_float_projection_contract(program, operator, operation)
     else {
         return Err(Diagnostic::error(
             "validated float-meaning projection lost its sealed toolchain declaration before checked binding",
@@ -780,8 +761,12 @@ fn imported_call_operand_key(
     program: &TypedTrees,
     invocation: &ValidatedFloatMeaningProjectionInvocation,
     use_site: CheckedFloatUseSite,
-    target_parameters: Option<&[typed_trees::signature::StateParameter]>,
-    argument_expressions: Option<&[typed_trees::expression::ExpressionHandle]>,
+    target_parameters: Option<
+        &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
+    >,
+    argument_expressions: Option<
+        &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle],
+    >,
 ) -> CheckedFloatProjectionSourceKey {
     let ExpressionNode::Name(path) = program.expression_table.expression(invocation.source) else {
         return CheckedFloatProjectionSourceKey::TypedExpression(invocation.source);
@@ -817,7 +802,7 @@ fn imported_operation_operand_key(
     program: &TypedTrees,
     invocation: &ValidatedFloatMeaningProjectionInvocation,
     use_site: CheckedFloatUseSite,
-    use_expression: typed_trees::expression::ExpressionHandle,
+    use_expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> CheckedFloatProjectionSourceKey {
     let ExpressionNode::Name(path) = program.expression_table.expression(invocation.source) else {
         return CheckedFloatProjectionSourceKey::TypedExpression(invocation.source);
@@ -843,7 +828,7 @@ fn imported_operation_operand_key(
 fn instantiate_equalities_at_use(
     facts: &[ValidatedFloatMeaningProjectionInvocation],
     equality_facts: &[ValidatedFloatMeaningEqualityProposition],
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     use_site: CheckedFloatUseSite,
     operand_key: &dyn Fn(
         &ValidatedFloatMeaningProjectionInvocation,
@@ -852,7 +837,7 @@ fn instantiate_equalities_at_use(
     projection_keys: &mut Vec<FloatMeaningProjectionKey>,
     transitional_source_keys: &mut Vec<CheckedFloatProjectionSourceKey>,
     invocation_contracts: &[(
-        typed_trees::expression::ExpressionHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
         numerics::float_projection::FloatProjectionContractIdentity,
     )],
     equalities: &mut Vec<CheckedFloatMeaningEqualityProposition>,
@@ -926,7 +911,7 @@ fn instantiate_transported_ensures(
     projection_keys: &mut Vec<FloatMeaningProjectionKey>,
     transitional_source_keys: &mut Vec<CheckedFloatProjectionSourceKey>,
     invocation_contracts: &[(
-        typed_trees::expression::ExpressionHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
         numerics::float_projection::FloatProjectionContractIdentity,
     )],
     equalities: &mut Vec<CheckedFloatMeaningEqualityProposition>,
@@ -963,8 +948,9 @@ fn instantiate_transported_ensures(
             if contract_fact.kind != ContractProofFactKind::Ensures {
                 continue;
             }
-            let typed_trees::domain::ProofFact::Expression(expression) =
-                program.proof_facts.get(contract_fact.fact)
+            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                expression,
+            ) = program.proof_facts.get(contract_fact.fact)
             else {
                 continue;
             };
@@ -1005,7 +991,7 @@ fn instantiate_transported_ensures(
         }
     }
     for (_, operator_use) in proof.contract_operator_uses.iter() {
-        let checked_trees::CheckedValueOrigin::StateStatement {
+        let crate::checked_trees::CheckedValueOrigin::StateStatement {
             machine_symbol: owner_machine,
             state_symbol: owner_state,
             statement_index,
@@ -1033,8 +1019,9 @@ fn instantiate_transported_ensures(
             if contract_fact.kind != ContractProofFactKind::Ensures {
                 continue;
             }
-            let typed_trees::domain::ProofFact::Expression(expression) =
-                program.proof_facts.get(contract_fact.fact)
+            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                expression,
+            ) = program.proof_facts.get(contract_fact.fact)
             else {
                 continue;
             };
@@ -1099,14 +1086,14 @@ fn ieee_format_operation(format: IeeeFloatFormat) -> FloatProjectionOperation {
 enum SemanticOperandSite<'a> {
     Declaration(
         &'a [(
-            typed_trees::expression::ExpressionHandle,
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
             CheckedProofValueId,
         )],
     ),
     UseSite {
         facts: &'a [ValidatedFloatMeaningProjectionInvocation],
         invocation_contracts: &'a [(
-            typed_trees::expression::ExpressionHandle,
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
             numerics::float_projection::FloatProjectionContractIdentity,
         )],
         operand_key: &'a dyn Fn(
@@ -1127,7 +1114,7 @@ struct SemanticApplicationTables<'a> {
     transitional_source_keys: &'a mut Vec<CheckedFloatProjectionSourceKey>,
     applications: &'a mut Vec<CheckedFloatSemanticApplication>,
     application_values: &'a mut Vec<(
-        typed_trees::expression::ExpressionHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
         CheckedProofValueId,
     )>,
     equalities: &'a mut Vec<CheckedFloatMeaningEqualityProposition>,
@@ -1204,7 +1191,7 @@ fn semantic_meaning_operand(
 fn bind_semantic_application_call(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     site: &SemanticOperandSite<'_>,
     tables: &mut SemanticApplicationTables<'_>,
 ) -> Result<Option<CheckedProofValueId>, Vec<Diagnostic>> {
@@ -1301,7 +1288,7 @@ fn bind_semantic_application_call(
 /// two-invocation equality never duplicates here.
 fn bind_semantic_application_equality(
     expression: ExpressionHandle,
-    binary: &typed_trees::expression::TableBinaryExpression,
+    binary: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBinaryExpression,
     site: &SemanticOperandSite<'_>,
     use_site: Option<CheckedFloatUseSite>,
     tables: &mut SemanticApplicationTables<'_>,
@@ -1398,7 +1385,7 @@ fn bind_semantic_applications_in_expression(
 fn bind_declaration_semantic_applications(
     program: &TypedTrees,
     invocation_values: &[(
-        typed_trees::expression::ExpressionHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
         CheckedProofValueId,
     )],
     tables: &mut SemanticApplicationTables<'_>,
@@ -1407,13 +1394,15 @@ fn bind_declaration_semantic_applications(
     let mut visited = Vec::new();
     for (_, fact) in program.proof_facts.iter() {
         let roots: &[ExpressionHandle] = match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => {
-                std::slice::from_ref(expression)
-            }
-            typed_trees::domain::ProofFact::Membership(membership) => {
-                std::slice::from_ref(&membership.value)
-            }
-            typed_trees::domain::ProofFact::Proposition(application) => program
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                expression,
+            ) => std::slice::from_ref(expression),
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+                membership,
+            ) => std::slice::from_ref(&membership.value),
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+                application,
+            ) => program
                 .expression_table
                 .expression_handles(application.arguments),
         };
@@ -1443,10 +1432,9 @@ pub(crate) fn bind_float_meaning_projection_facts(
     let mut invocation_values = Vec::with_capacity(facts.len());
     let mut invocation_contracts = Vec::with_capacity(facts.len());
     let mut occurrences = Vec::with_capacity(facts.len());
-    let carriers = ContractCarriers::new(program, proof, facts);
     for (index, fact) in facts.iter().copied().enumerate() {
         let contract = replay_invocation(program, fact).map_err(|diagnostic| vec![diagnostic])?;
-        let source_key = projection_source_key(program, &carriers, fact);
+        let source_key = projection_source_key(program, proof, fact);
         let value = push_float_meaning_projection(
             &mut projections,
             &mut projection_keys,

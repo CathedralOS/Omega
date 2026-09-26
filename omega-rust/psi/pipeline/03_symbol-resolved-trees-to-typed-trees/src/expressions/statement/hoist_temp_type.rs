@@ -11,12 +11,14 @@
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_element_applicable_constraints;
 use crate::type_reference::lower_type_reference_into_table;
+use crate::typed_trees as typed;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 use symbols::BuiltinFunction;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::{
+    TypeConstraint, TypeReference,
+};
 
 use resolved::expression::{ExpressionHandle, ExpressionNode};
 
@@ -835,7 +837,7 @@ fn dependent_exact_range_substituted(
     })
 }
 
-/// Resolved-tree twin of `typed_trees::dependent_ranges`'s recognizer
+/// Resolved-tree twin of `crate::typed_trees::dependent_ranges`'s recognizer
 /// (`self.<field>` plus an optional literal offset). Kept to the same
 /// admissible class -- the typed-level gate has already validated it.
 fn resolved_symbolic_max_bound(

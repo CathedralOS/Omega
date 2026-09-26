@@ -29,9 +29,9 @@ When present, the encoding route's columns are:
 
 | Axis | Measured surface |
 |---|---|
-| `checker` | `omega-rust/psi/semantics/proof-admission/src` — the admission kernel that independently re-decides certificates (the trusted computing base a foreign checker would replace) |
+| `checker` | `omega-rust/psi/proof-admission/src` — the admission kernel that independently re-decides certificates (the trusted computing base a foreign checker would replace) |
 | `translation` | `proof/src/checker/certificate*` + `proof/src/obligations*` — the producer that encodes checked obligations into `ProofNode` certificates |
-| `trusted_derivation` | the rest of `omega-rust/psi/semantics/proof/src` — the derivation still deciding every certificate-uncovered leg |
+| `trusted_derivation` | the rest of `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/proof_engine` — the derivation still deciding every certificate-uncovered leg |
 | `theory` | variant counts of `ProofRule`, `AcceptedProofRule`, `PrimitiveJudgment`, `EvidenceRoute`, `ObligationClass`, `AcceptedFactRoute`, `ProofRuleFoundation`, plus source size of `integer_rules`, `mathematical_core`, `predicate_denotation`, and the `SemanticAxiom`/`Assumption` index-citation rule forms |
 | `certificate` | Certificate bytes remain `unavailable`; when `OMEGA_PROOF_MEASUREMENTS` is set, the checker's emitted counts and kernel receipt figures are captured in `proof_measurements`. These measurements do not cover later conjunct lowering. |
 | `check_time_ms` | median `total elapsed` and `compile: sources -> requested product` wall time over `--repetitions` runs of `omega --check --offline --timings` |

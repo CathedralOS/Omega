@@ -10,17 +10,17 @@ use crate::rewrites::unexecuted::dead_store::{
     DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
 };
 use optimization_core::OptimizationWorkBudget;
-use register_environment::baseline_target_register_environment;
-use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, PackedByteWidth, SelectedFunction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
-    SelectedMemoryAccessRole, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     BlockId, IntegerSign, IntegerType, MachineId, OperationId, PlaceId, ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    FrameStorageSlotId, LocalStorageSlotId, PackedByteWidth, SelectedFunction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
+    SelectedMemoryAccessRole, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
 
 #[test]
 fn same_block_covering_store_eliminates_and_drops_the_write_row() {
@@ -228,7 +228,7 @@ fn producer_owned_structural_slots_are_place_storage() {
         };
         // The contract declaring `place()` as `producer`'s operation result.
         let declare = |function: &mut SelectedFunction, operation| {
-            function.structural = Some(legalized_operations::LegalizedStructuralContract {
+            function.structural = Some(target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralContract {
                 result: None,
                 structural_types: Vec::new().into(),
                 parameters: Vec::new(),
@@ -730,7 +730,7 @@ fn staging_slot_dead_writes_reject_unproven_or_mismatched_covers() {
     };
     let staging_dead =
         |function: &mut SelectedFunction,
-         environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+         environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment| {
             make_local_dead(function, slot, environment);
         };
     // Materializing the staging slot's address between the dead store and
@@ -1338,7 +1338,7 @@ fn observing_or_partial_accesses_between_reject() {
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -3447,9 +3447,11 @@ fn harmless_accesses_and_private_slots_still_eliminate() {
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
-                    register: VirtualRegisterId(9),
-                }),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    LocalStorageSlotId::Spill {
+                        register: VirtualRegisterId(9),
+                    },
+                ),
                 byte_offset: 0,
             },
             store64,
@@ -3970,8 +3972,10 @@ fn packed_dead_store_custody_and_surface_reject() {
         make_packed_dead(function, environment);
         let mut mention = function.blocks[0].instructions[0].operands[0];
         mention.virtual_register = PACKED_SCRATCH;
-        let selected_instructions::SelectedTerminator::Return { instruction, .. } =
-            &mut function.blocks[0].terminator
+        let target_operations_to_selected_instructions::SelectedTerminator::Return {
+            instruction,
+            ..
+        } = &mut function.blocks[0].terminator
         else {
             unreachable!()
         };
@@ -4095,9 +4099,9 @@ fn packed_dead_store_replay_rejects_mutated_proposals() {
 /// `slot` at offset 0, on the target's `store64` row, carrying `WriteLocal`
 /// on that slot. The dead range is the row's eight bytes.
 fn make_local_dead(
-    function: &mut selected_instructions::SelectedFunction,
+    function: &mut target_operations_to_selected_instructions::SelectedFunction,
     slot: LocalStorageSlotId,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) {
     let store64 = environment
         .constraint(environment.selected_keys().store64.unwrap())

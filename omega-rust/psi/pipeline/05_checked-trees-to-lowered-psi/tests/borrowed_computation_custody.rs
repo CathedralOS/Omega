@@ -1,14 +1,14 @@
 //! Publication independently rejoins computed primitive borrows to source.
 
 use arena::{Handle, HandleSpan};
-use checked_trees::expression::ExpressionNode;
-use checked_trees::{
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::{
     BorrowAccessKind, BorrowCallFact, CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarComputationStructuralArgument, CheckedStructuralAccess, CheckedTrees,
     CheckedUnitStructuralArgumentSourcePlan,
-};
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
 const LOCAL_SOURCE: &str = r#"
@@ -34,15 +34,16 @@ const PARAMETER_SOURCE: &str = r#"
 
 fn publish_original(source: &str) -> CheckedTrees {
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("unmodified source must publish before custody mutations are meaningful")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("unmodified source must publish before custody mutations are meaningful")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(
         module
@@ -60,7 +61,7 @@ fn publish_original(source: &str) -> CheckedTrees {
 
 fn reject(checked: &CheckedTrees, mutation: &str) {
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             checked,
             TerminalMachineSelection::Name("enter")
         )
@@ -312,7 +313,7 @@ fn borrow_call(
 fn borrowed_expression(
     checked: &CheckedTrees,
     computation: CheckedScalarComputationHandle,
-) -> checked_trees::expression::ExpressionHandle {
+) -> typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle {
     let CheckedScalarComputationKind::Call { source_call, .. } = checked
         .facts
         .values
@@ -463,7 +464,7 @@ fn primitive_arguments_reject_type_access_path_and_source_drift() {
                 "path" => {
                     argument
                         .path
-                        .push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                        .push(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                             0,
                         ))
                 }
@@ -567,7 +568,7 @@ fn primitive_borrow_rows_reject_omission_duplication_access_path_and_call_drift(
                 }
                 "path" => {
                     let span = changed.facts.borrow.access_segments.insert_many([
-                        facts::PlaceSegment::Field {
+                        typed_trees_to_checked_trees::fact_plan::PlaceSegment::Field {
                             symbol: original
                                 .facts
                                 .borrow
@@ -755,8 +756,10 @@ fn authored_borrow_and_checked_access_cannot_widen_writeonly_parameter() {
         .unwrap();
     let state = &original.machine_states(machine)[0];
     let source_reference = original.state_parameters(state)[2].type_reference;
-    let checked_trees::types::TypeReferenceNode::Reference {
-        referee, lifetime, ..
+    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
+        referee,
+        lifetime,
+        ..
     } = original
         .type_reference_table
         .type_reference(source_reference)
@@ -765,7 +768,7 @@ fn authored_borrow_and_checked_access_cannot_widen_writeonly_parameter() {
     };
     changed.typed.type_reference_table.substitute_node(
         source_reference,
-        checked_trees::types::TypeReferenceNode::Reference {
+        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
             referee: *referee,
             access: language_core::ReferenceAccess::WriteOnly,
             lifetime: lifetime.clone(),
@@ -871,7 +874,7 @@ fn computed_storage_read_before_or_after_borrow_keeps_its_authored_local() {
             .statements(state.statement_nodes)
             .iter()
             .filter_map(|statement| match statement {
-                checked_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -884,7 +887,7 @@ fn computed_storage_read_before_or_after_borrow_keeps_its_authored_local() {
             .iter()
             .find_map(|(_, node)| {
                 let CheckedScalarComputationKind::Value(
-                    value @ checked_trees::CheckedScalarExpression::IntegerLiteral { .. },
+                    value @ typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerLiteral { .. },
                 ) = &node.kind
                 else {
                     return None;
@@ -897,7 +900,7 @@ fn computed_storage_read_before_or_after_borrow_keeps_its_authored_local() {
             let mut mutations = 0;
             for (handle, node) in original.facts.values.scalar_computations.nodes.iter() {
                 let CheckedScalarComputationKind::Value(
-                    checked_trees::CheckedScalarExpression::StorageRead {
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead {
                         symbol,
                         primitive_type,
                     },
@@ -911,7 +914,7 @@ fn computed_storage_read_before_or_after_borrow_keeps_its_authored_local() {
                 let replacement = if substitute_literal {
                     literal.clone()
                 } else {
-                    checked_trees::CheckedScalarExpression::StorageRead {
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead {
                         symbol: locals[1],
                         primitive_type: *primitive_type,
                     }

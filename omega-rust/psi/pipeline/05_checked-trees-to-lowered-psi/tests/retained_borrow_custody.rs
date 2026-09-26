@@ -29,11 +29,11 @@ data Main {}
 machine Main::main(&mut self) {}
 "#;
 
-fn checked() -> checked_trees::CheckedTrees {
+fn checked() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     crate::front_end::checked_program(SOURCE)
 }
 
-fn lowered() -> lowered_psi::LoweredPsi {
+fn lowered() -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     checked_trees_to_lowered_psi::lower_machine(
         &checked(),
         TerminalMachineSelection::Name("Main::main"),

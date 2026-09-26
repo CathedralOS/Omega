@@ -58,7 +58,7 @@ fn a_direct_reference_field_result_keeps_its_source_loan_active() {
                     .statements(state.statement_nodes)
                     .iter()
                     .find_map(|statement| match statement {
-                        typed_trees::statement::StatementNode::LocalData(local)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                             if local.name.as_str() == "held" =>
                         {
                             Some(local.symbol)
@@ -331,7 +331,7 @@ fn carrier_result_nested_array_sources_keep_paths_and_polarity() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == "held" =>
             {
                 Some(local.symbol)
@@ -350,7 +350,7 @@ fn carrier_result_nested_array_sources_keep_paths_and_polarity() {
     assert!(loans.iter().all(|loan| {
         matches!(
             facts.loan_owner_path(loan).first(),
-            Some(checked_trees::BorrowLoanOwnerSegment::FixedIndex(0))
+            Some(crate::checked_trees::BorrowLoanOwnerSegment::FixedIndex(0))
         ) && facts.loan_owner_path(loan).len() == 2
     }));
     let parameters = typed.state_parameters(state);
@@ -358,13 +358,13 @@ fn carrier_result_nested_array_sources_keep_paths_and_polarity() {
         loans
             .iter()
             .any(|loan| loan.root_symbol == parameters[0].symbol
-                && loan.kind == checked_trees::BorrowAccessKind::Read)
+                && loan.kind == crate::checked_trees::BorrowAccessKind::Read)
     );
     assert!(
         loans
             .iter()
             .any(|loan| loan.root_symbol == parameters[1].symbol
-                && loan.kind == checked_trees::BorrowAccessKind::Mutable)
+                && loan.kind == crate::checked_trees::BorrowAccessKind::Mutable)
     );
 }
 
@@ -390,7 +390,7 @@ fn carrier_result_write_only_source_never_gains_read_access() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == "held" =>
             {
                 Some(local.symbol)
@@ -406,7 +406,10 @@ fn carrier_result_write_only_source_never_gains_read_access() {
         .filter(|loan| loan.owner_symbol == held)
         .collect::<Vec<_>>();
     assert_eq!(loans.len(), 1);
-    assert_eq!(loans[0].kind, checked_trees::BorrowAccessKind::WriteOnly);
+    assert_eq!(
+        loans[0].kind,
+        crate::checked_trees::BorrowAccessKind::WriteOnly
+    );
 }
 
 #[test]
@@ -414,7 +417,9 @@ fn carrier_result_incomplete_input_frontier_cannot_select_partial_sources() {
     use crate::borrow::view_link::{
         ViewReturnAmbiguity, ViewReturnSource, resolve_view_return_source,
     };
-    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+        FixedArrayLength, TypeReferenceNode,
+    };
     let mut program = typed_program(
         r#"
         data View<'source> { body: &'source mut i32; }

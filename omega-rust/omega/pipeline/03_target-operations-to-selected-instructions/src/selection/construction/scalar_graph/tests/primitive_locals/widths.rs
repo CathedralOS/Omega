@@ -6,8 +6,8 @@ use super::{
     SelectedInstructionKind, SelectedSelectionConstraints, StructuralTypeShape, ValueId,
     ValueShape, build, evaluate_call_plan,
 };
+use crate::selected_instructions::SelectedMemoryAccessRole;
 use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
-use selected_instructions::SelectedMemoryAccessRole;
 use semantic_vocabulary::IeeeFloatFormat;
 
 fn typed_fixture(target: target::NativeTarget, scalar: ScalarType) -> LegalizedScalarFunction {
@@ -90,7 +90,7 @@ fn primitive_read_width_and_definition_substitutions_reject_on_every_target() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

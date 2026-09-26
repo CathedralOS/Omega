@@ -1,5 +1,5 @@
+use crate::tokens::TokenKind;
 use source::Span;
-use tokens::TokenKind;
 
 use crate::LexError;
 

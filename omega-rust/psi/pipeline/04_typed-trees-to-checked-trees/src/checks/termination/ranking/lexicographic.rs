@@ -1,5 +1,7 @@
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::name::Identifier;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
 
 use super::patterns;
 
@@ -8,8 +10,8 @@ use super::patterns;
 /// decreases proves termination, provided every earlier component is
 /// non-increasing.
 pub(super) fn state_has_proven_self_loop(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     decreases: ExpressionHandle,
     fields: &[Identifier],
 ) -> bool {
@@ -37,9 +39,9 @@ pub(super) fn state_has_proven_self_loop(
 }
 
 fn argument_decreases_lexicographically(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     argument: ExpressionHandle,
-    parameter: &typed_trees::signature::StateParameter,
+    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
     fields: &[Identifier],
 ) -> bool {
     let ExpressionNode::StructLiteral(struct_literal) =
@@ -76,9 +78,9 @@ enum Comparison {
 }
 
 fn component_comparison(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     value: ExpressionHandle,
-    parameter: &typed_trees::signature::StateParameter,
+    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
     field: &Identifier,
 ) -> Option<Comparison> {
     // `<param>.field - positive` strictly decreases.

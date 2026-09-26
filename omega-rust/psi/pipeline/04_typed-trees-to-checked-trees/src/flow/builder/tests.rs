@@ -1,5 +1,5 @@
+use crate::fact_plan::ScalarValue;
 use crate::tests::front_end::typed_program;
-use facts::ScalarValue;
 use numerics::bignum::BigInt;
 
 use super::build_flow_facts;
@@ -18,9 +18,9 @@ thread_local! {
 /// Mirror of `crate::lower_typed_trees` that also checks the incremental
 /// flow pass against the whole-pass reference under the same request.
 pub(crate) fn check_against_whole_pass(
-    program: typed_trees::TypedTrees,
+    program: symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     request: &crate::CheckingRequest<'_>,
-) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let reference_program = program.clone();
     let result = crate::lower_typed_trees(program, request);
     let reference =
@@ -93,8 +93,8 @@ fn reverse_chain_revisits_only_changed_inputs_before_final_materialization() {
     let independent = 64;
     let source = reverse_chain_source(length, independent);
     let program = typed_program(&source);
-    let proof_plan = proof::obligations::build_proof_plan(&program);
-    let operations = validation::infer_operational_may(&program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
+    let operations = crate::validation::infer_operational_may(&program);
     let borrow = build_borrow_facts(&program);
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&program, &proof);
@@ -201,16 +201,17 @@ fn complete_checking_matches_reference_with_reverse_chain_and_cycle() {
 fn call_free_direct_stores_leave_mutation_summaries_unbuilt() {
     let source = "machine produce() -> u8 { let mut value: u8 = 3; value = 4; value }";
     let program = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&program);
-    let operations = validation::infer_operational_may(&program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
+    let operations = crate::validation::infer_operational_may(&program);
     let borrow = build_borrow_facts(&program);
     assert!(borrow.calls.is_empty(), "fixture must have no calls");
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let baseline = build_semantic_facts(&program, &proof);
     let domains = build_domain_facts(&program, &baseline);
     let state = &program.machine_states(&program.machines()[0])[0];
-    let typed_trees::statement::StatementNode::LocalData(local) =
-        &program.statement_table.statements(state.statement_nodes)[0]
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        local,
+    ) = &program.statement_table.statements(state.statement_nodes)[0]
     else {
         panic!("fixture must declare the local before overwriting it");
     };
@@ -241,10 +242,12 @@ fn call_free_direct_stores_leave_mutation_summaries_unbuilt() {
         assert!(flow.control.calls.is_empty());
         assert!(
             flow.invalidations.events.iter().any(|(_, event)| {
-                event.mutated_root == facts::PlaceRoot::Symbol(local.symbol)
+                event.mutated_root == crate::fact_plan::PlaceRoot::Symbol(local.symbol)
                     && matches!(
                         event.source,
-                        checked_trees::FlowInvalidationSource::Statement { statement_index: 1 }
+                        crate::checked_trees::FlowInvalidationSource::Statement {
+                            statement_index: 1
+                        }
                     )
             }),
             "invocation {invocation}: the direct store must still invalidate the local's facts"
@@ -275,8 +278,8 @@ fn flow_value_input_passes_share_one_mutation_summary_table_per_invocation() {
             "#
         );
         let program = typed_program(&source);
-        let proof_plan = proof::obligations::build_proof_plan(&program);
-        let operations = validation::infer_operational_may(&program);
+        let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
+        let operations = crate::validation::infer_operational_may(&program);
         let borrow = build_borrow_facts(&program);
         let proof = build_proof_facts(&program, &proof_plan, &borrow);
         let baseline = build_semantic_facts(&program, &proof);

@@ -4,19 +4,19 @@ use crate::bodies::transitions::targets::parse_target::parse_transition_block_ta
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::statement::{
+    AssemblyFactKind, StatementHandle, StatementNode, TableAssemblyFact, TableAssignment,
+    TableCall, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetHandle,
+};
 use arena::{Handle, HandleSpan};
 use language_core::inline_assembly::{
     AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,
     AsmMemoryTransferKind, asm_catalog_entry,
 };
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
-use syntax_trees::identifier::Identifier;
-use syntax_trees::statement::{
-    AssemblyFactKind, StatementHandle, StatementNode, TableAssemblyFact, TableAssignment,
-    TableCall, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetHandle,
-};
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 /// An asm block is parsed target assembly under the stricter accepted subset,
 /// never an opaque text blob (ch23). Each mnemonic is a KNOWN-CONTRACT

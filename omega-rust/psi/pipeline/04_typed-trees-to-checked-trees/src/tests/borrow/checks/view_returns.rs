@@ -23,8 +23,8 @@ fn rejects_view_return_of_body_local() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -37,7 +37,7 @@ fn rejects_view_return_of_body_local() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -452,8 +452,8 @@ fn accepts_mutable_local_named_place_arguments() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -466,7 +466,7 @@ fn accepts_mutable_local_named_place_arguments() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -531,7 +531,7 @@ fn accepts_mutable_local_named_place_arguments() {
             .filter(|argument| {
                 matches!(
                     typed.expression_table.expression(**argument),
-                    checked_trees::expression::ExpressionNode::Borrow(_)
+                    crate::checked_trees::expression::ExpressionNode::Borrow(_)
                 )
             })
             .count(),
@@ -564,8 +564,8 @@ fn accepts_disjoint_member_borrow_arguments() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -578,7 +578,7 @@ fn accepts_disjoint_member_borrow_arguments() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,

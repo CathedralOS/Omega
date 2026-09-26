@@ -29,7 +29,7 @@ The policy-visible row is already closed and exact:
 
 - A `PsiRewriteCandidate` carries `predicted_cost_delta` (a signed scalar)
   alongside its bound identities
-  (`omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/candidate/`).
+  (`omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/optimization_unit/rewrite/candidate/`).
 - `validated_candidate_features` in the pass manager's external-policy seam
   projects a candidate only after the ordinary validator has admitted it,
   producing `ExternalCandidateFeatures` = validated summary (candidate

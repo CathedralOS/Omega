@@ -221,7 +221,10 @@ fn assert_structural_entry_requirement_artifact(source: &str) {
     for contract in &checked.facts.contract_plans.machines {
         for bucket in contract.crash.published() {
             for guard in bucket.alternative_guards() {
-                if let checked_trees::CrashRouteGuard::Predicate(predicate) = guard {
+                if let typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Predicate(
+                    predicate,
+                ) = guard
+                {
                     assert!(
                         predicate.scalar_expression().is_some(),
                         "{source}: missing retained runtime predicate for {}",

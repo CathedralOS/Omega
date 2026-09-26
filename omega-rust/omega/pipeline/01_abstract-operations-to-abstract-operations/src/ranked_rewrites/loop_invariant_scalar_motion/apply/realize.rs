@@ -5,9 +5,9 @@ use super::super::{
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
-use abstract_operations::AbstractOperation as O;
 use semantic_vocabulary::PlaceId;
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
 
 /// Remove every planned scalar node at its exact source location, rebind any
 /// invariant-parameter operands to their entry representatives, and insert the
@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /// already-relocated countdown-certificate constants.
 pub(crate) fn realize(
     unit: &PsiOptimizationUnit,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     nodes: &[LoopInvariantScalarNode],
     certificate_tail: usize,
 ) -> Result<PsiOptimizationUnit, LoopInvariantScalarMotionError> {
@@ -301,11 +301,11 @@ fn refresh_coordinates_effects_and_facts(
         .collect::<BTreeMap<_, _>>();
     function.facts.sort_by_key(|fact| {
         let support = match fact {
-            optimization_unit::OptimizationFact::OperationObligationReference {
+            terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference {
                 support, ..
             }
-            | optimization_unit::OptimizationFact::BooleanConstant { support, .. }
-            | optimization_unit::OptimizationFact::IntegerConstant { support, .. } => support,
+            | terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::BooleanConstant { support, .. }
+            | terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::IntegerConstant { support, .. } => support,
         };
         operation_order.get(support).copied()
     });

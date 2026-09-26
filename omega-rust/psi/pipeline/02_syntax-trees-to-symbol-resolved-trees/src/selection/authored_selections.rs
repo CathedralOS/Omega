@@ -7,6 +7,10 @@
 //! finalize here once their declarations have symbols.
 
 use crate::resolution::lowerer::{PendingAuthoredExpression, PendingAuthoredProofMembership};
+use crate::symbol_resolved_trees::{
+    SymbolResolvedTrees,
+    expression::{ExpressionHandle, ExpressionNode},
+};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind,
@@ -16,10 +20,6 @@ use language_semantics::declaration_selection::{
 };
 use source::SourceSpan;
 use std::collections::HashMap;
-use symbol_resolved_trees::{
-    SymbolResolvedTrees,
-    expression::{ExpressionHandle, ExpressionNode},
-};
 use symbols::{SymbolHandle, SymbolKind, SymbolLookup};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -160,7 +160,7 @@ pub(crate) fn finalize_authored_expression_selections(
     finalize_expression_groups(program, authored_expressions)?;
 
     for pending in pending_proof_memberships {
-        if let symbol_resolved_trees::domain::ProofFact::Expression(expression) =
+        if let crate::symbol_resolved_trees::domain::ProofFact::Expression(expression) =
             program.tables.declarations.proof_facts.get(pending.fact)
             && matches!(program.tables.bodies.expressions.expression(*expression),
                 ExpressionNode::Membership(membership)
@@ -171,7 +171,7 @@ pub(crate) fn finalize_authored_expression_selections(
             // The ordinary expression pass retained both case selections.
             continue;
         }
-        let symbol_resolved_trees::domain::ProofFact::Membership(membership) =
+        let crate::symbol_resolved_trees::domain::ProofFact::Membership(membership) =
             program.tables.declarations.proof_facts.get(pending.fact)
         else {
             return Err(Diagnostic::error(
@@ -209,7 +209,7 @@ pub(crate) fn finalize_authored_expression_selections(
                 ),
         }
         .map_err(record_diagnostic)?;
-        let symbol_resolved_trees::domain::ProofFact::Membership(membership) = program
+        let crate::symbol_resolved_trees::domain::ProofFact::Membership(membership) = program
             .tables
             .declarations
             .proof_facts
@@ -238,7 +238,7 @@ fn normalize_case_membership_facts(
     pending: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
     for pending in pending {
-        let symbol_resolved_trees::domain::ProofFact::Membership(membership) =
+        let crate::symbol_resolved_trees::domain::ProofFact::Membership(membership) =
             program.tables.declarations.proof_facts.get(pending.fact)
         else {
             continue;
@@ -280,7 +280,7 @@ fn normalize_case_membership_facts(
         // facts and executable expressions. This retains both authored owners
         // instead of publishing an unresolved declared-domain receipt.
         let expression = expressions.insert(ExpressionNode::Membership(
-            symbol_resolved_trees::expression::TableMembershipExpression {
+            crate::symbol_resolved_trees::expression::TableMembershipExpression {
                 value: membership.value,
                 domain,
                 domain_symbol: SymbolHandle::invalid(),
@@ -298,7 +298,7 @@ fn normalize_case_membership_facts(
             .declarations
             .proof_facts
             .get_mut(pending.fact) =
-            symbol_resolved_trees::domain::ProofFact::Expression(expression);
+            crate::symbol_resolved_trees::domain::ProofFact::Expression(expression);
     }
     Ok(())
 }
@@ -306,11 +306,11 @@ fn normalize_case_membership_facts(
 #[derive(Debug, Clone, Copy)]
 enum AuthoredStatementCallSite {
     Statement {
-        statements: arena::HandleSpan<symbol_resolved_trees::statement::Statement>,
+        statements: arena::HandleSpan<crate::symbol_resolved_trees::statement::Statement>,
         offset: usize,
     },
     TransitionTarget {
-        statements: arena::HandleSpan<symbol_resolved_trees::statement::Statement>,
+        statements: arena::HandleSpan<crate::symbol_resolved_trees::statement::Statement>,
         offset: usize,
         continuation: bool,
     },
@@ -328,8 +328,8 @@ struct AuthoredStatementCallCandidate {
 fn finalize_authored_statement_call_selections(
     program: &mut SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
+    use crate::symbol_resolved_trees::statement::Statement;
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
-    use symbol_resolved_trees::statement::Statement;
 
     let mut candidates = Vec::new();
     for machine in program.machines.iter() {
@@ -525,16 +525,16 @@ fn existing_statement_call_occurrence(
 }
 
 fn collect_authored_transition_call_candidate(
-    statements: arena::HandleSpan<symbol_resolved_trees::statement::Statement>,
+    statements: arena::HandleSpan<crate::symbol_resolved_trees::statement::Statement>,
     offset: usize,
     continuation: bool,
-    target: &symbol_resolved_trees::statement::TransitionTarget,
+    target: &crate::symbol_resolved_trees::statement::TransitionTarget,
     compiler_partition: Option<
         language_semantics::declaration_selection::CompilerDerivedSelectionPartition,
     >,
     candidates: &mut Vec<AuthoredStatementCallCandidate>,
 ) {
-    let symbol_resolved_trees::statement::TransitionTarget::Named(target) = target else {
+    let crate::symbol_resolved_trees::statement::TransitionTarget::Named(target) = target else {
         return;
     };
     if target.authored_call_selection.is_none() && nonempty(target.source_span) {
@@ -556,7 +556,7 @@ fn attach_statement_call_occurrence(
     site: AuthoredStatementCallSite,
     occurrence: AuthoredDeclarationSelectionOccurrenceId,
 ) -> Result<(), Diagnostic> {
-    use symbol_resolved_trees::statement::{Statement, TransitionTarget};
+    use crate::symbol_resolved_trees::statement::{Statement, TransitionTarget};
 
     let (statements, offset) = match site {
         AuthoredStatementCallSite::Statement { statements, offset }
@@ -621,7 +621,7 @@ pub(crate) fn finalize_conformance_reference_selections(
         .conformances
         .iter()
         .flat_map(|conformance| match &conformance.implementation {
-            symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
+            crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
                 rows,
             } => rows
                 .iter()
@@ -630,7 +630,7 @@ pub(crate) fn finalize_conformance_reference_selections(
                         .map(|source_span| (source_span, row.realization_machine))
                 })
                 .collect::<Vec<_>>(),
-            symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
+            crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
                 Vec::new()
             }
         })
@@ -692,7 +692,7 @@ fn selection_already_recorded(
     program: &SymbolResolvedTrees,
     candidate: UnattachedCandidate,
 ) -> bool {
-    use symbol_resolved_trees::AuthoredDeclarationSelectionTarget;
+    use crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget;
 
     program.authored_declaration_selections().iter().any(|row| {
         row.source_span() == candidate.source_span
@@ -774,7 +774,7 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
 
 fn collect_conformance_bound_candidates(
     program: &SymbolResolvedTrees,
-    bounds: &[symbol_resolved_trees::machine::GenericConformanceBound],
+    bounds: &[crate::symbol_resolved_trees::machine::GenericConformanceBound],
     exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     candidates: &mut Vec<UnattachedCandidate>,
 ) {
@@ -811,7 +811,7 @@ fn collect_conformance_bound_candidates(
 
 fn collect_bound_static_argument_candidates(
     program: &SymbolResolvedTrees,
-    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    arguments: &[crate::symbol_resolved_trees::expression::StaticMachineArgument],
     exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     fallback_span: SourceSpan,
     candidates: &mut Vec<UnattachedCandidate>,
@@ -848,7 +848,8 @@ fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidat
                 .state_statements
                 .span_or_empty(state.statements)
             {
-                let symbol_resolved_trees::statement::Statement::Call(call) = statement else {
+                let crate::symbol_resolved_trees::statement::Statement::Call(call) = statement
+                else {
                     continue;
                 };
                 collect_statement_static_argument_candidates(
@@ -867,7 +868,7 @@ fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidat
 
 fn collect_statement_static_argument_candidates(
     program: &SymbolResolvedTrees,
-    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    arguments: &[crate::symbol_resolved_trees::expression::StaticMachineArgument],
     fallback_span: SourceSpan,
     candidates: &mut Vec<UnattachedCandidate>,
 ) {
@@ -908,8 +909,10 @@ fn contract_clause_expression_handles(
             .span_or_empty(contract.facts)
         {
             let root = match fact {
-                symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
-                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                crate::symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                    *expression
+                }
+                crate::symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
                     membership.value
                 }
             };
@@ -978,7 +981,8 @@ fn collect_expression_subtree(
             collect_expression_subtree(program, dispatch.subject, handles);
             for arm in expressions.match_arms(dispatch.arms) {
                 collect_expression_subtree(program, arm.value, handles);
-                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                if let crate::symbol_resolved_trees::expression::MatchPattern::Value(pattern) =
+                    arm.pattern
                 {
                     collect_expression_subtree(program, pattern, handles);
                 }
@@ -1247,7 +1251,7 @@ fn is_selectable_declaration_symbol(program: &SymbolResolvedTrees, symbol: Symbo
 fn collect_static_argument_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
-    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    arguments: &[crate::symbol_resolved_trees::expression::StaticMachineArgument],
     defer_call_arguments: bool,
     candidates: &mut Vec<Candidate>,
 ) {
@@ -1285,7 +1289,7 @@ fn collect_static_argument_candidates(
 
 fn has_authored_static_declaration(
     program: &SymbolResolvedTrees,
-    argument: &symbol_resolved_trees::expression::StaticMachineArgument,
+    argument: &crate::symbol_resolved_trees::expression::StaticMachineArgument,
 ) -> bool {
     // Boolean literals share the historical path-shaped static argument
     // storage, but select a value, not a declaration needing a symbol.
@@ -1324,7 +1328,7 @@ fn resolved_or_late(symbol: SymbolHandle, late: LateBinding) -> CandidateTarget 
 }
 
 fn path_span(
-    members: &[symbol_resolved_trees::name::DiagnosticName],
+    members: &[crate::symbol_resolved_trees::name::DiagnosticName],
     fallback: SourceSpan,
 ) -> SourceSpan {
     let Some(first) = members.first() else {

@@ -4,14 +4,14 @@
 //! names a static element and must lie within its array's declared extent; a
 //! runtime selector is the statement's retained `AssignmentIndex { depth }`
 //! scalar (depth counted from the target inward, the coordinate
-//! `validation::assignment_target_selectors` defines) and becomes a
+//! `crate::validation::assignment_target_selectors` defines) and becomes a
 //! `RuntimeIndex` path segment. The planner proves no bound for a runtime
 //! element: Terminal re-proves `index < extent` for the segment's obligation.
 use super::super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedUnitStructuralPathSegment, ExpressionNode,
     PrimitiveType, TypeReferenceNode, TypedTrees,
 };
-use typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 
 pub(in crate::execution::terminal_unit) struct TargetSelectors {
     /// The target's selector expressions from the target inward.
@@ -27,12 +27,12 @@ impl TargetSelectors {
     pub(in crate::execution::terminal_unit) fn resolve(
         program: &TypedTrees,
         facts: &CheckFacts,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statement_index: u32,
         target: ExpressionHandle,
     ) -> Option<Self> {
-        let selectors = validation::assignment_target_selectors(program, target);
+        let selectors = crate::validation::assignment_target_selectors(program, target);
         let mut cursor = target;
         let mut depth = 0usize;
         loop {
@@ -41,15 +41,16 @@ impl TargetSelectors {
                     if selectors.get(depth) != Some(&indexed.index) {
                         return None;
                     }
-                    let collection = validation::declared_place_type_raw(
+                    let collection = crate::validation::declared_place_type_raw(
                         program,
                         machine,
                         Some(state),
                         indexed.collection,
                     )?;
-                    let collection = validation::unwrapped_type_reference(program, collection)?;
+                    let collection =
+                        crate::validation::unwrapped_type_reference(program, collection)?;
                     let TypeReferenceNode::FixedArray {
-                        length: typed_trees::types::FixedArrayLength::Literal(length),
+                        length: symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(length),
                         ..
                     } = program.type_reference_table.type_reference(collection)
                     else {
@@ -91,7 +92,7 @@ impl TargetSelectors {
             .iter()
             .position(|selector| *selector == expression)?;
         Some(CheckedUnitStructuralPathSegment::RuntimeIndex(
-            checked_trees::CheckedRuntimeIndex::AssignmentIndex {
+            crate::checked_trees::CheckedRuntimeIndex::AssignmentIndex {
                 depth: u32::try_from(depth).ok()?,
             },
         ))
@@ -115,8 +116,8 @@ impl TargetSelectors {
 /// selector needs no conversion and composes freely.
 fn retained(
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: u32,
     depth: u32,
     index: ExpressionHandle,
@@ -159,8 +160,10 @@ fn retained(
         && integer(Some(node.primitive_type))
         && (node.primitive_type == PrimitiveType::U64
             || match &node.kind {
-                checked_trees::CheckedScalarComputationKind::StructuralField { .. } => true,
-                checked_trees::CheckedScalarComputationKind::Value(value) => direct_selector(value),
+                crate::checked_trees::CheckedScalarComputationKind::StructuralField { .. } => true,
+                crate::checked_trees::CheckedScalarComputationKind::Value(value) => {
+                    direct_selector(value)
+                }
                 _ => false,
             }))
     .then_some(())
@@ -168,10 +171,10 @@ fn retained(
 
 /// A selector value that is passed or read from a stored field, not
 /// computed in this body.
-fn direct_selector(value: &checked_trees::CheckedScalarExpression) -> bool {
+fn direct_selector(value: &crate::checked_trees::CheckedScalarExpression) -> bool {
     matches!(
         value,
-        checked_trees::CheckedScalarExpression::Parameter { .. }
-            | checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
+        crate::checked_trees::CheckedScalarExpression::Parameter { .. }
+            | crate::checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
     )
 }

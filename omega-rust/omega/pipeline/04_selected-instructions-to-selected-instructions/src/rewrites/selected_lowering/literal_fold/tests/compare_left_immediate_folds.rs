@@ -16,21 +16,21 @@ use super::{
     policy_without, restage_literal, staged_inputs, staged_left_inputs, successor, unsigned,
     validate,
 };
+use crate::register_homes::{RecoveryClassification, RecoveryVictimRole};
 use crate::{LiteralFoldError, LiteralFoldPolicy};
-use register_environment::{
+use semantic_vocabulary::{BlockId, EdgeId, IntegerValue, ValueId};
+use std::sync::Arc;
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
-use register_homes::{RecoveryClassification, RecoveryVictimRole};
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     MachineEffectCatalogIdentity, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlanIdentity, SelectedInstructionProvenance, SelectedOperand,
     SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{BlockId, EdgeId, IntegerValue, ValueId};
-use std::sync::Arc;
-use target::NativeTarget;
 
 /// Apply `edit` to the staged function's selected plan in place — the
 /// fold reads the plan only through `inputs.selected.transformed`.
@@ -757,7 +757,9 @@ fn left_compare_fold_rejects_decorated_and_misshapen_operands() {
             // A `fixed_view` pin on the victim would silently drop with
             // the rebuilt operand list.
             0 => edit_compare(&mut inputs, |compare| {
-                compare.operands[0].fixed_view = Some(register_model::RegisterViewId(0));
+                compare.operands[0].fixed_view = Some(
+                    target_operations_to_selected_instructions::register_model::RegisterViewId(0),
+                );
             }),
             // A `tied_to` tie has no carried meaning once the operands are
             // rebuilt from the row.
@@ -809,8 +811,14 @@ fn left_compare_fold_rejects_unadmitted_candidate_shapes() {
             // Only an `Incoming` victim may fold.
             0 => {
                 slot.role = RecoveryVictimRole::ActiveResident {
-                    current_view: register_model::RegisterViewId(0),
-                    reclaimed_view: register_model::RegisterViewId(0),
+                    current_view:
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
+                    reclaimed_view:
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
                 };
                 LiteralFoldError::UnsupportedVictimRole { function: 0 }
             }

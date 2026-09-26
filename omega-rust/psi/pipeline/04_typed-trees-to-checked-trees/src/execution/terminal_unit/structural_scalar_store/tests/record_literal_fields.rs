@@ -4,11 +4,11 @@
 //! coordinate and each store names the target's full carrier path. The same
 //! admission covers `addr` members — an address rides the pointer-width
 //! integer lane like any other scalar leaf.
-use checked_trees::{
+use crate::checked_trees::{
     CheckedStructuralScalarFieldStoreValue, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 fn plan(source: &str) -> Option<CheckedUnitEffectMachinePlan> {
     let mut typed = crate::tests::front_end::typed_program_with_core_service(source);

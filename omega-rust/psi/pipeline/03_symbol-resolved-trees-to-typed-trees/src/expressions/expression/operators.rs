@@ -1,5 +1,5 @@
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use crate::typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(super) fn lower_binary_operator(
     operator: resolved::expression::BinaryOperator,

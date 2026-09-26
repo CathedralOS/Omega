@@ -4,7 +4,7 @@ use super::{
     ScalarType, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueId,
     VirtualRegisterId, build, fixture,
 };
-use selected_instructions::{LocalStorageSlotId, SelectedBoundarySettlementPayload};
+use crate::selected_instructions::{LocalStorageSlotId, SelectedBoundarySettlementPayload};
 use semantic_vocabulary::BoundaryMachineId;
 
 #[test]
@@ -24,15 +24,17 @@ fn byte_output_replay_binds_scalar_scratch_effect_and_boundary() {
         constant.kind = LegalizedScalarInstructionKind::Constant(IntegerValue::Signed(255));
         let row = &mut source.blocks[0].instructions[1];
         row.result = None;
-        row.ownership = vec![optimization_unit::OwnershipEvent::ClaimCompletion(
-            Vec::new(),
-        )];
+        row.ownership = vec![
+            terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(
+                Vec::new(),
+            ),
+        ];
         row.kind = LegalizedScalarInstructionKind::HostedWriteByteI32 {
             boundary: BoundaryMachineId::new(1).unwrap(),
             source: ValueId::new(1).unwrap(),
         };
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -60,7 +62,7 @@ fn byte_output_replay_binds_scalar_scratch_effect_and_boundary() {
         validate(&selected).unwrap();
         for ownership in [
             Vec::new(),
-            vec![optimization_unit::OwnershipEvent::ClaimCompletion(vec![
+            vec![terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(vec![
                 semantic_vocabulary::ClaimId::new(1).unwrap(),
             ])],
         ] {

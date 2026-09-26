@@ -2,8 +2,8 @@
 //! Record values keep their exact value roots and edge-owned disposal; scalar
 //! observations do not turn the record into a scalar binding or move its owner.
 
-use checked_trees::{CheckFacts, CheckedUnitEffectOperationPlan};
-use typed_trees::{TypedTrees, statement::StatementNode};
+use crate::checked_trees::{CheckFacts, CheckedUnitEffectOperationPlan};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{TypedTrees, statement::StatementNode};
 
 pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
     // Borrow the established graph catalog during call construction. It remains
@@ -53,7 +53,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                             matches!(statement, StatementNode::Call(_))
                                 || matches!(statement, StatementNode::Assignment(assignment)
                                     if matches!(program.expression_table.expression(assignment.target),
-                                        typed_trees::expression::ExpressionNode::Member(_)))
+                                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(_)))
                                 || matches!(statement, StatementNode::LocalData(local)
                                 if program.primitive_type_reference(local.type_reference).is_none()
                                     && !local.name.as_str().starts_with("__arm_destructure#"))
@@ -83,7 +83,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                     program,
                                     local.type_reference,
                                 )?;
-                                validation::record_local_disposition(
+                                crate::validation::record_local_disposition(
                                     program,
                                     facts,
                                     machine.symbol,
@@ -91,7 +91,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                     ordinal,
                                 )?;
                                 let result =
-                                    checked_trees::CheckedUnitStructuralResultBindingPlan {
+                                    crate::checked_trees::CheckedUnitStructuralResultBindingPlan {
                                         statement_index: ordinal,
                                         binding_ordinal: structural_count,
                                         type_identity: program
@@ -175,8 +175,8 @@ fn eligible(
     facts: &CheckFacts,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> bool {
-    use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
-    use typed_trees::types::TypeReferenceNode;
+    use crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
     let CheckedUnitEffectOperationPlan::CallUnit {
         target_machine,
         target_state,

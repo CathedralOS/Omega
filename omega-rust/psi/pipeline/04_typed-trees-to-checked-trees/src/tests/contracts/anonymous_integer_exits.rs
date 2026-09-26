@@ -11,8 +11,10 @@ fn check_expression(expression: &str, target: &str, expected: &str, accepted: bo
     }
 }
 
-fn combine_return_arms(program: &mut typed_trees::TypedTrees) {
-    use typed_trees::statement::StatementNode;
+fn combine_return_arms(
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
     let machine = program.machines()[0].clone();
     let nodes = program.machine_states(&machine)[0].statement_nodes;
     let count = nodes.count() as usize;
@@ -181,12 +183,16 @@ fn anonymous_operator_meaning_requires_intact_selection_custody() {
         .expression_table
         .iter_expressions()
         .find_map(|(handle, node)| {
-            matches!(node, typed_trees::expression::ExpressionNode::Binary(_)).then_some(handle)
+            matches!(node, symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(_)).then_some(handle)
         })
         .unwrap();
-    assert!(validation::has_anonymous_operator_meaning(&program, root));
+    assert!(crate::validation::has_anonymous_operator_meaning(
+        &program, root
+    ));
     program.retain_authored_declaration_selections(Default::default());
-    assert!(!validation::has_anonymous_operator_meaning(&program, root));
+    assert!(!crate::validation::has_anonymous_operator_meaning(
+        &program, root
+    ));
 
     let program = parse_typed_trees(
         r#"
@@ -198,10 +204,12 @@ fn anonymous_operator_meaning_requires_intact_selection_custody() {
         .expression_table
         .iter_expressions()
         .find_map(|(handle, node)| {
-            matches!(node, typed_trees::expression::ExpressionNode::Binary(_)).then_some(handle)
+            matches!(node, symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(_)).then_some(handle)
         })
         .unwrap();
-    assert!(!validation::has_anonymous_operator_meaning(&program, root));
+    assert!(!crate::validation::has_anonymous_operator_meaning(
+        &program, root
+    ));
 }
 
 #[test]
@@ -225,7 +233,7 @@ fn destination_landing_preserves_each_shared_call_argument_destination() {
                 .expression_table
                 .iter_expressions()
                 .find_map(|(handle, node)| match node {
-                    typed_trees::expression::ExpressionNode::Integer(literal)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Integer(literal)
                         if literal.value_u64() == Some(u64::MAX) =>
                     {
                         Some(handle)
@@ -240,13 +248,13 @@ fn destination_landing_preserves_each_shared_call_argument_destination() {
                 .unwrap();
             let state = &program.machine_states(bad)[0];
             let arguments = match &program.statement_table.statements(state.statement_nodes)[0] {
-                typed_trees::statement::StatementNode::Call(call) => call.arguments,
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) => call.arguments,
                 _ => panic!("expected statement call"),
             };
             program
                 .statement_table
                 .set_expression_handle_at_offset(arguments, 0, large);
-            let result = validation::validate_program(&program);
+            let result = crate::validation::validate_program(&program);
             if supported {
                 result.unwrap_or_else(|diagnostics| {
                     panic!("exact u64 argument destination: {diagnostics:#?}")

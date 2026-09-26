@@ -1,7 +1,7 @@
 use super::{declared_field, declared_symbol_type};
 use crate::lower_symbol_resolved_trees;
-use symbol_resolved_trees as resolved;
 use symbols::SymbolHandle;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 const PROJECTED_MEASURES: &str = "
     data First { remaining: u64; }
@@ -23,12 +23,13 @@ fn projected_member(
 }
 
 fn typed_member(
-    program: &typed_trees::TypedTrees,
+    program: &crate::typed_trees::TypedTrees,
     measure_position: usize,
-) -> &typed_trees::expression::TableMemberExpression {
+) -> &crate::typed_trees::expression::TableMemberExpression {
     let expressions = &program.expression_table;
     let body = expressions.expression_handles(program.measures()[measure_position].body)[0];
-    let typed_trees::expression::ExpressionNode::Member(member) = expressions.expression(body)
+    let crate::typed_trees::expression::ExpressionNode::Member(member) =
+        expressions.expression(body)
     else {
         panic!("typed measure field projection");
     };
@@ -140,7 +141,7 @@ fn nested_constructor_projections_bind_fields_and_preserve_conflicting_selection
     let typed = lower_symbol_resolved_trees(&program).expect("literal receiver typing");
     let mut projections = 0;
     for (_, expression) in typed.expression_table.expression_entries() {
-        let typed_trees::expression::ExpressionNode::Member(member) = expression else {
+        let crate::typed_trees::expression::ExpressionNode::Member(member) = expression else {
             continue;
         };
         assert!(
@@ -176,7 +177,7 @@ fn nested_constructor_projections_bind_fields_and_preserve_conflicting_selection
         lower_symbol_resolved_trees(&program).expect("retain conflicting projection for checking");
     assert!(typed.expression_table.expression_entries().any(
         |(_, expression)| matches!(expression,
-        typed_trees::expression::ExpressionNode::Member(member)
+        crate::typed_trees::expression::ExpressionNode::Member(member)
             if member.member.as_str() == "size" && member.member_symbol == foreign)
     ));
 }
@@ -192,11 +193,11 @@ fn module_constructor_projection_keeps_its_declaring_field_owner() {
         .expression_table
         .expression_entries()
         .find_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::Member(member) => Some(member),
+            crate::typed_trees::expression::ExpressionNode::Member(member) => Some(member),
             _ => None,
         })
         .expect("module constant field projection");
-    let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+    let crate::typed_trees::expression::ExpressionNode::StructLiteral(literal) =
         typed.expression_table.expression(member.receiver)
     else {
         panic!("module constructor");
@@ -243,7 +244,7 @@ fn array_constructor_projection_needs_the_retained_declaration_type() {
     assert_eq!(program.symbols.name(owner), "Cell");
     let typed = lower_symbol_resolved_trees(&program).expect("type array element field");
     assert!(typed.expression_table.expression_entries().any(|(_, node)| {
-        matches!(node, typed_trees::expression::ExpressionNode::Member(member) if member.member_symbol == field)
+        matches!(node, crate::typed_trees::expression::ExpressionNode::Member(member) if member.member_symbol == field)
     }));
     program.roots.const_declarations = Default::default();
     assert!(

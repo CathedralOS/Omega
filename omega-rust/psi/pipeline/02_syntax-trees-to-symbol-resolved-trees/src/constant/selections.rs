@@ -1,11 +1,11 @@
 //! Finalizing const selections, declarations and argument selections.
 
 use crate::constant::carrier;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionRecordError,
 };
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::SymbolKind;
 
 /// Attach the authored const selection to the substituted expression. The
@@ -217,7 +217,7 @@ pub(crate) fn finalize_const_argument_selections(
                 Diagnostic::error("constant lost its receiving generic slot")
                     .with_source_span(origin.reference)
             })?;
-            let symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
+            let crate::symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
                 &parameter.kind
             else {
                 return Err(
@@ -233,7 +233,8 @@ pub(crate) fn finalize_const_argument_selections(
                 ) {
                     return Err(Diagnostic::error("selected constant nominal carrier differs from its receiving generic parameter").with_source_span(origin.reference));
                 }
-                let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument
+                let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name } =
+                    argument
                 else {
                     return Err(Diagnostic::error(
                         "nominal constant receiving argument lost its canonical value",

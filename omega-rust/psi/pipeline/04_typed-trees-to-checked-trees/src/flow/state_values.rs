@@ -1,18 +1,20 @@
 //! Explicit state inputs derived from live edge contexts, not declarations.
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::{BorrowCallFact, FlowSemanticContextRef};
+use crate::fact_plan::ScalarValue;
+use crate::fact_plan::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
 use crate::semantic::calls::CallSite;
 #[cfg(test)]
 use crate::semantic::calls::find_call_site;
 use arena::HandleSpan;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{BorrowCallFact, FlowSemanticContextRef};
-use facts::ScalarValue;
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    TransitionExit, TransitionTargetNode,
 };
 use symbols::SymbolHandle;
-use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 mod arguments;
 pub(super) mod fields;
@@ -38,7 +40,7 @@ pub(super) struct StateValues {
 pub(super) fn field_predicate_ceiling<'a>(
     build: &'a FlowBuildContext<'_>,
     state: SymbolHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[crate::fact_plan::PlaceSegment],
 ) -> &'a [crate::facts::field_domain::ByteSequencePredicate] {
     let field = build
         .state_value_inputs
@@ -50,8 +52,8 @@ pub(super) fn field_predicate_ceiling<'a>(
 
 fn reachable(
     build: &FlowBuildContext,
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state: SymbolHandle,
 ) -> bool {
     program
@@ -65,9 +67,9 @@ fn reachable(
 }
 
 fn join(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     source: fields::BoundsSource,
     incoming: StateValues,
 ) {
@@ -125,7 +127,9 @@ fn join(
     }
 }
 
-pub(super) fn unknown_inputs(program: &typed_trees::TypedTrees) -> Vec<StateValues> {
+pub(super) fn unknown_inputs(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> Vec<StateValues> {
     program
         .machines()
         .iter()
@@ -148,7 +152,10 @@ pub(super) fn unknown_inputs(program: &typed_trees::TypedTrees) -> Vec<StateValu
         .collect()
 }
 
-fn literal(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> Option<ScalarValue> {
+fn literal(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ScalarValue> {
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
@@ -160,11 +167,11 @@ fn literal(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> O
 }
 
 fn value_at_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &FactPlan,
     build: &FlowBuildContext,
     contexts: HandleSpan<FlowSemanticContextRef>,
-    place: facts::PlaceHandle,
+    place: crate::fact_plan::PlaceHandle,
 ) -> ScalarValue {
     let Some(place) =
         canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
@@ -187,13 +194,13 @@ fn value_at_place(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn record_transition(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    transition: &typed_trees::statement::TableTransition,
-    target: typed_trees::statement::TransitionTargetHandle,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
     argument_values: &[ScalarValue],
     argument_qualifications: Vec<qualifications::QualifiedInput>,
@@ -240,7 +247,7 @@ pub(super) fn record_transition(
             .primitive_type_reference(parameter.type_reference)
             .is_some_and(|primitive| {
                 primitive.accepts_integer_literal()
-                    || primitive == typed_trees::types::PrimitiveType::Bool
+                    || primitive == symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
             });
         let value = if !scalar {
             ScalarValue::Unknown
@@ -282,10 +289,10 @@ pub(super) fn record_transition(
 
 /// Ordinary invocations are not narrowed by the internal transition proof.
 pub(super) fn record_invocation<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     build: &mut FlowBuildContext<'plans>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     call: &BorrowCallFact,
 ) {
     if !reachable(build, program, machine, state.symbol) {
@@ -343,11 +350,11 @@ pub(super) fn record_invocation<'plans>(
 }
 
 pub(super) fn append_entry_context(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) {
     let Some(input) = build
         .state_value_inputs

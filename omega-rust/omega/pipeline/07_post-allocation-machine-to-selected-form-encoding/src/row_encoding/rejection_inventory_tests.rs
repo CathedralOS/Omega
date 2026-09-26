@@ -7,8 +7,8 @@
 //! counts/identity tamper and the roster-level checks live in
 //! `validation/aggregate.rs` and the validated-plan consumers.
 
-use register_model::RegisterUnitId;
-use selected_instructions::{MachineSizeKnowledge, SelectedInstructionId};
+use target_operations_to_selected_instructions::register_model::RegisterUnitId;
+use target_operations_to_selected_instructions::{MachineSizeKnowledge, SelectedInstructionId};
 
 use super::{SelectedFormEncodingState, encode_row};
 use crate::{OptimizedSelectedFormEncodingError, validation};
@@ -189,7 +189,7 @@ fn encoded_state_on_deferred_control_kind_rejects_in_replay() {
     let (physical, mut selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
     let ordinary_row = encode_row(target, &selected, &machine, &physical, None).unwrap();
-    selected.kind = selected_instructions::SelectedInstructionKind::Jump;
+    selected.kind = target_operations_to_selected_instructions::SelectedInstructionKind::Jump;
     let mut row = encode_row(target, &selected, &machine, &physical, None).unwrap();
     assert!(matches!(
         row.state,

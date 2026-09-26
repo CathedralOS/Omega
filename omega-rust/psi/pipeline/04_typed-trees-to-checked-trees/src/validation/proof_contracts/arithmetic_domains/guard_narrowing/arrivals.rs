@@ -1,0 +1,905 @@
+//! State arrivals use the source evaluation environment and the exact jump
+//! argument telescope. Each round starts from an overapproximation, including
+//! every backedge; stopping before convergence only loses precision.
+use super::super::{
+    TypeReferenceHandle, TypeReferenceNode, enforced_declared_range,
+    record_unsigned_literal_assignment,
+};
+use super::{
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
+    ProofFact, SignatureContractKind, State, TypedTrees, ValueEnvironment, declared_place_type_raw,
+    incoming_guard_environment, literal_i64, narrow_environment_by_condition, ordered_values,
+    place_path,
+};
+use crate::validation::CallFrameResolver;
+use crate::validation::proof_contracts::arithmetic_domains::expression_analysis::analyze;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionGuardNode, TransitionTargetNode,
+};
+use symbols::SymbolHandle;
+
+mod transition_arguments;
+
+/// Bound one exact terminal expression using every arrival and the effects of
+/// its state prefix, or a named target-arm argument under its co-located guard.
+/// The latter uses declared bounds only, without inherited arrival facts.
+/// Authored requirements are assumptions of body checking;
+/// call/transition validation must independently discharge those requirements.
+pub fn arrival_integer_expression_bounds(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<(i64, i64)> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    if let Some(StatementNode::Transition(transition)) = statements.get(statement_index) {
+        return transition_arguments::integer_bounds(
+            program, machine, state, transition, expression,
+        );
+    }
+    if !matches!(statements.get(statement_index), Some(StatementNode::Expression(value)) if *value == expression)
+    {
+        return None;
+    }
+    let frames = CallFrameResolver::new(program);
+    let mut environment = incoming_guard_environment(program, machine, state, frames.as_ref());
+    seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
+    let mut walk = ArrivalWalk {
+        program,
+        machine,
+        frames: frames.as_ref(),
+        arrivals: Vec::new(),
+    };
+    if !walk.statements(state, &statements[..statement_index], &mut environment) {
+        return None;
+    }
+    walk.expression(state, expression, &mut environment);
+    // Within the consuming expression, an aggregate effect frame also covers
+    // reads evaluated before a later mutating child.
+    walk.expression_effects(expression, &mut environment);
+    let interval = walk.interval(state, expression, &environment);
+    let (low, high) = (interval.low?, interval.high?);
+    (low <= high).then_some((low, high))
+}
+
+pub(super) fn seed_state_requirements(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    frames: Option<&CallFrameResolver>,
+    environment: &mut ValueEnvironment,
+) {
+    let is_entry = program
+        .machine_states(machine)
+        .first()
+        .is_some_and(|entry| entry.symbol == state.symbol);
+    let machine_written = (!is_entry)
+        .then(|| machine_written_paths(program, machine, frames))
+        .flatten();
+    RequirementSeeds::new(
+        program,
+        machine,
+        state,
+        frames,
+        is_entry,
+        machine_written.as_deref(),
+    )
+    .apply(program, machine, state, environment);
+}
+
+/// Every place the machine's complete state write frames can write, or
+/// `None` when a frame is opaque. Only a machine-level `requires` condition
+/// reads it, so a machine without one never infers its frames here.
+fn machine_written_paths(
+    program: &TypedTrees,
+    machine: &Machine,
+    frames: Option<&CallFrameResolver>,
+) -> Option<Vec<String>> {
+    let has_machine_requires = program
+        .machine_contracts(machine)
+        .iter()
+        .any(|contract| contract.kind == SignatureContractKind::Requires);
+    if !has_machine_requires {
+        return None;
+    }
+    frames.and_then(|frames| {
+        frames
+            .inferred_machine_state_write_frames(machine)
+            .into_iter()
+            .map(|frame| frame.into_complete_paths())
+            .collect::<Option<Vec<_>>>()
+            .map(|paths| paths.concat())
+    })
+}
+
+/// The `requires` conditions that seed one state's arrival, and the
+/// environment they establish on their own. Neither depends on the arriving
+/// environment, so a fixed-point walk selects them once per state and only
+/// re-narrows each round's arrival by them.
+pub(super) struct RequirementSeeds {
+    conditions: Vec<ExpressionHandle>,
+    required: ValueEnvironment,
+}
+
+impl RequirementSeeds {
+    pub(super) fn new(
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        frames: Option<&CallFrameResolver>,
+        is_entry: bool,
+        machine_written: Option<&[String]>,
+    ) -> Self {
+        let mut conditions = Vec::new();
+        // A machine-level `requires` fact is a precondition on entry. It still
+        // holds at a later state's entry exactly when every place the recorded
+        // facts name survives the whole machine's write frame; otherwise a
+        // preheader or loop-body write could leave the contract stale before
+        // this arrival (the same machine-preservation law the loop-invariant
+        // index discharge applies to authored bound chains).
+        for contract in program.machine_contracts(machine) {
+            if contract.kind != SignatureContractKind::Requires {
+                continue;
+            }
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                if let ProofFact::Expression(condition) = fact
+                    && condition_belongs_to_state(program, machine, state, *condition, frames)
+                    && (is_entry
+                        || machine_requires_survives(
+                            program,
+                            machine,
+                            state,
+                            machine_written,
+                            *condition,
+                        ))
+                {
+                    conditions.push(*condition);
+                }
+            }
+        }
+        for contract in program.state_contracts(state) {
+            if contract.kind != SignatureContractKind::Requires {
+                continue;
+            }
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                if let ProofFact::Expression(condition) = fact
+                    && condition_belongs_to_state(program, machine, state, *condition, frames)
+                {
+                    conditions.push(*condition);
+                }
+            }
+        }
+        let mut required = ValueEnvironment::new();
+        for condition in &conditions {
+            narrow_environment_by_condition(
+                program,
+                machine,
+                Some(state),
+                &mut required,
+                *condition,
+                true,
+            );
+        }
+        Self {
+            conditions,
+            required,
+        }
+    }
+
+    pub(super) fn apply(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        environment: &mut ValueEnvironment,
+    ) {
+        for condition in &self.conditions {
+            narrow_environment_by_condition(
+                program,
+                machine,
+                Some(state),
+                environment,
+                *condition,
+                true,
+            );
+        }
+        if environment.intervals.values().any(|interval| {
+            interval
+                .low
+                .zip(interval.high)
+                .is_some_and(|(low, high)| low > high)
+        }) {
+            // An arrival violating requires is rejected by the call-contract
+            // checker. Check this body's return under its authored
+            // assumptions, without using an empty interval as evidence for a
+            // produced value.
+            *environment = self.required.clone();
+        }
+    }
+}
+
+/// A machine-level `requires` condition carries into a non-entry state only
+/// when the machine can never overwrite a place its recorded facts mention.
+/// Re-recording the condition and applying the ordinary write-invalidation
+/// law keeps the stability test on exactly the operands the environment
+/// would use, `.len` operands included. An opaque write frame or any dropped
+/// fact fails closed: the fact stays entry-only, as before.
+fn machine_requires_survives(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    machine_written: Option<&[String]>,
+    condition: ExpressionHandle,
+) -> bool {
+    let Some(written) = machine_written else {
+        return false;
+    };
+    let mut seeded = ValueEnvironment::new();
+    narrow_environment_by_condition(program, machine, Some(state), &mut seeded, condition, true);
+    let mut retained = seeded.clone();
+    retained.invalidate_written_paths(written);
+    retained == seeded
+}
+
+fn condition_belongs_to_state(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    frames: Option<&CallFrameResolver>,
+) -> bool {
+    if literal_i64(program, expression).is_some() {
+        return true;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            path.symbol.is_valid()
+                && path.head_symbol.is_valid()
+                && (program
+                    .state_parameters(state)
+                    .iter()
+                    .any(|parameter| parameter.symbol == path.head_symbol)
+                    // The receiver parameter's name path binds to the machine
+                    // symbol, not the `is_self` parameter symbol; a `requires`
+                    // fact on `self` or its fields is a precondition on an
+                    // established input and belongs to every state the
+                    // receiver scope covers (same `attached` rule as
+                    // `ordered_values::build_operand`).
+                    || (path.symbol == path.head_symbol
+                        && path.symbol == machine.symbol
+                        && program
+                            .state_parameters(state)
+                            .iter()
+                            .any(|parameter| parameter.is_self))
+                    || (path.symbol == path.head_symbol
+                        && program
+                            .machine_type_parameters(machine)
+                            .iter()
+                            .any(|parameter| {
+                                parameter.symbol == path.symbol
+                                    && matches!(
+                                        parameter.kind,
+                                        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { .. }
+                                            | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { .. }
+                                    )
+                            })))
+        }
+        ExpressionNode::Member(member) => {
+            // The builtin `.len` selector carries no declared field symbol;
+            // admit it through the same structural receiver check
+            // `ordered_values::build_operand` uses for its CollectionLength
+            // operand.
+            (member.member_symbol.is_valid()
+                || crate::validation::value_custody::places::collection_length_receiver(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .is_some())
+                && condition_belongs_to_state(program, machine, state, member.receiver, frames)
+        }
+        ExpressionNode::Binary(binary) => {
+            condition_belongs_to_state(program, machine, state, binary.left, frames)
+                && condition_belongs_to_state(program, machine, state, binary.right, frames)
+        }
+        ExpressionNode::Unary(unary) => {
+            condition_belongs_to_state(program, machine, state, unary.operand, frames)
+        }
+        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => true,
+        ExpressionNode::Call(_) => {
+            ordered_values::operand_with_frames(program, machine, state, expression, frames)
+                .is_some()
+        }
+        _ => false,
+    }
+}
+
+pub(super) fn incoming_environments(
+    program: &TypedTrees,
+    machine: &Machine,
+    frames: Option<&CallFrameResolver>,
+) -> Vec<(SymbolHandle, ValueEnvironment)> {
+    let states = program.machine_states(machine);
+    let mut current = states
+        .iter()
+        .map(|state| (state.symbol, ValueEnvironment::new()))
+        .collect::<Vec<_>>();
+    let machine_written = (states.len() > 1)
+        .then(|| machine_written_paths(program, machine, frames))
+        .flatten();
+    let seeds = states
+        .iter()
+        .enumerate()
+        .map(|(index, state)| {
+            RequirementSeeds::new(
+                program,
+                machine,
+                state,
+                frames,
+                index == 0,
+                machine_written.as_deref(),
+            )
+        })
+        .collect::<Vec<_>>();
+    // The entry's external arrival is the same in every round.
+    let external = states
+        .first()
+        .zip(seeds.first())
+        .map(|(entry, entry_seeds)| {
+            let mut external = ValueEnvironment::new();
+            entry_seeds.apply(program, machine, entry, &mut external);
+            external
+        });
+    // One round per state propagates acyclic chains. Cycles also contribute in
+    // every round, starting with their full declared parameter domains. There
+    // is no assumption that a seed guard is an inductive loop invariant.
+    // A state's walk reads only its own incoming environment, so its arrivals
+    // are kept until that environment changes, and every round rejoins all
+    // kept arrivals in state order.
+    let mut arrivals = vec![Vec::new(); states.len()];
+    let mut stale = vec![true; states.len()];
+    for _ in 0..=states.len() {
+        for (index, ((state, (_, environment)), state_seeds)) in
+            states.iter().zip(&current).zip(&seeds).enumerate()
+        {
+            if !stale[index] {
+                continue;
+            }
+            let mut walk = ArrivalWalk {
+                program,
+                machine,
+                frames,
+                arrivals: Vec::new(),
+            };
+            let mut environment = environment.clone();
+            state_seeds.apply(program, machine, state, &mut environment);
+            walk.statements(
+                state,
+                program.statement_table.statements(state.statement_nodes),
+                &mut environment,
+            );
+            arrivals[index] = walk.arrivals;
+        }
+        let mut joined: Vec<Option<ValueEnvironment>> = vec![None; states.len()];
+        if let Some(external) = &external {
+            joined[0] = Some(external.clone());
+        }
+        for (target, environment) in arrivals.iter().flatten() {
+            joined[*target] = Some(match joined[*target].take() {
+                Some(previous) => previous.join(environment),
+                None => environment.clone(),
+            });
+        }
+        let next = states
+            .iter()
+            .zip(joined)
+            .map(|(state, environment)| (state.symbol, environment.unwrap_or_default()))
+            .collect::<Vec<_>>();
+        if next == current {
+            return next;
+        }
+        for ((stale, (_, next)), (_, current)) in stale.iter_mut().zip(&next).zip(&current) {
+            *stale = next != current;
+        }
+        current = next;
+    }
+    current
+}
+
+struct ArrivalWalk<'program, 'frames> {
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+    frames: Option<&'frames CallFrameResolver<'program>>,
+    /// Each arrival this walk delivers, by target state position, in order.
+    arrivals: Vec<(usize, ValueEnvironment)>,
+}
+
+impl ArrivalWalk<'_, '_> {
+    fn join(&mut self, symbol: SymbolHandle, environment: ValueEnvironment) {
+        if !symbol.is_valid() {
+            return;
+        }
+        let Some(index) = self
+            .program
+            .machine_states(self.machine)
+            .iter()
+            .position(|state| state.symbol == symbol)
+        else {
+            return;
+        };
+        self.arrivals.push((index, environment));
+    }
+
+    fn interval(
+        &self,
+        source: &State,
+        expression: ExpressionHandle,
+        environment: &ValueEnvironment,
+    ) -> Interval {
+        let mut diagnostics = Vec::new();
+        let value = analyze(
+            self.program,
+            self.machine,
+            Some(source),
+            expression,
+            environment,
+            None,
+            ArithmeticDomain::Exact,
+            "state arrival",
+            &mut diagnostics,
+        );
+        if diagnostics.is_empty() {
+            value.interval
+        } else {
+            Interval::UNBOUNDED
+        }
+    }
+
+    fn cross_writes(environment: &mut ValueEnvironment, written: Option<Vec<String>>) {
+        if let Some(written) = written {
+            environment.invalidate_written_paths(&written);
+        } else {
+            environment.clear();
+        }
+    }
+
+    fn expression_effects(&self, expression: ExpressionHandle, environment: &mut ValueEnvironment) {
+        Self::cross_writes(
+            environment,
+            self.frames
+                .and_then(|frames| frames.expression_may_write_paths(self.machine, expression)),
+        );
+    }
+
+    fn arguments(
+        &mut self,
+        source: &State,
+        arguments: &[ExpressionHandle],
+        environment: &mut ValueEnvironment,
+    ) -> Vec<Interval> {
+        arguments
+            .iter()
+            .map(|argument| {
+                self.expression(source, *argument, environment);
+                self.interval(source, *argument, environment)
+            })
+            .collect()
+    }
+
+    fn arrive(
+        &mut self,
+        source: &State,
+        symbol: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        intervals: &[Interval],
+        environment: &ValueEnvironment,
+    ) {
+        let Some(target) = self
+            .program
+            .machine_states(self.machine)
+            .iter()
+            .find(|state| state.symbol == symbol && symbol.is_valid())
+        else {
+            return;
+        };
+        let parameters = self.program.state_parameters(target);
+        if parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count()
+            != arguments.len()
+        {
+            self.join(symbol, ValueEnvironment::new());
+            return;
+        }
+        let mut bindings = Vec::new();
+        let mut exact_bindings = Vec::new();
+        if let Some(target_self) = parameters.iter().find(|parameter| parameter.is_self)
+            && let Some(source_self) = self
+                .program
+                .state_parameters(source)
+                .iter()
+                .find(|parameter| parameter.is_self)
+        {
+            bindings.push((
+                source_self.name.as_str().to_owned(),
+                target_self.name.as_str().to_owned(),
+            ));
+            exact_bindings.push((
+                ordered_values::Operand::parameter(source_self),
+                ordered_values::Operand::parameter(target_self),
+            ));
+            let attachment = ordered_values::Operand::Place {
+                root: self.machine.symbol,
+                fields: Vec::new(),
+                path: "self".to_owned(),
+            };
+            exact_bindings.push((attachment.clone(), attachment));
+        }
+        for (parameter, argument) in parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .zip(arguments)
+        {
+            if let Some(path) = self.bound_place(source, *argument) {
+                bindings.push((path, parameter.name.as_str().to_owned()));
+            }
+            if !environment.ordered_values.is_empty()
+                && let Some(value) = ordered_values::operand_with_frames(
+                    self.program,
+                    self.machine,
+                    source,
+                    *argument,
+                    self.frames,
+                )
+            {
+                exact_bindings.push((value, ordered_values::Operand::parameter(parameter)));
+            }
+        }
+        let mut rebound = environment.rebind(&bindings);
+        for relation in &environment.ordered_values {
+            for relation in relation.rebound(&exact_bindings) {
+                if !rebound.ordered_values.contains(&relation) {
+                    rebound.ordered_values.push(relation);
+                }
+            }
+        }
+        for (parameter, interval) in parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .zip(intervals)
+        {
+            // A scalar value is a snapshot taken at its own argument position.
+            // Reference parameters retain only facts surviving later arguments.
+            if !is_reference(self.program, parameter.type_reference) {
+                // The delivered argument is range-proved against the
+                // parameter's declared range at the transition site, so the
+                // recorded interval is intersected with that enforced range
+                // before seeding -- the same clamp `record_assignment` applies
+                // to local stores. Without it a cyclic delivery (`x + 1` under
+                // `x <= self.max`) widens the joined arrival past the declared
+                // bound on every fixpoint round, and later reads then trust a
+                // value the parameter can never hold.
+                let interval = match enforced_declared_range(self.program, parameter.type_reference)
+                {
+                    Some(declared) => interval.intersect(declared),
+                    None => *interval,
+                };
+                rebound.set(parameter.name.as_str().to_owned(), interval);
+            }
+        }
+        self.join(symbol, rebound);
+    }
+
+    fn bound_place(&self, source: &State, expression: ExpressionHandle) -> Option<String> {
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol.is_valid() => {
+                let root = self
+                    .program
+                    .state_parameters(source)
+                    .iter()
+                    .any(|parameter| parameter.symbol == path.head_symbol)
+                    || self
+                        .program
+                        .statement_table
+                        .statements(source.statement_nodes)
+                        .iter()
+                        .any(|statement| {
+                            matches!(statement, StatementNode::LocalData(local)
+                            if local.symbol == path.head_symbol)
+                        });
+                root.then(|| place_path(self.program, expression)).flatten()
+            }
+            ExpressionNode::Member(member) if member.member_symbol.is_valid() => {
+                self.bound_place(source, member.receiver)?;
+                place_path(self.program, expression)
+            }
+            ExpressionNode::Borrow(borrow) => self.bound_place(source, borrow.target),
+            _ => None,
+        }
+    }
+
+    fn target(
+        &mut self,
+        source: &State,
+        target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
+        environment: &mut ValueEnvironment,
+    ) {
+        if !target.is_valid() {
+            return;
+        }
+        match self.program.statement_table.transition_target(target) {
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
+                let arguments = self.program.statement_table.expression_handles(*arguments);
+                let intervals = self.arguments(source, arguments, environment);
+                self.arrive(source, path.symbol, arguments, &intervals, environment);
+            }
+            TransitionTargetNode::Value(expression) => {
+                self.expression(source, *expression, environment)
+            }
+            TransitionTargetNode::SelfTarget => self.join(source.symbol, environment.clone()),
+            TransitionTargetNode::Terminal => {}
+        }
+    }
+
+    fn statements(
+        &mut self,
+        source: &State,
+        statements: &[StatementNode],
+        environment: &mut ValueEnvironment,
+    ) -> bool {
+        for statement in statements {
+            match statement {
+                StatementNode::Transition(transition) => {
+                    let mut selected = environment.clone();
+                    let mut fallback = environment.clone();
+                    if let TransitionGuardNode::When(condition) = transition.guard {
+                        // Discover calls at their evaluation positions. Guard
+                        // premises are then invalidated by the whole guard's
+                        // effects, as in transition argument validation.
+                        self.expression(source, condition, environment);
+                        narrow_environment_by_condition(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            &mut selected,
+                            condition,
+                            true,
+                        );
+                        narrow_environment_by_condition(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            &mut fallback,
+                            condition,
+                            false,
+                        );
+                        self.expression_effects(condition, &mut selected);
+                        self.expression_effects(condition, &mut fallback);
+                    }
+                    self.target(source, transition.target, &mut selected);
+                    self.target(source, transition.continuation, &mut fallback);
+                    if transition.continuation.is_valid()
+                        || transition.guard == TransitionGuardNode::Always
+                    {
+                        return false;
+                    }
+                    *environment = fallback;
+                }
+                StatementNode::LocalData(local) => {
+                    self.expression(source, local.initial_value, environment);
+                    let interval = self.interval(source, local.initial_value, environment);
+                    let path = local.name.as_str().to_owned();
+                    environment.invalidate_written_paths(std::slice::from_ref(&path));
+                    environment.set(path.clone(), interval);
+                    record_unsigned_literal_assignment(
+                        self.program,
+                        environment,
+                        Some(path),
+                        self.program.primitive_type_reference(local.type_reference),
+                        local.initial_value,
+                    );
+                }
+                StatementNode::Assignment(assignment) => {
+                    self.expression(source, assignment.target, environment);
+                    self.expression(source, assignment.value, environment);
+                    let written = self.frames.and_then(|frames| {
+                        frames
+                            .assignment_write_frame(self.machine, statement)
+                            .into_complete_paths()
+                    });
+                    let complete = written.is_some();
+                    if let Some(written) = written {
+                        environment.invalidate_assignment_paths(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            assignment.target,
+                            &written,
+                        );
+                    } else {
+                        environment.clear();
+                    }
+                    // Preserve an exact direct unsigned literal only after
+                    // target/value effects and the complete store frame have
+                    // retired old facts. Other stores remain invalidation-only.
+                    if complete {
+                        let path = self.bound_place(source, assignment.target).or_else(|| {
+                            crate::validation::exact_self_field(
+                                self.program,
+                                self.machine,
+                                assignment.target,
+                            )
+                            .and_then(|_| place_path(self.program, assignment.target))
+                        });
+                        let primitive = declared_place_type_raw(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            assignment.target,
+                        )
+                        .map(|reference| {
+                            crate::validation::value_custody::places::assignment_value_type(
+                                self.program,
+                                reference,
+                            )
+                        })
+                        .and_then(|reference| self.program.primitive_type_reference(reference));
+                        record_unsigned_literal_assignment(
+                            self.program,
+                            environment,
+                            path,
+                            primitive,
+                            assignment.value,
+                        );
+                    }
+                }
+                StatementNode::Call(call) => {
+                    let arguments = self
+                        .program
+                        .statement_table
+                        .expression_handles(call.arguments);
+                    let intervals = self.arguments(source, arguments, environment);
+                    self.arrive(
+                        source,
+                        call.target_symbol,
+                        arguments,
+                        &intervals,
+                        environment,
+                    );
+                    Self::cross_writes(
+                        environment,
+                        self.frames
+                            .and_then(|frames| frames.may_write_paths(self.machine, call)),
+                    );
+                }
+                StatementNode::Expression(expression) => {
+                    self.expression(source, *expression, environment)
+                }
+                StatementNode::RootBinding(binding) => {
+                    self.expression(source, binding.receiver, environment);
+                    self.expression(source, binding.implementation_operand, environment);
+                }
+                StatementNode::AssemblyFact(_) => {}
+            }
+        }
+        true
+    }
+
+    fn expression(
+        &mut self,
+        source: &State,
+        expression: ExpressionHandle,
+        environment: &mut ValueEnvironment,
+    ) {
+        if !expression.is_valid() {
+            return;
+        }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                self.expression(source, dispatch.subject, environment);
+                let mut remaining = environment.clone();
+                let mut joined: Option<ValueEnvironment> = None;
+                let mut boolean_values = [false; 2];
+                for arm in self.program.expression_table.match_arms(dispatch.arms) {
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        self.expression(source, pattern, &mut remaining);
+                        if let ExpressionNode::Boolean(value) =
+                            self.program.expression_table.expression(pattern)
+                        {
+                            boolean_values[usize::from(*value)] = true;
+                        }
+                    }
+                    let mut selected = remaining.clone();
+                    self.expression(source, arm.value, &mut selected);
+                    joined = Some(
+                        joined.map_or_else(|| selected.clone(), |joined| joined.join(&selected)),
+                    );
+                    if matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard)
+                        || boolean_values == [true, true]
+                    {
+                        break;
+                    }
+                }
+                if let Some(joined) = joined {
+                    *environment = joined;
+                }
+            }
+            ExpressionNode::Call(call) => {
+                self.expression(source, call.receiver, environment);
+                let arguments = self
+                    .program
+                    .expression_table
+                    .expression_handles(call.arguments);
+                let intervals = self.arguments(source, arguments, environment);
+                self.arrive(
+                    source,
+                    call.target_symbol,
+                    arguments,
+                    &intervals,
+                    environment,
+                );
+                self.expression_effects(expression, environment);
+            }
+            ExpressionNode::Binary(binary) => {
+                self.expression(source, binary.left, environment);
+                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+                    let skipped = environment.clone();
+                    self.expression(source, binary.right, environment);
+                    *environment = skipped.join(environment);
+                } else {
+                    self.expression(source, binary.right, environment);
+                }
+            }
+            ExpressionNode::Unary(unary) => self.expression(source, unary.operand, environment),
+            ExpressionNode::Member(member) => self.expression(source, member.receiver, environment),
+            ExpressionNode::Indexed(indexed) => {
+                self.expression(source, indexed.collection, environment);
+                self.expression(source, indexed.index, environment);
+            }
+            ExpressionNode::Atomic(atomic) => self.expression(source, atomic.value, environment),
+            ExpressionNode::Cast(cast) => self.expression(source, cast.value, environment),
+            ExpressionNode::Borrow(borrow) => self.expression(source, borrow.target, environment),
+            ExpressionNode::Range(range) => {
+                self.expression(source, range.start, environment);
+                self.expression(source, range.end, environment);
+            }
+            ExpressionNode::ArrayLiteral(values) => {
+                for value in self.program.expression_table.expression_handles(*values) {
+                    self.expression(source, *value, environment);
+                }
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                for field in self.program.expression_table.struct_fields(literal.fields) {
+                    self.expression(source, field.value, environment);
+                }
+            }
+            ExpressionNode::Name(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
+        }
+    }
+}
+
+fn is_reference(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference { .. } => true,
+        TypeReferenceNode::Constrained { base_type, .. } => is_reference(program, *base_type),
+        _ => false,
+    }
+}

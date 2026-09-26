@@ -1,5 +1,5 @@
 use crate::AllocationLegalityValidationReceipt;
-use register_homes::AllocatorAvailabilityIdentity;
+use crate::register_homes::AllocatorAvailabilityIdentity;
 
 use crate::StagedOptimizedLiveRangeCustodyReceipt;
 

@@ -14,10 +14,12 @@ fn bitwise_xor_graph_preserves_operand_types_and_independent_replay() {
 }
 
 fn bitwise_graph_preserves_operand_types_and_independent_replay(exclusive: bool) {
-    use abstract_operations::{AbstractOperation, AbstractParameter};
-    use legalized_operations::LegalizedScalarInstructionKind;
+    use crate::legalized_operations::LegalizedScalarInstructionKind;
     use semantic_vocabulary::{
         FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
+    };
+    use terminal_psi_to_abstract_operations::abstract_operations::{
+        AbstractOperation, AbstractParameter,
     };
     for native in [
         target::NativeTarget::linux_x64(),
@@ -68,7 +70,7 @@ fn bitwise_graph_preserves_operand_types_and_independent_replay(exclusive: bool)
                         ),
                     )
                     .unwrap();
-                let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
                     &source,
                     FuelScheduleIdentity::new(1).unwrap(),
                 )
@@ -106,8 +108,10 @@ fn bitwise_graph_preserves_operand_types_and_independent_replay(exclusive: bool)
                         _ => unreachable!(),
                     }
                     assert_ne!(
-                        legalized_operations::legalized_operation_plan_identity(&changed),
-                        legalized_operations::legalized_operation_plan_identity(legal.plan())
+                        crate::legalized_operations::legalized_operation_plan_identity(&changed),
+                        crate::legalized_operations::legalized_operation_plan_identity(
+                            legal.plan()
+                        )
                     );
                     assert!(
                         validate_legalized_operations(&targeted, &source, &unit, changed).is_err(),
@@ -115,16 +119,16 @@ fn bitwise_graph_preserves_operand_types_and_independent_replay(exclusive: bool)
                     );
                 }
                 let mut changed_target = targeted.clone();
-                let target_operations::TargetUnitOperation::ScalarDefinition {
+                let abstract_operations_to_target_operations::target_operations::TargetUnitOperation::ScalarDefinition {
                     expression:
-                        target_operations::TargetScalarExpression::Integer {
+                        abstract_operations_to_target_operations::target_operations::TargetScalarExpression::Integer {
                             expression:
-                                target_operations::TargetIntegerExpression::BitwiseAnd {
+                                abstract_operations_to_target_operations::target_operations::TargetIntegerExpression::BitwiseAnd {
                                     left,
                                     right,
                                     ..
                                 }
-                                | target_operations::TargetIntegerExpression::BitwiseXor {
+                                | abstract_operations_to_target_operations::target_operations::TargetIntegerExpression::BitwiseXor {
                                     left,
                                     right,
                                     ..
@@ -139,7 +143,8 @@ fn bitwise_graph_preserves_operand_types_and_independent_replay(exclusive: bool)
                 std::mem::swap(left, right);
                 assert!(legalize_target_operations(&changed_target, &source, &unit).is_err());
                 let environment =
-                    register_environment::baseline_target_register_environment(native).unwrap();
+                    crate::register_environment::baseline_target_register_environment(native)
+                        .unwrap();
                 let constraints = crate::selection_constraints(&legal, &environment);
                 let selected = crate::select_instructions(
                     &legal,
@@ -163,9 +168,9 @@ fn bitwise_graph_preserves_operand_types_and_independent_replay(exclusive: bool)
                     .find(|instruction| {
                         instruction.kind
                             == if exclusive {
-                                selected_instructions::SelectedInstructionKind::BitwiseXorI64
+                                crate::selected_instructions::SelectedInstructionKind::BitwiseXorI64
                             } else {
-                                selected_instructions::SelectedInstructionKind::BitwiseAndI64
+                                crate::selected_instructions::SelectedInstructionKind::BitwiseAndI64
                             }
                     })
                     .expect("selected bitwise instruction");
@@ -197,7 +202,7 @@ fn scalar_call_result_sign_cannot_change_under_an_equal_abi_shape() {
         .find(|instruction| {
             matches!(
                 instruction.kind,
-                legalized_operations::LegalizedScalarInstructionKind::Call(_)
+                crate::legalized_operations::LegalizedScalarInstructionKind::Call(_)
             )
         })
         .expect("caller has an ordinary scalar call");
@@ -259,7 +264,7 @@ fn one_call_and_equal_constant_operands_have_no_fixture_topology_requirement() {
     let caller = &mut abstract_plan.functions[0];
     caller.operations.remove(4);
     caller.operations.remove(3);
-    let abstract_operations::AbstractOperation::IntegerConstant { value, .. } =
+    let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerConstant { value, .. } =
         &mut caller.operations[1]
     else {
         unreachable!()
@@ -272,7 +277,7 @@ fn one_call_and_equal_constant_operands_have_no_fixture_topology_requirement() {
         ),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &abstract_plan,
         semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -299,28 +304,31 @@ fn zero_call_proposal_and_forward_references_reject() {
         .retain(|operation| {
             matches!(
                 operation.kind,
-                legalized_operations::LegalizedScalarInstructionKind::Constant(_)
+                crate::legalized_operations::LegalizedScalarInstructionKind::Constant(_)
             )
         });
     assert!(validate_legalized_operations(&target, &abstract_plan, &unit, no_calls).is_err());
 
     let mut forward = target.clone();
     let body = &mut forward.functions[0].graph;
-    let target_operations::TargetUnitOperation::Call {
-        result: target_operations::TargetCallResult::Scalar(future),
+    let abstract_operations_to_target_operations::target_operations::TargetUnitOperation::Call {
+        result:
+            abstract_operations_to_target_operations::target_operations::TargetCallResult::Scalar(
+                future,
+            ),
         ..
     } = body.blocks[0].operations[3]
     else {
         unreachable!()
     };
-    let target_operations::TargetUnitOperation::Call {
+    let abstract_operations_to_target_operations::target_operations::TargetUnitOperation::Call {
         scalar_arguments: arguments,
         ..
     } = &mut body.blocks[0].operations[2]
     else {
         unreachable!()
     };
-    arguments[0].source = target_operations::TargetUnitScalarArgumentSource::Home(future);
+    arguments[0].source = abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::Home(future);
     assert!(legalize_target_operations(&forward, &abstract_plan, &unit).is_err());
     assert!(
         validate_legalized_operations(&forward, &abstract_plan, &unit, legalized.plan().clone())
@@ -334,15 +342,16 @@ fn direct_call_result_home_is_reconstructed_before_receiving() {
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
     for mutation in ["missing", "operation", "value", "type", "shape"] {
         let mut changed = target.clone();
-        let target_operations::TargetUnitOperation::Call { result, .. } =
+        let abstract_operations_to_target_operations::target_operations::TargetUnitOperation::Call { result, .. } =
             &mut changed.functions[0].graph.blocks[0].operations[2]
         else {
             panic!("source fixture has a direct scalar call");
         };
         if mutation == "missing" {
-            *result = target_operations::TargetCallResult::Unit;
+            *result =
+                abstract_operations_to_target_operations::target_operations::TargetCallResult::Unit;
         } else {
-            let target_operations::TargetCallResult::Scalar(home) = result else {
+            let abstract_operations_to_target_operations::target_operations::TargetCallResult::Scalar(home) = result else {
                 panic!("source fixture has a scalar result");
             };
             match mutation {
@@ -351,7 +360,7 @@ fn direct_call_result_home_is_reconstructed_before_receiving() {
                 }
                 "value" => home.source_value = semantic_vocabulary::ValueId::new(99).unwrap(),
                 "type" => home.scalar_type = semantic_vocabulary::ScalarType::Boolean,
-                "shape" => home.shape = calling_conventions::ValueShape::integer(1, 1),
+                "shape" => home.shape = abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(1, 1),
                 _ => unreachable!(),
             }
         }
@@ -371,8 +380,10 @@ fn substituted_register_call_plan_and_memory_effectful_callee_reject() {
     let (abstract_plan, target, unit) = scalar_call_unit_fixture();
     let mut changed = target.clone();
     let body = &mut changed.functions[0].graph;
-    let target_operations::TargetUnitOperation::Call { call_plan, .. } =
-        &mut body.blocks[0].operations[2]
+    let abstract_operations_to_target_operations::target_operations::TargetUnitOperation::Call {
+        call_plan,
+        ..
+    } = &mut body.blocks[0].operations[2]
     else {
         unreachable!()
     };
@@ -380,14 +391,14 @@ fn substituted_register_call_plan_and_memory_effectful_callee_reject() {
     assert!(legalize_target_operations(&changed, &abstract_plan, &unit).is_err());
 
     let mut effectful = abstract_plan.clone();
-    effectful.functions[1]
-        .operations
-        .push(abstract_operations::AbstractOperation::PortWrite {
+    effectful.functions[1].operations.push(
+        terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::PortWrite {
             psi_operation: semantic_vocabulary::OperationId::new(900).unwrap(),
             service: semantic_vocabulary::ServiceId::new(901).unwrap(),
             port: 1,
             value: 2,
-        });
+        },
+    );
     assert!(legalize_target_operations(&target, &effectful, &unit).is_err());
 }
 
@@ -412,8 +423,8 @@ fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
     assert_eq!(callee.blocks.len(), 3);
     assert!(matches!(
         callee.blocks[0].instructions[0].kind,
-        legalized_operations::LegalizedScalarInstructionKind::Compare {
-            predicate: legalized_operations::LegalizedScalarComparison::Equal,
+        crate::legalized_operations::LegalizedScalarInstructionKind::Compare {
+            predicate: crate::legalized_operations::LegalizedScalarComparison::Equal,
             ..
         }
     ));
@@ -424,7 +435,7 @@ fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
         .instructions
         .iter()
         .filter_map(|operation| match &operation.kind {
-            legalized_operations::LegalizedScalarInstructionKind::Call(call) => Some(call),
+            crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) => Some(call),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -473,14 +484,14 @@ fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
 }
 
 fn call_mut(
-    function: &mut legalized_operations::LegalizedScalarFunction,
+    function: &mut crate::legalized_operations::LegalizedScalarFunction,
     index: usize,
-) -> &mut legalized_operations::LegalizedScalarCall {
+) -> &mut crate::legalized_operations::LegalizedScalarCall {
     function.blocks[0]
         .instructions
         .iter_mut()
         .filter_map(|operation| match &mut operation.kind {
-            legalized_operations::LegalizedScalarInstructionKind::Call(call) => Some(call),
+            crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) => Some(call),
             _ => None,
         })
         .nth(index)
@@ -518,7 +529,7 @@ fn scalar_call_crash_rows_survive_legalization_and_selection_replay() {
     ] {
         let (mut source, _, _) = scalar_call_unit_fixture();
         for operation in &mut source.functions[0].operations {
-            if let abstract_operations::AbstractOperation::Call {
+            if let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
                 crash_continuations,
                 ..
             } = operation
@@ -531,7 +542,7 @@ fn scalar_call_crash_rows_survive_legalization_and_selection_replay() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
         )
@@ -539,7 +550,7 @@ fn scalar_call_crash_rows_survive_legalization_and_selection_replay() {
         let legal = legalize_target_operations(&targeted, &source, &unit).unwrap();
         validate_legalized_operations(&targeted, &source, &unit, legal.plan().clone()).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = crate::select_instructions(
             &legal,
@@ -592,10 +603,14 @@ fn scalar_call_crash_rows_survive_legalization_and_selection_replay() {
     }
 }
 
-fn register_arity_source(arity: usize) -> abstract_operations::AbstractOperationPlan {
-    use abstract_operations::{AbstractBlockEntry, AbstractOperation, AbstractParameter};
+fn register_arity_source(
+    arity: usize,
+) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     use semantic_vocabulary::{
         EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+    };
+    use terminal_psi_to_abstract_operations::abstract_operations::{
+        AbstractBlockEntry, AbstractOperation, AbstractParameter,
     };
     let (mut plan, _, _) = scalar_call_unit_fixture();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
@@ -620,7 +635,10 @@ fn register_arity_source(arity: usize) -> abstract_operations::AbstractOperation
         parameters: Vec::new(),
         operation_offset: 0,
     }];
-    let abstract_operations::AbstractFunctionResult::Scalar(result) = callee.result else {
+    let terminal_psi_to_abstract_operations::abstract_operations::AbstractFunctionResult::Scalar(
+        result,
+    ) = callee.result
+    else {
         unreachable!()
     };
     let source = callee
@@ -662,7 +680,7 @@ fn every_register_arity_uses_one_input_contract_and_independent_replay() {
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
-            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
             )
@@ -672,7 +690,7 @@ fn every_register_arity_uses_one_input_contract_and_independent_replay() {
             ));
             let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
             for operation in &legalized.plan().scalar_functions[0].blocks[0].instructions {
-                if let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+                if let crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) =
                     &operation.kind
                 {
                     assert_eq!(call.arguments.len(), arity);
@@ -692,7 +710,7 @@ fn every_register_arity_uses_one_input_contract_and_independent_replay() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
         )

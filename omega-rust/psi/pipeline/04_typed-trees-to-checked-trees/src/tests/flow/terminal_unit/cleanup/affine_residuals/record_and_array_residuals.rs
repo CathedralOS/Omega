@@ -74,7 +74,7 @@ fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_clea
             .map(|discard| {
                 assert_eq!(
                     discard.source,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index: 0
                     }
                 );
@@ -303,11 +303,11 @@ fn mixed_scalar_and_affine_record_retains_only_structural_residual_cleanup() {
         vec![
             (
                 "before_bytes",
-                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 3 },
+                crate::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 3 },
             ),
             (
                 "between_bytes",
-                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                crate::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 8 },
             ),
         ],
         "bounded byte carriers retain exact source capacities and declaration order"

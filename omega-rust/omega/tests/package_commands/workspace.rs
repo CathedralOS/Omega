@@ -1,5 +1,5 @@
 use super::fixture::{Fixture, assert_status};
-use package_source::ImmutableSourceResolution;
+use omega::package_source::ImmutableSourceResolution;
 
 const BASELINE: &str = "f487125e6fc58d01a2b584424ac5194cdff4f810";
 const REVISION: &str = "664d771bbb851201807532e9ed8c444639f65c8f";

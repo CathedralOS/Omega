@@ -21,11 +21,13 @@ fn named_control_flow_cleanup_reaches_edge_count_fixed_point() {
     assert_eq!(ledger.records()[0].provenance.len(), 2);
     assert!(matches!(
         ledger.records()[0].provenance[0].disposition,
-        optimization_unit::ProvenanceDisposition::RealizedAt(_)
+        terminal_psi_to_abstract_operations::optimization_unit::ProvenanceDisposition::RealizedAt(
+            _
+        )
     ));
     assert!(matches!(
         ledger.records()[0].provenance[1].disposition,
-        optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(_)
+        terminal_psi_to_abstract_operations::optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(_)
     ));
     let manifest = manifest.unwrap();
     assert_eq!(manifest.ordered_rules().len(), 7);

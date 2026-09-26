@@ -1,7 +1,7 @@
+use crate::syntax_trees::expression::ExpressionNode;
+use crate::syntax_trees::item::{DataMember, Item};
+use crate::syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 use source_files_to_tokens::Lexer;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::item::{DataMember, Item};
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 #[test]
 fn match_indices_retain_complete_syntax_for_semantic_admission() {

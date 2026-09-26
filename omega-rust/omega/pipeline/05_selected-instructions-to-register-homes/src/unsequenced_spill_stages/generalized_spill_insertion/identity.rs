@@ -6,7 +6,7 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionSource, GeneralizedSpillEvent, GeneralizedSpillInsertionIdentity,
     GeneralizedSpillInsertionPlan, GeneralizedSpillInsertionPolicy,
 };
-use register_homes::LogicalSpillStorageClass;
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
 
 pub fn generalized_spill_insertion_identity(
     plan: &GeneralizedSpillInsertionPlan,

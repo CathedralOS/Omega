@@ -11,22 +11,22 @@ use crate::rules::FieldValueSpecializationRule;
 use crate::{
     OptimizationRun, PsiOptimizationCommit, VerifiedPsiOptimizationSession, run_psi_pipeline,
 };
-use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_core::{
     Optimization, OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
 };
-use optimization_unit::{
+use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
+use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     FieldValueResolution, FieldValueSpecializationRewrite, FoldedFieldValue, NodeLocation,
     ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
     PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_field_value_specialization_candidate,
 };
-use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
-use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 /// A scalar machine establishes `Point` once with constant initializers and
 /// reads both fields: `p.x` folds to `37` and `p.flag` folds to `true` in one

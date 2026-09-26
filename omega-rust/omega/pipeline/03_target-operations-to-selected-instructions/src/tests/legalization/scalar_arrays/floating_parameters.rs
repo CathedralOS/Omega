@@ -5,8 +5,8 @@ use super::{
 use crate::legalize_target_operations;
 use crate::tests::legalization::scalar_arrays::O;
 use crate::validate_legalized_operations;
-use abstract_operations::AbstractParameter;
 use semantic_vocabulary::IeeeFloatFormat;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractParameter;
 
 #[test]
 fn floating_array_parameters_replay_exact_scalar_type_and_distinct_aggregate_abi() {
@@ -38,29 +38,29 @@ fn floating_array_parameters_replay_exact_scalar_type_and_distinct_aggregate_abi
             ),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
-        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
         let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
         let graph = &target.functions[0].graph;
         assert_eq!(
             graph.call_plan.parameters[0].shape.class,
-            calling_conventions::ValueClass::Float
+            abstract_operations_to_target_operations::calling_conventions::ValueClass::Float
         );
         assert_eq!(
             graph.call_plan.result.as_ref().unwrap().shape.class,
-            calling_conventions::ValueClass::Integer
+            abstract_operations_to_target_operations::calling_conventions::ValueClass::Integer
         );
         for mutation in 0..4 {
             let mut changed = target.clone();
             let graph = &mut changed.functions[0].graph;
             if mutation == 0 {
                 graph.call_plan.parameters[0].shape.class =
-                    calling_conventions::ValueClass::Integer;
+                    abstract_operations_to_target_operations::calling_conventions::ValueClass::Integer;
             } else {
                 let TargetUnitOperation::EstablishScalarArray { elements, .. } =
                     &mut graph.blocks[0].operations[0]

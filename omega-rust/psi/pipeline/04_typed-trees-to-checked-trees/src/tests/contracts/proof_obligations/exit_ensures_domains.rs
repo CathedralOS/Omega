@@ -150,7 +150,7 @@ fn does_not_seed_machine_ensures_into_machine_entry_contexts() {
     "#;
 
     let typed = parse_typed_trees(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let semantic = build_semantic_facts(&typed, &proof);
@@ -162,7 +162,7 @@ fn does_not_seed_machine_ensures_into_machine_entry_contexts() {
 
     assert!(
         semantic
-            .contexts_at_point(facts::ProgramPoint::Machine {
+            .contexts_at_point(crate::fact_plan::ProgramPoint::Machine {
                 machine_symbol: machine.symbol,
             })
             .next()

@@ -1,19 +1,19 @@
 //! Resolve selected structural scalar reads against their authored parameter roots.
+use crate::checked_trees::CheckedBooleanExpression;
+use crate::checked_trees::CheckedOperatorFacts;
+use crate::checked_trees::CheckedOperatorResolutionStatus;
+use crate::checked_trees::CheckedScalarExpression;
+use crate::checked_trees::CheckedStructuralPredicatePathSegment;
 use crate::values::scalar::expression_facts::is_integer;
-use checked_trees::CheckedBooleanExpression;
-use checked_trees::CheckedOperatorFacts;
-use checked_trees::CheckedOperatorResolutionStatus;
-use checked_trees::CheckedScalarExpression;
-use checked_trees::CheckedStructuralPredicatePathSegment;
 use language_semantics::declaration_selection::CollectionMeasure;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::signature::StateParameter;
-use typed_trees::types::PrimitiveType;
-use typed_trees::types::TypeReferenceHandle;
-use typed_trees::types::TypeReferenceNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 
 #[cfg(test)]
 mod tests;
@@ -62,7 +62,7 @@ fn parameter_symbols_fingerprint(parameters: &[StateParameter]) -> usize {
 
 fn structural_rosters_fingerprint(
     program: &TypedTrees,
-    machines: &[typed_trees::machine::Machine],
+    machines: &[symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine],
 ) -> usize {
     // The slice base stays in the fingerprint. With the owner an identity it
     // can no longer produce a false hit, and it still separates two states of
@@ -102,7 +102,7 @@ fn structural_rosters_fingerprint(
 
 thread_local! {
     static STRUCTURAL_ROSTERS: std::cell::RefCell<
-        Option<(typed_trees::ProgramIdentity, usize, StructuralRosters)>,
+        Option<(symbol_resolved_trees_to_typed_trees::typed_trees::ProgramIdentity, usize, StructuralRosters)>,
     > = const { std::cell::RefCell::new(None) };
 }
 
@@ -153,7 +153,7 @@ fn with_structural_rosters<R>(
                         .iter()
                         .enumerate()
                     {
-                        if let typed_trees::statement::StatementNode::LocalData(local) = statement {
+                        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement {
                             rosters.locals.entry(local.symbol).or_default().push((
                                 machine_index as u32,
                                 state_index as u32,
@@ -175,14 +175,14 @@ fn with_structural_rosters<R>(
                     .or_insert(data_index as u32);
                 for (member_index, member) in program.data_members(definition).iter().enumerate() {
                     match member {
-                        typed_trees::data::DataMember::Field(field) => {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
                             rosters
                                 .field_by_symbol
                                 .entry(field.symbol)
                                 .or_default()
                                 .push((data_index as u32, member_index as u32, u32::MAX));
                         }
-                        typed_trees::data::DataMember::Variant(variant) => {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) => {
                             rosters
                                 .variant_by_symbol
                                 .entry(variant.symbol)
@@ -234,7 +234,7 @@ fn rostered_data_member(
     program: &TypedTrees,
     data_index: u32,
     member_index: u32,
-) -> &typed_trees::data::DataMember {
+) -> &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember {
     &program.data_members(&program.data_definitions()[data_index as usize])[member_index as usize]
 }
 
@@ -254,15 +254,19 @@ fn data_field_positions(
 fn rostered_data_field(
     program: &TypedTrees,
     position: (u32, u32, u32),
-) -> Option<&typed_trees::data::DataField> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField> {
     let member = rostered_data_member(program, position.0, position.1);
     if position.2 == u32::MAX {
         match member {
-            typed_trees::data::DataMember::Field(field) => Some(field),
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
+                Some(field)
+            }
             _ => None,
         }
     } else {
-        let typed_trees::data::DataMember::Variant(variant) = member else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) =
+            member
+        else {
             return None;
         };
         program
@@ -293,7 +297,7 @@ pub(super) fn structural_sequence_length(
         // exactly as a whole view parameter's does.
         let (symbol, _) = view_local_root(program, parameters, member.receiver)?;
         return Some(CheckedScalarExpression::StructuralParameterByteLength {
-            root: checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+            root: crate::checked_trees::CheckedStorageRoot::ViewLocal { symbol },
             path: Vec::new(),
         });
     };
@@ -307,7 +311,8 @@ pub(super) fn structural_sequence_length(
         extent_type = *referee;
     }
     if let TypeReferenceNode::FixedArray {
-        length: typed_trees::types::FixedArrayLength::Literal(length),
+        length:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(length),
         ..
     } = program.type_reference_table.type_reference(extent_type)
     {
@@ -357,15 +362,15 @@ pub(super) fn structural_sequence_length(
         || !matches!(
             crate::execution::terminal_unit::types::byte_sequence_carrier(program, selected_type, &[]),
             Some(
-                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                    | checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+                crate::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                    | crate::checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
             )
         )
     {
         return None;
     }
     Some(CheckedScalarExpression::StructuralParameterByteLength {
-        root: checked_trees::CheckedStorageRoot::Parameter {
+        root: crate::checked_trees::CheckedStorageRoot::Parameter {
             index: parameter_position,
         },
         path,
@@ -404,8 +409,9 @@ pub(super) fn view_local_root(
     };
     let machine = &program.machines()[position.0 as usize];
     let state = &program.machine_states(machine)[position.1 as usize];
-    let typed_trees::statement::StatementNode::LocalData(local) =
-        &program.statement_table.statements(state.statement_nodes)[position.2 as usize]
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        local,
+    ) = &program.statement_table.statements(state.statement_nodes)[position.2 as usize]
     else {
         return None;
     };
@@ -475,16 +481,16 @@ fn indexed_read_has_builtin_meaning(
     let state = &program.machine_states(machine)[state_index as usize];
     let operands = [
         Some(collection_type),
-        validation::declared_place_type_raw(program, machine, Some(state), index),
+        crate::validation::declared_place_type_raw(program, machine, Some(state), index),
     ];
-    typed_trees::operator::resolve_indexed_spelling_for_operands(
+    symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_indexed_spelling_for_operands(
         program,
         OperatorSpelling::Index,
         &operands,
         program.expression_table.source_span(expression),
     )
     .is_empty()
-        && typed_trees::operator::has_builtin_spelled_expression_meaning(
+        && symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
             machine.symbol,
             expression,
@@ -560,7 +566,10 @@ pub(super) fn structural_parameter_field_path(
         ExpressionNode::Member(member) => {
             let parameter =
                 structural_parameter_field_path(program, parameters, member.receiver, fields)?;
-            let field_identity = |field: &typed_trees::data::DataField| field.path_identity();
+            let field_identity =
+                |field: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField| {
+                    field.path_identity()
+                };
             if parameters.get(usize::try_from(parameter).ok()?)?.is_self
                 && matches!(
                     program.expression_table.expression(member.receiver),
@@ -575,7 +584,7 @@ pub(super) fn structural_parameter_field_path(
                     return None;
                 }
                 let (_, machine) = exact_self_parameter(program, parameters, member.receiver)?;
-                let field = validation::exact_self_field(program, machine, expression)?;
+                let field = crate::validation::exact_self_field(program, machine, expression)?;
                 if field.relevance.is_erased() {
                     return None;
                 }
@@ -593,7 +602,7 @@ pub(super) fn structural_parameter_field_path(
                         .flatten()
                         .copied()
                         .find_map(|(data_index, member_index)| {
-                            let typed_trees::data::DataMember::Variant(variant) =
+                            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) =
                                 rostered_data_member(program, data_index, member_index)
                             else {
                                 return None;
@@ -636,7 +645,10 @@ fn exact_self_parameter<'program>(
     program: &'program TypedTrees,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
-) -> Option<(usize, &'program typed_trees::machine::Machine)> {
+) -> Option<(
+    usize,
+    &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+)> {
     use symbols::SymbolKind;
 
     if !program.expression_table.expression_is_valid(expression) {
@@ -754,7 +766,7 @@ pub(crate) fn resolve_structural_parameter_path(
     path: &[CheckedStructuralPredicatePathSegment],
 ) -> Option<(
     symbols::SymbolHandle,
-    Vec<facts::PlaceSegment>,
+    Vec<crate::fact_plan::PlaceSegment>,
     TypeReferenceHandle,
     bool,
 )> {
@@ -773,7 +785,7 @@ pub(crate) fn resolve_structural_parameter_path(
                     return None;
                 }
                 receiver = fixed_index_element_type(program, receiver, *element_index)?;
-                segments.push(facts::PlaceSegment::FixedIndex {
+                segments.push(crate::fact_plan::PlaceSegment::FixedIndex {
                     index: usize::try_from(*element_index).ok()?,
                 });
             }
@@ -783,7 +795,7 @@ pub(crate) fn resolve_structural_parameter_path(
                 }
                 let definition = structural_data(program, receiver)?;
                 let variant = program.data_members(definition).iter().find_map(|member| {
-                    let typed_trees::data::DataMember::Variant(variant) = member else {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) = member else {
                         return None;
                     };
                     let actual = variant
@@ -795,13 +807,13 @@ pub(crate) fn resolve_structural_parameter_path(
                 if !variant.symbol.is_valid() {
                     return None;
                 }
-                segments.push(facts::PlaceSegment::Case {
+                segments.push(crate::fact_plan::PlaceSegment::Case {
                     variant: variant.symbol,
                 });
                 selected_case = Some(variant);
             }
             CheckedStructuralPredicatePathSegment::Field(identity) => {
-                let matches = |field: &&typed_trees::data::DataField| {
+                let matches = |field: &&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField| {
                     field
                         .identity
                         .map(|number| format!("#{number}"))
@@ -816,7 +828,7 @@ pub(crate) fn resolve_structural_parameter_path(
                         .data_members(definition)
                         .iter()
                         .filter_map(|member| {
-                            let typed_trees::data::DataMember::Field(field) = member else {
+                            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) = member else {
                                 return None;
                             };
                             Some(field)
@@ -826,7 +838,7 @@ pub(crate) fn resolve_structural_parameter_path(
                 if !field.symbol.is_valid() || field.relevance.is_erased() {
                     return None;
                 }
-                segments.push(facts::PlaceSegment::Field {
+                segments.push(crate::fact_plan::PlaceSegment::Field {
                     symbol: field.symbol,
                 });
                 receiver = field.type_reference;
@@ -873,7 +885,7 @@ pub(super) fn fixed_index_element_type(
                 element_type,
                 length,
             } => {
-                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                let symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(length) = length else {
                     return None;
                 };
                 return (element_index < u64::try_from(*length).ok()?).then_some(*element_type);
@@ -886,7 +898,7 @@ pub(super) fn fixed_index_element_type(
 pub(crate) fn structural_data(
     program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
     let (symbol, name) = loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Reference { referee, .. }
@@ -950,13 +962,13 @@ pub(super) fn lower_structural_parameter_field(
         // fields remain owned by field operations. An indexed carrier that
         // continues into a record field (`maps[1].value`) instead resolves its
         // scalar leaf through primitive_type_reference below.
-        validation::unrestricted_builtin_primitive(program, type_reference)?;
+        crate::validation::unrestricted_builtin_primitive(program, type_reference)?;
         // A bounded byte field (`[u8; N] in Utf8`) has a live length, so even
         // a literal index is a bounds-checked byte read, not a projection.
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
             && let Some((_, _, collection_type)) =
                 structural_parameter_place(program, parameters, indexed.collection)
-            && validation::bounded_byte_buffer_capacity(program, collection_type).is_some()
+            && crate::validation::bounded_byte_buffer_capacity(program, collection_type).is_some()
         {
             return None;
         }
@@ -1010,7 +1022,7 @@ pub(super) fn structural_parameter_place(
         .iter()
         .rev()
         .filter_map(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => Some(*symbol),
+            crate::fact_plan::PlaceSegment::Field { symbol } => Some(*symbol),
             _ => None,
         });
     loop {
@@ -1046,7 +1058,7 @@ pub(super) fn structural_parameter_place(
                 return None;
             };
             let machine = &program.machines()[*position as usize];
-            let field = validation::exact_self_field(program, machine, authored)?;
+            let field = crate::validation::exact_self_field(program, machine, authored)?;
             if field.symbol != selected {
                 return None;
             }
@@ -1054,39 +1066,39 @@ pub(super) fn structural_parameter_place(
         authored = member.receiver;
     }
     let root = crate::flow::normalized_event_place_root(program, place.root);
-    let facts::PlaceRoot::Symbol(_) = root else {
+    let crate::fact_plan::PlaceRoot::Symbol(_) = root else {
         return None;
     };
     let parameter_position = parameters.iter().position(|parameter| {
         crate::flow::normalized_event_place_root(
             program,
-            facts::PlaceRoot::Symbol(parameter.symbol),
+            crate::fact_plan::PlaceRoot::Symbol(parameter.symbol),
         ) == root
     })?;
     let mut path = Vec::new();
     for segment in &place.segments {
         path.push(match segment {
-            facts::PlaceSegment::Field { symbol } => {
+            crate::fact_plan::PlaceSegment::Field { symbol } => {
                 let field = data_field_positions(program, *symbol)
                     .iter()
                     .copied()
                     .find_map(|position| rostered_data_field(program, position))?;
                 CheckedStructuralPredicatePathSegment::Field(field.path_identity())
             }
-            facts::PlaceSegment::Case { variant } => {
+            crate::fact_plan::PlaceSegment::Case { variant } => {
                 let case =
                     with_structural_rosters(program, |rosters| {
                         rosters.variant_by_symbol.get(variant).copied()
                     })
                     .and_then(|(data_index, member_index)| {
                         match rostered_data_member(program, data_index, member_index) {
-                            typed_trees::data::DataMember::Variant(candidate) => Some(candidate),
+                            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(candidate) => Some(candidate),
                             _ => None,
                         }
                     })?;
                 CheckedStructuralPredicatePathSegment::Case(case.path_identity())
             }
-            facts::PlaceSegment::FixedIndex { index } => {
+            crate::fact_plan::PlaceSegment::FixedIndex { index } => {
                 CheckedStructuralPredicatePathSegment::FixedIndex(u64::try_from(*index).ok()?)
             }
             _ => return None,
@@ -1095,8 +1107,10 @@ pub(super) fn structural_parameter_place(
     let parameter_position = u32::try_from(parameter_position).ok()?;
     let (resolved_root, segments, type_reference, _) =
         resolve_structural_parameter_path(program, parameters, parameter_position, &path)?;
-    if crate::flow::normalized_event_place_root(program, facts::PlaceRoot::Symbol(resolved_root))
-        != root
+    if crate::flow::normalized_event_place_root(
+        program,
+        crate::fact_plan::PlaceRoot::Symbol(resolved_root),
+    ) != root
         || segments != place.segments
     {
         return None;
@@ -1111,7 +1125,7 @@ pub(super) fn structural_parameter_place(
 pub(super) fn element_field_path(
     program: &TypedTrees,
     element: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[crate::fact_plan::PlaceSegment],
 ) -> Option<(
     Vec<CheckedStructuralPredicatePathSegment>,
     TypeReferenceHandle,
@@ -1119,7 +1133,7 @@ pub(super) fn element_field_path(
     let mut current = element;
     let mut path = Vec::with_capacity(segments.len());
     for segment in segments {
-        let facts::PlaceSegment::Field { symbol } = segment else {
+        let crate::fact_plan::PlaceSegment::Field { symbol } = segment else {
             return None;
         };
         let owner = loop {
@@ -1138,9 +1152,9 @@ pub(super) fn element_field_path(
             .data_members(owner)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
-                    Some(field)
-                }
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.symbol == *symbol => Some(field),
                 _ => None,
             })?;
         if field.relevance.is_erased() {

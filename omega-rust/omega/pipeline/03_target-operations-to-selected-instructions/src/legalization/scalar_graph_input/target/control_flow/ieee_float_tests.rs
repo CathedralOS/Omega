@@ -5,9 +5,11 @@ use super::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, ScalarType,
     TargetUnitOperation,
 };
-use abstract_operations::{AbstractBlockEntry, AbstractParameter, AbstractResult, ValueBinding};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IeeeFloatComparisonOperation, IeeeFloatFormat, OperationId,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractParameter, AbstractResult, ValueBinding,
 };
 
 fn value(ordinal: u64) -> ValueId {
@@ -158,7 +160,7 @@ fn ieee_comparisons_preserve_float_calls_and_block_arrivals() {
                     abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
                 )
                 .unwrap();
-                let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
                     &source,
                     FuelScheduleIdentity::new(1).unwrap(),
                 )
@@ -189,15 +191,17 @@ fn ieee_comparison_replay_rejects_changed_operands_format_relation_and_arrival()
         ),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
     let legalized = crate::legalize_target_operations(&target, &source, &unit).unwrap();
     let mut changed_legalized = legalized.plan().clone();
-    let legalized_operations::LegalizedScalarInstructionKind::IeeeFloatCompare {
-        left, right, ..
+    let crate::legalized_operations::LegalizedScalarInstructionKind::IeeeFloatCompare {
+        left,
+        right,
+        ..
     } = &mut changed_legalized.scalar_functions[0].blocks[1].instructions[1].kind
     else {
         panic!("legalized comparison")
@@ -313,7 +317,7 @@ fn ten_float_arguments_retain_incoming_outgoing_stack_and_result_abi() {
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
-            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 FuelScheduleIdentity::new(1).unwrap(),
             )

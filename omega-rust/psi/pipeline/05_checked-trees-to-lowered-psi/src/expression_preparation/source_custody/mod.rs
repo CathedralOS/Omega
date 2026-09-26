@@ -36,8 +36,8 @@ use super::{
     CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
     PrimitiveType, ScalarType, terminal_scalar_type, unsupported,
 };
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::{
+use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
@@ -104,8 +104,8 @@ pub(crate) fn authored_state(
     state: symbols::SymbolHandle,
 ) -> Result<
     (
-        &checked_trees::machine::Machine,
-        &checked_trees::state::State,
+        &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+        &typed_trees_to_checked_trees::checked_trees::state::State,
     ),
     LoweringError,
 > {
@@ -182,13 +182,13 @@ pub(crate) fn locate(
             source,
         )
         .and_then(|(expression, reference)| {
-            validation::scalar_array_elements(program, machine.symbol, expression, reference)
+            typed_trees_to_checked_trees::validation::scalar_array_elements(program, machine.symbol, expression, reference)
         })
         .and_then(|array| array.elements.get(element_ordinal as usize).copied())
         .map(|(expression, primitive)| {
             let destination = match (source, authored) {
                 (
-                    checked_trees::CheckedArrayConstructionSource::Statement,
+                    typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::Statement,
                     StatementNode::LocalData(local),
                 ) => local.symbol,
                 _ => absent,
@@ -241,7 +241,7 @@ pub(crate) fn locate(
             let call = crate::emission::call_source_custody::authored::locate_source(
                 checked,
                 state.symbol,
-                checked_trees::CheckedUnitCallCoordinate {
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
                     statement_index: statement,
                     call_ordinal,
                 },
@@ -274,11 +274,11 @@ pub(crate) fn locate(
             .boundary_application_operands(
                 program,
                 local.initial_value,
-                checked_trees::CheckedValueOrigin::StateStatement {
+                typed_trees_to_checked_trees::checked_trees::CheckedValueOrigin::StateStatement {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
                     statement_index: statement as usize,
-                    role: checked_trees::CheckedValueStatementRole::LocalInitializer,
+                    role: typed_trees_to_checked_trees::checked_trees::CheckedValueStatementRole::LocalInitializer,
                 },
             )
             .and_then(|application| application.scalar_operand(operand_ordinal as usize))
@@ -293,7 +293,7 @@ pub(crate) fn locate(
             let call = crate::emission::call_source_custody::authored::locate_source(
                 checked,
                 state.symbol,
-                checked_trees::CheckedUnitCallCoordinate {
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
                     statement_index: statement,
                     call_ordinal,
                 },
@@ -331,10 +331,10 @@ pub(crate) fn locate(
         (
             StatementNode::Assignment(assignment),
             CheckedScalarExpressionRole::AtomicOperand { operand_ordinal },
-        ) => validation::atomic_assignment_carrier(program, assignment).and_then(|carrier| {
+        ) => typed_trees_to_checked_trees::validation::atomic_assignment_carrier(program, assignment).and_then(|carrier| {
             let operand = *carrier.operands.get(operand_ordinal as usize)?;
             let primitive =
-                validation::declared_place_type_raw(program, machine, Some(state), carrier.place)
+                typed_trees_to_checked_trees::validation::declared_place_type_raw(program, machine, Some(state), carrier.place)
                     .and_then(|reference| program.primitive_type_reference(reference))?;
             Some((operand, absent, primitive))
         }),
@@ -344,7 +344,7 @@ pub(crate) fn locate(
         ) => usize::try_from(depth)
             .ok()
             .and_then(|depth| {
-                validation::assignment_target_selectors(program, assignment.target)
+                typed_trees_to_checked_trees::validation::assignment_target_selectors(program, assignment.target)
                     .get(depth)
                     .copied()
             })
@@ -353,18 +353,18 @@ pub(crate) fn locate(
                 // scalar plan. An unresolved result is not evidence of anonymous
                 // integer meaning, so only exact anonymous landing supplies u64.
                 let primitive =
-                    validation::expression_result_type_reference(program, machine, state, index)
+                    typed_trees_to_checked_trees::validation::expression_result_type_reference(program, machine, state, index)
                         .and_then(|reference| program.primitive_type_reference(reference))
                         .or_else(|| {
-                            validation::land_anonymous_integer_expression(
+                            typed_trees_to_checked_trees::validation::land_anonymous_integer_expression(
                                 program,
                                 index,
                                 PrimitiveType::U64,
                                 |expression| {
                                     match checked.facts.operators.expression_use(expression) {
                             Some(operator) => operator.status
-                                == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
-                            None => validation::has_anonymous_operator_meaning(program, expression),
+                                == typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
+                            None => typed_trees_to_checked_trees::validation::has_anonymous_operator_meaning(program, expression),
                         }
                                 },
                             )
@@ -396,7 +396,7 @@ pub(crate) fn locate(
                                     // authored root spelling as its scalar
                                     // binding destination; the stored
                                     // primitive is the referent's.
-                                    checked_trees::types::TypeReferenceNode::Reference {
+                                    typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
                                         access:
                                             language_semantics::ReferenceAccess::Mutable
                                             | language_semantics::ReferenceAccess::WriteOnly,
@@ -431,7 +431,7 @@ pub(crate) fn locate(
                                         .type_reference_table
                                         .type_reference(parameter.type_reference)
                                     {
-                                        checked_trees::types::TypeReferenceNode::Reference {
+                                        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
                                             access:
                                                 language_semantics::ReferenceAccess::Mutable
                                                 | language_semantics::ReferenceAccess::WriteOnly,
@@ -447,7 +447,7 @@ pub(crate) fn locate(
                         })
                 }
                 ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-                    validation::declared_place_type_raw(
+                    typed_trees_to_checked_trees::validation::declared_place_type_raw(
                         program,
                         machine,
                         Some(state),
@@ -464,7 +464,7 @@ pub(crate) fn locate(
                 StatementNode::Expression(expression) => (*expression, absent),
                 _ => return None,
             };
-            let constructor = validation::scalar_case_constructor(program, expression)?;
+            let constructor = typed_trees_to_checked_trees::validation::scalar_case_constructor(program, expression)?;
             let (_, expression, primitive) = constructor.fields.get(field_ordinal as usize)?;
             Some((*expression, destination, *primitive))
         })(),
@@ -583,7 +583,7 @@ pub(crate) fn locate(
 
 pub(crate) fn validate_pure(
     checked: &CheckedTrees,
-    binding: &checked_trees::CheckedScalarExpressionBindings,
+    binding: &typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionBindings,
     scalar_type: ScalarType,
 ) -> Result<(), LoweringError> {
     let source = locate(
@@ -606,7 +606,7 @@ pub(crate) fn validate_pure(
 
 pub(crate) fn validate_namespace(
     checked: &CheckedTrees,
-    binding: &checked_trees::CheckedScalarExpressionBindings,
+    binding: &typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionBindings,
 ) -> Result<(), LoweringError> {
     let program = &checked.typed;
     let (_, state) = authored_state(checked, binding.state)?;
@@ -672,24 +672,27 @@ pub(crate) fn validate_successor(
 /// view local.
 fn subslice_site_range(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    state: &checked_trees::state::State,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    state: &typed_trees_to_checked_trees::checked_trees::state::State,
     authored: &StatementNode,
     statement: u32,
-    site: checked_trees::CheckedSubsliceSite,
-) -> Result<Option<checked_trees::expression::ExpressionHandle>, LoweringError> {
+    site: typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite,
+) -> Result<
+    Option<typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle>,
+    LoweringError,
+> {
     let program = &checked.typed;
     Ok(match (authored, site) {
         (
             _,
-            checked_trees::CheckedSubsliceSite::CallArgument {
+            typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite::CallArgument {
                 call_ordinal,
                 argument_ordinal,
             },
         ) => crate::emission::call_source_custody::authored::locate_source(
             checked,
             state.symbol,
-            checked_trees::CheckedUnitCallCoordinate {
+            typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
                 statement_index: statement,
                 call_ordinal,
             },
@@ -699,7 +702,9 @@ fn subslice_site_range(
         .map(|(_, expression)| *expression),
         (
             StatementNode::Transition(transition),
-            checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal },
+            typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite::TransitionArgument {
+                argument_ordinal,
+            },
         ) if transition.exit == TransitionExit::Ordinary && !transition.continuation.is_valid() => {
             match program.statement_table.transition_target(transition.target) {
                 TransitionTargetNode::Named {
@@ -727,11 +732,10 @@ fn subslice_site_range(
                 _ => None,
             }
         }
-        (StatementNode::LocalData(local), checked_trees::CheckedSubsliceSite::LocalBinding)
-            if !local.is_mutable =>
-        {
-            Some(local.initial_value)
-        }
+        (
+            StatementNode::LocalData(local),
+            typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite::LocalBinding,
+        ) if !local.is_mutable => Some(local.initial_value),
         _ => None,
     })
 }

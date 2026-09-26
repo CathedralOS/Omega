@@ -218,8 +218,8 @@ fn strict_integer_requirements_keep_original_relation_and_reject_new_arithmetic(
         Proposition::LessThan(_, _)
     ));
     for kind in [
-        checked_trees::CheckedIntegerBinaryKind::ExactAdd,
-        checked_trees::CheckedIntegerBinaryKind::ExactDivide,
+        typed_trees_to_checked_trees::checked_trees::CheckedIntegerBinaryKind::ExactAdd,
+        typed_trees_to_checked_trees::checked_trees::CheckedIntegerBinaryKind::ExactDivide,
     ] {
         let arithmetic = CheckedScalarExpression::IntegerBinary {
             kind,

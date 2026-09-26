@@ -40,7 +40,8 @@ fn selected_case_fields_keep_distinct_occurrences_in_the_shared_value_plan() {
     assert_eq!(fields[1].1, 0);
     assert_ne!(fields[0].2, fields[1].2);
     for (expression, _, computation) in fields {
-        let constructor = validation::scalar_case_constructor(&checked.typed, expression).unwrap();
+        let constructor =
+            crate::validation::scalar_case_constructor(&checked.typed, expression).unwrap();
         assert_eq!(
             values
                 .scalar_computations
@@ -114,19 +115,21 @@ fn local_case_construction_has_one_structural_result_and_observation_identity() 
         let constructors = plan
             .operations
             .iter()
-            .filter_map(|operation| match operation {
-                checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            .filter_map(|operation| {
+                match operation {
+                crate::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     result,
                     value,
                     ..
                 } => Some((result, value)),
                 _ => None,
+            }
             })
             .collect::<Vec<_>>();
         let [(result, value)] = constructors.as_slice() else {
             panic!("one local constructor");
         };
-        let checked_trees::CheckedStructuralValueKind::Case(case) = &checked
+        let crate::checked_trees::CheckedStructuralValueKind::Case(case) = &checked
             .facts
             .values
             .structural_values
@@ -164,7 +167,8 @@ fn local_case_construction_has_one_structural_result_and_observation_identity() 
             .root_at(state.symbol, 1, CheckedScalarExpressionRole::Return)
             .expect("local observation");
         let CheckedScalarComputationKind::CaseMembership {
-            subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
+            subject:
+                crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
             ..
         } = &plans.nodes.get(root.root).kind
         else {
@@ -172,13 +176,13 @@ fn local_case_construction_has_one_structural_result_and_observation_identity() 
         };
         assert_eq!(
             subject.source,
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                 symbol: local.symbol
             }
         );
         assert_eq!(
             subject.access,
-            checked_trees::CheckedStructuralAccess::SharedBorrow
+            crate::checked_trees::CheckedStructuralAccess::SharedBorrow
         );
     }
 }
@@ -209,7 +213,7 @@ fn case_constructors_retain_dynamic_fields_in_authored_order() {
         panic!("membership");
     };
     assert!(
-        validation::has_exact_case_membership_meaning(
+        crate::validation::has_exact_case_membership_meaning(
             &checked.typed,
             machine,
             Some(state),
@@ -219,7 +223,7 @@ fn case_constructors_retain_dynamic_fields_in_authored_order() {
         "exact membership: {binary:?}"
     );
     assert!(
-        validation::scalar_case_constructor(&checked.typed, binary.left).is_some(),
+        crate::validation::scalar_case_constructor(&checked.typed, binary.left).is_some(),
         "constructor: {:?}; owner reference: {:?}",
         checked.expression_table.expression(binary.left),
         checked.type_reference_table.find_named_type_reference(
@@ -236,7 +240,7 @@ fn case_constructors_retain_dynamic_fields_in_authored_order() {
         .root_at(state.symbol, 0, CheckedScalarExpressionRole::Return)
         .expect("constructed membership is executable");
     let CheckedScalarComputationKind::CaseMembership {
-        subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+        subject: crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
         case,
         ..
     } = &plans.nodes.get(root.root).kind
@@ -297,13 +301,14 @@ fn constructor_classifier_rejects_a_same_shaped_foreign_owner() {
         .iter()
         .find_map(|(_, node)| match &node.kind {
             CheckedScalarComputationKind::CaseMembership {
-                subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                subject:
+                    crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                 ..
             } => Some(subject.expression),
             _ => None,
         })
         .expect("constructor occurrence");
-    assert!(validation::scalar_case_constructor(&checked.typed, expression).is_some());
+    assert!(crate::validation::scalar_case_constructor(&checked.typed, expression).is_some());
     let foreign = checked
         .data_definitions()
         .iter()
@@ -316,5 +321,5 @@ fn constructor_classifier_rejects_a_same_shaped_foreign_owner() {
         panic!("case literal");
     };
     literal.type_symbol = foreign;
-    assert!(validation::scalar_case_constructor(&checked.typed, expression).is_none());
+    assert!(crate::validation::scalar_case_constructor(&checked.typed, expression).is_none());
 }

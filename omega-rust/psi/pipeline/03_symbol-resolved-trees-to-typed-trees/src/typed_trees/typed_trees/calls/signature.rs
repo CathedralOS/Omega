@@ -1,0 +1,192 @@
+use crate::typed_trees::name::Identifier;
+use crate::typed_trees::types::TypeReferenceHandle;
+use arena::HandleSpan;
+use symbols::SymbolHandle;
+
+/// One exact authored member of a service-reach ceiling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthoredServiceReachTarget {
+    pub service: SymbolHandle,
+    pub source_span: source::SourceSpan,
+}
+
+/// Provenance-only source custody for one callable's authored `reaches`
+/// clauses. Clause keyword occurrences preserve an explicit empty ceiling;
+/// targets bind exact boundary-trait identity to exact member spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredServiceReachRow {
+    pub owner: SymbolHandle,
+    pub keyword_source_spans: Vec<source::SourceSpan>,
+    pub targets: Vec<AuthoredServiceReachTarget>,
+    pub installation_bound: bool,
+}
+
+/// Exact semantic target selected by one authored `invokes` occurrence.
+/// Spelling is never used to reselect this target after typed lowering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredInvocationTarget {
+    Unresolved,
+    Parameter { ordinal: u32, symbol: SymbolHandle },
+    Service(SymbolHandle),
+}
+
+/// One source-backed synchronous-invocation declaration. The source span and
+/// exact target travel as one compiler-owned record so review provenance can
+/// never be paired with a target by position or spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredInvocation {
+    pub name: Identifier,
+    pub source_span: source::SourceSpan,
+    pub target: AuthoredInvocationTarget,
+}
+
+impl Default for AuthoredInvocation {
+    fn default() -> Self {
+        Self {
+            name: Identifier::default(),
+            source_span: source::SourceSpan::default(),
+            target: AuthoredInvocationTarget::Unresolved,
+        }
+    }
+}
+
+impl AuthoredInvocation {
+    pub fn as_str(&self) -> &str {
+        self.name.as_str()
+    }
+}
+
+impl std::fmt::Display for AuthoredInvocation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.name.fmt(formatter)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateSignature {
+    pub symbol: SymbolHandle,
+    pub name: Identifier,
+    /// Fixed token owned by a trait requirement, retained as public
+    /// compatibility surface rather than used as bare dispatch identity.
+    pub spelling: Option<language_core::OperatorSpelling>,
+    pub lifetime_parameters: Vec<Identifier>,
+    pub type_parameters: HandleSpan<crate::typed_trees::data::TypeParameter>,
+    pub is_default: bool,
+    pub parameters: HandleSpan<StateParameter>,
+    /// Native-only callback entries are separate from runtime parameters so
+    /// ordinary call arity, value flow, and source argument lowering cannot
+    /// accidentally observe them.
+    pub native_callback_parameters: Vec<NativeCallbackParameter>,
+    pub return_type: TypeReferenceHandle,
+    pub invokes: HandleSpan<AuthoredInvocation>,
+    /// EFX: normalized symbol-resolved boundary-service row.
+    pub service_reach_row: language_semantics::ServiceReachRowId,
+    pub service_reach_is_installation_bound: bool,
+    /// Exact authored operational-clause keyword occurrences, retained for
+    /// package-review source custody and excluded from semantic identity.
+    pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
+    pub suspends: bool,
+    pub blocks: bool,
+    pub contracts: HandleSpan<SignatureContract>,
+    /// The bodyless requirement's normalized PUBLIC guarantee, including its
+    /// exact parameter-rooted progress-premise schemas. Implementations
+    /// inherit this record rather than reconstructing it from their bodies.
+    pub termination_guarantee: language_semantics::TerminationGuarantee,
+    /// Signature-level `where` proof facts. A finite generic method family is
+    /// authored here as one explicit disjunction of complete value-binder
+    /// equalities; other fact shapes remain ordinary proof facts.
+    pub where_facts: HandleSpan<crate::typed_trees::domain::ProofFact>,
+}
+
+impl Default for StateSignature {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::default(),
+            spelling: None,
+            lifetime_parameters: Vec::new(),
+            type_parameters: HandleSpan::empty(),
+            is_default: false,
+            parameters: HandleSpan::empty(),
+            native_callback_parameters: Vec::new(),
+            return_type: TypeReferenceHandle::invalid(),
+            invokes: HandleSpan::empty(),
+            service_reach_row: language_semantics::ServiceReachRowId::NULL,
+            service_reach_is_installation_bound: false,
+            suspends_keyword_source_spans: Vec::new(),
+            blocks_keyword_source_spans: Vec::new(),
+            suspends: false,
+            blocks: false,
+            contracts: HandleSpan::empty(),
+            termination_guarantee: language_semantics::TerminationGuarantee::NoGuarantee,
+            where_facts: HandleSpan::empty(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NativeCallbackParameter {
+    pub name: Identifier,
+    pub binder: Identifier,
+    pub native_ordinal: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateParameter {
+    pub symbol: SymbolHandle,
+    pub name: Identifier,
+    pub type_reference: TypeReferenceHandle,
+    pub is_const: bool,
+    pub is_mutable: bool,
+    pub is_self: bool,
+    /// Authored `[erased]` on the binding occurrence. An erased parameter
+    /// stays in the signature, contracts, and semantic identity but owns no
+    /// runtime storage, transfer, or read; runtime faces skip it the way
+    /// layout skips an erased field.
+    pub relevance: language_core::BindingRelevance,
+}
+
+impl Default for StateParameter {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::default(),
+            type_reference: TypeReferenceHandle::invalid(),
+            is_const: false,
+            is_mutable: false,
+            is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SignatureContract {
+    pub kind: SignatureContractKind,
+    /// Exact authored clause keyword retained independently from semantic facts.
+    pub keyword_source_span: Option<source::SourceSpan>,
+    pub binding: Option<Identifier>,
+    pub facts: arena::HandleSpan<crate::typed_trees::domain::ProofFact>,
+    pub token_count: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum SignatureContractKind {
+    #[default]
+    Requires,
+    Ensures,
+    EnsuresForResultCase {
+        result_data: SymbolHandle,
+        result_case: SymbolHandle,
+    },
+    Crashes {
+        cause: CrashCause,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CrashCause {
+    Trap,
+    Abort,
+}

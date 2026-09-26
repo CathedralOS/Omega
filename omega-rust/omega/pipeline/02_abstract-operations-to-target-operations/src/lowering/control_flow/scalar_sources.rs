@@ -2,12 +2,12 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::unit::scalar_call::KnownUnitInteger;
-use abstract_operations::AbstractFunction;
-use semantic_vocabulary::{OperationId, ValueId};
-use std::collections::BTreeMap;
-use target_operations::{
+use crate::target_operations::{
     TargetStructuralRuntimeIndex, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement,
 };
+use semantic_vocabulary::{OperationId, ValueId};
+use std::collections::BTreeMap;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractFunction;
 
 /// Borrowed view over the scalar maps a live graph carries, so sibling
 /// lowering modules replay the same dominance precedence without naming the
@@ -18,7 +18,8 @@ pub(crate) struct ScalarSources<'a> {
     pub booleans: &'a BTreeMap<ValueId, (OperationId, bool)>,
     pub ieee_float_constants:
         &'a BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
-    pub scalar_block_parameters: &'a BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
+    pub scalar_block_parameters:
+        &'a BTreeMap<ValueId, crate::target_operations::TargetScalarBlockValue>,
 }
 
 impl<'a> From<&'a LiveDefinitions> for ScalarSources<'a> {

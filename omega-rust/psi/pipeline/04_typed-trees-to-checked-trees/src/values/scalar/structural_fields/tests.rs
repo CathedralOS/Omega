@@ -1,12 +1,14 @@
 use super::{exact_self_parameter, structural_parameter_field_path};
+use crate::checked_trees::CheckedStructuralPredicatePathSegment;
 use crate::tests::front_end::typed_program;
-use checked_trees::CheckedStructuralPredicatePathSegment;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::TypeReferenceNode;
 
 fn byte_length_fixture(source: &str) -> (TypedTrees, ExpressionHandle) {
     let program = typed_program(source);
@@ -31,8 +33,8 @@ fn byte_field_length_retains_exact_path_and_rejects_wrong_members() {
     let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
     assert!(matches!(
         super::structural_sequence_length(&program, parameters, length),
-        Some(checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
-            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 }, path,
+        Some(crate::checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+            root: crate::checked_trees::CheckedStorageRoot::Parameter { index: 0 }, path,
         }) if path == [CheckedStructuralPredicatePathSegment::Field("text".into())]
     ));
     let DataMember::Field(foreign) = &program.data_members(&program.data_definitions()[1])[0]
@@ -70,8 +72,8 @@ fn byte_length_keeps_whole_views_distinct_from_field_carriers() {
             program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
         assert!(matches!(
             super::structural_sequence_length(&program, parameters, length),
-            Some(checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
-                root: checked_trees::CheckedStorageRoot::Parameter { index: 0 }, path,
+            Some(crate::checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+                root: crate::checked_trees::CheckedStorageRoot::Parameter { index: 0 }, path,
             }) if path.is_empty()
         ));
     }
@@ -106,7 +108,7 @@ fn fixed_array_length_retains_static_extent_through_exact_projections() {
             program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
         assert!(matches!(
             super::structural_sequence_length(&program, parameters, length),
-            Some(checked_trees::CheckedScalarExpression::IntegerLiteral { literal })
+            Some(crate::checked_trees::CheckedScalarExpression::IntegerLiteral { literal })
                 if literal.value_u64() == Some(32)
                     && literal.landing().is_some_and(|landing|
                         landing.landed_type == numerics::literals::LandedIntegerType::U64
@@ -128,8 +130,8 @@ fn boolean_field_value_rejoins_the_exact_declared_root_and_path() {
     let expression = requirement(&program);
     assert!(
         matches!(super::lower_structural_parameter_field(&program, parameters, expression),
-        Some((checked_trees::CheckedScalarExpression::Boolean(value), _))
-            if matches!(value.as_ref(), checked_trees::CheckedBooleanExpression::StructuralParameterField {
+        Some((crate::checked_trees::CheckedScalarExpression::Boolean(value), _))
+            if matches!(value.as_ref(), crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
                 parameter_position: 0, path,
             } if path == &[CheckedStructuralPredicatePathSegment::Field("allowed".into())]))
     );
@@ -307,10 +309,11 @@ fn runtime_self_alias_rejects_wrong_owner_types_and_stale_or_excessive_wrappers(
     }
     let mut invalid = program.clone();
     let original = invalid.tables.state_parameters.span_or_empty(parameters)[0].type_reference;
-    let stale = typed_trees::types::TypeReferenceHandle::from_parts(
-        original.arena_index(),
-        original.generation() + 1,
-    );
+    let stale =
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::from_parts(
+            original.arena_index(),
+            original.generation() + 1,
+        );
     invalid
         .tables
         .state_parameters

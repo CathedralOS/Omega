@@ -1,6 +1,6 @@
 //! Independent replay comparison and epoch-two choice receipt sealing.
 
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };

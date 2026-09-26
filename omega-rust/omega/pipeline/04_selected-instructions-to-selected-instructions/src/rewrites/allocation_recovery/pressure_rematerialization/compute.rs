@@ -10,7 +10,7 @@ mod source_custody;
 mod work;
 
 use optimization_core::OptimizationWorkBudget;
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,

@@ -7,8 +7,10 @@ use super::{
     TargetOperationPlan,
 };
 use crate::LegalizationError;
+use abstract_operations_to_target_operations::target_operations::{
+    BoundaryRealization, TargetUnitOperation,
+};
 use semantic_vocabulary::OperationId;
-use target_operations::{BoundaryRealization, TargetUnitOperation};
 
 pub(super) fn validate_tails(
     native: &TargetOperationPlan,

@@ -24,7 +24,7 @@ const CONTEXT_FIXTURE: &str = r#"
     -> u64 { 0 }
 "#;
 
-fn fixture(statements: &str) -> checked_trees::CheckedTrees {
+fn fixture(statements: &str) -> crate::checked_trees::CheckedTrees {
     fixture_with_contract(statements, true, false)
 }
 
@@ -32,7 +32,7 @@ fn fixture_with_contract(
     statements: &str,
     requires_original: bool,
     published: bool,
-) -> checked_trees::CheckedTrees {
+) -> crate::checked_trees::CheckedTrees {
     fixture_with_extra(statements, requires_original, published, "")
 }
 
@@ -41,7 +41,7 @@ fn fixture_with_extra(
     requires_original: bool,
     published: bool,
     extra: &str,
-) -> checked_trees::CheckedTrees {
+) -> crate::checked_trees::CheckedTrees {
     let body = format!("{statements}\ntransition {{ _ -> wait_context(context) }}");
     fixture_with_body(&body, requires_original, published, extra)
 }
@@ -51,7 +51,7 @@ fn fixture_with_body(
     requires_original: bool,
     published: bool,
     extra: &str,
-) -> checked_trees::CheckedTrees {
+) -> crate::checked_trees::CheckedTrees {
     check_source(&fixture_source(body, requires_original, published, extra))
 }
 
@@ -78,7 +78,7 @@ fn fixture_source(body: &str, requires_original: bool, published: bool, extra: &
     )
 }
 
-fn check_source(source: &str) -> checked_trees::CheckedTrees {
+fn check_source(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("check progress mutation: {diagnostics:#?}"))
 }
@@ -101,7 +101,7 @@ fn assert_subject(statements: &str, expected_parameter: &str) {
     assert_subjects(&program, &[expected_parameter]);
 }
 
-fn assert_subjects(program: &checked_trees::CheckedTrees, expected_parameters: &[&str]) {
+fn assert_subjects(program: &crate::checked_trees::CheckedTrees, expected_parameters: &[&str]) {
     let machine = program
         .machines()
         .iter()

@@ -5,10 +5,17 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-checked-trees = { path = "../../representations/checked-trees" }
-lowered-psi = { path = "../../representations/lowered-psi" }
-terminal-psi = { path = "../../representations/terminal-psi" }
+typed-trees-to-checked-trees = { path = "../04_typed-trees-to-checked-trees" }
+checked-trees-to-lowered-psi = { path = "../05_checked-trees-to-lowered-psi" }
+terminal-psi = { path = "../../terminal-psi" }
+language-semantics = { path = "../../foundation/language-semantics" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 symbols = { path = "../../foundation/symbols" }
 lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
-terminal-codec = { path = "../../semantics/terminal-codec" }
+terminal-codec = { path = "../../terminal-codec" }
+
+[dev-dependencies]
+source-files-to-tokens = { path = "../00_source-files-to-tokens" }
+tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }

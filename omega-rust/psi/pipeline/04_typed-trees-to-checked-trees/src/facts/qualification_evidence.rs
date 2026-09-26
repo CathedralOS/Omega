@@ -1,21 +1,25 @@
+use crate::checked_trees::{BoundaryQualificationAuthorization, ContractProofFact};
+use crate::fact_plan::{FactPayload, QualificationEvidence};
 use arena::Handle;
-use checked_trees::{BoundaryQualificationAuthorization, ContractProofFact};
-use facts::{FactPayload, QualificationEvidence};
 use language_semantics::{
     DomainEstablishmentRoute, MachineSupplyMode, QualificationEvidenceOrigin,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::{
+    SignatureContractKind, StateSignature,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::machine::Machine;
-use typed_trees::signature::{SignatureContractKind, StateSignature};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn domain_definition(
     program: &TypedTrees,
     domain_symbol: SymbolHandle,
-) -> Option<&typed_trees::domain::DomainDefinition> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::domain::DomainDefinition> {
     program
         .domain_definitions()
         .iter()
@@ -298,7 +302,7 @@ pub(crate) fn operator_contract_evidence(
 
 fn expression_is_bare_result(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return false;
@@ -316,7 +320,7 @@ fn expression_is_bare_result(
 fn ensured_subject_carrier(
     program: &TypedTrees,
     signature: &StateSignature,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     if expression_is_bare_result(program, expression) {
         return Some(signature.return_type);
@@ -345,14 +349,14 @@ fn ensured_subject_carrier(
 
 fn membership_carry_permission(
     program: &TypedTrees,
-    membership: &typed_trees::domain::ProofMembershipFact,
+    membership: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofMembershipFact,
 ) -> Option<language_semantics::CarryPermission> {
     carry_permission_from_path(program, membership.domain)
 }
 
 fn carry_permission_from_path(
     program: &TypedTrees,
-    domain: arena::HandleSpan<typed_trees::name::Identifier>,
+    domain: arena::HandleSpan<symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier>,
 ) -> Option<language_semantics::CarryPermission> {
     let name = program
         .domain_path_members(domain)

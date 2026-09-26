@@ -55,7 +55,9 @@ fn projected_parameter_with_untouched_sibling_lands_in_the_partial_lane() {
     };
     assert_eq!(
         argument.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: 0
+        }
     );
     assert_eq!(
         argument.path.as_slice(),
@@ -99,7 +101,9 @@ fn a_later_parameter_may_own_the_residual_root() {
     };
     assert_eq!(
         residual.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 }
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: 1
+        }
     );
     assert_eq!(
         residual.path.as_slice(),
@@ -168,19 +172,21 @@ fn a_projected_parameter_shares_one_consumer_with_a_dying_temporary() {
     };
     assert_eq!(
         temporary_argument.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: 0
         }
     );
     assert_eq!(
         parameter_argument.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: 0
+        }
     );
     // The temporary's complement dies on the consumer's continuation; only
     // the parameter's complement survives to the return edge.
     assert!(affine_discards.iter().all(|discard| matches!(
         discard.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
     )));
     let [residual] = plan.residual_affine_discards.as_slice() else {
         panic!("the parameter keeps exactly one residual field")

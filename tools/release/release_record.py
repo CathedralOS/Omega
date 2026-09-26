@@ -105,12 +105,8 @@ GATES = {
                       "compilation handoff agree without path/name inference "
                       "or hidden ambient mutation.",
         "commands": [
-            "mbx nextest run -p build-declarations -p build-evaluation "
-            "-p package-compilation -p package-source -p resolver-execution "
-            "-p package-evidence -p package-manager --no-fail-fast",
-            "mbx test --doc -p build-declarations -p build-evaluation "
-            "-p package-compilation -p package-source -p resolver-execution "
-            "-p package-evidence -p package-manager",
+            "mbx nextest run -p omega --no-fail-fast",
+            "mbx test --doc -p omega",
         ],
     },
     "RC-NATIVE-MATRIX": {

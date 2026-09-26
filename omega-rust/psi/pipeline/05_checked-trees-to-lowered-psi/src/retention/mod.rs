@@ -6,10 +6,8 @@
 //! plans, placed-view inputs, operation-level crash contracts for selected
 //! operator invocations, and closed reach or conformance applications.
 
-use checked_trees::CheckedTrees;
-use checked_trees::types::PrimitiveType;
+use crate::lowered_psi::LoweredSourceCallOccurrence;
 use language_semantics::Multiplicity;
-use lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{
     BoundaryMachineId, ContentPlaceVersion, DomainSemanticId, OperationId, ValueId,
 };
@@ -17,6 +15,8 @@ use terminal_psi::{
     BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineResult, OperationKind,
     StructuralAccess, StructuralMultiplicity, TerminalModule, ValueDeclaration,
 };
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
 
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::{LoweringError, unsupported};

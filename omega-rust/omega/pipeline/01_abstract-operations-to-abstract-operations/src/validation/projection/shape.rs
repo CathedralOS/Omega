@@ -63,7 +63,7 @@ pub(super) fn validate_projection_shape(
         }
     }
 
-    let reconstructed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let reconstructed = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         projected,
         final_unit.fuel_schedule,
     )

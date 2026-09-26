@@ -1,15 +1,15 @@
 //! Rejoin readable primitive parameter storage without adding scalar bindings.
 
-use checked_trees::{
-    CheckedTrees,
-    signature::StateParameter,
-    types::{PrimitiveType, TypeReferenceNode},
-};
 use semantic_vocabulary::{PlaceId, ScalarType};
 use symbols::SymbolHandle;
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedTrees,
+    signature::StateParameter,
+    types::{PrimitiveType, TypeReferenceNode},
 };
 
 use crate::emission::scalar_types::terminal_scalar_type;

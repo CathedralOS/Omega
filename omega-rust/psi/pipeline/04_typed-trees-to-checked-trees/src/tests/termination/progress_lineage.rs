@@ -1,13 +1,13 @@
 use crate::CheckingRequest;
+use crate::checked_trees::CheckedTrees;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 use crate::tests::termination::symbol_of_checked;
-use checked_trees::CheckedTrees;
 use language_semantics::{MachineTerminationPlan, TerminationGuarantee, TerminationInterface};
 
 mod qualifications;
 
-fn typed(source: &str) -> typed_trees::TypedTrees {
+fn typed(source: &str) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
     typed_program(&source)
 }
@@ -376,12 +376,12 @@ fn demanded_growing_projection_has_no_private_checked_guarantee() {
             .promises_termination(),
         "the independent local ranking must succeed"
     );
-    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
     let borrow = crate::borrow::build_borrow_facts(&program);
     let proof = crate::proof::build_proof_facts(&program, &proof_plan, &borrow);
     let mut semantic = crate::semantic::facts::build_semantic_facts(&program, &proof);
     let domains = crate::flow::build_domain_facts(&program, &semantic);
-    let operations = validation::infer_operational_may(&program);
+    let operations = crate::validation::infer_operational_may(&program);
     let flow = crate::flow::build_flow_facts(
         &program,
         &borrow,

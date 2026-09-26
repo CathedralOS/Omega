@@ -1,21 +1,25 @@
 //! Outcome-specific arm facts and the exact outcome case tests.
 
+use crate::checked_trees::{CheckedEvidenceTerm, ContractProofFactOwner, ProofFacts};
 use crate::proof::proposition_vocabulary::{
     lower_checked_proposition_application, proposition_application_label,
 };
-use checked_trees::{CheckedEvidenceTerm, ContractProofFactOwner, ProofFacts};
+use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::{
+    ProofSubstitutions, PropositionLabels,
+};
 use symbols::SymbolHandle;
-use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 /// Bind outcome-specific producer guarantees to the one transition arm that
 /// tests the saved result of a direct immutable call. Broader value-origin
 /// tracing intentionally remains fail-closed for this stage.
 pub(crate) fn bind_outcome_specific_arm_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::statement::{StatementNode, TransitionGuardNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+        StatementNode, TransitionGuardNode,
+    };
 
     let mut diagnostics = Vec::new();
     let mut arms = arena::Arena::default();
@@ -126,7 +130,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                 };
                 let Some(result_data) = program.data_definitions().iter().find_map(|definition| {
                     program.data_members(definition).iter().any(|member| {
-                        matches!(member, typed_trees::data::DataMember::Variant(variant) if variant.symbol == result_case)
+                        matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) if variant.symbol == result_case)
                     }).then_some(definition.symbol)
                 }) else {
                     if !selectors.is_empty() {
@@ -189,7 +193,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                         crate::facts::contract_occurrences::fact_referenced_occurrences(
                             program, row.fact,
                         );
-                    let validity = checked_trees::OutcomeSpecificValidityFact {
+                    let validity = crate::checked_trees::OutcomeSpecificValidityFact {
                         result_occurrence: result_expression,
                         evidence_interface_scope: instantiated_proposition.as_ref().and_then(
                             |proposition| {
@@ -220,7 +224,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                         term.proposition = proposition;
                         Some(proof.evidence_terms.append(term))
                     });
-                    arm_rows.push(checked_trees::OutcomeSpecificArmRowFact {
+                    arm_rows.push(crate::checked_trees::OutcomeSpecificArmRowFact {
                         guarantee,
                         instantiated_proposition,
                         instantiated_identity,
@@ -228,7 +232,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                         selected_term,
                     });
                 }
-                arms.append(checked_trees::OutcomeSpecificArmFact {
+                arms.append(crate::checked_trees::OutcomeSpecificArmFact {
                     caller_machine_symbol: caller_machine.symbol,
                     caller_state_symbol: caller_state.symbol,
                     statement_index,
@@ -251,39 +255,46 @@ pub(crate) fn bind_outcome_specific_arm_facts(
 }
 
 fn outcome_evidence_interface_scope(
-    program: &typed_trees::TypedTrees,
-    proposition: &checked_trees::CheckedPropositionApplication,
-    retained_occurrences: &[typed_trees::expression::ExpressionHandle],
-) -> Option<checked_trees::OutcomeSpecificEvidenceInterfaceScopeFact> {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    proposition: &crate::checked_trees::CheckedPropositionApplication,
+    retained_occurrences: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle],
+) -> Option<crate::checked_trees::OutcomeSpecificEvidenceInterfaceScopeFact> {
     let interface = proposition.evidence_interface.clone()?;
     let definition = program
         .propositions()
         .iter()
         .find(|definition| definition.symbol == proposition.declaration)?;
-    let typed_trees::proposition::PropositionBody::Witness { evidence } = definition.body else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBody::Witness {
+        evidence,
+    } = definition.body
+    else {
         return None;
     };
     let mut reference_regions = Vec::new();
     append_evidence_interface_reference_regions(program, evidence, &mut reference_regions);
     reference_regions.sort_by_key(|reference| reference.arena_index());
     reference_regions.dedup();
-    Some(checked_trees::OutcomeSpecificEvidenceInterfaceScopeFact {
-        interface,
-        evidence_type: evidence,
-        reference_regions,
-        retained_occurrences: retained_occurrences.to_vec(),
-    })
+    Some(
+        crate::checked_trees::OutcomeSpecificEvidenceInterfaceScopeFact {
+            interface,
+            evidence_type: evidence,
+            reference_regions,
+            retained_occurrences: retained_occurrences.to_vec(),
+        },
+    )
 }
 
 fn append_evidence_interface_reference_regions(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-    regions: &mut Vec<typed_trees::types::TypeReferenceHandle>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    regions: &mut Vec<
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    >,
 ) {
     if !type_reference.is_valid() {
         return;
     }
-    use typed_trees::types::TypeReferenceNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
             regions.push(type_reference);
@@ -312,10 +323,15 @@ fn append_evidence_interface_reference_regions(
 }
 
 pub(crate) fn exact_outcome_case_test(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<(typed_trees::expression::ExpressionHandle, SymbolHandle)> {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Option<(
+    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    SymbolHandle,
+)> {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, ExpressionNode,
+    };
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -345,7 +361,7 @@ pub(crate) fn exact_outcome_case_test(
             match program.expression_table.expression(candidate) {
             ExpressionNode::Name(path) if program.data_definitions().iter().any(|definition| {
                 program.data_members(definition).iter().any(|member| {
-                    matches!(member, typed_trees::data::DataMember::Variant(variant) if variant.symbol == path.symbol)
+                    matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) if variant.symbol == path.symbol)
                 })
             }) => Some(path.symbol),
             _ => None,
@@ -362,11 +378,11 @@ pub(crate) fn exact_outcome_case_test(
 }
 
 fn outcome_call_substitutions(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     _caller_state_symbol: SymbolHandle,
-    result_expression: typed_trees::expression::ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
-    target_state: &typed_trees::state::State,
+    result_expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Vec<(SymbolHandle, String, String)> {
     let mut substitutions = Vec::new();
     let arguments = program.expression_table.expression_handles(call.arguments);
@@ -396,24 +412,30 @@ fn outcome_call_substitutions(
 }
 
 fn instantiate_outcome_arm_fact(
-    program: &typed_trees::TypedTrees,
-    fact: arena::Handle<typed_trees::domain::ProofFact>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    fact: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
     substitutions: &[(SymbolHandle, String, String)],
 ) -> (
-    Option<checked_trees::CheckedPropositionApplication>,
+    Option<crate::checked_trees::CheckedPropositionApplication>,
     Option<String>,
 ) {
-    let typed_trees::domain::ProofFact::Proposition(application) = program.proof_facts.get(fact)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+        application,
+    ) = program.proof_facts.get(fact)
     else {
         let identity = match program.proof_facts.get(fact) {
-            typed_trees::domain::ProofFact::Expression(expression) => {
-                Some(program.render_proof_expression(
-                    *expression,
-                    ProofSubstitutions::ByParameter(substitutions),
-                ))
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                expression,
+            ) => Some(program.render_proof_expression(
+                *expression,
+                ProofSubstitutions::ByParameter(substitutions),
+            )),
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(_) => {
+                None
             }
-            typed_trees::domain::ProofFact::Membership(_) => None,
-            typed_trees::domain::ProofFact::Proposition(_) => unreachable!(),
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+                _,
+            ) => unreachable!(),
         };
         return (None, identity);
     };
@@ -459,10 +481,10 @@ fn instantiate_outcome_arm_fact(
 }
 
 pub(crate) fn exact_result_case(
-    program: &typed_trees::TypedTrees,
-    result: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    result: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
-    use typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
     let (data_symbol, case_symbol) = match program.expression_table.expression(result) {
         ExpressionNode::Name(path) if path.head_symbol.is_valid() && path.symbol.is_valid() => {
             (path.head_symbol, path.symbol)
@@ -480,7 +502,7 @@ pub(crate) fn exact_result_case(
         .any(|member| {
             matches!(
                 member,
-                typed_trees::data::DataMember::Variant(variant)
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
                     if variant.symbol == case_symbol
             )
         })
@@ -488,13 +510,13 @@ pub(crate) fn exact_result_case(
 }
 
 pub(crate) fn outcome_specific_fact_is_proved(
-    program: &typed_trees::TypedTrees,
-    fact: arena::Handle<typed_trees::domain::ProofFact>,
-    result: Option<typed_trees::expression::ExpressionHandle>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    fact: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+    result: Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>,
     known: &std::collections::BTreeSet<String>,
 ) -> bool {
-    use typed_trees::domain::ProofFact;
-    use typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
     let Some(result) = result else {
         return false;
@@ -523,16 +545,18 @@ pub(crate) fn outcome_specific_fact_is_proved(
 }
 
 pub(crate) fn outcome_specific_assignment_matches_result(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     proof: &ProofFacts,
-    fact: arena::Handle<typed_trees::domain::ProofFact>,
-    result: Option<typed_trees::expression::ExpressionHandle>,
+    fact: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+    result: Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>,
     source: arena::Handle<CheckedEvidenceTerm>,
 ) -> bool {
     let Some(result) = result else {
         return false;
     };
-    let typed_trees::domain::ProofFact::Proposition(application) = program.proof_facts.get(fact)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+        application,
+    ) = program.proof_facts.get(fact)
     else {
         return false;
     };

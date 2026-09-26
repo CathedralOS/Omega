@@ -1,5 +1,5 @@
-use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
-use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
+use omega::package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
+use omega::package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use target::TargetProfile;

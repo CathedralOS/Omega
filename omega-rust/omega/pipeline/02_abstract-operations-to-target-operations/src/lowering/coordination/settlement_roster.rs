@@ -7,10 +7,10 @@
 
 use super::installed_provider_calls::{BoundaryCallsByKey, InstalledCallsByCall};
 use crate::LoweringError;
-use abstract_operations::AbstractOperationPlan;
+use crate::target_operations::BoundarySettlementBinding;
 use semantic_vocabulary::BoundaryMachineId;
 use std::collections::{BTreeMap, BTreeSet};
-use target_operations::BoundarySettlementBinding;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
 
 /// Caller-supplied settlements indexed by the boundary they settle.
 pub(super) type SettlementsByBoundary = BTreeMap<BoundaryMachineId, BoundarySettlementBinding>;

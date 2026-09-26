@@ -5,7 +5,7 @@
 
 use crate::lowerer::seeded_continuation::{SeededContinuationError, lower_seeded_extension};
 use crate::lowerer::tests::seeded_plain_data_inputs;
-use typed_trees::mathematical::{MathematicalBody, MathematicalType};
+use crate::typed_trees::mathematical::{MathematicalBody, MathematicalType};
 
 #[test]
 fn let_definition_types_into_typed_tree() {
@@ -193,7 +193,8 @@ fn boundary_let_retains_binders_and_visibility() {
     let binders = typed.data_type_parameters.span_or_empty(definition.binders);
     assert_eq!(binders.len(), 1);
     assert_eq!(binders[0].name.to_string(), "A");
-    let typed_trees::data::TypeParameterKind::Value { type_reference } = binders[0].kind else {
+    let crate::typed_trees::data::TypeParameterKind::Value { type_reference } = binders[0].kind
+    else {
         panic!("`A: core::Type` keeps its authored value-binder carrier")
     };
     assert!(type_reference.is_valid());
@@ -209,7 +210,7 @@ fn definition_bodies_retain_call_expressions() {
     };
     assert!(matches!(
         typed.expression_table.expression(term),
-        typed_trees::expression::ExpressionNode::Call(_)
+        crate::typed_trees::expression::ExpressionNode::Call(_)
     ));
 }
 

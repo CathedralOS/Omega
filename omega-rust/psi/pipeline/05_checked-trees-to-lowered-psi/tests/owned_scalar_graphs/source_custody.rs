@@ -1,9 +1,9 @@
-use checked_trees::{
+use terminal_psi::{OperationKind, StructuralAccess};
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedBooleanExpression, CheckedScalarComputationKind, CheckedScalarExpression,
     CheckedStructuralAccess, CheckedStructuralPredicatePathSegment,
     CheckedUnitStructuralArgumentSourcePlan,
 };
-use terminal_psi::{OperationKind, StructuralAccess};
 
 use super::{LIMITS, ORDERED, support};
 

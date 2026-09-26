@@ -12,7 +12,7 @@ use super::{
     RegisterInstructionConstraint, RegisterOperandAccess, SelectedInstructionId,
     VirtualFixedConstraintSite, VirtualRegisterId,
 };
-use register_model::RegisterConstraintKey;
+use target_operations_to_selected_instructions::register_model::RegisterConstraintKey;
 
 /// Build and apply the function's emitted copies in partition order. The
 /// declared shared-entry selection keeps its entry-parameter admission gate
@@ -21,9 +21,9 @@ use register_model::RegisterConstraintKey;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_source_exit_copies(
     function_index: usize,
-    source_function: &selected_instructions::SelectedFunction,
+    source_function: &target_operations_to_selected_instructions::SelectedFunction,
     boundaries: &[&super::super::evidence::AuthenticatedFixedViewBoundary],
-    transformed: &mut selected_instructions::SelectedFunction,
+    transformed: &mut target_operations_to_selected_instructions::SelectedFunction,
     copy_row: &RegisterInstructionConstraint,
     copy_key: RegisterConstraintKey,
     policy: FixedViewCopyPolicy,

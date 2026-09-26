@@ -7,8 +7,10 @@ use crate::structural_return_source::{
     TerminalEffect, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
     decode_module,
 };
-use checked_trees::{CheckedScalarComputationKind, CheckedUnitEffectOperationPlan};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarComputationKind, CheckedUnitEffectOperationPlan,
+};
 
 #[test]
 fn mixed_scalar_formals_retain_ranges_and_linear_boundary_settlement() {
@@ -87,7 +89,7 @@ fn mixed_scalar_wrapper_cannot_erase_or_substitute_structural_membership() {
                 .collect::<Vec<_>>();
             for handle in handles {
                 let fact = checked.typed.proof_facts.get_mut(handle);
-                if let typed_trees::domain::ProofFact::Membership(membership) = fact {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) = fact {
                     membership.domain_symbol = other;
                     changed += 1;
                 }
@@ -280,10 +282,10 @@ fn nested_wrapper_rejects_reordered_producers_and_scalar_binding_drift() {
                 } else {
                     // Only `before` is a source binding at this statement.
                     // Slot one exists during staging, but must not be readable.
-                    scalar_arguments[1] = checked_trees::CheckedCallScalarArgument::Pure(
-                        checked_trees::CheckedScalarExpression::Local {
+                    scalar_arguments[1] = typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+                        typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Local {
                             position: 1,
-                            primitive_type: typed_trees::types::PrimitiveType::U16,
+                            primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16,
                         },
                     );
                 }
@@ -327,7 +329,10 @@ fn nested_wrapper_computation_cannot_read_a_private_argument_slot() {
             _ => None,
         })
         .unwrap();
-    let checked_trees::CheckedCallScalarArgument::Computation(computation) = argument else {
+    let typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
+        computation,
+    ) = argument
+    else {
         panic!("last wrapper operand calls observe");
     };
     let computations = &mut changed.facts.values.scalar_computations;
@@ -344,11 +349,13 @@ fn nested_wrapper_computation_cannot_read_a_private_argument_slot() {
         computations.nodes.get(operand).kind,
         CheckedScalarComputationKind::Value(_)
     ));
-    computations.nodes.get_mut(operand).kind =
-        CheckedScalarComputationKind::Value(checked_trees::CheckedScalarExpression::Local {
+    computations.nodes.get_mut(operand).kind = CheckedScalarComputationKind::Value(
+        typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Local {
             position: 1,
-            primitive_type: typed_trees::types::PrimitiveType::U16,
-        });
+            primitive_type:
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16,
+        },
+    );
     let error = checked_trees_to_lowered_psi::lower_machine(
         &changed,
         TerminalMachineSelection::Name("Root::enter"),

@@ -6,19 +6,23 @@
 //! target ABI. Either side substituting a stored row is a custody mismatch.
 use super::scalar_shape;
 use crate::LegalizationError;
-use abstract_operations::{AbstractOperation, AbstractParameterDynamicDispatch};
-use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape};
+use abstract_operations_to_target_operations::calling_conventions::{
+    CallPlan, CallSignature, CallingPolicy, ValueShape,
+};
+use abstract_operations_to_target_operations::target_operations::TargetDynamicDescriptorParameterAbi;
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, OperationId, ScalarType};
 use target::NativeTarget;
-use target_operations::TargetDynamicDescriptorParameterAbi;
 use terminal_psi::{ClosedConformanceCallableResult, TerminalDynamicRequirement};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractParameterDynamicDispatch,
+};
 
 /// A `DynamicDescriptorParameter` row declares signature custody only: it
 /// carries no `OperationId`, so its node retains no provenance, fuel,
 /// definition, use, successor, or ownership rows. Anything more is a
 /// fabricated declaration and fails source custody.
 pub(in crate::legalization) fn is_descriptor_declaration(
-    node: &optimization_unit::OptimizationNode,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 ) -> bool {
     matches!(
         node.operation,
@@ -96,14 +100,15 @@ pub(in crate::legalization) fn parameter_call_contract(
     // the requirement's result shape; the selected table slot must satisfy
     // this plan without naming a concrete realization.
     let result_shape = expected_result.and_then(scalar_shape);
-    let dispatch_call_plan = calling_conventions::evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: vec![ValueShape::integer(pointer_size, pointer_alignment)],
-            result: result_shape,
-        },
-    )
-    .map_err(|_| LegalizationError::custody())?;
+    let dispatch_call_plan =
+        abstract_operations_to_target_operations::calling_conventions::evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(pointer_size, pointer_alignment)],
+                result: result_shape,
+            },
+        )
+        .map_err(|_| LegalizationError::custody())?;
     if dispatch_call_plan.parameters.len() != 1
         || dispatch_call_plan
             .result

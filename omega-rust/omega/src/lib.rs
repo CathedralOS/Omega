@@ -1,11 +1,33 @@
 //! Complete application operations, usable without CLI parsing or process exits.
 //!
-//! Package operations remain owned by `package_manager::operations`. Compiler
+//! Package operations remain owned by `crate::package_manager::operations`. Compiler
 //! stages remain ordinary functions below these project-level workflows.
 
+pub mod artifacts;
+pub mod backend_plan;
+pub mod bounded_process;
+pub mod build_declarations;
+pub mod build_evaluation;
+pub mod build_output;
 pub mod compilation;
+pub mod compiler;
+pub mod component_candidate;
+pub mod component_deployment;
+pub mod component_description;
 pub mod execution;
 pub mod inspection;
+pub mod package_compilation;
+pub mod package_evidence;
+pub mod package_manager;
+pub mod package_source;
+pub mod platform_custody;
+pub mod provider_planning;
+pub mod representation_planning;
+pub mod resolver_execution;
+pub mod selected_dispatch;
+pub mod topology_plan;
+pub mod trust_ledger;
+pub mod trust_model;
 
 mod temporary_directory;
 
@@ -32,3 +54,11 @@ pub(crate) fn invocation_target_profile(
         }),
     }
 }
+pub mod build_time_evaluation;
+pub mod checked_interpreter;
+pub mod component_publication;
+pub mod executable_installation;
+pub mod external_roots;
+#[cfg(feature = "installed-writer")]
+pub mod post_handoff_writer;
+pub mod terminal_fixed_fuel;

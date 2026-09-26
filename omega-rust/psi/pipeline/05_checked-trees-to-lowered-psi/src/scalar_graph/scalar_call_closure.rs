@@ -222,7 +222,7 @@ fn bounded_static_scalar_dispatch_edge(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
-    binding: &checked_trees::CheckedScalarBinding,
+    binding: &typed_trees_to_checked_trees::checked_trees::CheckedScalarBinding,
 ) -> bool {
     let CheckedScalarBindingValue::DirectCall {
         target_machine,

@@ -1,8 +1,8 @@
+use crate::checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
+use crate::fact_plan::{FactPlace, FactPlan};
 use crate::semantic::facts::contract_fact_place;
 use crate::semantic::facts::contracts::places::contract_owner_self_symbol;
 use crate::tests::front_end::typed_program;
-use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
-use facts::{FactPlace, FactPlan};
 
 #[test]
 fn resolved_attachment_self_rebinds_to_each_contract_owners_exact_formal() {
@@ -49,7 +49,7 @@ fn resolved_attachment_self_rebinds_to_each_contract_owners_exact_formal() {
         };
         assert_eq!(
             facts.places.get(place).root,
-            facts::PlaceRoot::Symbol(parameter.symbol)
+            crate::fact_plan::PlaceRoot::Symbol(parameter.symbol)
         );
         assert_eq!(
             facts
@@ -65,9 +65,9 @@ fn resolved_attachment_self_rebinds_to_each_contract_owners_exact_formal() {
         assert_eq!(
             crate::flow::normalized_event_place_root(
                 &program,
-                facts::PlaceRoot::Symbol(parameter.symbol)
+                crate::fact_plan::PlaceRoot::Symbol(parameter.symbol)
             ),
-            facts::PlaceRoot::Symbol(machine.symbol)
+            crate::fact_plan::PlaceRoot::Symbol(machine.symbol)
         );
     }
     assert_ne!(

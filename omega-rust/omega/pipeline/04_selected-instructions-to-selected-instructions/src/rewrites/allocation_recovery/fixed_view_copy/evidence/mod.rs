@@ -3,15 +3,15 @@
 mod compute;
 mod replay;
 
+use crate::register_homes::{FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId};
 pub(crate) use compute::derive as derive_positionally;
 use optimization_core::OptimizationWorkUsage;
-use register_homes::{FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId};
-use register_model::{RegisterClassId, RegisterViewId};
 pub(crate) use replay::reconstruct as reconstruct_by_key;
-use selected_instructions::{
+use semantic_vocabulary::MachineId;
+use target_operations_to_selected_instructions::register_model::{RegisterClassId, RegisterViewId};
+use target_operations_to_selected_instructions::{
     LiveRangeEdgeConnector, SelectedBlockId, VirtualFixedConstraintSite, VirtualRegisterId,
 };
-use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AuthenticatedFixedViewBoundary {

@@ -4,7 +4,9 @@
 //! state graph, whose callers rejoin the receiver; one that never reads it
 //! keeps a receiver-free graph its Unit callers reach as a pure scalar call.
 use super::checked_program_result;
-use checked_trees::{CheckedControlResultPlan, CheckedTrees, CheckedUnitEffectOperationPlan};
+use crate::checked_trees::{
+    CheckedControlResultPlan, CheckedTrees, CheckedUnitEffectOperationPlan,
+};
 
 fn machine(checked: &CheckedTrees, suffix: &str) -> symbols::SymbolHandle {
     checked
@@ -154,7 +156,7 @@ fn unread_receiver_keeps_a_receiver_free_graph_its_unit_callers_reach() {
     assert!(matches!(
         run.operations.first(),
         Some(CheckedUnitEffectOperationPlan::EstablishScalarLocal {
-            value: checked_trees::CheckedCallScalarArgument::Computation(_),
+            value: crate::checked_trees::CheckedCallScalarArgument::Computation(_),
             ..
         })
     ));

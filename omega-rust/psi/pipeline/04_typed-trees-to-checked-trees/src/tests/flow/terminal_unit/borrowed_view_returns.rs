@@ -1,13 +1,13 @@
 //! Borrowed `&[u8]`/`&[T]` view results establish their reference from a
 //! parameter-carrier subslice instead of a retained structural root.
-use crate::tests::flow::terminal_unit::{checked, machine_named};
-use checked_trees::{
+use crate::checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
+use crate::tests::flow::terminal_unit::{checked, machine_named};
 
 fn view_plan<'a>(
-    checked: &'a checked_trees::CheckedTrees,
+    checked: &'a crate::checked_trees::CheckedTrees,
     name: &str,
 ) -> &'a CheckedUnitEffectOperationPlan {
     let plan = checked
@@ -47,7 +47,7 @@ fn member_subslice_return_establishes_borrowed_element_view() {
     assert_eq!(result.binding_ordinal, 0);
     let CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
         root:
-            checked_trees::CheckedStorageRoot::Parameter {
+            crate::checked_trees::CheckedStorageRoot::Parameter {
                 index: parameter_index,
             },
         expression: _,
@@ -61,7 +61,7 @@ fn member_subslice_return_establishes_borrowed_element_view() {
     assert_eq!(parameter_index, 0);
     assert_eq!(
         source.access,
-        checked_trees::CheckedStructuralAccess::SharedBorrow
+        crate::checked_trees::CheckedStructuralAccess::SharedBorrow
     );
     assert!(source.path.is_empty());
 }
@@ -85,7 +85,7 @@ fn member_subslice_return_establishes_borrowed_byte_view() {
         panic!("borrowed byte view return is an EstablishReference producer");
     };
     let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-        root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
+        root: crate::checked_trees::CheckedStorageRoot::Parameter { index: 0 },
         start: Some(_),
         end: Some(_),
         ..

@@ -1,9 +1,9 @@
 //! Publication eligibility is input classification, not attempted legalization.
 //! Independent construction/replay still checks source, proof and physical custody.
 
-use abstract_operations::AbstractOperationPlan;
-use optimization_unit::PsiOptimizationUnit;
-use target_operations::TargetOperationPlan;
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 pub(crate) fn accepts(
     native: &TargetOperationPlan,
@@ -36,9 +36,9 @@ pub(crate) fn accepts(
 #[allow(clippy::too_many_arguments)]
 fn eligible_function(
     native: &TargetOperationPlan,
-    function: &target_operations::TargetFunction,
-    abstracted: &abstract_operations::AbstractFunction,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    function: &abstract_operations_to_target_operations::target_operations::TargetFunction,
+    abstracted: &terminal_psi_to_abstract_operations::abstract_operations::AbstractFunction,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> bool {

@@ -11,10 +11,12 @@ use super::super::super::{
 };
 use super::super::LoweringError;
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use checked_trees::{CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment};
 use language_semantics::Multiplicity;
 use semantic_vocabulary::CanonicalStructuralPathSegment;
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+};
 
 /// Emit the copy into `operations` and return the owned place declaration the
 /// successor argument names directly. `source` is the subject's current place

@@ -1,26 +1,29 @@
 //! Empty scalar contracts must agree with authored clauses and parameter ranges.
 
-use checked_trees::{CheckedTrees, ClosedScalarValueContractPlan};
 use checked_trees_to_lowered_psi::LoweringError;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use typed_trees_to_checked_trees::checked_trees::{CheckedTrees, ClosedScalarValueContractPlan};
 
 fn publish(checked: &CheckedTrees) -> (CanonicalTerminalArtifact, terminal_psi::TerminalModule) {
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        checked,
-        TerminalMachineSelection::Name("enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("unmodified source must publish before custody mutations")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            checked,
+            TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("unmodified source must publish before custody mutations")
+        .into_artifact();
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload semantics");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("reload proof");
@@ -80,7 +83,7 @@ fn reject_erased_contract(original: &CheckedTrees, owner: &str, expected_message
         Ok(_) => panic!("accepted erased scalar contract for {owner}"),
     }
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &changed,
             TerminalMachineSelection::Name("enter")
         )

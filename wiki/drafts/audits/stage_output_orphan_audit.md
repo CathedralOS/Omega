@@ -63,7 +63,7 @@ test-only channels are cataloged, not flagged.
 
 | Output type | Defining crate | Self-accessors | External readers | Test-only | Zero external |
 | --- | --- | --- | --- | --- | --- |
-| `TokenStream` | psi/representations/tokens | 2 | 2 | 0 | 0 |
+| `TokenStream` | psi/pipeline/00_source-files-to-tokens (tokens module) | 2 | 2 | 0 | 0 |
 | `SyntaxTrees` | psi/representations/syntax-trees | 19 | 16 | 1 | 2 |
 | `SymbolResolvedTrees` | psi/representations/symbol-resolved-trees | 43 | 40 | 2 | 1 |
 | `SeededSymbolResolvedTrees` | psi/pipeline/02_syntax-trees-to-symbol-resolved-trees | 4 | 2 | 0 | 2 |
@@ -76,10 +76,10 @@ test-only channels are cataloged, not flagged.
 | `AdmittedArtifactPlan` | omega/pipeline/00_terminal-psi-to-abstract-operations | 4 | 4 | 0 | 0 |
 | `AdmittedOptimizationArtifact` | omega/pipeline/00_terminal-psi-to-abstract-operations | 5 | 5 | 0 | 0 |
 | `AdmittedNativeArtifact` | omega/pipeline/00_terminal-psi-to-abstract-operations | 6 | 4 | 2 | 0 |
-| `AbstractOperationPlan` | omega/representations/abstract-operations | 0 | — | — | — |
-| `AbstractOperationPlanWithPlacedViewInputs` | omega/representations/abstract-operations | 0 | — | — | — |
+| `AbstractOperationPlan` | omega/pipeline/00_terminal-psi-to-abstract-operations | 0 | — | — | — |
+| `AbstractOperationPlanWithPlacedViewInputs` | omega/pipeline/00_terminal-psi-to-abstract-operations | 0 | — | — | — |
 | `ValidatedOptimizedAbstractPlan` | omega/pipeline/01_abstract-operations-to-abstract-operations | 18 | 16 | 2 | 0 |
-| `TargetOperationPlan` | omega/representations/target-operations | 0 | — | — | — |
+| `TargetOperationPlan` | omega/pipeline/02_abstract-operations-to-target-operations | 0 | — | — | — |
 | `StagedOptimizedSelectedInstructions` | omega/pipeline/target-operations-to-selected-instructions | 9 | 8 | 0 | 0 |
 | `SelectedInstructionOptimizationOutput` | omega/pipeline/04_selected-instructions-to-selected-instructions | 3 | 2 | 0 | 1 |
 | `RetainedAllocation` | omega/pipeline/05_selected-instructions-to-register-homes | 8 | 8 | 0 | 0 |

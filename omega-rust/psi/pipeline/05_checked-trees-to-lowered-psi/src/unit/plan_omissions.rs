@@ -7,7 +7,7 @@
 //! rendered explanation is diagnostic text for the lowering error; it never
 //! selects a fallback body.
 
-use checked_trees::{CheckedTrees, CheckedUnitPlanOmissionStage};
+use typed_trees_to_checked_trees::checked_trees::{CheckedTrees, CheckedUnitPlanOmissionStage};
 
 /// Render the omission chain that starts at `machine`, or `None` when the
 /// checked record does not name it (a machine outside the checked-body

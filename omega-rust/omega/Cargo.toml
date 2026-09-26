@@ -11,24 +11,148 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
-lowered-psi = { path = "../psi/representations/lowered-psi" }
-lowered-psi-to-lowered-psi = { path = "../psi/pipeline/06_lowered-psi-to-lowered-psi" }
-lowered-psi-to-terminal-psi = { path = "../psi/pipeline/07_lowered-psi-to-terminal-psi" }
-terminal-production = { path = "../psi/compiler/terminal-production" }
-compiler = { path = "compiler" }
-artifacts = { path = "tooling/artifacts" }
-platform-custody = { path = "tooling/platform-custody" }
-package-manager = { path = "packages/manager" }
-package-source = { path = "packages/sources/acquisition" }
-package-compilation = { path = "build/package-compilation" }
-resolver-execution = { path = "packages/sources/execution" }
-target = { path = "representations/target" }
-trust-ledger = { path = "build/trust-ledger" }
 checked-trees-to-lowered-psi = { path = "../psi/pipeline/05_checked-trees-to-lowered-psi" }
+lowered-psi-to-terminal-psi = { path = "../psi/pipeline/07_lowered-psi-to-terminal-psi" }
+post-allocation-machine-to-selected-form-encoding = { path = "pipeline/07_post-allocation-machine-to-selected-form-encoding" }
+lowered-psi-to-lowered-psi = { path = "../psi/pipeline/06_lowered-psi-to-lowered-psi" }
+target = { path = "../psi/target" }
 semantic-vocabulary = { path = "../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../psi/foundation/diagnostics" }
-checked-interpreter = { path = "../psi/semantics/checked-interpreter" }
-proof-admission = { path = "../psi/semantics/proof-admission" }
-terminal-psi = { path = "../psi/representations/terminal-psi" }
-terminal-fixed-fuel = { path = "../psi/semantics/terminal-fixed-fuel" }
-terminal-verifier = { path = "../psi/semantics/terminal-verifier" }
+proof-admission = { path = "../psi/proof-admission" }
+terminal-psi = { path = "../psi/terminal-psi" }
+terminal-verifier = { path = "../psi/terminal-verifier" }
+
+abstract-operations-to-abstract-operations = { path = "pipeline/01_abstract-operations-to-abstract-operations" }
+abstract-operations-to-target-operations = { path = "pipeline/02_abstract-operations-to-target-operations" }
+arena = { path = "../psi/foundation/arena" }
+resolved-layout-to-resolved-layout = { path = "pipeline/09_resolved-layout-to-resolved-layout" }
+cap-fs-ext = "4.0.3"
+cap-std = "4.0.3"
+installation-evidence = { path = "../psi/installation-evidence" }
+language-core = { path = "../psi/foundation/language-core" }
+language-semantics = { path = "../psi/foundation/language-semantics" }
+numerics = { path = "../psi/foundation/numerics" }
+optimization-core = { path = "../psi/optimization-core" }
+register-homes-to-post-allocation-machine = { path = "pipeline/06_register-homes-to-post-allocation-machine" }
+selected-form-encoding-to-resolved-layout = { path = "pipeline/08_selected-form-encoding-to-resolved-layout" }
+selected-instructions-to-register-homes = { path = "pipeline/05_selected-instructions-to-register-homes" }
+selected-instructions-to-selected-instructions = { path = "pipeline/04_selected-instructions-to-selected-instructions" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1-checked = { version = "0.10.0", default-features = false }
+sha2 = "0.10.9"
+source = { path = "../psi/foundation/source" }
+source-files-to-tokens = { path = "../psi/pipeline/00_source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+symbols = { path = "../psi/foundation/symbols" }
+syntax-trees-to-symbol-resolved-trees = { path = "../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+target-operations-to-selected-instructions = { path = "pipeline/03_target-operations-to-selected-instructions" }
+terminal-codec = { path = "../psi/terminal-codec" }
+terminal-fuel = { path = "../psi/terminal-fuel" }
+terminal-psi-to-abstract-operations = { path = "pipeline/00_terminal-psi-to-abstract-operations" }
+tokens-to-syntax-trees = { path = "../psi/pipeline/01_tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../psi/pipeline/04_typed-trees-to-checked-trees" }
+
+[dev-dependencies]
+    terminal-interpreter = { path = "../psi/terminal-interpreter" }
+abstract-operations-to-target-operations = { path = "pipeline/02_abstract-operations-to-target-operations" }
+arena = { path = "../psi/foundation/arena" }
+language-semantics = { path = "../psi/foundation/language-semantics" }
+libc = "0.2.186"
+optimization-core = { path = "../psi/optimization-core", features = ["test-support"] }
+proof-admission = { path = "../psi/proof-admission" }
+semantic-vocabulary = { path = "../psi/foundation/semantic-vocabulary" }
+source-files-to-tokens = { path = "../psi/pipeline/00_source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+target = { path = "../psi/target" }
+terminal-codec = { path = "../psi/terminal-codec" }
+terminal-psi = { path = "../psi/terminal-psi" }
+tokens-to-syntax-trees = { path = "../psi/pipeline/01_tokens-to-syntax-trees" }
+
+[target.'cfg(unix)'.dependencies]
+command-group = "5.0.1"
+libc = "0.2.186"
+nix = { version = "0.27", features = ["user"] }
+rustix = { version = "1.1.4", features = ["process"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_IO",
+    "Win32_System_JobObjects",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+] }
+
+[features]
+installed-writer = []
+test-fixtures = []
+test-support = ["resolved-layout-to-resolved-layout/test-support"]
+
+[[test]]
+name = "corpus_runner"
+path = "tests/corpus_runner.rs"
+harness = false
+
+[[test]]
+name = "build_evaluation__canonical_filesystem_host_settlement"
+path = "tests/build_evaluation/canonical_filesystem_host_settlement.rs"
+
+[[test]]
+name = "build_evaluation__canonical_time_host_settlement"
+path = "tests/build_evaluation/canonical_time_host_settlement.rs"
+
+[[test]]
+name = "build_evaluation__independent_component_settlement"
+path = "tests/build_evaluation/independent_component_settlement.rs"
+
+[[test]]
+name = "provider_planning__top_level_boundary_requirement_schema"
+path = "tests/provider_planning/top_level_boundary_requirement_schema.rs"
+
+[[test]]
+name = "trust_ledger__trust_report"
+path = "tests/trust_ledger/trust_report.rs"
+
+[[test]]
+name = "topology_plan__codec"
+path = "tests/topology_plan/codec.rs"
+
+[[test]]
+name = "topology_plan__composition"
+path = "tests/topology_plan/composition.rs"
+
+[[test]]
+name = "topology_plan__composition_build"
+path = "tests/topology_plan/composition_build.rs"
+
+[[test]]
+name = "topology_plan__custody_substitution"
+path = "tests/topology_plan/custody_substitution.rs"
+
+[[test]]
+name = "topology_plan__installation"
+path = "tests/topology_plan/installation.rs"
+
+[[test]]
+name = "topology_plan__process_confinement"
+path = "tests/topology_plan/process_confinement.rs"
+
+[[test]]
+name = "topology_plan__verification"
+path = "tests/topology_plan/verification.rs"
+
+[[test]]
+name = "package_manager_suite"
+path = "tests/package_manager/suite.rs"
+
+[[test]]
+name = "package_evidence_suite"
+path = "tests/package_evidence/suite.rs"
+
+[[test]]
+name = "checked_interpreter_suite"
+path = "tests/checked_interpreter/suite.rs"

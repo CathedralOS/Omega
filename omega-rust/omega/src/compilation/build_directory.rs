@@ -168,7 +168,7 @@ fn directory_identity(spelled: &Path) -> DirectoryIdentity {
 }
 
 fn directory_object(path: &Path) -> Option<(u64, u64)> {
-    platform_custody::filesystem_object_identity(path).ok()
+    crate::platform_custody::filesystem_object_identity(path).ok()
 }
 
 /// The directory `spelled` names must still be the one `admitted` recorded: a

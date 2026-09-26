@@ -4,7 +4,7 @@
 //! neither: an independent replay that read the producer would be checking
 //! the producer against itself.
 
-use legalized_operations::LegalizedScalarInstructionKind;
+use crate::legalized_operations::LegalizedScalarInstructionKind;
 use semantic_vocabulary::ScalarType;
 
 /// The one normalization a widening or a proof-bearing exact cast selects,
@@ -17,7 +17,7 @@ use semantic_vocabulary::ScalarType;
 pub(super) fn normalization(
     kind: &LegalizedScalarInstructionKind,
     scalar_type: ScalarType,
-) -> Option<selected_instructions::SelectedInstructionKind> {
+) -> Option<crate::selected_instructions::SelectedInstructionKind> {
     let ScalarType::Integer(target) = scalar_type else {
         return None;
     };

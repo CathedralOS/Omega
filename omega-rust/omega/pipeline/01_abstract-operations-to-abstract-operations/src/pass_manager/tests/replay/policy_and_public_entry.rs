@@ -83,7 +83,7 @@ fn public_run_folds_proof_admitted_exact_arithmetic_and_retains_its_context() {
     assert_eq!(run.session.unit().proof_questions.len(), 1);
     assert!(matches!(
         run.session.unit().proof_questions[0].owner,
-        optimization_unit::ProofQuestionOwner::Operation { .. }
+        terminal_psi_to_abstract_operations::optimization_unit::ProofQuestionOwner::Operation { .. }
     ));
     assert_eq!(run.session.input().context().accepted_facts().len(), 1);
     assert_eq!(
@@ -116,7 +116,7 @@ fn public_run_elides_live_proof_certified_identity_and_reaches_fixed_point() {
     assert!(run.session.unit().functions[0].facts.iter().all(|fact| {
         !matches!(
             fact,
-            optimization_unit::OptimizationFact::OperationObligationReference { .. }
+            terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { .. }
         )
     }));
     assert!(matches!(

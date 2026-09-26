@@ -5,16 +5,18 @@ use super::{
     OptimizationUnitValidationError, PsiOptimizationUnit,
     validate_transformed_psi_optimization_unit, validate_verified_psi_optimization_unit,
 };
-use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractResult};
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, PlaceId, ValueId};
+use terminal_fuel::TerminalFuelSchedule;
+use terminal_psi::VocabularyMarker;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunctionResult, AbstractOperation, AbstractResult,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OwnershipFrontierFact, OwnershipFrontierOwnedPlace, ProofQuestion, ProofQuestionAdmissionKind,
     ProofQuestionClass, ProofQuestionOwner, ValueDefinition, ValueDefinitionSite, ValueUse,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::validate_psi_optimization_unit;
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, PlaceId, ValueId};
-use terminal_fuel::TerminalFuelSchedule;
-use terminal_psi::VocabularyMarker;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit;
 
 mod byte_field_stores;
 mod byte_reads;
@@ -320,17 +322,18 @@ fn refresh_identity(unit: &mut PsiOptimizationUnit) {
 }
 
 fn refresh_proof_question_identity(question: &mut ProofQuestion) {
-    question.identity = optimization_unit::proof_question_identity(
-        question.terminal_psi,
-        question.proof_bundle_fingerprint,
-        question.owner,
-        question.obligation,
-        question.class,
-        &question.proposition,
-        &question.requirements,
-        &question.semantic_axioms,
-        question.canonical_certificate,
-    );
+    question.identity =
+        terminal_psi_to_abstract_operations::optimization_unit::proof_question_identity(
+            question.terminal_psi,
+            question.proof_bundle_fingerprint,
+            question.owner,
+            question.obligation,
+            question.class,
+            &question.proposition,
+            &question.requirements,
+            &question.semantic_axioms,
+            question.canonical_certificate,
+        );
 }
 
 fn verified_unit() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {

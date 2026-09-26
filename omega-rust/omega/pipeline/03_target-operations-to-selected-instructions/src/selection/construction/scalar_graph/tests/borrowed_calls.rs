@@ -8,7 +8,7 @@ use super::{
     ValueDefinitionSite, ValueId, ValueLocation, ValueShape, VirtualRegisterId, build,
     evaluate_call_plan, fixture, returned,
 };
-use calling_conventions::IndirectPointerLocation;
+use abstract_operations_to_target_operations::calling_conventions::IndirectPointerLocation;
 mod fixed_windows;
 mod literal_storage;
 mod mixed;
@@ -48,7 +48,7 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
         ),
         "the derived borrow placement retains referent shape and transports its pointer"
     );
-    source.structural = Some(legalized_operations::LegalizedStructuralContract {
+    source.structural = Some(crate::legalized_operations::LegalizedStructuralContract {
         result: None,
         structural_types: vec![StructuralTypeDeclaration {
             id: structural_type,
@@ -58,7 +58,7 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
             }),
         }]
         .into(),
-        parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+        parameters: vec![crate::legalized_operations::LegalizedCallUnitParameter {
             semantic: StructuralParameterDeclaration {
                 place,
                 position: 0,
@@ -69,7 +69,7 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             },
-            target: target_operations::TargetStructuralParameter {
+            target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                 place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -101,7 +101,7 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
                     access: StructuralAccess::SharedBorrow,
                     path: Vec::new(),
                 },
-                target: target_operations::TargetStructuralArgument {
+                target: abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
                     place,
                     access: StructuralAccess::SharedBorrow,
                     path: Vec::new(),
@@ -120,8 +120,11 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         });
-    source.blocks[0].instructions[0].ownership =
-        vec![optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())];
+    source.blocks[0].instructions[0].ownership = vec![
+        terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimTransfer(
+            Vec::new(),
+        ),
+    ];
     returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
         value: ValueId::new(1).unwrap(),
         scalar_type: semantic_vocabulary::ScalarType::Integer(
@@ -140,7 +143,7 @@ fn mixed_borrowed_calls_preserve_separate_scalar_and_pointer_placements() {
         (target::NativeTarget::macos_arm64(), 7),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -250,7 +253,7 @@ fn mixed_borrowed_calls_preserve_separate_scalar_and_pointer_placements() {
                         else {
                             panic!("borrow");
                         };
-                        let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+                        let abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::Placement(placement) =
                             &target.source
                         else {
                             panic!("borrowed placement");
@@ -290,7 +293,7 @@ fn borrowed_descriptor_call_forwards_pointer_and_replays_custody() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -409,7 +412,7 @@ fn borrowed_descriptor_call_forwards_pointer_and_replays_custody() {
                 8 => target.fixed_array_length = Some(2),
                 9 => target.element_stride = Some(8),
                 10 => {
-                    let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+                    let abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::Placement(placement) =
                         &mut target.source
                     else {
                         panic!("borrowed placement");

@@ -4,7 +4,7 @@ use crate::ValidatedFixedPrecoloredIntervals;
 use crate::ValidatedFixedPrecoloredSegmentHomes;
 use crate::ValidatedFixedPrecoloredSplitRequirements;
 use crate::ValidatedLiveRanges;
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
@@ -18,13 +18,13 @@ mod evidence;
 pub(crate) mod validate;
 mod work;
 
-use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
-pub use register_homes::{
+use crate::register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
+pub use crate::register_homes::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
     FixedViewCopySourceEvidence, fixed_view_copy_identity,
 };
-use selected_instructions::{
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use target_operations_to_selected_instructions::{
     FixedViewCopyIdentity, LiveRangeIdentity, SelectedInstructionPlanIdentity,
 };
 pub use validate::validate_fixed_view_copies;
@@ -78,7 +78,7 @@ pub(crate) fn materialize_fixed_view_copies(
 }
 
 // Transform-side evidence for the fixed-view-copy rewrite; the durable plan,
-// policy and artifact framing live in `register_homes::recovery`.
+// policy and artifact framing live in `crate::register_homes::recovery`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FixedViewCopyValidationReceipt {
     pub(crate) identity: FixedViewCopyIdentity,

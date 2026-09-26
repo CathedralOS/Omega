@@ -1,12 +1,14 @@
 use super::{compute_function, fixtures, validate};
-use register_homes::VirtualEarlyClobberPointLegality;
-use register_model::{RegisterClassId, RegisterOperandAccess, RegisterViewId};
-use selected_instructions::{
+use selected_instructions_to_selected_instructions::register_homes::VirtualEarlyClobberPointLegality;
+use semantic_vocabulary::EdgeId;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterOperandAccess, RegisterViewId,
+};
+use target_operations_to_selected_instructions::{
     EdgeRegisterTransfer, LiveRangeEdgeConnector, LiveRangeFragment, LiveRangePoint,
     LivenessPosition, SelectedBlockId, SelectedInstructionId, VirtualFixedConstraint,
     VirtualFixedConstraintSite, VirtualOccurrence, VirtualRegisterId,
 };
-use semantic_vocabulary::EdgeId;
 
 #[test]
 fn empty_physical_values_have_no_home_and_replay_requires_exact_remaining_roster() {
@@ -88,7 +90,7 @@ fn empty_legality_cannot_discard_any_remaining_physical_requirement() {
                 },
             ),
             5 => legality.virtual_registers[1].entry_transitions.push(
-                register_homes::EntryFixedViewTransition {
+                selected_instructions_to_selected_instructions::register_homes::EntryFixedViewTransition {
                     from_view: RegisterViewId(0),
                     to_site: VirtualFixedConstraintSite::Entry,
                     to_view: RegisterViewId(1),

@@ -1,11 +1,11 @@
 //! Candidate derivation at early-definition points.
 
-use register_model::{RegisterClass, RegisterViewId};
+use target_operations_to_selected_instructions::register_model::{RegisterClass, RegisterViewId};
 
 use super::{fixed_views, view_candidates::CandidateViews};
 use crate::AllocationLegalityError;
-use register_homes::VirtualEarlyClobberPointLegality;
-use selected_instructions::{FunctionLiveRanges, VirtualLiveRange};
+use crate::register_homes::VirtualEarlyClobberPointLegality;
+use target_operations_to_selected_instructions::{FunctionLiveRanges, VirtualLiveRange};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute(

@@ -1,7 +1,9 @@
 use crate::authored_selections::operator_targets::type_reference_for_symbol;
 use crate::tests::front_end::typed_program;
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    TypedTrees, data::DataMember, statement::StatementNode,
+};
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::{TypedTrees, data::DataMember, statement::StatementNode};
 
 fn fixture() -> TypedTrees {
     let source = r#"
@@ -48,8 +50,9 @@ fn symbol_types_follow_exact_declaration_owners() {
                 .symbols
                 .find_child_by_name_and_kind(machine.symbol, "value", SymbolKind::Field)
                 .expect("inherited field slot");
-            let field = validation::exact_attached_field(&program, machine, inherited, "value")
-                .expect("exact inherited field");
+            let field =
+                crate::validation::exact_attached_field(&program, machine, inherited, "value")
+                    .expect("exact inherited field");
             assert_ne!(inherited, field.symbol);
             assert_type(inherited, field.type_reference);
         }

@@ -1,9 +1,9 @@
 //! Internal Unit-call leaves and exact target replay.
 
-use super::{CheckedTrees, LoweringError, lower_machine};
-use crate::TerminalMachineSelection;
-use checked_trees::CheckedUnitEffectOperationPlan;
+use super::{CheckedTrees, lower_machine};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator};
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 #[test]
 fn composed_scalar_call_locals_replay_their_authored_computation() {
     for (prefix, argument) in [
@@ -42,7 +42,7 @@ fn composed_scalar_call_locals_replay_their_authored_computation() {
             .scalar_computations
             .nodes
             .get_mut(root)
-            .authored_root = typed_trees::expression::ExpressionHandle::invalid();
+            .authored_root = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid();
         assert!(
             lower_machine(&changed, TerminalMachineSelection::Name("Root::enter")).is_err(),
             "retained computation cannot replace its authored call custody"
@@ -50,7 +50,7 @@ fn composed_scalar_call_locals_replay_their_authored_computation() {
     }
 }
 
-fn checked_composed_internal_calls() -> checked_trees::CheckedTrees {
+fn checked_composed_internal_calls() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
             data Root {}
@@ -364,7 +364,10 @@ fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
     let rejects = |checked: &CheckedTrees| {
         let result = lower_machine(checked, TerminalMachineSelection::Name("Root::enter"));
         assert!(
-            matches!(result, Err(LoweringError::Unsupported(_))),
+            matches!(
+                result,
+                Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+            ),
             "unexpected result: {result:?}"
         );
     };
@@ -400,7 +403,7 @@ fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
         .retain(|plan| plan.machine != quiet);
     assert!(matches!(
         lower_machine(&missing, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
+        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
             if machine == "Root::quiet"
                 && reason == "attached Unit closure is missing a checked transitive machine plan"
     ));
@@ -500,11 +503,13 @@ fn free_composed_helper_rejects_fabricated_provider_fields() {
         .find(|plan| plan.machine == free)
         .unwrap()
         .provider_attachment_requirements
-        .push(checked_trees::CheckedProviderAttachmentRequirementPlan {
-            field_identity: "fabricated".to_owned(),
-            provider_type_identity: "fabricated".to_owned(),
-            boundary: free,
-        });
+        .push(
+            typed_trees_to_checked_trees::checked_trees::CheckedProviderAttachmentRequirementPlan {
+                field_identity: "fabricated".to_owned(),
+                provider_type_identity: "fabricated".to_owned(),
+                boundary: free,
+            },
+        );
     assert!(lower_machine(&checked, TerminalMachineSelection::Name("finish")).is_err());
 }
 

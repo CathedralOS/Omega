@@ -5,11 +5,13 @@ use super::{
     SelectedInstructionKind, SelectedMemoryAccessRole, memory,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::{
+    LocalStorageSlotId, SelectedLocalStorageSlot, VirtualRegisterId,
+};
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot, VirtualRegisterId};
 use semantic_vocabulary::PlaceId;
 
 /// The copy reads the root through its durable pointer — an entry-assigned
@@ -183,7 +185,7 @@ struct CopyEnd<'a> {
     /// The runtime elements the pointer already scaled in; a read through
     /// them publishes one element row per chunk rather than a place extent
     /// at the static offset, which the load does not address.
-    elements: &'a [legalized_operations::LegalizedRuntimeIndexOperand],
+    elements: &'a [crate::legalized_operations::LegalizedRuntimeIndexOperand],
 }
 
 /// Copy `byte_size` bytes from `from` to `to` in the widest aligned-size
@@ -286,9 +288,9 @@ fn copy_from_fragments(
     place: &semantic_vocabulary::PlaceId,
     result_place: semantic_vocabulary::PlaceId,
     byte_offset: u32,
-    shape: calling_conventions::ValueShape,
-    pointer: selected_instructions::VirtualRegisterId,
-    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    shape: abstract_operations_to_target_operations::calling_conventions::ValueShape,
+    pointer: crate::selected_instructions::VirtualRegisterId,
+    indices: &[crate::legalized_operations::LegalizedRuntimeIndexOperand],
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     if !indices.is_empty() {
@@ -314,12 +316,12 @@ fn copy_from_fragments(
         .ok_or_else(|| invalid())?;
     for location in &parameter.target.placement.locations {
         let (fragment_offset, width) = match location {
-            calling_conventions::ValueLocation::Register {
+            abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register {
                 value_byte_offset,
                 byte_size,
                 ..
             }
-            | calling_conventions::ValueLocation::Stack {
+            | abstract_operations_to_target_operations::calling_conventions::ValueLocation::Stack {
                 value_byte_offset,
                 byte_size,
                 ..

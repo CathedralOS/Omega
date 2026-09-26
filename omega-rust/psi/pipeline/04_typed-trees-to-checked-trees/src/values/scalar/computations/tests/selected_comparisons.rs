@@ -3,19 +3,19 @@
 //! that use rather than through an invented call or a builtin expression.
 
 use super::checked_source;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarExpression,
     CheckedScalarExpressionRole,
 };
-use typed_trees::expression::ExpressionNode;
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 fn return_selected_comparison(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     machine_name: &str,
 ) -> (
     CheckedScalarComputationHandle,
-    arena::Handle<checked_trees::CheckedOperatorUseFact>,
+    arena::Handle<crate::checked_trees::CheckedOperatorUseFact>,
 ) {
     let machine = checked
         .machines()
@@ -75,7 +75,7 @@ fn selected_integer_comparison_binds_exact_use_and_authored_operands() {
     assert_eq!(selected.selected_operator_symbol, operator.symbol);
     assert_eq!(
         selected.status,
-        checked_trees::CheckedOperatorResolutionStatus::Resolved
+        crate::checked_trees::CheckedOperatorResolutionStatus::Resolved
     );
     let ExpressionNode::Binary(binary) = checked
         .typed

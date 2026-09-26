@@ -6,10 +6,10 @@ use super::{
     VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::structural::local_storage;
 use crate::selection::validation::scalar_graph::structural::provenance;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 pub(super) fn establish(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
@@ -123,12 +123,12 @@ pub(super) fn establish(
                     }
                     for location in &parameter.target.placement.locations {
                         let (fragment_offset, width) = match location {
-                            calling_conventions::ValueLocation::Register {
+                            abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register {
                                 value_byte_offset,
                                 byte_size,
                                 ..
                             }
-                            | calling_conventions::ValueLocation::Stack {
+                            | abstract_operations_to_target_operations::calling_conventions::ValueLocation::Stack {
                                 value_byte_offset,
                                 byte_size,
                                 ..

@@ -4,7 +4,7 @@ use super::{
     CallSignature, CallingPolicy, LegalizedScalarReturnValue, LegalizedScalarTerminator,
     SelectedInstructionKind, SelectedTerminator, StructuralTypeId, evaluate_call_plan,
 };
-use selected_instructions::{
+use crate::selected_instructions::{
     SelectedBlockOrigin, SelectedCasePayloadTransport, SelectedSuccessorRole,
 };
 
@@ -60,7 +60,7 @@ fn joined_structural_return_rejects_owner_declaration_and_abi_substitution() {
         .unwrap()
         .result;
         let returned = LegalizedScalarReturnValue::Structural {
-            source: legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+            source: crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                 block,
                 declaration,
             },
@@ -69,7 +69,7 @@ fn joined_structural_return_rejects_owner_declaration_and_abi_substitution() {
             crate::selection::aggregate_result_input::returned(&source, &returned).unwrap();
         assert_eq!(
             accepted.0,
-            selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+            crate::selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
                 block,
                 place: semantic_vocabulary::PlaceId::new(99).unwrap(),
             }
@@ -87,7 +87,7 @@ fn joined_structural_return_rejects_owner_declaration_and_abi_substitution() {
             let mut changed = returned.clone();
             let LegalizedScalarReturnValue::Structural {
                 source:
-                    legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                    crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                         block,
                         declaration,
                     },
@@ -134,26 +134,26 @@ fn structural_case_unused_payload_retains_direct_edge_metadata_without_load() {
         let removed = abstracted.functions[0].operations.remove(4);
         assert!(matches!(
             removed,
-            abstract_operations::AbstractOperation::BoundaryCall {
-                result: abstract_operations::AbstractBoundaryResult::Unit,
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BoundaryCall {
+                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
                 ..
             }
         ));
         abstracted.boundary_machines.truncate(1);
         let targeted = abstract_operations_to_target_operations::lower_to_target_operations(&abstracted, abstract_operations_to_target_operations::TargetLoweringRequest { target: native, settlements: &[abstract_operations_to_target_operations::AdmittedBoundarySettlement {
                 boundary: abstracted.boundary_machines[0].id,
-                execution: abstract_operations_to_target_operations::AdmittedBoundaryExecution::CompilerBuiltin(target_operations::CompilerBuiltinExecution::HostedReadByte),
-                realization: target_operations::HostedReadByteRealization.into(),
+                execution: abstract_operations_to_target_operations::AdmittedBoundaryExecution::CompilerBuiltin(abstract_operations_to_target_operations::target_operations::CompilerBuiltinExecution::HostedReadByte),
+                realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
             }], installation: None, ieee_float_fma: &[], native_callbacks: &[] }).unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &abstracted,
             semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
-        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
         let legal = crate::legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = crate::select_instructions(
             &legal,
@@ -216,7 +216,7 @@ fn structural_case_selects_tag_and_edge_payload_without_fabricated_values() {
             crate::tests::legalization::structural_case::fixture(native);
         let legal = crate::legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = crate::select_instructions(
             &legal,
@@ -350,7 +350,7 @@ fn structural_case_selects_tag_and_edge_payload_without_fabricated_values() {
                 .iter()
                 .filter(|slot| matches!(
                     slot.id,
-                    selected_instructions::LocalStorageSlotId::Structural { .. }
+                    crate::selected_instructions::LocalStorageSlotId::Structural { .. }
                 ) && slot.byte_size == 8
                     && slot.alignment == 4)
                 .count(),
@@ -362,7 +362,7 @@ fn structural_case_selects_tag_and_edge_payload_without_fabricated_values() {
                 .iter()
                 .filter(|slot| matches!(
                     slot.id,
-                    selected_instructions::LocalStorageSlotId::Boundary { .. }
+                    crate::selected_instructions::LocalStorageSlotId::Boundary { .. }
                 ) && slot.byte_size == 1
                     && slot.alignment == 1)
                 .count(),
@@ -393,7 +393,7 @@ fn parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot() {
         };
         assert_eq!(
             subject,
-            &legalized_operations::LegalizedStructuralCaseSource::Parameter {
+            &crate::legalized_operations::LegalizedStructuralCaseSource::Parameter {
                 declaration: abstracted.functions[0].structural_parameters[0].clone(),
             }
         );
@@ -407,19 +407,20 @@ fn parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot() {
             else {
                 panic!("case source");
             };
-            let legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } =
-                source.clone()
+            let crate::legalized_operations::LegalizedStructuralCaseSource::Parameter {
+                declaration,
+            } = source.clone()
             else {
                 panic!("parameter source");
             };
             *source = match mutation {
                 "block owner" => {
-                    legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                    crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                         block: entry_block,
                         declaration,
                     }
                 }
-                _ => legalized_operations::LegalizedStructuralCaseSource::Parameter {
+                _ => crate::legalized_operations::LegalizedStructuralCaseSource::Parameter {
                     declaration: terminal_psi::StructuralParameterDeclaration {
                         access: terminal_psi::StructuralAccess::SharedBorrow,
                         ..declaration
@@ -433,7 +434,7 @@ fn parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot() {
             );
         }
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = crate::select_instructions(
             &legal,
@@ -451,7 +452,7 @@ fn parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot() {
         )
         .unwrap();
         let function = &selected.plan().functions[0];
-        let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+        let slot = crate::selected_instructions::LocalStorageSlotId::StructuralParameter { place };
         assert_eq!(
             function
                 .local_storage_slots
@@ -504,7 +505,7 @@ fn mixed_parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot
         };
         assert_eq!(
             subject,
-            &legalized_operations::LegalizedStructuralCaseSource::Parameter {
+            &crate::legalized_operations::LegalizedStructuralCaseSource::Parameter {
                 declaration: abstracted.functions[0].structural_parameters[0].clone(),
             }
         );
@@ -516,19 +517,20 @@ fn mixed_parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot
             else {
                 panic!("case source");
             };
-            let legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } =
-                source.clone()
+            let crate::legalized_operations::LegalizedStructuralCaseSource::Parameter {
+                declaration,
+            } = source.clone()
             else {
                 panic!("parameter source");
             };
             *source = match mutation {
                 "block owner" => {
-                    legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                    crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                         block: entry_block,
                         declaration,
                     }
                 }
-                _ => legalized_operations::LegalizedStructuralCaseSource::Parameter {
+                _ => crate::legalized_operations::LegalizedStructuralCaseSource::Parameter {
                     declaration: terminal_psi::StructuralParameterDeclaration {
                         access: terminal_psi::StructuralAccess::SharedBorrow,
                         ..declaration
@@ -542,7 +544,7 @@ fn mixed_parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot
             );
         }
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = crate::select_instructions(
             &legal,
@@ -560,7 +562,7 @@ fn mixed_parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot
         )
         .unwrap();
         let function = &selected.plan().functions[0];
-        let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+        let slot = crate::selected_instructions::LocalStorageSlotId::StructuralParameter { place };
         assert_eq!(
             function
                 .local_storage_slots

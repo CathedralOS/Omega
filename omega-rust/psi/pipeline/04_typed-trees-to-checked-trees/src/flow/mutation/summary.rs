@@ -1,6 +1,6 @@
 //! Structured caller-visible mutation summaries.
 //!
-//! `validation::CallFrameResolver` remains the single owner of the
+//! `crate::validation::CallFrameResolver` remains the single owner of the
 //! complete-or-opaque call and cycle law. This module retains symbol-based
 //! field/range places for flow invalidation and propagates those places across
 //! the calls which the shared resolver admitted as complete.
@@ -13,10 +13,10 @@ use crate::semantic::calls::find_call_site;
 use crate::semantic::calls::find_state;
 
 use super::local_origins::rebase_local_write_places;
+use crate::checked_trees::expression::ExpressionNode;
+use crate::checked_trees::statement::StatementNode;
+use crate::checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
 use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
-use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
 use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default)]
@@ -47,14 +47,14 @@ struct StateMutationSummary {
 }
 
 pub(super) fn instantiate_known_call_mutation_summary_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     cache: &StateMutationSummaryCache,
     namespace: WritePlaceNamespace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let target_state = find_state(program, borrow_call.target_symbol)?;
     let summary_places =
@@ -83,11 +83,11 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
 }
 
 fn state_mutation_summary_places<'cache>(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     cache: &'cache StateMutationSummaryCache,
-    state: &typed_trees::state::State,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<&'cache [CanonicalPlace]> {
     cache
         .states
@@ -99,9 +99,9 @@ fn state_mutation_summary_places<'cache>(
 }
 
 fn build_state_mutation_summaries(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Vec<StateMutationSummary> {
     #[cfg(test)]
     SUMMARY_BUILDS.set(SUMMARY_BUILDS.get() + 1);
@@ -146,10 +146,10 @@ fn build_state_mutation_summaries(
 }
 
 fn propagate_state_mutation_summaries(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     states: &mut [StateMutationSummary],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) {
     // These are invocation-local dense summary positions, not durable symbol
     // identities. Resolve each dependency once while retaining authored call order.
@@ -284,8 +284,8 @@ fn summary_index_from(
 }
 
 fn machine_symbol_for_state(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> SymbolHandle {
     crate::semantic::calls::find_state_with_machine(program, state.symbol)
         .map(|(machine, _)| machine.symbol)
@@ -293,8 +293,8 @@ fn machine_symbol_for_state(
 }
 
 fn state_has_concrete_body_signature(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> bool {
     crate::semantic::calls::find_state_with_machine(program, state.symbol).is_some_and(
         |(machine, _)| {
@@ -310,11 +310,11 @@ fn state_has_concrete_body_signature(
 // Owned primitive formals contain no references: writes change callee storage,
 // not the caller's delivered argument. Keep reference-bearing roots visible.
 fn state_summary_exposes_place(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     place: &CanonicalPlace,
 ) -> bool {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
         return false;
     };
     root == machine_symbol_for_state(program, state)
@@ -328,9 +328,9 @@ fn state_summary_exposes_place(
 }
 
 fn collect_state_mutation_summary_places(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let machine_symbol = machine_symbol_for_state(program, state);
     let mut writes = Vec::new();
@@ -378,16 +378,16 @@ fn collect_state_mutation_summary_places(
 }
 
 fn instantiate_call_relative_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     relative_place: &CanonicalPlace,
     namespace: WritePlaceNamespace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let facts::PlaceRoot::Symbol(parameter_symbol) = relative_place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(parameter_symbol) = relative_place.root else {
         return None;
     };
     let call_site = find_call_site(
@@ -492,10 +492,10 @@ fn instantiate_call_relative_places(
 }
 
 fn storage_place_has_declared_identity(place: &CanonicalPlace) -> bool {
-    matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+    matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(symbol) if symbol.is_valid())
         && place.segments.iter().all(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
-            facts::PlaceSegment::Case { variant } => variant.is_valid(),
+            crate::fact_plan::PlaceSegment::Field { symbol } => symbol.is_valid(),
+            crate::fact_plan::PlaceSegment::Case { variant } => variant.is_valid(),
             _ => true,
         })
 }
@@ -597,7 +597,7 @@ mod cache_tests {
                     .statements(target.statement_nodes)
                     .is_empty()
             );
-            let resolver = validation::CallFrameResolver::new(&program).unwrap();
+            let resolver = crate::validation::CallFrameResolver::new(&program).unwrap();
             let frame = &resolver.inferred_machine_state_write_frames(target_machine)[0];
             let cache = StateMutationSummaryCache::default();
             let summary = state_mutation_summary_places(&program, &borrow, &cache, target, None);
@@ -635,7 +635,7 @@ mod cache_tests {
     // The previous synchronous algorithm is kept only as a test oracle. Its
     // complete snapshot and all-owner replay deliberately do not share scheduling.
     fn full_sweep_reference(
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         borrow: &BorrowFacts,
         states: &mut [StateMutationSummary],
     ) {
@@ -705,7 +705,9 @@ mod cache_tests {
         }
     }
 
-    fn direct_summaries(program: &typed_trees::TypedTrees) -> Vec<StateMutationSummary> {
+    fn direct_summaries(
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ) -> Vec<StateMutationSummary> {
         program
             .machines()
             .iter()

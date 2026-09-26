@@ -1,8 +1,8 @@
 use super::build_checked_mathematical_declarations;
+use crate::checked_trees::{CheckedMathematicalBinderKind, CheckedMathematicalBody};
 use crate::tests::front_end::typed_program;
-use checked_trees::{CheckedMathematicalBinderKind, CheckedMathematicalBody};
 
-fn elaborate(source: &str) -> Vec<checked_trees::CheckedMathematicalDeclaration> {
+fn elaborate(source: &str) -> Vec<crate::checked_trees::CheckedMathematicalDeclaration> {
     build_checked_mathematical_declarations(&typed_program(source)).expect("elaborate")
 }
 

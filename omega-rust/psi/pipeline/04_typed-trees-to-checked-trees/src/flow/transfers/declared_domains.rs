@@ -11,7 +11,7 @@ use super::{
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn establish(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -21,7 +21,7 @@ pub(super) fn establish(
     target_place: PlaceHandle,
     candidate_targets: Vec<CanonicalPlace>,
     assignment_source_contexts: HandleSpan<FlowSemanticContextRef>,
-    refs: &mut HandleSpan<facts::FactRef>,
+    refs: &mut HandleSpan<crate::fact_plan::FactRef>,
 ) {
     // #66 read-narrowing across a write: initializing or assigning any
     // domain-refined declared place ESTABLISHES that destination's domain. The

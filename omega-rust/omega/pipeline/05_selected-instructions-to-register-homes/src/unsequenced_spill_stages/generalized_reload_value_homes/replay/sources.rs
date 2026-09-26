@@ -6,10 +6,10 @@ use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeError, GeneralizedSpillActionId, GeneralizedSpillActionSource,
     GeneralizedSpillEvent, ValidatedSpillRecoveryActions,
 };
-use selected_instructions::LiveRangePoint;
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 use super::{ReplaySpec, homes};
-use register_homes::FunctionAllocationLegality;
+use selected_instructions_to_selected_instructions::register_homes::FunctionAllocationLegality;
 
 pub(super) fn index(
     function: usize,
@@ -162,8 +162,8 @@ fn source_matches(
     action: GeneralizedSpillActionId,
     first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     second: &ValidatedSpillRecoveryActions,
-    victim: selected_instructions::VirtualRegisterId,
-    victim_view: register_model::RegisterViewId,
+    victim: target_operations_to_selected_instructions::VirtualRegisterId,
+    victim_view: target_operations_to_selected_instructions::register_model::RegisterViewId,
 ) -> bool {
     match source {
         GeneralizedSpillActionSource::EpochZero { storage, reload } => {

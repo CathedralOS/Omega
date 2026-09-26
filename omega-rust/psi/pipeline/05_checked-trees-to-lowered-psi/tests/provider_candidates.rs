@@ -1,4 +1,7 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::AcceptTerminalEffects;
@@ -7,7 +10,6 @@ use terminal_interpreter::{
     ProviderInstallationSelection, TerminalEffect, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalStructuralValue, admit_provider_installation_from_artifact,
 };
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
 
 const SOURCE: &str = r#"
@@ -382,17 +384,18 @@ fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
 #[test]
 fn installed_program_storage_provider_transfers_and_settles_both_owned_extent_claims() {
     let checked = crate::front_end::checked_program(PROGRAM_STORAGE_PROVIDER_SOURCE);
-    let produced = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("ProgramLocalProducer::handoff"),
-    )
-    .produce(TerminalProductionCustody {
-        retain_unoptimized: false,
-        entry_identity: Some([0xa5; 32]),
-        callback_custody: (),
-        timings: &mut TerminalProductionTimings::default(),
-    })
-    .expect("receipt-coupled ProgramStorage artifact");
+    let produced =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("ProgramLocalProducer::handoff"),
+        )
+        .produce(TerminalProductionCustody {
+            retain_unoptimized: false,
+            entry_identity: Some([0xa5; 32]),
+            callback_custody: (),
+            timings: &mut TerminalProductionTimings::default(),
+        })
+        .expect("receipt-coupled ProgramStorage artifact");
     let module = decode_module(produced.artifact().semantic_bytes()).expect("semantic module");
     let [candidate] = module.provider_candidates.as_slice() else {
         panic!("one exact ProgramStorage provider candidate")

@@ -2,9 +2,9 @@
 
 use source::{SourceId, SourceSpan};
 use std::collections::HashMap;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::item::{ConstDefinition, Item};
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
+use tokens_to_syntax_trees::syntax_trees::item::{ConstDefinition, Item};
 
 pub(super) fn is_module_constant(syntax: &SyntaxTrees, definition: &ConstDefinition) -> bool {
     module_path(syntax, definition.name.source_span().source_id).is_some()

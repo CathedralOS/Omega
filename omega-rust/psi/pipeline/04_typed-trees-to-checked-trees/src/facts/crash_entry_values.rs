@@ -29,14 +29,18 @@
 //! `receiver.Case::field` — same-named payload fields of different cases stay
 //! distinct. This is source provenance, not a Terminal certificate.
 
-use checked_trees::CrashPredicateExpression;
+use crate::checked_trees::CrashPredicateExpression;
+use crate::validation::has_stable_observable_contents;
 use language_semantics::declaration_selection::CollectionMeasure;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableNamePath,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionTargetNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
-use typed_trees::types::TypeReferenceNode;
-use validation::has_stable_observable_contents;
 
 mod checked_projection;
 mod literal_projection;
@@ -380,7 +384,7 @@ enum OperandSpineStep {
 /// name. Other unresolvable members still admit no hop at all.
 fn member_hop_path(
     program: &TypedTrees,
-    member: &typed_trees::expression::TableMemberExpression,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
 ) -> Option<(SymbolHandle, Vec<PlaceSegment>)> {
     let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
     if !symbol.is_valid() {
@@ -390,7 +394,7 @@ fn member_hop_path(
         .then(|| (SymbolHandle::invalid(), vec![PlaceSegment::Opaque]));
     }
     let mut path = Vec::with_capacity(2);
-    if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
+    if let Some(variant) = crate::fact_plan::payload_variant_for_field(program, symbol) {
         path.push(PlaceSegment::Case(variant));
     }
     path.push(PlaceSegment::Field(symbol));
@@ -404,10 +408,10 @@ fn member_hop_path(
 /// namespace.
 fn member_entry_name(
     program: &TypedTrees,
-    member: &typed_trees::expression::TableMemberExpression,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
     field_symbol: SymbolHandle,
 ) -> String {
-    let Some(variant) = facts::payload_variant_for_field(program, field_symbol) else {
+    let Some(variant) = crate::fact_plan::payload_variant_for_field(program, field_symbol) else {
         return member.member.as_str().to_owned();
     };
     let case = member
@@ -427,7 +431,7 @@ fn member_entry_name(
 /// below it can be separated anyway.
 pub(super) fn formal_member_projection(
     program: &TypedTrees,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
+    mut type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     members: &[String],
 ) -> Vec<PlaceSegment> {
     let mut projection = Vec::with_capacity(members.len());
@@ -455,7 +459,7 @@ pub(super) fn formal_member_projection(
                         .data_members(data)
                         .iter()
                         .find_map(|candidate| match candidate {
-                            typed_trees::data::DataMember::Field(field)
+                            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
                                 if field.name.as_str() == member.as_str() =>
                             {
                                 Some(field)
@@ -518,10 +522,10 @@ fn entry_operand_at(
                 state_symbol,
             )?;
             let source = program.primitive_type_reference(
-                validation::expression_result_type_reference(program, machine, state, cast.value)?,
+                crate::validation::expression_result_type_reference(program, machine, state, cast.value)?,
             )?;
             let target = program.primitive_type_reference(cast.target_type)?;
-            if !validation::integer_widen_is_total(source, target) {
+            if !crate::validation::integer_widen_is_total(source, target) {
                 return None;
             }
             // Keep conversion placement, carriers and result policy in the
@@ -546,7 +550,7 @@ fn entry_operand_at(
             })
         }
         ExpressionNode::Unary(unary)
-            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
+            if unary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::UnaryOperator::LogicalNot =>
         {
             Some(CrashPredicateExpression::Unary {
                 operator: unary.operator as u8,
@@ -697,26 +701,26 @@ fn entry_operand_at(
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
-                typed_trees::expression::BinaryOperator::Add
-                    | typed_trees::expression::BinaryOperator::Subtract
-                    | typed_trees::expression::BinaryOperator::Multiply
-                    | typed_trees::expression::BinaryOperator::Divide
-                    | typed_trees::expression::BinaryOperator::Modulo
-                    | typed_trees::expression::BinaryOperator::BitwiseAnd
-                    | typed_trees::expression::BinaryOperator::BitwiseOr
-                    | typed_trees::expression::BinaryOperator::BitwiseXor
-                    | typed_trees::expression::BinaryOperator::ShiftLeft
-                    | typed_trees::expression::BinaryOperator::ShiftRight
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Add
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Subtract
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Multiply
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Divide
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Modulo
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::BitwiseAnd
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::BitwiseOr
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::BitwiseXor
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::ShiftLeft
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::ShiftRight
             ) || (matches!(
                 binary.operator,
-                typed_trees::expression::BinaryOperator::And
-                    | typed_trees::expression::BinaryOperator::Or
-                    | typed_trees::expression::BinaryOperator::Equal
-                    | typed_trees::expression::BinaryOperator::NotEqual
-                    | typed_trees::expression::BinaryOperator::Less
-                    | typed_trees::expression::BinaryOperator::LessOrEqual
-                    | typed_trees::expression::BinaryOperator::Greater
-                    | typed_trees::expression::BinaryOperator::GreaterOrEqual
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Or
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::NotEqual
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Less
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::LessOrEqual
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Greater
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::GreaterOrEqual
             ) && builtin_binary_meaning(
                 program,
                 machine_symbol,
@@ -797,7 +801,7 @@ fn entry_operand_name_at(
         .statements(state.statement_nodes)
         .get(..before_statement)?;
     for (ordinal, statement) in preceding.iter().enumerate() {
-        if let typed_trees::statement::StatementNode::LocalData(local) = statement
+        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement
             && local.symbol == path.symbol
         {
             if !has_stable_observable_contents(program, local.type_reference)
@@ -852,8 +856,8 @@ fn entry_operand_name_at(
 /// projections take the parameter path below.
 fn receiver_parameter_symbol(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     path: &TableNamePath,
 ) -> Option<SymbolHandle> {
     let [member] = program.expression_table.name_path_members(path.members) else {
@@ -880,7 +884,10 @@ fn receiver_parameter_symbol(
 /// custody, no attached `::drop` machine, no erased-relevance fields). Cycles
 /// stay inside the per-field call's active set, so member-by-member checking
 /// cannot diverge.
-fn receiver_contents_stable(program: &TypedTrees, machine: &typed_trees::machine::Machine) -> bool {
+fn receiver_contents_stable(
+    program: &TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+) -> bool {
     if machine.attached_data_application.is_valid() {
         return has_stable_observable_contents(program, machine.attached_data_application);
     }
@@ -899,10 +906,15 @@ fn receiver_contents_stable(program: &TypedTrees, machine: &typed_trees::machine
         return false;
     }
     program.data_members(data).iter().all(|member| {
-        let fields: &[typed_trees::data::DataField] = match member {
-            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
-        };
+        let fields: &[symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField] =
+            match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) => std::slice::from_ref(field),
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) => program.data_payload_fields(variant),
+            };
         fields.iter().all(|field| {
             !field.relevance.is_erased()
                 && has_stable_observable_contents(program, field.type_reference)
@@ -920,7 +932,7 @@ fn builtin_binary_meaning(
         return false;
     };
     let state = crate::lookup::symbols::state_by_symbol(program, machine, state_symbol);
-    validation::has_builtin_binary_expression_meaning(program, machine, state, expression)
+    crate::validation::has_builtin_binary_expression_meaning(program, machine, state, expression)
 }
 
 /// A state parameter's saved actual is whatever every arrival binds to it:
@@ -937,7 +949,7 @@ fn builtin_binary_meaning(
 /// that the whole bound record is.
 fn state_parameter_entry_operand(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
@@ -1105,7 +1117,7 @@ fn state_parameter_entry_operand(
 /// argument contributes an invalid handle that fails resolution above.
 fn named_transition_arguments(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state_index: usize,
     argument_index: usize,
 ) -> Vec<(SymbolHandle, usize, ExpressionHandle)> {

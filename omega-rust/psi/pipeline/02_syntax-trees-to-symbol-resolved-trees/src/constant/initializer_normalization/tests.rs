@@ -8,10 +8,10 @@ use crate::constant::initializer_normalization::LateBinding;
 use crate::constant::initializer_normalization::PendingInitializer;
 use crate::constant::initializer_normalization::Target;
 use crate::constant::initializer_normalization::append_retained_custody;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::ConstDefinition;
-use syntax_trees::{
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::item::ConstDefinition;
+use tokens_to_syntax_trees::syntax_trees::{
     expression::ExpressionNode,
     item::{ConstInitializerNormalization, Item},
 };
@@ -131,11 +131,19 @@ fn normalized_calls_rejoin_literal_and_computed_helper_dependencies_before_table
     }
 }
 
-fn normalized() -> (SyntaxTrees, syntax_trees::item::ItemHandle) {
+fn normalized() -> (
+    SyntaxTrees,
+    tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
+) {
     normalized_expression(false)
 }
 
-fn normalized_expression(unary: bool) -> (SyntaxTrees, syntax_trees::item::ItemHandle) {
+fn normalized_expression(
+    unary: bool,
+) -> (
+    SyntaxTrees,
+    tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
+) {
     let text = if unary {
         "const BASE: bool = false; pub const COUNT: bool = !BASE; machine main() -> bool { COUNT }"
     } else {

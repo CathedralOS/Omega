@@ -13,9 +13,9 @@ fn hosted_byte_output_rejects_noncanonical_or_unsupported_targets() {
     let binding = crate::AdmittedBoundarySettlement {
         boundary: plan.boundary_machines[0].id,
         execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-            target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+            crate::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
         ),
-        realization: target_operations::HostedWriteByteI32Realization.into(),
+        realization: crate::target_operations::HostedWriteByteI32Realization.into(),
     };
     // x86-64 on Mach-O is not a canonical profile. Since 5213d05f76 the native
     // callable matrix fails closed with a panic on that undeclared
@@ -24,7 +24,7 @@ fn hosted_byte_output_rejects_noncanonical_or_unsupported_targets() {
     // rejection is observable here; the fail-closed arm is pinned in
     // calling-conventions. The lowering rows below all use declared pairs.
     assert!(
-        !target_operations::HostedWriteByteI32Realization::supports_target(NativeTarget {
+        !crate::target_operations::HostedWriteByteI32Realization::supports_target(NativeTarget {
             architecture: target::Architecture::X86_64,
             ..NativeTarget::macos_arm64()
         })
@@ -40,7 +40,7 @@ fn hosted_byte_output_rejects_noncanonical_or_unsupported_targets() {
             ..NativeTarget::linux_arm64()
         },
     ] {
-        assert!(!target_operations::HostedWriteByteI32Realization::supports_target(target));
+        assert!(!crate::target_operations::HostedWriteByteI32Realization::supports_target(target));
         assert!(
             crate::lower_to_target_operations(
                 &plan,
@@ -103,7 +103,7 @@ pub(super) fn fixture() -> AbstractOperationPlan {
             operations: vec![
                 AbstractOperation::BoundaryCall {
                     psi_operation: OperationId::new(902).unwrap(),
-                    result: abstract_operations::AbstractBoundaryResult::Unit,
+                    result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
                     boundary,
                     arguments: vec![value],
                     structural_arguments: Vec::new(),
@@ -125,9 +125,9 @@ fn returning_byte_output_accepts_canonical_empty_or_declared_entry_parameters() 
     let binding = crate::AdmittedBoundarySettlement {
         boundary: plan.boundary_machines[0].id,
         execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-            target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+            crate::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
         ),
-        realization: target_operations::HostedWriteByteI32Realization.into(),
+        realization: crate::target_operations::HostedWriteByteI32Realization.into(),
     };
     for target in [
         NativeTarget::linux_x64(),
@@ -165,7 +165,7 @@ fn returning_byte_output_accepts_canonical_empty_or_declared_entry_parameters() 
         );
         assert!(matches!(
             body.blocks[0].terminator,
-            target_operations::TargetControlTerminator::Return { .. }
+            crate::target_operations::TargetControlTerminator::Return { .. }
         ));
         let mut declared = plan.clone();
         declared.functions[0].block_entries[0].parameters =
@@ -219,9 +219,9 @@ fn hosted_write_settlement_replays_and_rejects_forged_rows() {
     let binding = crate::AdmittedBoundarySettlement {
         boundary: plan.boundary_machines[0].id,
         execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-            target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+            crate::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
         ),
-        realization: target_operations::HostedWriteByteI32Realization.into(),
+        realization: crate::target_operations::HostedWriteByteI32Realization.into(),
     };
     let value = plan.functions[0].parameters[0].value;
     let scalar_type = plan.functions[0].parameters[0].scalar_type;
@@ -267,25 +267,25 @@ fn hosted_write_settlement_replays_and_rejects_forged_rows() {
                     0 => *psi_operation = OperationId::new(999).unwrap(),
                     1 => *boundary = BoundaryMachineId::new(999).unwrap(),
                     2 => {
-                        *execution = target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                            target_operations::CompilerBuiltinExecution::HostedReadByte,
+                        *execution = crate::target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                            crate::target_operations::CompilerBuiltinExecution::HostedReadByte,
                         )
                     }
                     3 => {
-                        *realization = target_operations::BoundaryRealization::HostedReadByte(
-                            target_operations::HostedReadByteRealization,
+                        *realization = crate::target_operations::BoundaryRealization::HostedReadByte(
+                            crate::target_operations::HostedReadByteRealization,
                         )
                     }
                     4 => {
-                        *realization = target_operations::BoundaryRealization::ClaimCompletionOnly(
-                            target_operations::ClaimCompletionOnlyRealization,
+                        *realization = crate::target_operations::BoundaryRealization::ClaimCompletionOnly(
+                            crate::target_operations::ClaimCompletionOnlyRealization,
                         )
                     }
                     5 => {
-                        *result = target_operations::TargetBoundaryResult::Structural(
-                            target_operations::TargetStructuralHomeRequirement {
+                        *result = crate::target_operations::TargetBoundaryResult::Structural(
+                            crate::target_operations::TargetStructuralHomeRequirement {
                                 origin:
-                                    target_operations::TargetStructuralHomeOrigin::OperationResult {
+                                    crate::target_operations::TargetStructuralHomeOrigin::OperationResult {
                                         operation: *psi_operation,
                                         result: terminal_psi::StructuralOperationResult {
                                             qualification_establishments: Vec::new(),
@@ -300,8 +300,8 @@ fn hosted_write_settlement_replays_and_rejects_forged_rows() {
                                             claims: Vec::new(),
                                         },
                                     },
-                                layout: target_operations::TargetStructuralHomeLayout::Aggregate(
-                                    calling_conventions::ValueShape::integer(4, 4),
+                                layout: crate::target_operations::TargetStructuralHomeLayout::Aggregate(
+                                    crate::calling_conventions::ValueShape::integer(4, 4),
                                 ),
                             },
                         )
@@ -309,10 +309,10 @@ fn hosted_write_settlement_replays_and_rejects_forged_rows() {
                     6 => runtime_scalar_arguments[0].parameter_index = 7,
                     7 => {
                         runtime_scalar_arguments[0].placement.shape =
-                            calling_conventions::ValueShape::integer(8, 8)
+                            crate::calling_conventions::ValueShape::integer(8, 8)
                     }
                     8 => {
-                        let target_operations::TargetUnitScalarArgumentSource::Parameter {
+                        let crate::target_operations::TargetUnitScalarArgumentSource::Parameter {
                             parameter_index,
                             ..
                         } = &mut runtime_scalar_arguments[0].source
@@ -322,7 +322,7 @@ fn hosted_write_settlement_replays_and_rejects_forged_rows() {
                         *parameter_index = 7;
                     }
                     9 => {
-                        let target_operations::TargetUnitScalarArgumentSource::Parameter {
+                        let crate::target_operations::TargetUnitScalarArgumentSource::Parameter {
                             source_value,
                             ..
                         } = &mut runtime_scalar_arguments[0].source
@@ -333,18 +333,18 @@ fn hosted_write_settlement_replays_and_rejects_forged_rows() {
                     }
                     10 => {
                         runtime_scalar_arguments[0].source =
-                            target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                            crate::target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                                 defining_operation: OperationId::new(999).unwrap(),
                                 source_value: value,
                                 scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
                                 value: semantic_vocabulary::IntegerValue::Signed(37),
                             }
                     }
-                    11 => scalar_arguments.push(target_operations::BoundaryScalarArgument {
+                    11 => scalar_arguments.push(crate::target_operations::BoundaryScalarArgument {
                         source_value: value,
                         scalar_type,
                         immediate: semantic_vocabulary::IntegerValue::Signed(37),
-                        destination: calling_conventions::MachineRegister::X86Rax,
+                        destination: crate::calling_conventions::MachineRegister::X86Rax,
                     }),
                     _ => {
                         if mutation == 12 {
@@ -355,7 +355,7 @@ fn hosted_write_settlement_replays_and_rejects_forged_rows() {
                             });
                         } else if mutation == 13 {
                             completion_claim_sources.push(
-                                abstract_operations::CompletionClaimSource {
+                                terminal_psi_to_abstract_operations::abstract_operations::CompletionClaimSource {
                                     claim: semantic_vocabulary::ClaimId::new(999).unwrap(),
                                     entry: None,
                                     content: None,

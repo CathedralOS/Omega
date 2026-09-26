@@ -28,7 +28,7 @@ impl AllocationSource for StagedOptimizedRegisterHomesAfterFixedViewCopies {
 impl ProjectAllocation for StagedOptimizedRegisterHomesAfterFixedViewCopies {
     fn project_allocation(&self) -> AllocationOutput<'_> {
         AllocationOutput {
-            program: register_homes::AllocatedProgramRef {
+            program: selected_instructions_to_selected_instructions::register_homes::AllocatedProgramRef {
                 selected: &self.selected().plan().transformed,
                 homes: self.homes().plan(),
             },

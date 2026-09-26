@@ -3,14 +3,16 @@
 use std::collections::BTreeMap;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
 
-use crate::{FixedPrecoloredIntervalError, ValidatedAllocationLegality, ValidatedLiveRanges};
-use register_homes::{
+use crate::register_homes::{
     FixedPrecoloredInterval, FixedPrecoloredIntervalPolicy, FunctionAllocationLegality,
     FunctionFixedPrecoloredIntervals,
 };
-use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualFixedConstraintSite};
+use crate::{FixedPrecoloredIntervalError, ValidatedAllocationLegality, ValidatedLiveRanges};
+use target_operations_to_selected_instructions::{
+    FunctionLiveRanges, LiveRangePoint, VirtualFixedConstraintSite,
+};
 
 pub(super) struct ReplayedIntervals {
     pub(super) functions: Vec<FunctionFixedPrecoloredIntervals>,
@@ -159,7 +161,7 @@ fn replay_function(
 fn replay_early_clobber_refusal(
     function: usize,
     ranges: &FunctionLiveRanges,
-    range: &selected_instructions::VirtualLiveRange,
+    range: &target_operations_to_selected_instructions::VirtualLiveRange,
     site: VirtualFixedConstraintSite,
 ) -> Result<(), FixedPrecoloredIntervalError> {
     let VirtualFixedConstraintSite::Operand {
@@ -192,14 +194,14 @@ fn replay_early_clobber_refusal(
 
 fn point_index(
     function: usize,
-    range: &selected_instructions::VirtualLiveRange,
-    legal: &register_homes::VirtualRegisterAllocationLegality,
+    range: &target_operations_to_selected_instructions::VirtualLiveRange,
+    legal: &crate::register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<
     BTreeMap<
         LiveRangePoint,
         (
-            selected_instructions::SelectedBlockId,
-            Vec<register_model::RegisterViewId>,
+            target_operations_to_selected_instructions::SelectedBlockId,
+            Vec<target_operations_to_selected_instructions::register_model::RegisterViewId>,
         ),
     >,
     FixedPrecoloredIntervalError,

@@ -27,7 +27,7 @@
 //! `checked_binding_prefix` and `checked_terminator` are also used by
 //! `execution::terminal_unit`.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarBranchDestination,
     CheckedScalarGraphPlans, CheckedScalarMachineGraph, CheckedScalarParameterStorage,
     CheckedScalarStateGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
@@ -37,7 +37,7 @@ use checked_trees::{
 
 pub(crate) fn build_checked_terminal_machine_selections(
     program: &TypedTrees,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> CheckedTerminalMachineSelections {
     CheckedTerminalMachineSelections {
         machines: program
@@ -78,7 +78,7 @@ pub(crate) fn build_checked_terminal_machine_selections(
                     || !machine.invokes.is_empty()
                     || program.machine_states(machine).iter().any(|state| {
                         program.state_parameters(state).iter().any(|parameter| {
-                            typed_trees::service::exact_bound_service_requirement(
+                            symbol_resolved_trees_to_typed_trees::typed_trees::service::exact_bound_service_requirement(
                                 program,
                                 parameter.type_reference,
                             )
@@ -94,7 +94,7 @@ pub(crate) fn build_checked_terminal_machine_selections(
             .collect(),
     }
 }
-use typed_trees::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
 };
@@ -114,10 +114,10 @@ mod tests;
 #[cfg(test)]
 pub(crate) fn build_checked_scalar_graph_plans(
     program: &TypedTrees,
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    structural_values: &checked_trees::CheckedStructuralValuePlans,
-    proof_terms: &checked_trees::CheckedProofTerms,
+    expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
+    structural_values: &crate::checked_trees::CheckedStructuralValuePlans,
+    proof_terms: &crate::checked_trees::CheckedProofTerms,
 ) -> CheckedScalarGraphPlans {
     build_checked_scalar_graph_plans_with_call_frames(
         program,
@@ -131,11 +131,11 @@ pub(crate) fn build_checked_scalar_graph_plans(
 
 pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     program: &TypedTrees,
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    structural_values: &checked_trees::CheckedStructuralValuePlans,
-    proof_terms: &checked_trees::CheckedProofTerms,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
+    structural_values: &crate::checked_trees::CheckedStructuralValuePlans,
+    proof_terms: &crate::checked_trees::CheckedProofTerms,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> CheckedScalarGraphPlans {
     let (guarded_exits, guarded_tails) = guarded_exits::build(program, expressions);
     let mut parameter_storage = arena::Arena::default();
@@ -192,11 +192,11 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
 #[cfg(test)]
 pub(crate) fn finalize_checked_scalar_graph_plans(
     program: &TypedTrees,
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
-    ownership: &checked_trees::FlowOwnershipFacts,
-    computations: &checked_trees::CheckedScalarComputationPlans,
+    expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    ownership: &crate::checked_trees::FlowOwnershipFacts,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
-    proof_terms: &checked_trees::CheckedProofTerms,
+    proof_terms: &crate::checked_trees::CheckedProofTerms,
 ) {
     finalize_checked_scalar_graph_plans_with_call_frames(
         program,
@@ -211,12 +211,12 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
 
 pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
     program: &TypedTrees,
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
-    ownership: &checked_trees::FlowOwnershipFacts,
-    computations: &checked_trees::CheckedScalarComputationPlans,
+    expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    ownership: &crate::checked_trees::FlowOwnershipFacts,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
-    proof_terms: &checked_trees::CheckedProofTerms,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    proof_terms: &crate::checked_trees::CheckedProofTerms,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) {
     plans.machines.retain(|graph| {
         if ranking::plan(program, graph, call_frames) != Some(graph.ranked_scc.clone())
@@ -268,14 +268,14 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
 
 fn build_machine_graph(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    structural_values: &checked_trees::CheckedStructuralValuePlans,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
+    structural_values: &crate::checked_trees::CheckedStructuralValuePlans,
     parameter_storage: &mut arena::Arena<CheckedScalarParameterStorage>,
     structural_types: &mut std::collections::BTreeMap<
         String,
-        checked_trees::CheckedUnitStructuralTypePlan,
+        crate::checked_trees::CheckedUnitStructuralTypePlan,
     >,
 ) -> Option<CheckedScalarMachineGraph> {
     let source_states = program.machine_states(machine);
@@ -288,8 +288,10 @@ fn build_machine_graph(
     // a successor names a foreign entry, transitively. States keep their own
     // owning machine's parameters and contracts; only the edge list is fused.
     let mut states = Vec::new();
-    let mut pending: Vec<(&typed_trees::machine::Machine, &typed_trees::state::State)> =
-        source_states.iter().map(|state| (machine, state)).collect();
+    let mut pending: Vec<(
+        &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    )> = source_states.iter().map(|state| (machine, state)).collect();
     let mut cursor = 0;
     while let Some(&(owner, state)) = pending.get(cursor) {
         cursor += 1;
@@ -393,20 +395,20 @@ fn build_machine_graph(
 
 fn checked_state_graph(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     owner_state_count: usize,
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    structural_values: &checked_trees::CheckedStructuralValuePlans,
+    expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
+    structural_values: &crate::checked_trees::CheckedStructuralValuePlans,
 ) -> Option<(
     CheckedScalarStateGraph,
     Vec<CheckedScalarParameterStorage>,
-    Vec<checked_trees::CheckedUnitStructuralTypePlan>,
+    Vec<crate::checked_trees::CheckedUnitStructuralTypePlan>,
 )> {
     {
         {
-            if !validation::scalar_state_contracts_are_qualifications(program, state) {
+            if !crate::validation::scalar_state_contracts_are_qualifications(program, state) {
                 return None;
             }
             let parameters = program.state_parameters(state);
@@ -428,7 +430,7 @@ fn checked_state_graph(
                             program
                                 .type_reference_table
                                 .type_reference(parameter.type_reference),
-                            typed_trees::types::TypeReferenceNode::Reference { .. }
+                            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. }
                         )
                         && crate::values::mutable_scalar_parameter_type(program, parameter)
                             .is_none())
@@ -493,7 +495,7 @@ fn checked_state_graph(
                             !parameter.relevance.is_erased() && !parameter.is_self
                         })
                         .map(|(position, parameter)| {
-                            Some(checked_trees::CheckedStructuralScalarParameterPlan {
+                            Some(crate::checked_trees::CheckedStructuralScalarParameterPlan {
                                 source_position: u32::try_from(position).ok()?,
                                 primitive_type: program
                                     .primitive_type_reference(parameter.type_reference)?,
@@ -555,7 +557,7 @@ fn checked_state_graph(
             // structural scalar-return owner, including its admission fences.
             if mixed
                 && structural_parameters.iter().all(|parameter| {
-                    parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                    parameter.access != crate::checked_trees::CheckedStructuralAccess::Owned
                 })
                 && matches!(statements, [StatementNode::Expression(_)])
                 && !computations
@@ -579,9 +581,9 @@ fn checked_state_graph(
                 return None;
             }
             for local in &primitive_locals {
-                let shape = checked_trees::CheckedUnitStructuralTypePlan {
+                let shape = crate::checked_trees::CheckedUnitStructuralTypePlan {
                     identity: local.type_identity.clone(),
-                    shape: checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
+                    shape: crate::checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
                         local.primitive_type,
                     ),
                 };
@@ -614,19 +616,19 @@ fn checked_state_graph(
                 && matches!(statements.get(*statement_ordinal as usize),
                     Some(StatementNode::Expression(expression)) if matches!(
                         program.expression_table.expression(*expression),
-                        typed_trees::expression::ExpressionNode::Call(_)))
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)))
                 && expressions
                     .expression_at(
                         state.symbol,
                         *statement_ordinal,
-                        checked_trees::CheckedScalarExpressionRole::Return,
+                        crate::checked_trees::CheckedScalarExpressionRole::Return,
                     )
                     .is_none()
                 && computations
                     .root_at(
                         state.symbol,
                         *statement_ordinal,
-                        checked_trees::CheckedScalarExpressionRole::Return,
+                        crate::checked_trees::CheckedScalarExpressionRole::Return,
                     )
                     .is_none()
             {
@@ -658,16 +660,16 @@ fn checked_state_graph(
 /// scalar binding representation. Consumers choose the supported value forms.
 pub(super) fn checked_binding_prefix(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
-    computations: &checked_trees::CheckedScalarComputationPlans,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
 ) -> Option<Vec<CheckedScalarBinding>> {
     checked_statement_bindings(program, state, computations, false)
 }
 
 fn checked_statement_bindings(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
-    computations: &checked_trees::CheckedScalarComputationPlans,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
     unit_calls: bool,
 ) -> Option<Vec<CheckedScalarBinding>> {
     let parameters = program.state_parameters(state);
@@ -688,11 +690,11 @@ fn checked_statement_bindings(
             .filter(|(_, statement)| !matches!(statement, StatementNode::Call(_))
                 && !(unit_calls && matches!(statement, StatementNode::Assignment(assignment)
                     if matches!(program.expression_table.expression(assignment.target),
-                        typed_trees::expression::ExpressionNode::Member(_))))
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(_))))
                 && !(unit_calls && matches!(statement, StatementNode::LocalData(local)
                     if program.primitive_type_reference(local.type_reference).is_none())))
             .map(|(statement_index, statement)| {
-                use checked_trees::CheckedScalarBindingDestination;
+                use crate::checked_trees::CheckedScalarBindingDestination;
                 match statement {
                     StatementNode::LocalData(local) => {
                         if !program
@@ -703,13 +705,13 @@ fn checked_statement_bindings(
                         }
                         let statement_ordinal = u32::try_from(statement_index).ok()?;
                         let role = if local.is_mutable {
-                            checked_trees::CheckedScalarExpressionRole::StorageInitializer
+                            crate::checked_trees::CheckedScalarExpressionRole::StorageInitializer
                         } else {
                             let preceding_immutable_count = statements[..statement_index].iter().filter(|statement| {
                                 matches!(statement, StatementNode::LocalData(local) if !local.is_mutable
                                     && program.primitive_type_reference(local.type_reference).is_some())
                             }).count();
-                            checked_trees::CheckedScalarExpressionRole::LocalInitializer {
+                            crate::checked_trees::CheckedScalarExpressionRole::LocalInitializer {
                                 binding_ordinal: u32::try_from(preceding_immutable_count).ok()?,
                             }
                         };
@@ -741,7 +743,7 @@ fn checked_statement_bindings(
                         })
                     }
                     StatementNode::Assignment(assignment) => {
-                        let typed_trees::expression::ExpressionNode::Name(name) =
+                        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(name) =
                             program.expression_table.expression(assignment.target)
                         else {
                             return None;
@@ -777,7 +779,7 @@ fn checked_statement_bindings(
                                 })
                             })?;
                         let statement_ordinal = u32::try_from(statement_index).ok()?;
-                        let role = checked_trees::CheckedScalarExpressionRole::AssignmentValue;
+                        let role = crate::checked_trees::CheckedScalarExpressionRole::AssignmentValue;
                         let value = if computations
                             .root_at(state.symbol, statement_ordinal, role)
                             .is_some()
@@ -804,9 +806,9 @@ fn checked_statement_bindings(
 
 fn checked_binding_value(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedScalarBindingValue> {
-    let typed_trees::expression::ExpressionNode::Call(call) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
         program.expression_table.expression(expression)
     else {
         return Some(CheckedScalarBindingValue::Expression);
@@ -846,9 +848,9 @@ fn checked_binding_value(
 
 fn checked_successor(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     statement_ordinal: u32,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
     is_continuation: bool,
 ) -> Option<CheckedScalarSuccessor> {
     if transition.exit != TransitionExit::Ordinary {
@@ -900,9 +902,9 @@ fn checked_successor(
 /// Retain authored exit coordinates independently of the preceding operation values.
 pub(super) fn checked_terminator(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
     binding_count: usize,
 ) -> Option<CheckedScalarStateTerminator> {
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -1043,9 +1045,9 @@ pub(super) fn checked_terminator(
 
 fn checked_branch_destination(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     statement_ordinal: u32,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
     is_continuation: bool,
 ) -> Option<CheckedScalarBranchDestination> {
     if matches!(transition.exit, TransitionExit::Crash(_)) {
@@ -1090,8 +1092,8 @@ fn checked_branch_destination(
 /// parameter `position` — the ambient borrowed receiver's coordinate. An
 /// unrecognized or malformed node counts as a read so the gate stays closed.
 fn state_reads_ambient_position(
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
-    computations: &checked_trees::CheckedScalarComputationPlans,
+    expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
     state: symbols::SymbolHandle,
     position: u32,
 ) -> bool {
@@ -1104,8 +1106,8 @@ fn state_reads_ambient_position(
 }
 
 fn computation_reads_position(
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    root: checked_trees::CheckedScalarComputationHandle,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
+    root: crate::checked_trees::CheckedScalarComputationHandle,
     position: u32,
 ) -> bool {
     let mut pending = vec![root];
@@ -1119,43 +1121,55 @@ fn computation_reads_position(
             return true;
         }
         match &computations.nodes.get(handle).kind {
-            checked_trees::CheckedScalarComputationKind::StructuralField { subject, .. } => {
+            crate::checked_trees::CheckedScalarComputationKind::StructuralField {
+                subject, ..
+            } => {
                 if structural_place_reads_position(subject, position) {
                     return true;
                 }
             }
-            checked_trees::CheckedScalarComputationKind::CaseMembership { subject, .. } => {
+            crate::checked_trees::CheckedScalarComputationKind::CaseMembership {
+                subject, ..
+            } => {
                 if structural_argument_reads_position(computations, subject, position, &mut pending)
                 {
                     return true;
                 }
             }
-            checked_trees::CheckedScalarComputationKind::SelectedComparison {
-                left, right, ..
+            crate::checked_trees::CheckedScalarComputationKind::SelectedComparison {
+                left,
+                right,
+                ..
             } => pending.extend([*left, *right]),
-            checked_trees::CheckedScalarComputationKind::Qualification { operand, .. }
-            | checked_trees::CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
-                pending.push(*operand)
+            crate::checked_trees::CheckedScalarComputationKind::Qualification {
+                operand, ..
             }
-            checked_trees::CheckedScalarComputationKind::Value(expression) => {
+            | crate::checked_trees::CheckedScalarComputationKind::BooleanToInteger {
+                operand,
+                ..
+            } => pending.push(*operand),
+            crate::checked_trees::CheckedScalarComputationKind::Value(expression) => {
                 if scalar_expression_reads_position(expression, position) {
                     return true;
                 }
             }
-            checked_trees::CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+            crate::checked_trees::CheckedScalarComputationKind::Dispatch {
+                subject, arms, ..
+            } => {
                 pending.push(*subject);
                 let Some(arms) = computations.dispatch_arms.span(*arms) else {
                     return true;
                 };
                 for arm in arms {
-                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
+                    if let crate::checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                        arm.pattern
                     {
                         pending.push(pattern);
                     }
                     pending.push(arm.value);
                 }
             }
-            checked_trees::CheckedScalarComputationKind::Call {
+            crate::checked_trees::CheckedScalarComputationKind::Call {
                 arguments,
                 structural_arguments,
                 ..
@@ -1181,13 +1195,13 @@ fn computation_reads_position(
                     }
                 }
             }
-            checked_trees::CheckedScalarComputationKind::Select {
+            crate::checked_trees::CheckedScalarComputationKind::Select {
                 condition,
                 when_true,
                 when_false,
                 ..
             } => pending.extend([*condition, *when_true, *when_false]),
-            checked_trees::CheckedScalarComputationKind::Apply {
+            crate::checked_trees::CheckedScalarComputationKind::Apply {
                 expression,
                 operands,
                 ..
@@ -1206,23 +1220,26 @@ fn computation_reads_position(
 }
 
 fn structural_argument_reads_position(
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    argument: &checked_trees::CheckedScalarComputationStructuralArgument,
+    computations: &crate::checked_trees::CheckedScalarComputationPlans,
+    argument: &crate::checked_trees::CheckedScalarComputationStructuralArgument,
     position: u32,
-    pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
+    pending: &mut Vec<crate::checked_trees::CheckedScalarComputationHandle>,
 ) -> bool {
     match argument {
-        checked_trees::CheckedScalarComputationStructuralArgument::Place(place) => {
+        crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(place) => {
             structural_place_reads_position(place, position)
         }
-        checked_trees::CheckedScalarComputationStructuralArgument::Case(construction) => {
+        crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(construction) => {
             let Some(fields) = computations.case_fields.span(construction.fields) else {
                 return true;
             };
             pending.extend(fields.iter().map(|field| field.value));
             false
         }
-        checked_trees::CheckedScalarComputationStructuralArgument::Array { elements, .. } => {
+        crate::checked_trees::CheckedScalarComputationStructuralArgument::Array {
+            elements,
+            ..
+        } => {
             let Some(elements) = computations.operands.span(*elements) else {
                 return true;
             };
@@ -1233,19 +1250,19 @@ fn structural_argument_reads_position(
 }
 
 fn structural_place_reads_position(
-    plan: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    plan: &crate::checked_trees::CheckedUnitStructuralArgumentPlan,
     position: u32,
 ) -> bool {
     if plan.source_parameter_index() == Some(position) {
         return true;
     }
-    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+    if let crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
         root,
         start,
         end,
         ..
     }
-    | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+    | crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
         root,
         start,
         end,
@@ -1264,10 +1281,10 @@ fn structural_place_reads_position(
 }
 
 fn scalar_expression_reads_position(
-    expression: &checked_trees::CheckedScalarExpression,
+    expression: &crate::checked_trees::CheckedScalarExpression,
     position: u32,
 ) -> bool {
-    use checked_trees::CheckedScalarExpression as Scalar;
+    use crate::checked_trees::CheckedScalarExpression as Scalar;
     match expression {
         Scalar::StructuralParameterByteLength { root, .. } => root.parameter() == Some(position),
         Scalar::StructuralParameterField {
@@ -1299,10 +1316,10 @@ fn scalar_expression_reads_position(
 }
 
 fn boolean_expression_reads_position(
-    expression: &checked_trees::CheckedBooleanExpression,
+    expression: &crate::checked_trees::CheckedBooleanExpression,
     position: u32,
 ) -> bool {
-    use checked_trees::CheckedBooleanExpression as Boolean;
+    use crate::checked_trees::CheckedBooleanExpression as Boolean;
     match expression {
         Boolean::StructuralParameterField {
             parameter_position, ..

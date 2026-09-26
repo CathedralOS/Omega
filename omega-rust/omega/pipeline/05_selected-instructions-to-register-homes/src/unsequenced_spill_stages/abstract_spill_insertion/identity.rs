@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionIdentity, AbstractSpillInsertionPlan, AbstractSpillInsertionPolicy,
 };
-use register_homes::LogicalSpillStorageClass;
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
 
 pub fn abstract_spill_insertion_identity(
     plan: &AbstractSpillInsertionPlan,

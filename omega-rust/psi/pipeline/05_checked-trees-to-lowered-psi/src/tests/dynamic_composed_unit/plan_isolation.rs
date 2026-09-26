@@ -1,7 +1,9 @@
 use super::{DIRECT_DYNAMIC_SOURCE, DIRECT_DYNAMIC_UNIT_SOURCE};
-use crate::TerminalMachineSelection;
 use crate::tests::lower_machine;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn unsupported_scalar_call_does_not_discard_other_machines_dispatch_plans() {
@@ -42,15 +44,18 @@ fn assert_neighboring_machine_is_isolated(supported: &str, unsupported: &str) {
             .expect("an unsupported neighboring call must not erase complete dispatch custody");
         terminal_verifier::validate_module(&lowered.semantic_module)
             .expect("the supported machine retains valid dynamic dispatch");
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name("Main::run"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("the supported machine produces a checked artifact")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                    "Main::run",
+                ),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("the supported machine produces a checked artifact")
+            .into_artifact();
         let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("the supported machine round-trips");
         assert_eq!(decoded, lowered.semantic_module);

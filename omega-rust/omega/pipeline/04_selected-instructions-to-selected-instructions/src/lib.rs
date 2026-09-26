@@ -16,6 +16,7 @@
 //! `selected_optimization::optimization_output`.
 
 mod analyses;
+pub mod register_homes;
 mod rewrites;
 mod selected_optimization;
 
@@ -126,7 +127,7 @@ pub use rewrites::test_support;
 // Durable transform-output identities live with the selected-instruction
 // representation; the transform publishes them under its root so callers keep
 // one vocabulary.
-pub use selected_instructions::{
+pub use target_operations_to_selected_instructions::{
     AddressFoldIdentity, ConstantBooleanIdentity, FixedViewCopyIdentity,
     PressureRematerializationIdentity,
 };

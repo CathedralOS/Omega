@@ -2,14 +2,14 @@
 //! Provider installation admits only an exactly replayed abstract plan.
 //! Optimization selection does not change the Terminal-to-abstract projection.
 
-use abstract_operations::AbstractOperationPlan;
+use crate::abstract_operations::AbstractOperationPlan;
 mod admission;
 mod error;
 mod replay;
 
 pub use error::ProviderInstallationError;
 
-use abstract_operations::CompletionClaimSource;
+use crate::abstract_operations::CompletionClaimSource;
 use admission::admit_provider_installation_with_projection;
 use semantic_vocabulary::{MachineId, OperationId};
 use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};

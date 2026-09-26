@@ -15,7 +15,7 @@ pub(super) fn validate_frozen_component_blocks(
         return Ok(());
     }
     let mut expected =
-        optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), unit.fuel_schedule)
+        terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), unit.fuel_schedule)
             .map_err(|_| {
                 OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch
             })?;

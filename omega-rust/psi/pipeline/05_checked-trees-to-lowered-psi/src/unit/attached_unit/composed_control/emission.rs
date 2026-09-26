@@ -29,7 +29,7 @@ use std::borrow::Cow;
 pub(crate) fn emit_call_leaf(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    state: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan,
     block: BlockId,
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
@@ -158,7 +158,7 @@ pub(crate) fn emit_call_leaf(
 pub(super) fn emit_call_operations(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    state: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan,
     planned_operations: &[CheckedUnitEffectOperationPlan],
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
@@ -184,8 +184,8 @@ pub(super) fn emit_call_operations(
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     // A returned final expression evaluates in the `Return` role.
     let scalar_result = match &state.terminator {
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-            completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+        typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+            completion: typed_trees_to_checked_trees::checked_trees::CheckedScalarReturnPlan::Binding(binding),
         } => Some(binding),
         _ => None,
     };

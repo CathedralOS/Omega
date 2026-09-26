@@ -3,22 +3,22 @@
 //! This checks the proposed stream in place; it does not call selection.
 
 use super::integrity::validate_block_constraints;
-use crate::selection::constraints::row;
-use crate::selection::model::SelectedInstructionError;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind, SaturatingCarrier, TrappingForm,
     TrappingOperation,
 };
-use optimization_unit::ValueDefinitionSite;
-use register_model::RegisterConstraintKey;
-use register_model::{RegisterClassId, RegisterViewId};
-use selected_instructions::{
+use crate::register_model::RegisterConstraintKey;
+use crate::register_model::{RegisterClassId, RegisterViewId};
+use crate::selected_instructions::{
     MachineSemanticKind, SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
     SelectedSelectionConstraints, VirtualRegisterId, VirtualRegisterOrigin,
 };
+use crate::selection::constraints::row;
+use crate::selection::model::SelectedInstructionError;
 use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 mod aggregate_argument;
 mod aggregate_memory;
@@ -49,7 +49,7 @@ pub(in crate::selection) fn validate_with_environment(
     source: &LegalizedScalarFunction,
     selected: &SelectedFunction,
     constraints: &SelectedSelectionConstraints,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
     let catalog = environment.constraints();
     let invalid = || SelectedInstructionError::FunctionProjectionMismatch { function };
@@ -91,7 +91,7 @@ pub(in crate::selection) fn validate_with_environment(
     for block in selected.blocks.iter().filter(|block| {
         matches!(
             block.origin,
-            selected_instructions::SelectedBlockOrigin::Source(_)
+            crate::selected_instructions::SelectedBlockOrigin::Source(_)
         )
     }) {
         let source_block = source
@@ -121,7 +121,7 @@ pub(in crate::selection) fn validate_with_environment(
     for block in selected.blocks.iter().filter(|block| {
         matches!(
             block.origin,
-            selected_instructions::SelectedBlockOrigin::Source(_)
+            crate::selected_instructions::SelectedBlockOrigin::Source(_)
         )
     }) {
         let source_block = source
@@ -310,7 +310,7 @@ pub(in crate::selection) fn validate_with_environment(
                         }
                         let operands = if matches!(
                             predicate,
-                            legalized_operations::LegalizedScalarComparison::LessOrEqual
+                            crate::legalized_operations::LegalizedScalarComparison::LessOrEqual
                         ) {
                             [right_register, left_register]
                         } else {

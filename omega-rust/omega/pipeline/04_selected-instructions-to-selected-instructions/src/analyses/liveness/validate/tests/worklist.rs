@@ -2,13 +2,15 @@
 
 use super::replay_function;
 use crate::analyses::liveness::{compute, edge_values, tests::successor_parameter_function};
-use register_model::{RegisterOperandAccess, RegisterUnitId};
-use selected_instructions::{
+use semantic_vocabulary::{BlockId, EdgeId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstructionId,
     SelectedInstructionKind, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
     VirtualRegisterId,
 };
-use semantic_vocabulary::{BlockId, EdgeId};
 
 fn graph(targets: &[Vec<usize>]) -> SelectedFunction {
     let mut function = successor_parameter_function();
@@ -190,10 +192,11 @@ fn prepared_transports_preserve_loop_parameter_substitution() {
     let mut repeated = successor.clone();
     repeated.psi_edge = EdgeId::new(3).unwrap();
     repeated.bindings[0].semantic.argument = repeated.bindings[0].semantic.parameter;
-    repeated.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
-        argument: VirtualRegisterId(2),
-        parameter: VirtualRegisterId(2),
-    };
+    repeated.bindings[0].transport =
+        target_operations_to_selected_instructions::SelectedValueTransport::Registers {
+            argument: VirtualRegisterId(2),
+            parameter: VirtualRegisterId(2),
+        };
     let mut exit = function.blocks[1].clone();
     exit.id = SelectedBlockId(2);
     exit.origin = SelectedBlockOrigin::Source(BlockId::new(3).unwrap());

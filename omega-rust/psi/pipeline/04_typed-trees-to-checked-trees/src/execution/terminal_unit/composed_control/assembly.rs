@@ -7,8 +7,8 @@ use crate::execution::terminal_unit::types::ShapeCollector;
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 
+use crate::checked_trees::CheckedUnitPlanOmissionStage;
 use crate::execution::terminal_unit::control;
-use checked_trees::CheckedUnitPlanOmissionStage;
 use std::collections::BTreeMap;
 
 /// Test convenience: the traced assembly without a trace map.
@@ -18,7 +18,7 @@ pub(in crate::execution::terminal_unit) fn build_all(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Vec<CheckedComposedUnitControlMachinePlan> {
     build_all_traced(
         program,
@@ -36,7 +36,7 @@ pub(in crate::execution::terminal_unit) fn build_all_traced(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     declined: &mut BTreeMap<(u32, u32), CheckedUnitPlanOmissionStage>,
 ) -> Vec<CheckedComposedUnitControlMachinePlan> {
     let mut plans = Vec::new();
@@ -70,7 +70,7 @@ pub(in crate::execution::terminal_unit) fn build_all_traced(
 
 pub(in crate::execution::terminal_unit) fn finish(
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     attachment_type_identity: Option<String>,
     provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
     states: Vec<CheckedComposedUnitControlStatePlan>,
@@ -100,7 +100,7 @@ pub(in crate::execution::terminal_unit) fn finish(
     let machine_reach = facts.service_reaches.for_machine(machine.symbol)?;
     Some(CheckedComposedUnitControlMachinePlan {
         machine: machine.symbol,
-        result: checked_trees::CheckedControlResultPlan::Unit,
+        result: crate::checked_trees::CheckedControlResultPlan::Unit,
         result_reference_sources: Vec::new(),
         natural_ranks: Vec::new(),
         attachment_type_identity,

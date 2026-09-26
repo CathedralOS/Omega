@@ -1,16 +1,16 @@
 //! Fusion of jumps that share one terminal successor.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
     ScalarSubstitution, SharedJumpFusionRewrite,
 };
-use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;

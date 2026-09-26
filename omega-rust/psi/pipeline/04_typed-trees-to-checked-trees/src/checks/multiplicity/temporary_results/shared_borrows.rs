@@ -6,14 +6,14 @@ use super::{
 use crate::checks::type_carries_linear_obligation;
 use crate::checks::type_multiplicity;
 use language_semantics::PermissionEventSource;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 pub(in crate::checks::multiplicity) fn append_shared_borrow(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     permissions: &mut Vec<FlowPermissionEventFact>,
 ) {
     for statement_index in 0..program
@@ -35,10 +35,10 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
 }
 
 fn events(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
 ) -> Option<[FlowPermissionEventFact; 3]> {
     let StatementNode::Call(_) = program
@@ -127,7 +127,7 @@ fn events(
         || program.normalized_type_identity(*referee)
             != program.normalized_type_identity(produced_type)
         || type_multiplicity(program, produced_type) != Multiplicity::Affine
-        || !validation::has_plain_owned_contents(program, produced_type)
+        || !crate::validation::has_plain_owned_contents(program, produced_type)
         || type_carries_linear_obligation(program, produced_type)
     {
         return None;
@@ -155,7 +155,7 @@ fn events(
             state_symbol: state.symbol,
             source: producer_source,
         },
-        root: facts::PlaceRoot::Expression(borrow.target),
+        root: crate::fact_plan::PlaceRoot::Expression(borrow.target),
         segments: HandleSpan::empty(),
         obligation_live: false,
     };

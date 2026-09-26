@@ -137,8 +137,10 @@ fn literal_boolean_guards_still_require_every_arrival_proof() {
 
 #[test]
 fn literal_comparison_guarantees_reject_changed_source_meaning() {
-    use checked_trees::{CheckedBooleanExpression as Boolean, ClosedScalarContractValue as Clause};
     use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedBooleanExpression as Boolean, ClosedScalarContractValue as Clause,
+    };
 
     let source = boolean_guarantee_source("Host::finish(false); 1u8 < 2u8", true).replace(
         "ensures result == value\nreaches Host",
@@ -182,15 +184,16 @@ fn literal_comparison_guarantees_reject_changed_source_meaning() {
                         }),
                 };
             }
-            2 => *kind = checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
+            2 => *kind = typed_trees_to_checked_trees::checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
             _ => unreachable!(),
         }
-        contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
-            contract.closed_scalar_values.requires().to_vec(),
-            guarantees,
-            contract.closed_scalar_values.has_crash_clauses(),
-            contract.closed_scalar_values.has_outcome_specific_clauses(),
-        );
+        contract.closed_scalar_values =
+            typed_trees_to_checked_trees::checked_trees::ClosedScalarValueContractPlan::new(
+                contract.closed_scalar_values.requires().to_vec(),
+                guarantees,
+                contract.closed_scalar_values.has_crash_clauses(),
+                contract.closed_scalar_values.has_outcome_specific_clauses(),
+            );
         // Changed value/kind can still denote true, but semantic agreement is
         // not custody of the authored operator and its exact literal operands.
         assert!(
@@ -826,7 +829,9 @@ fn ordered_computed_boolean_equality_keeps_mixed_parameter_identities() {
 
 #[test]
 fn computed_boolean_guarantees_reject_changed_return_and_selected_evidence() {
-    use checked_trees::{CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar};
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
+    };
     let source = boolean_guarantee_source("Host::finish(false); !value", false).replace(
         "ensures result == value\nreaches Host",
         "ensures result == !value\nreaches Host",
@@ -872,7 +877,7 @@ fn computed_boolean_guarantees_reject_changed_return_and_selected_evidence() {
             1 => plans.expressions.push(plans.expressions[position].clone()),
             2 => {
                 plans.expressions[position].role =
-                    checked_trees::CheckedScalarExpressionRole::ContinuationReturn
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::ContinuationReturn
             }
             3 => {
                 let binding = plans
@@ -880,7 +885,7 @@ fn computed_boolean_guarantees_reject_changed_return_and_selected_evidence() {
                     .iter()
                     .find(|(_, binding)| {
                         binding.state == state
-                            && binding.role == checked_trees::CheckedScalarExpressionRole::Return
+                            && binding.role == typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::Return
                     })
                     .unwrap()
                     .1

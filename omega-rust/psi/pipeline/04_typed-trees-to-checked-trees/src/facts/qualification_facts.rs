@@ -1,14 +1,18 @@
 //! Qualification facts and service reach facts.
 
 use crate::facts::canonical_encoding::domain_is_vacuous;
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
-pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::QualificationFacts {
-    use checked_trees::VacuousQualificationUse;
+pub(crate) fn build_qualification_facts(
+    program: &TypedTrees,
+) -> crate::checked_trees::QualificationFacts {
+    use crate::checked_trees::VacuousQualificationUse;
     use language_semantics::SemanticDomainTable;
     use std::collections::HashSet;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        ExpressionHandle, ExpressionNode,
+    };
     use symbols::SymbolHandle;
-    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
     fn collect_casts(
         program: &TypedTrees,
@@ -36,7 +40,7 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
                     visited,
                 );
                 for arm in program.expression_table.match_arms(dispatch.arms) {
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         collect_casts(
                             program,
                             machine,
@@ -278,7 +282,7 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
                 .iter()
                 .enumerate()
             {
-                use typed_trees::statement::StatementNode;
+                use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
                 let statement_index =
                     u32::try_from(statement_index).expect("qualification statement index overflow");
                 let mut visited = HashSet::new();
@@ -361,7 +365,7 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
                         }
                     }
                     StatementNode::Transition(transition) => {
-                        if let typed_trees::statement::TransitionGuardNode::When(guard) =
+                        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(guard) =
                             &transition.guard
                         {
                             collect_casts(
@@ -380,7 +384,7 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
                                 continue;
                             }
                             match program.statement_table.transition_target(target) {
-                                typed_trees::statement::TransitionTargetNode::Value(value) => {
+                                symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(value) => {
                                     collect_casts(
                                         program,
                                         machine.symbol,
@@ -392,7 +396,7 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
                                         &mut visited,
                                     )
                                 }
-                                typed_trees::statement::TransitionTargetNode::Named {
+                                symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named {
                                     arguments,
                                     ..
                                 } => {
@@ -421,20 +425,20 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
         committed.sort_by_key(|id| id.0);
         committed.dedup();
         if !committed.is_empty() {
-            machines.push(checked_trees::MachineQualifications {
+            machines.push(crate::checked_trees::MachineQualifications {
                 machine: machine.symbol,
                 body_committed: committed,
             });
         }
     }
-    checked_trees::QualificationFacts {
+    crate::checked_trees::QualificationFacts {
         machines,
         vacuous_uses,
-        content: checked_trees::ContentProjectionFacts {
-            plans: validation::build_content_projection_plans(program),
-            conservation_plans: validation::content_conservation_plans(program)
-                .iter()
-                .map(|source| source.plan.clone())
+        content: crate::checked_trees::ContentProjectionFacts {
+            plans: crate::validation::build_content_projection_plans(program),
+            conservation_plans: crate::validation::build_content_conservation_plans(program)
+                .into_iter()
+                .map(|source| source.plan)
                 .collect(),
             identity_reshuffles: Vec::new(),
             partition_compositions: Vec::new(),
@@ -451,16 +455,16 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
 /// ceilings independently of a selected implementation.
 pub(crate) fn build_service_reach_facts(
     program: &TypedTrees,
-    inferred: flow_effects::ServiceReachInferencePlan,
-) -> checked_trees::ServiceReachFacts {
-    checked_trees::ServiceReachFacts {
+    inferred: crate::flow_effects::ServiceReachInferencePlan,
+) -> crate::checked_trees::ServiceReachFacts {
+    crate::checked_trees::ServiceReachFacts {
         services: program.service_reaches.clone(),
         rows: inferred.rows,
         dependency_parameters: inferred.dependency_parameters,
         root_machines: remap_service_reach_span(inferred.root_machines),
         machines: inferred
             .machines
-            .map(|machine| checked_trees::MachineServiceReachRows {
+            .map(|machine| crate::checked_trees::MachineServiceReachRows {
                 machine: machine.machine,
                 dependency: machine.dependency,
                 interface: machine.interface,
@@ -475,7 +479,7 @@ pub(crate) fn build_service_reach_facts(
             }),
         states: inferred
             .states
-            .map(|state| checked_trees::StateServiceReachRows {
+            .map(|state| crate::checked_trees::StateServiceReachRows {
                 state: state.state,
                 inferred_direct: state.inferred_direct,
                 inferred_transitive: state.inferred_transitive,
@@ -486,7 +490,7 @@ pub(crate) fn build_service_reach_facts(
             }),
         calls: inferred
             .calls
-            .map(|call| checked_trees::CallServiceReachRows {
+            .map(|call| crate::checked_trees::CallServiceReachRows {
                 statement_index: call.statement_index,
                 call_ordinal: call.call_ordinal,
                 target_state: call.target_state,

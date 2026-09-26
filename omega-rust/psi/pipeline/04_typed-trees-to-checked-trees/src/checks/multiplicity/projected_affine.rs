@@ -1,4 +1,6 @@
 //! A projected affine move transfers a subtree, not its still-live root.
+use crate::checked_trees::CheckFacts;
+use crate::checked_trees::FlowPermissionEventFact;
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
 use crate::checks::multiplicity::linear_validation::event_statement_index;
@@ -6,28 +8,26 @@ use crate::checks::multiplicity::linear_validation::permission_kind_for_move;
 use crate::checks::multiplicity::linear_validation::permission_source;
 use crate::checks::type_multiplicity;
 use crate::flow::FlowOwnershipEventSource;
-use checked_trees::CheckFacts;
-use checked_trees::FlowPermissionEventFact;
 use language_semantics::Multiplicity;
 use language_semantics::PermissionAccess;
 use language_semantics::PermissionClaimIdentity;
 use language_semantics::PermissionEventKind;
 use language_semantics::PermissionProvenance;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 use symbols::SymbolHandle;
-use typed_trees::types::TypeReferenceNode;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_transfer(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     event: &crate::flow::DiscoveredMoveEvent,
-    path: &[facts::PlaceSegment],
+    path: &[crate::fact_plan::PlaceSegment],
     places: &[LinearPlace],
     permissions: &mut Vec<FlowPermissionEventFact>,
 ) {
-    let facts::PlaceRoot::Symbol(symbol) = event.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = event.root else {
         return;
     };
     let FlowOwnershipEventSource::Call {
@@ -40,7 +40,8 @@ pub(super) fn append_transfer(
         || !path.iter().all(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                crate::fact_plan::PlaceSegment::Field { .. }
+                    | crate::fact_plan::PlaceSegment::FixedIndex { .. }
             )
         })
         || permission_kind_for_move(program, facts, machine, state, event)
@@ -85,7 +86,7 @@ pub(super) fn append_transfer(
                         | TypeReferenceNode::Generic { .. }
                         | TypeReferenceNode::FixedArray { .. }
                 ) && type_multiplicity(program, type_reference) == Multiplicity::Affine
-                    && validation::has_plain_owned_contents(program, type_reference)
+                    && crate::validation::has_plain_owned_contents(program, type_reference)
             })
     };
     if !plain_affine(&root) || !plain_affine(&projected) {
@@ -110,11 +111,11 @@ pub(super) fn append_transfer(
 /// referent. Pattern payloads and ordinary fields obey the same reference-prefix
 /// checks; moving a reference carrier itself does not move its referent.
 pub(super) fn is_borrowed_place_transfer(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     event: &crate::flow::DiscoveredMoveEvent,
-    path: &[facts::PlaceSegment],
+    path: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
     let statement_index = event_statement_index(event.source).unwrap_or(0);
     let place = crate::flow::CanonicalPlace {
@@ -133,7 +134,7 @@ pub(super) fn is_borrowed_place_transfer(
     }
     // Self event roots are normalized to the machine; recover its actual
     // receiver declaration rather than interpreting the machine as a value.
-    if let facts::PlaceRoot::Symbol(root) = event.root
+    if let crate::fact_plan::PlaceRoot::Symbol(root) = event.root
         && root == machine
         && program.state_parameters(state).iter().any(|parameter| {
             parameter.is_self && type_reference_is_reference(program, parameter.type_reference)

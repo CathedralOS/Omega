@@ -7,21 +7,21 @@
 //! states its exact stage sequence; a stage that fails panics with the stage
 //! name and the source it ran on.
 
+use crate::checked_trees::CheckedTrees;
 use crate::{CheckingRequest, lower_typed_trees};
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use source::{SourceId, SourceMap, SourceOrigin};
 use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     GenericDataRequest, normalize_generic_data,
 };
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
-use typed_trees::TypedTrees;
 
 /// Unwrap one stage's result, or panic with the stage name and the source it
 /// ran on.
@@ -109,7 +109,9 @@ pub(crate) fn typed_program_from_source_map_with_generic_data(
 }
 
 /// Lex and parse each text into one forest, returning it with the last text.
-fn parsed_forest<'a>(texts: &[(SourceId, &'a str)]) -> (syntax_trees::SyntaxTrees, &'a str) {
+fn parsed_forest<'a>(
+    texts: &[(SourceId, &'a str)],
+) -> (tokens_to_syntax_trees::syntax_trees::SyntaxTrees, &'a str) {
     let ((first_id, first), rest) = texts
         .split_first()
         .expect("a source-map fixture parses at least one source");
@@ -135,7 +137,7 @@ fn parsed_forest<'a>(texts: &[(SourceId, &'a str)]) -> (syntax_trees::SyntaxTree
 /// Resolve `syntax` against `sources`, then type.
 fn typed_forest(
     sources: SourceMap,
-    syntax: syntax_trees::SyntaxTrees,
+    syntax: tokens_to_syntax_trees::syntax_trees::SyntaxTrees,
     program: &str,
 ) -> TypedTrees {
     let resolved = stage(

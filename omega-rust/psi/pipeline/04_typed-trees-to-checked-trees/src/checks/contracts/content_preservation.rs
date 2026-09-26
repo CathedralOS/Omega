@@ -1,17 +1,18 @@
 //! Congruence of content projections across a nonmutating activation.
 
-use checked_trees::{CheckFacts, FlowStateFact};
+use crate::checked_trees::{CheckFacts, FlowStateFact};
 use language_semantics::content::{ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion};
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 pub(super) fn proves_exit(
     program: &TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
-    fact: &facts::Fact,
-    content_plans: &[validation::ContentConservationSourcePlan],
+    fact: &crate::fact_plan::Fact,
+    content_plans: &[crate::validation::ContentConservationSourcePlan],
 ) -> bool {
-    let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
+    let crate::fact_plan::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload
+    else {
         return false;
     };
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {

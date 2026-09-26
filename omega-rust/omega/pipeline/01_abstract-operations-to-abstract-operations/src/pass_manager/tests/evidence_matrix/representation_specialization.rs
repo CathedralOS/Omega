@@ -107,7 +107,7 @@ fn cyclic_machine_membership_stays_frozen() {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::StructuralCaseMembership { .. }
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::StructuralCaseMembership { .. }
             )
         })
         .count();
@@ -221,7 +221,7 @@ fn forwarded_field_value_commit_substitutes_and_retires_the_read() {
     let [substitution] = commit.declaration.substitutions() else {
         panic!("one scalar substitution")
     };
-    let optimization_unit::PsiRewritePatch::SpecializeFieldValue(patch) =
+    let terminal_psi_to_abstract_operations::optimization_unit::PsiRewritePatch::SpecializeFieldValue(patch) =
         commit.declaration.patch()
     else {
         panic!("a field-value patch")
@@ -229,7 +229,7 @@ fn forwarded_field_value_commit_substitutes_and_retires_the_read() {
     assert!(patch.reads.iter().any(|row| {
         matches!(
             &row.resolution,
-            optimization_unit::FieldValueResolution::Forward(forwarded)
+            terminal_psi_to_abstract_operations::optimization_unit::FieldValueResolution::Forward(forwarded)
                 if row.result == substitution.from && forwarded.initializer == substitution.to
         )
     }));
@@ -244,8 +244,8 @@ fn forwarded_field_value_commit_substitutes_and_retires_the_read() {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::IntegerStructuralField { .. }
-                    | abstract_operations::AbstractOperation::BooleanStructuralField { .. }
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerStructuralField { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BooleanStructuralField { .. }
             )
         })
         .count();
@@ -288,8 +288,8 @@ fn cyclic_machine_field_read_stays_frozen() {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::IntegerStructuralField { .. }
-                    | abstract_operations::AbstractOperation::BooleanStructuralField { .. }
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::IntegerStructuralField { .. }
+                    | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BooleanStructuralField { .. }
             )
         })
         .count();

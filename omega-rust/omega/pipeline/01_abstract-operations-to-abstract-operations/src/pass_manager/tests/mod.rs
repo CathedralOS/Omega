@@ -37,7 +37,6 @@ use crate::{
     AnalysisManager, AnalysisProduct, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView,
     RuleProposalError, built_in_psi_registry,
 };
-use abstract_operations::AbstractOperation;
 use optimization_core::{
     AnalysisSet, BaselineDecisionOutcome, ExternalCandidateFeatures, ExternalDecisionAction,
     ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
@@ -48,11 +47,14 @@ use optimization_core::{
     ValidatedCandidateSummary, external_psi_decision_schema_v2_identity,
     psi_target_neutral_decision_target_v2_identity,
 };
-use optimization_unit::{PsiOptimizationUnit, PsiRewritePatch, PsiTransformationLedger};
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, PsiRewritePatch, PsiTransformationLedger,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_psi_rewrite_candidate,
 };
-use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 mod budget_and_invalidation;
 mod cycle_component_custody;

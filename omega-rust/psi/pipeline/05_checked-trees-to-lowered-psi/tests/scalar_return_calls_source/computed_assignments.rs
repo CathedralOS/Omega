@@ -3,12 +3,14 @@ use super::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
     encode_module, encode_proof_section, execute,
 };
-use checked_trees::{CheckedScalarBindingDestination, CheckedScalarExpressionRole};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarBindingDestination, CheckedScalarExpressionRole,
+};
 
 fn assert_assignment_roots(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     local_names: &[&str],
     state_count: usize,
     assignment_count: usize,
@@ -465,7 +467,7 @@ fn computed_assignment_custody_mutations_reject_before_publication() {
                 9..=14 => {
                     if mutation == 13 {
                         plans.nodes.get_mut(root.root).primitive_type =
-                            typed_trees::types::PrimitiveType::U8;
+                            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8;
                     }
                     if mutation == 14 {
                         plans.roots.get_mut(*handle).role =
@@ -506,7 +508,7 @@ fn computed_assignment_custody_mutations_reject_before_publication() {
                                 CheckedScalarBindingDestination::StorageAssign { symbol: parameter }
                         }
                         11 => binding.destination = other_destination,
-                        12 | 13 => binding.primitive_type = typed_trees::types::PrimitiveType::U8,
+                        12 | 13 => binding.primitive_type = symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8,
                         14 => {
                             let CheckedScalarBindingDestination::StorageAssign { symbol } =
                                 binding.destination

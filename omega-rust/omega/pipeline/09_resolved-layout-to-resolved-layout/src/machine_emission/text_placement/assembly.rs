@@ -1,0 +1,93 @@
+use optimization_core::FunctionFragmentTextSectionManifestIdentity;
+use post_allocation_machine_to_selected_form_encoding::machine_code::FunctionFragmentEmissionPlan;
+use post_allocation_machine_to_selected_form_encoding::machine_code::RelocationFreeTextSectionPlacement;
+
+use crate::machine_emission::frame_application::StagedFunctionFragmentFrameApplication;
+
+use super::{
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
+    FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError,
+    StagedFixedFrameTextSectionCustodyReceipt, ValidatedFunctionFragmentTextSectionManifest,
+    placement::{TextPlacementInput, place_fragment_text_section, text_section_statistics},
+};
+
+pub(super) fn compute_fixed_frame(
+    source: &StagedFunctionFragmentFrameApplication,
+) -> Result<
+    (
+        RelocationFreeTextSectionPlacement,
+        ValidatedFunctionFragmentTextSectionManifest,
+    ),
+    RelocationFreeTextSectionPlacementError,
+> {
+    let fragments = source.fragments();
+    let source_manifest = source.source().manifest().record();
+    let text_section =
+        place_fragment_text_section(TextPlacementInput::InternalCalls(source.fragments()))?;
+    let manifest = manifest(
+        source_manifest,
+        FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
+        source.receipt().identity(),
+        &text_section,
+        fragments,
+    )?;
+    Ok((text_section, manifest))
+}
+
+fn manifest(
+    source_manifest: &post_allocation_machine_to_selected_form_encoding::machine_code::FunctionFragmentEmissionManifest,
+    stage: FunctionFragmentTextSectionStage,
+    frame_application: post_allocation_machine_to_selected_form_encoding::machine_code::FunctionFragmentFrameApplicationIdentity,
+    text_section: &RelocationFreeTextSectionPlacement,
+    fragments: &FunctionFragmentEmissionPlan,
+) -> Result<ValidatedFunctionFragmentTextSectionManifest, RelocationFreeTextSectionPlacementError> {
+    let statistics = text_section_statistics(text_section, fragments)?;
+    let unavailable = FunctionFragmentTextSectionUnavailableData::Unavailable;
+    let mut record = FunctionFragmentTextSectionManifest {
+        identity: FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"pending"),
+        stage,
+        frame_application,
+        source_fragment_manifest: source_manifest.identity,
+        source_realization: source_manifest.source_realization,
+        selections: source_manifest.selections,
+        psi: source_manifest.psi,
+        fuel_schedule: source_manifest.fuel_schedule,
+        selected: source_manifest.selected,
+        post_allocation_manifest: source_manifest.post_allocation_manifest,
+        post_allocation_machine: source_manifest.post_allocation_machine,
+        final_pre_layout: source_manifest.final_pre_layout,
+        final_resolved_layout: source_manifest.final_resolved_layout,
+        whole_function_exit_contract: source_manifest.whole_function_exit_contract,
+        fragments: fragments.identity,
+        target: source_manifest.target,
+        semantic_entry: text_section.semantic_entry,
+        semantic_entry_offset: text_section.semantic_entry_offset,
+        placement_policy: text_section.policy,
+        text_section: text_section.identity,
+        relocation_requirements: text_section.relocation_requirements,
+        statistics,
+        symbols: unavailable,
+        object_container: unavailable,
+        external_entry_bridge: unavailable,
+        executable_image: unavailable,
+        installation: unavailable,
+        publication: unavailable,
+    };
+    record.identity = record.recomputed_identity();
+    Ok(ValidatedFunctionFragmentTextSectionManifest {
+        record: std::sync::Arc::new(record),
+    })
+}
+
+pub(super) fn fixed_frame_receipt(
+    source: &StagedFunctionFragmentFrameApplication,
+    manifest: &ValidatedFunctionFragmentTextSectionManifest,
+    section: &RelocationFreeTextSectionPlacement,
+) -> StagedFixedFrameTextSectionCustodyReceipt {
+    StagedFixedFrameTextSectionCustodyReceipt {
+        frame_application: source.receipt().identity(),
+        fragments: section.source_fragments,
+        text_section: section.identity,
+        manifest: manifest.record.identity,
+    }
+}

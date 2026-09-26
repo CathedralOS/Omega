@@ -1,5 +1,5 @@
 use crate::tests::front_end::{checked_program_result, typed_program};
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 const NOMINAL_SCHEMA_FORWARDING: &str = r#"
     boundary trait Console { machine ping(); }
@@ -35,7 +35,7 @@ fn nominal_generic_family_rejects_a_different_const_carrier() {
 fn nominal_generic_family_specialization_keeps_concrete_refinement_checks() {
     let mut original = typed_program(NOMINAL_SCHEMA_FORWARDING);
     crate::specialize_static_machine_calls(&mut original).expect("closed schema calls");
-    validation::validate_program(&original).expect("valid concrete family application");
+    crate::validation::validate_program(&original).expect("valid concrete family application");
     let template = original
         .machines()
         .iter()
@@ -57,9 +57,9 @@ fn nominal_generic_family_specialization_keeps_concrete_refinement_checks() {
     for mutation in 0..7 {
         let mut changed = original.clone();
         let instance = changed.machines()[instance_position].clone();
-        let unit = changed
-            .type_reference_table
-            .insert(typed_trees::types::TypeReferenceNode::Unit);
+        let unit = changed.type_reference_table.insert(
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit,
+        );
         let expected = match mutation {
             0 => {
                 changed.machine_states_mut(&instance)[0].return_type = unit;
@@ -101,8 +101,8 @@ fn nominal_generic_family_specialization_keeps_concrete_refinement_checks() {
                 "exact original family and application"
             }
         };
-        let diagnostics =
-            validation::validate_program(&changed).expect_err("mutated private contract rejects");
+        let diagnostics = crate::validation::validate_program(&changed)
+            .expect_err("mutated private contract rejects");
         assert!(
             format!("{diagnostics:?}").contains(expected),
             "mutation {mutation}: {diagnostics:?}"
@@ -125,9 +125,9 @@ fn specialized() -> TypedTrees {
 }
 
 fn validate(program: &TypedTrees) -> Result<(), diagnostics::Diagnostic> {
-    validation::validate_static_machine_call_contracts(
+    crate::validation::validate_static_machine_call_contracts(
         program,
-        &validation::infer_operational_may(program),
+        &crate::validation::infer_operational_may(program),
     )
 }
 
@@ -160,13 +160,16 @@ fn retained_static_calls_reject_missing_duplicate_and_wrong_selection_joins() {
         .expression_table
         .iter_expressions()
         .find_map(|(handle, expression)| {
-            let typed_trees::expression::ExpressionNode::Call(call) = expression else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+                call,
+            ) = expression
+            else {
                 return None;
             };
             call.static_machine_parameter.is_valid().then_some(handle)
         })
         .expect("retained binder call");
-    let typed_trees::expression::ExpressionNode::Call(call) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
         wrong_binder.expression_table.expression_mut(call)
     else {
         panic!("selected call");
@@ -188,7 +191,10 @@ fn deleting_static_call_binders_changes_the_specialization_commitment() {
         .expression_table
         .iter_expressions()
         .filter_map(|(handle, expression)| {
-            let typed_trees::expression::ExpressionNode::Call(call) = expression else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+                call,
+            ) = expression
+            else {
                 return None;
             };
             call.static_machine_parameter.is_valid().then_some(handle)
@@ -196,8 +202,9 @@ fn deleting_static_call_binders_changes_the_specialization_commitment() {
         .collect();
     assert_eq!(calls.len(), 2);
     for handle in calls {
-        let typed_trees::expression::ExpressionNode::Call(call) =
-            missing.typed.expression_table.expression_mut(handle)
+        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+            call,
+        ) = missing.typed.expression_table.expression_mut(handle)
         else {
             panic!("retained call");
         };
@@ -215,7 +222,7 @@ fn deleting_static_call_binders_changes_the_specialization_commitment() {
             replay, specialization.commitment,
             "deleting custody must change the application commitment"
         );
-        let independent = validation::recompute_checked_machine_specialization_commitment(
+        let independent = crate::validation::recompute_checked_machine_specialization_commitment(
             &missing,
             specialization.instance,
         )
@@ -238,7 +245,7 @@ fn retained_static_parameter_operational_contract_mutations_reject() {
         .find_map(|(handle, parameter)| {
             matches!(
                 parameter.kind,
-                typed_trees::data::TypeParameterKind::Machine { .. }
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { .. }
             )
             .then_some(handle)
         })
@@ -246,8 +253,8 @@ fn retained_static_parameter_operational_contract_mutations_reject() {
     for change_suspend in [false, true] {
         let mut changed = program.clone();
         let parameter = changed.data_type_parameters.get_mut(binder);
-        let typed_trees::data::TypeParameterKind::Machine {
-            contract: typed_trees::data::MachineParameterContract::Structural(signature),
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
+            contract: symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Structural(signature),
         } = &mut parameter.kind
         else {
             panic!("structural binder");
@@ -355,7 +362,7 @@ fn statement_and_named_tail_calls_retain_binders_without_internal_transfer_calls
             .machine_specializations
             .first()
             .expect("invoke instance");
-        let operational = validation::infer_operational_may(&checked.typed);
+        let operational = crate::validation::infer_operational_may(&checked.typed);
         let owner = operational
             .machines()
             .iter()
@@ -410,7 +417,7 @@ fn quiet_selections_do_not_change_fixed_suspension_acknowledgements() {
             if accepted {
                 let checked = result.expect("the fixed requirement marker remains valid for quiet");
                 validate(&checked.typed).expect("selected quiet contract custody");
-                let operational = validation::infer_operational_may(&checked.typed);
+                let operational = crate::validation::infer_operational_may(&checked.typed);
                 let instance = checked.machine_specializations[0].instance;
                 assert!(
                     operational

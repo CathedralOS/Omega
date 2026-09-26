@@ -7,8 +7,8 @@ use super::super::{
 #[allow(clippy::too_many_arguments)]
 pub(super) fn exact_claim_alias_events(
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    source_state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    source_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     ordinal: u32,
     target_state: SymbolHandle,
     source_root: SymbolHandle,
@@ -38,7 +38,7 @@ pub(super) fn exact_claim_alias_events(
                 && event.multiplicity == Multiplicity::Linear
                 && event.obligation_live
                 && event.claim_identity == source_claim.claim_identity
-                && event.root == facts::PlaceRoot::Symbol(source_root)
+                && event.root == crate::fact_plan::PlaceRoot::Symbol(source_root)
                 && facts
                     .flow
                     .ownership

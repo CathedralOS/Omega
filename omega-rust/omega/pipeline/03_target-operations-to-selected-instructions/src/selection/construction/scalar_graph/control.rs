@@ -5,13 +5,13 @@ use super::{
     SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
-use crate::selection::construction::scalar_graph::row;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarComparison as Comparison, LegalizedScalarReturnValue,
     LegalizedScalarSuccessor, LegalizedScalarTerminator,
 };
-use selected_instructions::{SelectedSuccessor, SelectedTerminator};
-use selected_instructions::{SelectedValueBinding, SelectedValueTransport};
+use crate::selected_instructions::{SelectedSuccessor, SelectedTerminator};
+use crate::selected_instructions::{SelectedValueBinding, SelectedValueTransport};
+use crate::selection::construction::scalar_graph::row;
 
 pub(super) fn build(
     function: usize,
@@ -19,7 +19,7 @@ pub(super) fn build(
     block: &LegalizedScalarBlock,
     order: &[usize],
     builder: &mut Builder<'_>,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
     let constraints = builder.constraints;
@@ -326,7 +326,7 @@ fn successor(
         .ok_or(SelectedInstructionError::custody())?;
     Ok(SelectedSuccessor {
         structural_case: None,
-        role: selected_instructions::SelectedSuccessorRole::Semantic,
+        role: crate::selected_instructions::SelectedSuccessorRole::Semantic,
         psi_edge: next.edge,
         block: SelectedBlockId(
             u32::try_from(position).map_err(|_| SelectedInstructionError::custody())?,
@@ -337,9 +337,9 @@ fn successor(
             .iter()
             .map(|semantic| {
                 if crate::structural_inputs::unobserved_owned_input::accepts(source) {
-                    return Ok(selected_instructions::SelectedStructuralBinding {
+                    return Ok(crate::selected_instructions::SelectedStructuralBinding {
                         semantic: semantic.clone(),
-                        transport: selected_instructions::SelectedStructuralTransport::Unused,
+                        transport: crate::selected_instructions::SelectedStructuralTransport::Unused,
                     });
                 }
                 // An address join receives its referent's address; the edge
@@ -347,7 +347,7 @@ fn successor(
                 if let Some((_, parameter)) =
                     crate::selection::address_join_input::join(source, semantic.parameter)
                 {
-                    return Ok(selected_instructions::SelectedStructuralBinding {
+                    return Ok(crate::selected_instructions::SelectedStructuralBinding {
                         semantic: semantic.clone(),
                         transport: crate::selection::address_join_input::transport(
                             source,
@@ -370,22 +370,22 @@ fn successor(
                 if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
                     let parameter = source.blocks.iter().find(|block| block.id == next.target).and_then(|block| block.structural_parameters.iter().find(|parameter| parameter.place == semantic.parameter)).ok_or(SelectedInstructionError::custody())?;
                     let shape = crate::selection::aggregate_result_input::block_parameter_shape(source, parameter).ok_or(SelectedInstructionError::custody())?;
-                    return Ok(selected_instructions::SelectedStructuralBinding {
+                    return Ok(crate::selected_instructions::SelectedStructuralBinding {
                         semantic: semantic.clone(),
-                        transport: selected_instructions::SelectedStructuralTransport::WholeValue {
+                        transport: crate::selected_instructions::SelectedStructuralTransport::WholeValue {
                             argument,
-                            destination: selected_instructions::LocalStorageSlotId::StructuralBlockParameter { block: next.target, place: semantic.parameter },
+                            destination: crate::selected_instructions::LocalStorageSlotId::StructuralBlockParameter { block: next.target, place: semantic.parameter },
                             byte_size: shape.byte_size,
                             alignment: shape.alignment,
                         },
                     });
                 }
-                Ok(selected_instructions::SelectedStructuralBinding {
+                Ok(crate::selected_instructions::SelectedStructuralBinding {
                     semantic: semantic.clone(),
-                    transport: selected_instructions::SelectedStructuralTransport::Descriptor {
+                    transport: crate::selected_instructions::SelectedStructuralTransport::Descriptor {
                         argument,
                         destination:
-                            selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                            crate::selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
                                 block: next.target,
                                 place: semantic.parameter,
                             },
@@ -469,7 +469,7 @@ pub(super) fn branch_suffix(
                 }
             }
             if owner.id == block.id && position + 1 == block.instructions.len() {
-                let legalized_operations::LegalizedScalarTerminator::Conditional {
+                let crate::legalized_operations::LegalizedScalarTerminator::Conditional {
                     condition,
                     when_true,
                     when_false,

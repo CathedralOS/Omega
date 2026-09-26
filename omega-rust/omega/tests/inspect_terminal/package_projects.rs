@@ -60,7 +60,7 @@ impl Drop for ScratchProject {
     }
 }
 
-const ROOT_SOURCE: &str = r#"use facts::x;
+const ROOT_SOURCE: &str = r#"use typed_trees_to_checked_trees::fact_plan::x;
 
 data Root {}
 

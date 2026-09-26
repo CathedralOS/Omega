@@ -1,8 +1,8 @@
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
     TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,

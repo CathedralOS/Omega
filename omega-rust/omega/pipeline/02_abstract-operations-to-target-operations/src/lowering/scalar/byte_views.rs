@@ -1,24 +1,26 @@
 //! Byte observation and view operations for common graph lowering.
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
+use crate::calling_conventions::ValueShape;
 use crate::lowering::scalar::expressions::insert_value;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
-use calling_conventions::ValueShape;
+use crate::target_operations::TargetByteView;
+use crate::target_operations::{TargetIntegerExpression, TargetStructuralParameter};
 use semantic_vocabulary::{
     IntegerSign, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use std::collections::BTreeMap;
-use target_operations::TargetByteView;
-use target_operations::{TargetIntegerExpression, TargetStructuralParameter};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
+};
 
 pub(in crate::lowering) fn block_source(
     function: &AbstractFunction,
     place: PlaceId,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> Option<(
-    target_operations::TargetStructuralArgumentSource,
+    crate::target_operations::TargetStructuralArgumentSource,
     StructuralTypeId,
 )> {
     function.block_entries.iter().find_map(|entry| {
@@ -28,7 +30,7 @@ pub(in crate::lowering) fn block_source(
             .find(|parameter| parameter.place == place)?;
         (entry.block != function.entry && is_immutable_byte_parameter(parameter, structural_types))
             .then_some((
-                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                crate::target_operations::TargetStructuralArgumentSource::BlockParameter {
                     block: entry.block,
                     place,
                 },

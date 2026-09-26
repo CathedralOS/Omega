@@ -1,14 +1,18 @@
 use std::sync::{Mutex, OnceLock};
 
-use isa_aarch64::{aarch64_machine_effect_catalog, validate_aarch64_machine_effect_catalog};
-use isa_x86_64::{validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog};
+use target_operations_to_selected_instructions::isa_aarch64::{
+    aarch64_machine_effect_catalog, validate_aarch64_machine_effect_catalog,
+};
+use target_operations_to_selected_instructions::isa_x86_64::{
+    validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
+};
 
-use register_model::{
+use target::NativeTarget;
+use target_operations_to_selected_instructions::ValidatedMachineEffectCatalog;
+use target_operations_to_selected_instructions::register_model::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
     ValidatedRegisterConstraintCatalog,
 };
-use selected_instructions::ValidatedMachineEffectCatalog;
-use target::NativeTarget;
 
 use super::MachineEffectStageError;
 

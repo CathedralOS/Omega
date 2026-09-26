@@ -53,7 +53,7 @@ checked compilation / fresh package review, by two distinct admission gaps:
    program-entry root-slot binding does not establish, although
    `AcceptedSemanticBindingRole::MacosX64ProgramEntry` and the exact
    physical-contract digest exist in
-   `omega-rust/omega/build/build-evaluation/src/admission/selection.rs`.
+   `omega-rust/omega/src/build_evaluation/admission/selection.rs`.
 
 Because checked compilation cannot produce a `macos_x86_64` package, no
 Mach-O object, hosted receiver, import pairing, entry/exit or provider
@@ -65,7 +65,7 @@ skips**, not passes.
 - Gap 1 (boundary-row selection for `ConsoleNativeProvider::exit_process`)
   and gap 2 (`macos_x86_64::ProgramEntry` root-slot binding) both live in
   the provider-settlement / boundary-binding capability — the
-  `omega-rust/omega/build/build-evaluation` admission surface and the
+  `omega-rust/omega/src/build_evaluation` admission surface and the
   package binding it feeds. **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**
   (TASKS.md) owns that surface and was in flight in the same wave; this
   measurement makes no repair.

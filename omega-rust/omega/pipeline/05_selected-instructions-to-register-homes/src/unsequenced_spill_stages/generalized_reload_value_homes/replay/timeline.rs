@@ -2,18 +2,20 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeAssignment,
     GeneralizedReloadValueHomeError, GeneralizedReloadValueHomeOutcome,
     GeneralizedReloadValuePressure, GeneralizedSpillActionId, GeneralizedSpillActionSource,
 };
-use selected_instructions::LiveRangePoint;
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 use super::{Occupant, ReplaySpec, homes};
-use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
-use selected_instructions::FunctionLiveRanges;
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
+};
+use target_operations_to_selected_instructions::FunctionLiveRanges;
 
 #[derive(Default)]
 struct PointEvents<'a> {

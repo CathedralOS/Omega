@@ -6,10 +6,10 @@ use crate::rules::built_in_psi_registry;
 use crate::rules::tests::fixtures::control_flow_cleanup::propagated_block_parameter_unit;
 use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
 use crate::{RuleAnalysisView, compute_analysis};
-use abstract_operations::AbstractOperation;
 use optimization_core::{AnalysisKind, Optimization, OptimizationSelections};
-use optimization_unit_semantics::validate_integer_evaluation_candidate;
 use semantic_vocabulary::IntegerValue;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_integer_evaluation_candidate;
 
 #[test]
 fn selected_builtin_proposes_one_independently_validated_exact_fold() {

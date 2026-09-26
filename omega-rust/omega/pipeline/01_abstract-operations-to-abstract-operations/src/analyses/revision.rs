@@ -1,5 +1,5 @@
 use optimization_core::AnalysisSet;
-use optimization_unit::PsiOptimizationUnit;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 use super::{AnalysisManager, AnalysisManagerError};
 use crate::RuleAnalysisView;

@@ -2,10 +2,12 @@
 //! them, and the module verifies independently; a plan that drops the
 //! claim transfer its consumer needs is refused rather than lowered.
 use super::lower_machine;
-use crate::TerminalMachineSelection;
 use crate::front_end::checked_program;
-use checked_trees::CheckedUnitEffectOperationPlan;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 
 const RECEIPT: &str = "data Receipt [linear] { code: i32; }\nmachine Receipt::ack(self) {}\n";
 
@@ -22,9 +24,9 @@ fn produce_and_verify(source: &str, entry: &str, label: &str) {
 
 fn produce(source: &str, entry: &str) -> Result<terminal_codec::CanonicalTerminalArtifact, String> {
     let checked = checked_program(source);
-    terminal_production::TerminalProductionRequest::new(
+    lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &checked,
-        terminal_production::TerminalMachineSelection::Name(entry),
+        lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(entry),
     )
     .produce(TerminalProductionCustody::artifact_only(
         &mut TerminalProductionTimings::default(),

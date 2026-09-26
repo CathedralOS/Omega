@@ -4,7 +4,9 @@ use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
 use crate::tests::front_end::checked_program_result;
 
-fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn checked(
+    source: &str,
+) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     checked_program_result(source)
 }
 
@@ -13,11 +15,11 @@ fn borrowed_fixed_array_element_store_retains_the_exact_index_hop() {
     for (access, expected_access) in [
         (
             "&mut",
-            checked_trees::CheckedStructuralAccess::MutableBorrow,
+            crate::checked_trees::CheckedStructuralAccess::MutableBorrow,
         ),
         (
             "&write",
-            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow,
+            crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow,
         ),
     ] {
         let checked = checked(&format!(
@@ -56,22 +58,22 @@ fn borrowed_fixed_array_element_store_retains_the_exact_index_hop() {
         };
         assert_eq!(
             store.destination,
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position: 0 }
+            crate::checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                position: 0
+            }
         );
         assert_eq!(
             store.carrier_path,
-            [checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                1
-            )]
+            [crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)]
         );
         assert_eq!(store.field_identity, "value");
         assert!(matches!(
             store.value,
-            checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(_)
+            crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(_)
         ));
         // Neither widening nor another literal index may replay this store.
         let mut shared = structural.clone();
-        shared[0].access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+        shared[0].access = crate::checked_trees::CheckedStructuralAccess::SharedBorrow;
         assert!(
             build_structural_scalar_field_store_sequence(
                 program,
@@ -130,8 +132,8 @@ fn borrowed_fixed_array_element_store_carries_its_runtime_element() {
     assert_eq!(
         store.carrier_path,
         [
-            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
+            crate::checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                crate::checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
             )
         ]
     );

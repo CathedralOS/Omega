@@ -1,5 +1,5 @@
-use checked_trees::statement::StatementNode;
-use checked_trees::{CheckFacts, FlowStateFact};
+use crate::checked_trees::statement::StatementNode;
+use crate::checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;
 
 /// The checked access a reference-typed binding's declaration lends over its
@@ -10,12 +10,12 @@ use symbols::SymbolHandle;
 /// visible before `statement_index`, matching how the borrow places resolve
 /// them.
 pub(super) fn binding_reference_access(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
     root_symbol: SymbolHandle,
-) -> Option<checked_trees::BorrowAccessKind> {
+) -> Option<crate::checked_trees::BorrowAccessKind> {
     let state =
         crate::semantic::calls::find_state_in_machine(program, machine_symbol, state_symbol)?;
     let type_reference = program
@@ -42,7 +42,7 @@ pub(super) fn binding_reference_access(
 pub(super) fn active_loan_detail(
     state_flow: &FlowStateFact,
     facts: &CheckFacts,
-    loan: arena::Handle<checked_trees::BorrowLoanFact>,
+    loan: arena::Handle<crate::checked_trees::BorrowLoanFact>,
     statement_index: usize,
 ) -> Option<String> {
     facts
@@ -54,8 +54,8 @@ pub(super) fn active_loan_detail(
             let loan = facts.borrow.loans.get(loan);
             match (weakening.reason, weakening.source) {
                 (
-                    checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
-                    checked_trees::FlowInvalidationSource::Statement {
+                    crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
+                    crate::checked_trees::FlowInvalidationSource::Statement {
                         statement_index: weakening_statement,
                     },
                 ) if weakening_statement > statement_index => Some(format!(
@@ -63,15 +63,15 @@ pub(super) fn active_loan_detail(
                     loan.statement_index, loan.last_use_statement_index
                 )),
                 (
-                    checked_trees::FlowBorrowWeakeningReason::StateExit,
-                    checked_trees::FlowInvalidationSource::Statement { .. },
+                    crate::checked_trees::FlowBorrowWeakeningReason::StateExit,
+                    crate::checked_trees::FlowInvalidationSource::Statement { .. },
                 ) if loan.last_use_statement_index > statement_index => Some(format!(
                     "borrowed at statement {}; its last use is at statement {} and it is released at state exit",
                     loan.statement_index, loan.last_use_statement_index
                 )),
                 (
-                    checked_trees::FlowBorrowWeakeningReason::LocalReassigned,
-                    checked_trees::FlowInvalidationSource::Statement {
+                    crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned,
+                    crate::checked_trees::FlowInvalidationSource::Statement {
                         statement_index: weakening_statement,
                     },
                 ) if weakening_statement > statement_index => Some(format!(
@@ -79,28 +79,28 @@ pub(super) fn active_loan_detail(
                     loan.statement_index, weakening_statement
                 )),
                 (
-                    checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
-                    checked_trees::FlowInvalidationSource::Statement { .. },
+                    crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
+                    crate::checked_trees::FlowInvalidationSource::Statement { .. },
                 )
                 | (
-                    checked_trees::FlowBorrowWeakeningReason::StateExit,
-                    checked_trees::FlowInvalidationSource::Statement { .. },
+                    crate::checked_trees::FlowBorrowWeakeningReason::StateExit,
+                    crate::checked_trees::FlowInvalidationSource::Statement { .. },
                 )
                 | (
-                    checked_trees::FlowBorrowWeakeningReason::LocalReassigned,
-                    checked_trees::FlowInvalidationSource::Statement { .. },
+                    crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned,
+                    crate::checked_trees::FlowInvalidationSource::Statement { .. },
                 )
                 | (
-                    checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
-                    checked_trees::FlowInvalidationSource::Call { .. },
+                    crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
+                    crate::checked_trees::FlowInvalidationSource::Call { .. },
                 )
                 | (
-                    checked_trees::FlowBorrowWeakeningReason::StateExit,
-                    checked_trees::FlowInvalidationSource::Call { .. },
+                    crate::checked_trees::FlowBorrowWeakeningReason::StateExit,
+                    crate::checked_trees::FlowInvalidationSource::Call { .. },
                 )
                 | (
-                    checked_trees::FlowBorrowWeakeningReason::LocalReassigned,
-                    checked_trees::FlowInvalidationSource::Call { .. },
+                    crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned,
+                    crate::checked_trees::FlowInvalidationSource::Call { .. },
                 ) => None,
             }
         })

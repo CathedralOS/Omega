@@ -1,11 +1,13 @@
 //! Attempt-local invariant constraints; placement order and failure points stay unchanged.
 
-use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
+};
 
 use super::conflicts::registers_interfere;
 use super::domain::AllocationDomain;
 use crate::RegisterHomeError;
-use selected_instructions::FunctionLiveRanges;
+use target_operations_to_selected_instructions::FunctionLiveRanges;
 
 #[derive(Clone, Copy)]
 struct DomainPair {

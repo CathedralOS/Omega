@@ -15,8 +15,8 @@ pub(crate) fn build_unit_trivial_affine_locals(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     statements: &[StatementNode],
 ) -> Option<Vec<(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)>> {
@@ -64,7 +64,7 @@ pub(crate) fn build_unit_trivial_affine_locals(
                 .filter(|(_, event)| {
                     event.machine_symbol == machine.symbol
                         && event.state_symbol == state.symbol
-                        && event.root == facts::PlaceRoot::Symbol(local.symbol)
+                        && event.root == crate::fact_plan::PlaceRoot::Symbol(local.symbol)
                 })
                 .map(|(_, event)| event)
                 .collect::<Vec<_>>();
@@ -140,8 +140,8 @@ pub(crate) fn build_affine_array_construction_prefix(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     statements: &[StatementNode],
 ) -> Option<(
@@ -188,7 +188,10 @@ pub(crate) fn build_affine_array_construction_prefix(
     }
     let TypeReferenceNode::FixedArray {
         element_type,
-        length: typed_trees::types::FixedArrayLength::Literal(actual_length),
+        length:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
+                actual_length,
+            ),
     } = program
         .type_reference_table
         .type_reference(local.type_reference)
@@ -239,9 +242,9 @@ pub(crate) fn build_affine_array_construction_prefix(
             expected_index + 1,
             assignment.target,
         )?;
-        if target.root != facts::PlaceRoot::Symbol(local.symbol)
+        if target.root != crate::fact_plan::PlaceRoot::Symbol(local.symbol)
             || target.segments.as_slice()
-                != [facts::PlaceSegment::FixedIndex {
+                != [crate::fact_plan::PlaceSegment::FixedIndex {
                     index: expected_index,
                 }]
         {
@@ -289,7 +292,7 @@ pub(crate) fn build_affine_array_construction_prefix(
                 && event.access == PermissionAccess::Owned
                 && event.claim_identity == PermissionClaimIdentity::Unknown
                 && event.provenance == language_semantics::PermissionProvenance::Unknown
-                && event.root == facts::PlaceRoot::Symbol(local.symbol)
+                && event.root == crate::fact_plan::PlaceRoot::Symbol(local.symbol)
                 && !event.obligation_live
         })
         .map(|(_, event)| event)

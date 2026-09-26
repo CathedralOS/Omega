@@ -1,0 +1,303 @@
+use super::super::control_flow::retained as cleanup_retained;
+use super::{
+    AbstractFunction, AbstractOperation, SelectedFunction, StructuralAccess,
+    StructuralMultiplicity, TargetFunction, TerminalAffineCleanupAction, arrivals,
+};
+use abstract_operations_to_target_operations::calling_conventions::{
+    CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
+};
+use abstract_operations_to_target_operations::target_operations::TargetControlTerminator;
+use abstract_operations_to_target_operations::target_operations::{
+    TargetBooleanExpression, TargetControlBlock, TargetControlGraph, TargetScalarExpression,
+};
+use semantic_vocabulary::{
+    BlockId, EdgeId, MachineId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunctionResult, AbstractResult,
+};
+
+fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
+    let value = ValueId::new(1).unwrap();
+    let machine = MachineId::new(1).unwrap();
+    let block = BlockId::new(1).unwrap();
+    let edge = EdgeId::new(1).unwrap();
+    let place = PlaceId::new(1).unwrap();
+    let parameter = terminal_psi::StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type: StructuralTypeId::new(1).unwrap(),
+        multiplicity: StructuralMultiplicity::Affine,
+        access: StructuralAccess::Owned,
+        qualifications: vec![],
+        projected_qualifications: vec![],
+    };
+    let shape = ValueShape::integer(16, 8);
+    let call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
+        &CallSignature {
+            parameters: vec![shape],
+            result: Some(ValueShape::integer(1, 1)),
+        },
+    )
+    .unwrap();
+    let target_parameter =
+        abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
+            place,
+            structural_type: parameter.structural_type,
+            multiplicity: parameter.multiplicity,
+            access: parameter.access,
+            projected_qualifications: vec![],
+            shape,
+            placement: call_plan.parameters[0].clone(),
+        };
+    let actions = vec![TerminalAffineCleanupAction::DiscardRoot(place)];
+    let function = AbstractFunction {
+        machine,
+        attachment: None,
+        entry: block,
+        parameters: vec![],
+        structural_parameters: vec![parameter.clone()],
+        result: AbstractFunctionResult::Scalar(AbstractResult {
+            value,
+            scalar_type: ScalarType::Boolean,
+        }),
+        entry_claims: vec![],
+        published_service_ceiling: vec![],
+        block_entries: vec![],
+        operations: vec![AbstractOperation::Return {
+            psi_edge: edge,
+            result: value,
+            value,
+            scalar_type: ScalarType::Boolean,
+            cleanup_actions: actions.clone(),
+        }],
+    };
+    let provenance =
+        abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance {
+            operations: vec![],
+            edges: vec![edge],
+        };
+    let target = TargetFunction {
+        machine,
+        attachment: None,
+        scalar_abi: None,
+        provenance: provenance.clone(),
+        mixed_structural_scalar_abi: Some(abstract_operations_to_target_operations::target_operations::MixedStructuralScalarFunctionAbi {
+            call_plan: call_plan.clone(),
+            scalar_parameters: vec![],
+            structural_parameters: vec![target_parameter.clone()],
+            result: abstract_operations_to_target_operations::target_operations::ScalarAbiValue {
+                value,
+                scalar_type: ScalarType::Boolean,
+                placement: call_plan.result.clone().unwrap(),
+            },
+        }),
+        graph: TargetControlGraph {
+            structural_types: vec![].into(),
+            call_plan,
+            scalar_parameters: vec![],
+            parameters: vec![target_parameter.clone()],
+            dynamic_parameters: vec![],
+            entry: block,
+            blocks: vec![TargetControlBlock {
+                block,
+                parameters: vec![],
+                structural_parameters: vec![],
+                operations: vec![],
+                terminator: TargetControlTerminator::ReturnScalar {
+                    psi_edge: edge,
+                    source_value: value,
+                    expression: TargetScalarExpression::Boolean(
+                        TargetBooleanExpression::Immediate {
+                            source_value: value,
+                            value: true,
+                        },
+                    ),
+                    cleanup_actions: actions,
+                },
+            }],
+        },
+    };
+    let selected = SelectedFunction {
+        machine,
+        attachment: None,
+        provenance,
+        structural: Some(target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralContract {
+            result: None,
+            structural_types: vec![].into(),
+            parameters: vec![target_operations_to_selected_instructions::legalized_operations::LegalizedCallUnitParameter {
+                semantic: parameter,
+                target: target_parameter,
+            }],
+            structural_places: vec![],
+            entry_claims: vec![],
+            published_service_ceiling: vec![],
+        }),
+        local_storage_slots: vec![],
+        outgoing_arguments: vec![],
+        calls: vec![],
+        normalized_foreign_calls: Vec::new(),
+        memory_accesses: vec![],
+        boundary_settlements: vec![],
+        entry_block: target_operations_to_selected_instructions::SelectedBlockId(1),
+        virtual_registers: vec![],
+        blocks: vec![],
+    };
+    (function, target, selected)
+}
+
+#[test]
+fn scalar_discard_requires_exact_retained_return() {
+    // These predicate fixtures are not complete source replay certificates.
+    let (function, target, _) = fixture();
+    assert!(cleanup_retained(&function.operations[0], &target));
+    for mutation in 0..5 {
+        let mut changed = target.clone();
+        let graph = &mut changed.graph;
+        let TargetControlTerminator::ReturnScalar {
+            psi_edge,
+            source_value,
+            cleanup_actions,
+            ..
+        } = &mut graph.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => cleanup_actions.clear(),
+            1 => *psi_edge = EdgeId::new(2).unwrap(),
+            2 => *source_value = ValueId::new(2).unwrap(),
+            3 => {
+                cleanup_actions[0] =
+                    TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(2).unwrap())
+            }
+            _ => graph.blocks.push(graph.blocks[0].clone()),
+        }
+        assert!(
+            !cleanup_retained(&function.operations[0], &changed),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn unused_owned_projection_refuses_borrowed_linear_or_materialized_arrivals() {
+    let (function, target, selected) = fixture();
+    assert!(arrivals(&function, &target, &selected));
+    let mut borrowed = function.clone();
+    borrowed.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    assert!(!arrivals(&borrowed, &target, &selected));
+    let mut linear = function.clone();
+    linear.structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+    assert!(!arrivals(&linear, &target, &selected));
+    let mut missing = selected.clone();
+    missing.structural = None;
+    assert!(!arrivals(&function, &target, &missing));
+    let mut materialized = selected.clone();
+    materialized
+        .local_storage_slots
+        .push(target_operations_to_selected_instructions::SelectedLocalStorageSlot {
+            id: target_operations_to_selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                block: BlockId::new(1).unwrap(),
+                place: PlaceId::new(1).unwrap(),
+            },
+            byte_size: 16,
+            alignment: 8,
+        });
+    assert!(!arrivals(&function, &target, &materialized));
+    let mut missing_abi = target.clone();
+    missing_abi.mixed_structural_scalar_abi = None;
+    assert!(!arrivals(&function, &missing_abi, &selected));
+    // Missing a legacy mirror cannot authorize unused-input erasure, but the
+    // complete graph ABI can still account for the result under mandatory replay.
+    let graph_header = super::super::aggregate_results::header;
+    assert!(graph_header(&function, &missing_abi, &selected));
+    for mutation in 0..3 {
+        let mut changed = missing_abi.clone();
+        let graph = &mut changed.graph;
+        match mutation {
+            0 => graph.call_plan.result = None,
+            1 => graph.parameters.clear(),
+            _ => graph.parameters[0].place = PlaceId::new(2).unwrap(),
+        }
+        assert!(!graph_header(&function, &changed, &selected));
+    }
+}
+
+#[test]
+fn unobserved_owned_keeps_the_complete_mixed_abi_join() {
+    let (function, target, selected) = fixture();
+    let admit = |target: &TargetFunction, selected: &SelectedFunction| {
+        crate::image_emission::function_fragments::mixed_scalar_abi::admit(
+            &function,
+            target,
+            selected,
+            target.mixed_structural_scalar_abi.as_ref().unwrap(),
+        )
+    };
+    assert!(admit(&target, &selected).is_ok());
+    let mut erased = selected.clone();
+    erased.structural.as_mut().unwrap().parameters.clear();
+    assert!(admit(&target, &erased).is_err());
+    for mutation in 0..4 {
+        let mut changed = target.clone();
+        let abi = changed.mixed_structural_scalar_abi.as_mut().unwrap();
+        match mutation {
+            0 => abi.structural_parameters.clear(),
+            1 => abi.call_plan.parameters.clear(),
+            2 => {
+                abi.structural_parameters[0].placement.shape = ValueShape::borrowed_reference(16, 8)
+            }
+            _ => abi.structural_parameters[0].access = StructuralAccess::SharedBorrow,
+        }
+        assert!(admit(&changed, &selected).is_err(), "mutation {mutation}");
+    }
+}
+
+#[test]
+fn unit_discard_requires_exact_unique_return_and_ordered_roots() {
+    let (mut function, mut target, _) = fixture();
+    let edge = EdgeId::new(1).unwrap();
+    let actions = vec![
+        TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(1).unwrap()),
+        TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(2).unwrap()),
+    ];
+    function.operations[0] = AbstractOperation::ReturnUnit {
+        psi_edge: edge,
+        cleanup_actions: actions.clone(),
+    };
+    target.graph.blocks[0].terminator = TargetControlTerminator::Return {
+        psi_edge: edge,
+        cleanup_actions: actions,
+    };
+    assert!(cleanup_retained(&function.operations[0], &target));
+    for mutation in 0..5 {
+        let mut changed = target.clone();
+        let graph = &mut changed.graph;
+        let TargetControlTerminator::Return {
+            psi_edge,
+            cleanup_actions,
+        } = &mut graph.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => cleanup_actions.clear(),
+            1 => *psi_edge = EdgeId::new(2).unwrap(),
+            2 => cleanup_actions.reverse(),
+            3 => {
+                cleanup_actions[0] =
+                    TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(3).unwrap())
+            }
+            _ => graph.blocks.push(graph.blocks[0].clone()),
+        }
+        assert!(
+            !cleanup_retained(&function.operations[0], &changed),
+            "mutation {mutation}"
+        );
+    }
+    let (_, scalar_target, _) = fixture();
+    assert!(!cleanup_retained(&function.operations[0], &scalar_target));
+}

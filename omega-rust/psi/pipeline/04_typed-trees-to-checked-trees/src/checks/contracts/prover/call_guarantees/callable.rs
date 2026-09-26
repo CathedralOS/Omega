@@ -2,13 +2,15 @@
 //! Both retain their own parameter and result identities; a bodyless signature
 //! never acquires a manufactured machine or an executable body.
 
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::{
+    SignatureContract, StateParameter, StateSignature,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::machine::Machine;
-use typed_trees::signature::{SignatureContract, StateParameter, StateSignature};
-use typed_trees::state::State;
-use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Clone, Copy)]
 pub(in crate::checks) enum Callable<'program> {
@@ -103,15 +105,17 @@ impl<'program> Callable<'program> {
         program: &TypedTrees,
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
-        if let Some(result) = validation::reserved_result_place(program, expression) {
+        if let Some(result) = crate::validation::reserved_result_place(program, expression) {
             return (result.machine_symbol == self.owner_symbol()).then_some(result.type_reference);
         }
         match self {
             Self::Machine { machine, state } => {
-                validation::expression_result_type_reference(program, machine, state, expression)
+                crate::validation::expression_result_type_reference(
+                    program, machine, state, expression,
+                )
             }
             Self::Requirement { signature } => {
-                validation::parameter_expression_result_type_reference(
+                crate::validation::parameter_expression_result_type_reference(
                     program,
                     signature.symbol,
                     program.state_signature_parameters(signature),
@@ -127,14 +131,16 @@ impl<'program> Callable<'program> {
         expression: ExpressionHandle,
     ) -> bool {
         match self {
-            Self::Machine { machine, state } => validation::has_builtin_bound_expression_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            ),
+            Self::Machine { machine, state } => {
+                crate::validation::has_builtin_bound_expression_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+            }
             Self::Requirement { signature } => {
-                validation::has_builtin_parameter_bound_expression_meaning(
+                crate::validation::has_builtin_parameter_bound_expression_meaning(
                     program,
                     signature.symbol,
                     program.state_signature_parameters(signature),
@@ -150,17 +156,19 @@ impl<'program> Callable<'program> {
         expression: ExpressionHandle,
     ) -> bool {
         match self {
-            Self::Machine { machine, state } => validation::has_builtin_decomposed_guard_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            ),
+            Self::Machine { machine, state } => {
+                crate::validation::has_builtin_decomposed_guard_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+            }
             Self::Requirement { .. } => {
                 if matches!(program.expression_table.expression(expression),
-                    typed_trees::expression::ExpressionNode::Binary(binary)
-                        if matches!(binary.operator, typed_trees::expression::BinaryOperator::And
-                            | typed_trees::expression::BinaryOperator::Or))
+                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary)
+                        if matches!(binary.operator, symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And
+                            | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Or))
                 {
                     return true;
                 }

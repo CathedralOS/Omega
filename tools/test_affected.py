@@ -43,7 +43,7 @@ DOCUMENTATION_FILES = {
     "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
     "tools/claims.md", "tools/landing.md", "tools/release_matrix.md",
     "tools/rust_producer_omission.md", "tools/testing.md",
-    "omega-rust/omega/representations/optimization-core/rules.md",
+    "omega-rust/psi/optimization-core/rules.md",
 }
 
 # Measured multi-minute library tests by owning package
@@ -63,7 +63,7 @@ def is_documentation(filename):
     return filename in DOCUMENTATION_FILES or (
         path.parts[0] in {"wiki", "tools"} and path.suffix == ".md"
     ) or (
-        path.is_relative_to("omega-rust/omega/representations/optimization-core/promotions")
+        path.is_relative_to("omega-rust/psi/optimization-core/promotions")
         and path.suffix == ".md"
     )
 
@@ -120,10 +120,10 @@ def selection(root, metadata, paths):
         if is_documentation(filename):
             continue
         if filename in {
-            "omega-rust/psi/semantics/terminal-codec/src/sections/trust_graph.rs",
-            "omega-rust/psi/semantics/terminal-codec/src/sections/trust_graph/current.rs",
-            "omega-rust/psi/semantics/terminal-codec/src/sections/trust_graph/identity.rs",
-            "omega-rust/psi/semantics/terminal-codec/src/sections/trust_graph/validation.rs",
+            "omega-rust/psi/terminal-codec/src/sections/trust_graph.rs",
+            "omega-rust/psi/terminal-codec/src/sections/trust_graph/current.rs",
+            "omega-rust/psi/terminal-codec/src/sections/trust_graph/identity.rs",
+            "omega-rust/psi/terminal-codec/src/sections/trust_graph/validation.rs",
         }:
             reasons.append(f"Source-reader implementation: {filename}")
             continue

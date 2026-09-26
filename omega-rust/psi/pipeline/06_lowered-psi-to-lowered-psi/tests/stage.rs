@@ -6,7 +6,7 @@ use crate::common;
 
 use common::{copy_fixture, dead_scalar_fixture, minimal_unit_lowered, value};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
-use optimization::{PsiOptimization, PsiOptimizationSelections};
+use terminal_codec::optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::Terminator;
 
 #[test]

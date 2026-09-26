@@ -16,16 +16,20 @@ use crate::unsequenced_spill_stages::{
 };
 pub use identity::generalized_spill_recovery_action_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{AllocatorAvailabilityIdentity, LogicalSpillStorageClass};
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{
-    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, VirtualRegisterId,
+use selected_instructions_to_selected_instructions::register_homes::{
+    AllocatorAvailabilityIdentity, LogicalSpillStorageClass,
 };
 use selected_instructions_to_selected_instructions::{
     ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
+};
+use target_operations_to_selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlanIdentity, VirtualRegisterId,
+};
 pub use validate::{
     validate_generalized_original_spill_recovery_actions,
     validate_generalized_spill_recovery_actions,

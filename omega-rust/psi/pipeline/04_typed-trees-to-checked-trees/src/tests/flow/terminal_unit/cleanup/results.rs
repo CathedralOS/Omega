@@ -88,9 +88,10 @@ fn partial_result_cleanup_retains_exact_producer_root_and_residual() {
         let [argument] = structural_arguments.as_slice() else {
             panic!("one projected argument")
         };
-        let source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-            binding_ordinal: 0,
-        };
+        let source =
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: 0,
+            };
         assert_eq!(argument.source, source);
         assert!(matches!(argument.path.as_slice(),
             [CheckedUnitStructuralPathSegment::Field(field)] if field.ends_with("right")));
@@ -164,7 +165,7 @@ fn partial_result_cleanup_retains_exact_producer_root_and_residual() {
         .expect("projected permission names exact existing storage");
         assert!(matches!(
             projected.segments.as_slice(),
-            [facts::PlaceSegment::Field { .. }]
+            [crate::fact_plan::PlaceSegment::Field { .. }]
         ));
         assert_eq!(
             checked.typed.type_multiplicity(leaf_type),

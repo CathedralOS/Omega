@@ -8,7 +8,7 @@ use crate::tests::front_end::{checked_program, checked_program_result};
 
 #[test]
 fn direct_reborrow_access_classifier_covers_all_nine_cells() {
-    use checked_trees::{BorrowAccessKind as Access, CheckedReborrowAccessEffect as Effect};
+    use crate::checked_trees::{BorrowAccessKind as Access, CheckedReborrowAccessEffect as Effect};
 
     let cells = [
         (Access::Read, Access::Read, Some(Effect::SharedRelease)),
@@ -64,14 +64,14 @@ fn direct_reborrow_source_matrix_uses_borrow_diagnostics_for_all_nine_cells() {
                     .iter()
                     .find(|(_, resource)| {
                         let actual_parent = match &resource.parent_access {
-                            checked_trees::BorrowAccessKind::Read => "Read",
-                            checked_trees::BorrowAccessKind::Mutable => "Mutable",
-                            checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
+                            crate::checked_trees::BorrowAccessKind::Read => "Read",
+                            crate::checked_trees::BorrowAccessKind::Mutable => "Mutable",
+                            crate::checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
                         };
                         let actual_child = match &resource.access {
-                            checked_trees::BorrowAccessKind::Read => "Read",
-                            checked_trees::BorrowAccessKind::Mutable => "Mutable",
-                            checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
+                            crate::checked_trees::BorrowAccessKind::Read => "Read",
+                            crate::checked_trees::BorrowAccessKind::Mutable => "Mutable",
+                            crate::checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
                         };
                         actual_parent == parent && actual_child == child
                     })
@@ -146,13 +146,14 @@ fn mutable_shared_siblings_form_one_checked_cohort_and_restore_once() {
         .reborrow_loan_resources
         .iter()
         .filter(|(_, resource)| {
-            resource.access_effect == checked_trees::CheckedReborrowAccessEffect::SharedFreeze
+            resource.access_effect
+                == crate::checked_trees::CheckedReborrowAccessEffect::SharedFreeze
         })
         .collect::<Vec<_>>();
     assert_eq!(shared.len(), 2);
     assert!(shared.iter().all(|(_, resource)| {
-        resource.parent_access == checked_trees::BorrowAccessKind::Mutable
-            && resource.access == checked_trees::BorrowAccessKind::Read
+        resource.parent_access == crate::checked_trees::BorrowAccessKind::Mutable
+            && resource.access == crate::checked_trees::BorrowAccessKind::Read
             && resource.parent_resource == shared[0].1.parent_resource
     }));
     let containments = checked
@@ -169,7 +170,8 @@ fn mutable_shared_siblings_form_one_checked_cohort_and_restore_once() {
         .collect::<Vec<_>>();
     assert_eq!(containments.len(), 2);
     assert!(containments.iter().all(|certificate| {
-        certificate.containment == checked_trees::CheckedReborrowContainmentKind::SharedFreeze
+        certificate.containment
+            == crate::checked_trees::CheckedReborrowContainmentKind::SharedFreeze
             && certificate.parent_resource == shared[0].1.parent_resource
     }));
     let events = checked
@@ -190,7 +192,7 @@ fn mutable_shared_siblings_form_one_checked_cohort_and_restore_once() {
             .iter()
             .filter(|event| {
                 event.disposition
-                    == checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
+                    == crate::checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
             })
             .count(),
         1,
@@ -234,7 +236,7 @@ fn retains_exact_direct_root_lifetime_and_restoration_closure() {
         assert_eq!(resource.access, loan.kind);
         assert_eq!(
             resource.activation_source,
-            checked_trees::FlowInvalidationSource::Statement {
+            crate::checked_trees::FlowInvalidationSource::Statement {
                 statement_index: loan.statement_index,
             }
         );
@@ -282,12 +284,12 @@ fn retains_source_direct_modes_and_rejects_sibling_state_substitution() {
     assert!(
         resources
             .iter()
-            .any(|(_, row)| { row.access == checked_trees::BorrowAccessKind::Read })
+            .any(|(_, row)| { row.access == crate::checked_trees::BorrowAccessKind::Read })
     );
     assert!(
         resources
             .iter()
-            .any(|(_, row)| { row.access == checked_trees::BorrowAccessKind::Mutable })
+            .any(|(_, row)| { row.access == crate::checked_trees::BorrowAccessKind::Mutable })
     );
 
     let first = &resources[0].1;
@@ -334,7 +336,7 @@ fn projected_self_write_only_local_retains_direct_root_resource() {
             .direct_loan_resources
             .iter()
             .any(|(_, resource)| {
-                resource.access == checked_trees::BorrowAccessKind::WriteOnly
+                resource.access == crate::checked_trees::BorrowAccessKind::WriteOnly
                     && checked.symbols.name(resource.owner_symbol) == "write"
             })
     );
@@ -362,21 +364,21 @@ fn retains_exact_immediate_parent_for_multihop_direct_reborrows() {
     assert_eq!(loans.len(), 4);
     assert_eq!(
         checked.facts.borrow.loans.get(loans[0]).lineage,
-        checked_trees::BorrowLoanLineage::DirectRoot
+        crate::checked_trees::BorrowLoanLineage::DirectRoot
     );
     assert_eq!(
         checked.facts.borrow.loans.get(loans[1]).lineage,
-        checked_trees::BorrowLoanLineage::DirectRoot
+        crate::checked_trees::BorrowLoanLineage::DirectRoot
     );
     assert_eq!(
         checked.facts.borrow.loans.get(loans[2]).lineage,
-        checked_trees::BorrowLoanLineage::Reborrow {
+        crate::checked_trees::BorrowLoanLineage::Reborrow {
             parent_loan: loans[1]
         }
     );
     assert_eq!(
         checked.facts.borrow.loans.get(loans[3]).lineage,
-        checked_trees::BorrowLoanLineage::Reborrow {
+        crate::checked_trees::BorrowLoanLineage::Reborrow {
             parent_loan: loans[2]
         }
     );
@@ -416,7 +418,7 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
     assert_eq!(before.len(), 2);
     assert_eq!(before[0].1.loan, loans[2]);
     assert_eq!(before[0].1.parent_loan, loans[1]);
-    let checked_trees::CheckedParentBorrowResource::DirectRoot { resource } =
+    let crate::checked_trees::CheckedParentBorrowResource::DirectRoot { resource } =
         before[0].1.parent_resource
     else {
         panic!("the first child must link to its direct-root resource")
@@ -434,7 +436,7 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
     assert_eq!(before[1].1.parent_loan, loans[2]);
     assert_eq!(
         before[1].1.parent_resource,
-        checked_trees::CheckedParentBorrowResource::Reborrow {
+        crate::checked_trees::CheckedParentBorrowResource::Reborrow {
             resource: before[0].0,
         }
     );
@@ -453,7 +455,7 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
         assert_eq!(resource.access, loan.kind);
         assert_eq!(
             resource.activation_source,
-            checked_trees::FlowInvalidationSource::Statement {
+            crate::checked_trees::FlowInvalidationSource::Statement {
                 statement_index: loan.statement_index,
             }
         );
@@ -489,7 +491,7 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
         );
         assert_eq!(
             resource.parent_end_status.status,
-            checked_trees::ParentLexicalStatusAtChildEnd::RetiredBeforeChild
+            crate::checked_trees::ParentLexicalStatusAtChildEnd::RetiredBeforeChild
         );
         assert_eq!(
             checked
@@ -529,7 +531,7 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
                 .constraint_refs
                 .get(resource.parent_suspension.parent_entry_constraint)
                 .kind,
-            checked_trees::FlowConstraintKind::BorrowLoan {
+            crate::checked_trees::FlowConstraintKind::BorrowLoan {
                 loan: resource.parent_loan,
             }
         );
@@ -549,7 +551,7 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
             .find(|(handle, _)| *handle == certificate.child_resource)
             .expect("containment child resource");
         let parent_place = match &certificate.parent_resource {
-            checked_trees::CheckedParentBorrowResource::DirectRoot { resource } => {
+            crate::checked_trees::CheckedParentBorrowResource::DirectRoot { resource } => {
                 &checked
                     .facts
                     .borrow
@@ -557,7 +559,7 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
                     .get(*resource)
                     .captured_place
             }
-            checked_trees::CheckedParentBorrowResource::Reborrow { resource } => {
+            crate::checked_trees::CheckedParentBorrowResource::Reborrow { resource } => {
                 &before
                     .iter()
                     .find(|(handle, _)| handle == resource)
@@ -601,11 +603,11 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
         );
         assert_eq!(
             certificate.containment,
-            checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension
+            crate::checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension
         );
     }
 
-    let checked_trees::CheckedParentBorrowResource::DirectRoot { resource: parent } =
+    let crate::checked_trees::CheckedParentBorrowResource::DirectRoot { resource: parent } =
         before[0].1.parent_resource
     else {
         unreachable!()
@@ -617,13 +619,13 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
         .get(parent)
         .weakening_source;
     let child_weakening = before[0].1.weakening_source;
-    let checked_trees::FlowInvalidationSource::Statement {
+    let crate::checked_trees::FlowInvalidationSource::Statement {
         statement_index: parent_end,
     } = parent_weakening
     else {
         panic!("parent weakening must be state-local")
     };
-    let checked_trees::FlowInvalidationSource::Statement {
+    let crate::checked_trees::FlowInvalidationSource::Statement {
         statement_index: child_end,
     } = child_weakening
     else {
@@ -643,12 +645,12 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
         .expect("the available leaf closes the retired parent chain");
     assert_eq!(
         disposition.disposition,
-        checked_trees::CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
+        crate::checked_trees::CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
     );
     assert_eq!(disposition.retired_parent_path.len(), 2);
     assert_eq!(
         disposition.retired_parent_path[0].resource,
-        checked_trees::CheckedParentBorrowResource::Reborrow {
+        crate::checked_trees::CheckedParentBorrowResource::Reborrow {
             resource: before[0].0,
         }
     );
@@ -656,7 +658,7 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
         disposition.retired_parent_path[1].resource,
         before[0].1.parent_resource
     );
-    let checked_trees::CheckedBorrowResourceDispositionTarget::DirectRootLifetime(target) =
+    let crate::checked_trees::CheckedBorrowResourceDispositionTarget::DirectRootLifetime(target) =
         &disposition.final_target
     else {
         panic!("retired chain must end at its exact direct-root lifetime")
@@ -683,11 +685,11 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
     assert_eq!(after[0].0, before[0].0);
     assert_eq!(
         after[1].1.parent_resource,
-        checked_trees::CheckedParentBorrowResource::Reborrow {
+        crate::checked_trees::CheckedParentBorrowResource::Reborrow {
             resource: after[0].0,
         }
     );
-    let checked_trees::CheckedParentBorrowResource::DirectRoot { resource } =
+    let crate::checked_trees::CheckedParentBorrowResource::DirectRoot { resource } =
         after[0].1.parent_resource
     else {
         panic!("rebuilt first child must retain a direct-root parent")
@@ -728,7 +730,7 @@ fn retains_projected_direct_reborrow_parent() {
     assert_eq!(loans.len(), 2);
     assert_eq!(
         loans[1].1.lineage,
-        checked_trees::BorrowLoanLineage::Reborrow {
+        crate::checked_trees::BorrowLoanLineage::Reborrow {
             parent_loan: loans[0].0
         }
     );
@@ -748,7 +750,7 @@ fn retains_projected_direct_reborrow_parent() {
     assert_eq!(resource.parent_suspension.parent_loan, loans[0].0);
     assert_eq!(
         resource.parent_end_status.status,
-        checked_trees::ParentLexicalStatusAtChildEnd::RetiredBeforeChild
+        crate::checked_trees::ParentLexicalStatusAtChildEnd::RetiredBeforeChild
     );
     assert_eq!(
         checked
@@ -758,7 +760,7 @@ fn retains_projected_direct_reborrow_parent() {
             .constraint_refs
             .get(resource.parent_suspension.parent_entry_constraint)
             .kind,
-        checked_trees::FlowConstraintKind::BorrowLoan { loan: loans[0].0 }
+        crate::checked_trees::FlowConstraintKind::BorrowLoan { loan: loans[0].0 }
     );
     assert_eq!(
         resource.captured_place.segments,
@@ -774,7 +776,7 @@ fn retains_projected_direct_reborrow_parent() {
     assert_eq!(disposition.child_loan, loans[1].0);
     assert_eq!(
         disposition.disposition,
-        checked_trees::CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
+        crate::checked_trees::CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
     );
     assert_eq!(disposition.retired_parent_path.len(), 1);
     assert_eq!(
@@ -804,7 +806,7 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
         .iter()
         .next()
         .expect("direct child resource");
-    let checked_trees::CheckedParentBorrowResource::DirectRoot { resource: parent } =
+    let crate::checked_trees::CheckedParentBorrowResource::DirectRoot { resource: parent } =
         child.parent_resource
     else {
         panic!("direct child must name its root parent resource")
@@ -815,7 +817,7 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
     );
     assert_eq!(
         child.parent_end_status.status,
-        checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
+        crate::checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
     );
     assert_eq!(
         checked
@@ -825,17 +827,17 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
             .constraint_refs
             .get(child.parent_suspension.parent_entry_constraint)
             .kind,
-        checked_trees::FlowConstraintKind::BorrowLoan {
+        crate::checked_trees::FlowConstraintKind::BorrowLoan {
             loan: child.parent_loan,
         }
     );
-    let checked_trees::FlowInvalidationSource::Statement {
+    let crate::checked_trees::FlowInvalidationSource::Statement {
         statement_index: child_end,
     } = child.weakening_source
     else {
         panic!("child weakening must be state-local")
     };
-    let checked_trees::FlowInvalidationSource::Statement {
+    let crate::checked_trees::FlowInvalidationSource::Statement {
         statement_index: parent_end,
     } = checked
         .facts
@@ -859,12 +861,12 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
         .expect("child-end reactivation classification");
     assert_eq!(
         disposition.disposition,
-        checked_trees::CheckedReborrowResourceDisposition::Reactivate
+        crate::checked_trees::CheckedReborrowResourceDisposition::Reactivate
     );
     assert!(disposition.retired_parent_path.is_empty());
     assert_eq!(
         disposition.final_target,
-        checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
+        crate::checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
             child.parent_resource.clone()
         )
     );
@@ -884,7 +886,7 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
     );
     assert_eq!(
         restored_use.access,
-        checked_trees::BorrowAccessKind::Mutable
+        crate::checked_trees::BorrowAccessKind::Mutable
     );
     assert_eq!(
         restored_use.carrier_place.root_symbol,
@@ -912,7 +914,7 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
             .argument_accesses
             .get(restored_use.call_access)
             .kind,
-        checked_trees::BorrowAccessKind::Read,
+        crate::checked_trees::BorrowAccessKind::Read,
         "the carrier read is not itself mutable-use authority"
     );
     assert_eq!(
@@ -923,7 +925,7 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
             .constraint_refs
             .get(restored_use.parent_entry_constraint)
             .kind,
-        checked_trees::FlowConstraintKind::BorrowLoan {
+        crate::checked_trees::FlowConstraintKind::BorrowLoan {
             loan: child.parent_loan,
         }
     );
@@ -934,7 +936,7 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
             .reborrow_disposition_events
             .get(restored_use.disposition)
             .disposition,
-        checked_trees::CheckedReborrowResourceDisposition::Reactivate
+        crate::checked_trees::CheckedReborrowResourceDisposition::Reactivate
     );
     assert_eq!(
         checked
@@ -943,7 +945,7 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
             .reborrow_containment_certificates
             .get(restored_use.containment)
             .containment,
-        checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension
+        crate::checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension
     );
 }
 
@@ -964,10 +966,10 @@ fn sole_shared_child_restores_the_exact_mutable_parent_at_the_next_mutating_call
         .borrow
         .reborrow_loan_resources
         .get(certificate.child_resource);
-    assert_eq!(child.access, checked_trees::BorrowAccessKind::Read);
+    assert_eq!(child.access, crate::checked_trees::BorrowAccessKind::Read);
     assert_eq!(
         child.access_effect,
-        checked_trees::CheckedReborrowAccessEffect::SharedFreeze
+        crate::checked_trees::CheckedReborrowAccessEffect::SharedFreeze
     );
     let disposition = checked
         .facts
@@ -976,13 +978,13 @@ fn sole_shared_child_restores_the_exact_mutable_parent_at_the_next_mutating_call
         .get(certificate.disposition);
     assert_eq!(
         disposition.disposition,
-        checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
+        crate::checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
     );
     assert_eq!(disposition.shared_cohort, [certificate.child_resource]);
     assert!(disposition.retired_parent_path.is_empty());
     assert_eq!(
         disposition.final_target,
-        checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
+        crate::checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
             child.parent_resource.clone()
         )
     );
@@ -993,7 +995,7 @@ fn sole_shared_child_restores_the_exact_mutable_parent_at_the_next_mutating_call
             .reborrow_containment_certificates
             .get(certificate.containment)
             .containment,
-        checked_trees::CheckedReborrowContainmentKind::SharedFreeze
+        crate::checked_trees::CheckedReborrowContainmentKind::SharedFreeze
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("sole shared restored call use independently replays");
@@ -1018,7 +1020,7 @@ fn two_shared_children_restore_one_exact_complete_cohort_at_the_next_mutating_ca
         .get(certificate.disposition);
     assert_eq!(
         disposition.disposition,
-        checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
+        crate::checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
     );
     let [left, right] = disposition.shared_cohort.as_slice() else {
         panic!("the exact two-member shared cohort")
@@ -1027,15 +1029,15 @@ fn two_shared_children_restore_one_exact_complete_cohort_at_the_next_mutating_ca
     for member in [left, right] {
         let child = checked.facts.borrow.reborrow_loan_resources.get(*member);
         assert_eq!(child.parent_loan, certificate.parent_loan);
-        assert_eq!(child.access, checked_trees::BorrowAccessKind::Read);
+        assert_eq!(child.access, crate::checked_trees::BorrowAccessKind::Read);
         assert_eq!(
             child.access_effect,
-            checked_trees::CheckedReborrowAccessEffect::SharedFreeze
+            crate::checked_trees::CheckedReborrowAccessEffect::SharedFreeze
         );
         assert_eq!(child.weakening_source, disposition.boundary_source);
         assert_eq!(
             child.weakening_reason,
-            checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+            crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired
         );
     }
     assert!(
@@ -1114,7 +1116,7 @@ fn three_shared_children_restore_one_exact_complete_cohort_transactionally() {
     };
     assert_eq!(
         disposition.disposition,
-        checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
+        crate::checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
     );
     assert!(disposition.retired_parent_path.is_empty());
     let primary = baseline
@@ -1124,7 +1126,7 @@ fn three_shared_children_restore_one_exact_complete_cohort_transactionally() {
         .get(certificate.child_resource);
     assert_eq!(
         disposition.final_target,
-        checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
+        crate::checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
             primary.parent_resource.clone()
         )
     );
@@ -1134,19 +1136,19 @@ fn three_shared_children_restore_one_exact_complete_cohort_transactionally() {
     for (offset, member) in [left, middle, right].into_iter().enumerate() {
         let child = baseline.facts.borrow.reborrow_loan_resources.get(*member);
         assert_eq!(child.parent_loan, certificate.parent_loan);
-        assert_eq!(child.access, checked_trees::BorrowAccessKind::Read);
+        assert_eq!(child.access, crate::checked_trees::BorrowAccessKind::Read);
         assert_eq!(
             child.access_effect,
-            checked_trees::CheckedReborrowAccessEffect::SharedFreeze
+            crate::checked_trees::CheckedReborrowAccessEffect::SharedFreeze
         );
         assert_eq!(child.weakening_source, disposition.boundary_source);
         assert_eq!(
             child.weakening_reason,
-            checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+            crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired
         );
         assert_eq!(
             child.activation_source,
-            checked_trees::FlowInvalidationSource::Statement {
+            crate::checked_trees::FlowInvalidationSource::Statement {
                 statement_index: offset + 1
             }
         );
@@ -1163,7 +1165,7 @@ fn three_shared_children_restore_one_exact_complete_cohort_transactionally() {
         };
         assert_eq!(
             containment.containment,
-            checked_trees::CheckedReborrowContainmentKind::SharedFreeze
+            crate::checked_trees::CheckedReborrowContainmentKind::SharedFreeze
         );
     }
     let mut replayed = baseline.clone();

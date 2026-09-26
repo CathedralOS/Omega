@@ -1,7 +1,7 @@
 //! Authored structural paths shared by parameter and call-result operands.
 use super::{CheckedTrees, LoweringError, unsupported};
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 enum SourceProjection {
     Field(ExpressionHandle, symbols::SymbolHandle),
@@ -46,19 +46,19 @@ pub(crate) fn expression_producer(
 
 pub(crate) fn source_path(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
     source_type: TypeReferenceHandle,
     expression: ExpressionHandle,
 ) -> Result<
     (
         symbols::SymbolHandle,
-        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-        Option<checked_trees::CheckedStructuralAccess>,
+        Vec<typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment>,
+        Option<typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess>,
     ),
     LoweringError,
 > {
     let (root, path, access) = source_place_path(checked, machine, source_type, expression)?;
-    let facts::PlaceRoot::Symbol(symbol) = root else {
+    let typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(symbol) = root else {
         return unsupported("structural argument is not a named source place");
     };
     Ok((symbol, path, access))
@@ -66,14 +66,14 @@ pub(crate) fn source_path(
 
 pub(crate) fn source_place_path(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
     source_type: TypeReferenceHandle,
     mut expression: ExpressionHandle,
 ) -> Result<
     (
-        facts::PlaceRoot,
-        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-        Option<checked_trees::CheckedStructuralAccess>,
+        typed_trees_to_checked_trees::fact_plan::PlaceRoot,
+        Vec<typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment>,
+        Option<typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess>,
     ),
     LoweringError,
 > {
@@ -91,13 +91,13 @@ pub(crate) fn source_place_path(
             ExpressionNode::Borrow(borrow) if access.is_none() && projections.is_empty() => {
                 access = Some(match borrow.access {
                     language_core::ReferenceAccess::Shared => {
-                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                     }
                     language_core::ReferenceAccess::Mutable => {
-                        checked_trees::CheckedStructuralAccess::MutableBorrow
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
                     }
                     language_core::ReferenceAccess::WriteOnly => {
-                        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
                     }
                 });
                 expression = borrow.target;
@@ -115,8 +115,8 @@ pub(crate) fn source_place_path(
                         || !matches!(
                             access,
                             Some(
-                                checked_trees::CheckedStructuralAccess::MutableBorrow
-                                    | checked_trees::CheckedStructuralAccess::SharedBorrow
+                                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
+                                    | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                             )
                         )
                     {
@@ -151,9 +151,11 @@ pub(crate) fn source_place_path(
                         .len()
                         == 1 =>
             {
-                break facts::PlaceRoot::Symbol(name.symbol);
+                break typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(name.symbol);
             }
-            ExpressionNode::Call(_) => break facts::PlaceRoot::Expression(expression),
+            ExpressionNode::Call(_) => {
+                break typed_trees_to_checked_trees::fact_plan::PlaceRoot::Expression(expression);
+            }
             _ => return unsupported("scalar wrapper structural argument is not a parameter place"),
         }
     };
@@ -175,7 +177,10 @@ pub(crate) fn source_place_path(
                 };
                 let TypeReferenceNode::FixedArray {
                     element_type,
-                    length: checked_trees::types::FixedArrayLength::Literal(extent),
+                    length:
+                        typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(
+                            extent,
+                        ),
                 } = checked.type_reference_table.type_reference(type_reference)
                 else {
                     return unsupported("byte window has no fixed-array backing");
@@ -202,12 +207,14 @@ pub(crate) fn source_place_path(
                     || start > end
                     || end > extent
                     || checked.primitive_type_reference(*element_type)
-                        != Some(checked_trees::types::PrimitiveType::U8)
+                        != Some(
+                            typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::U8,
+                        )
                 {
                     return unsupported("byte window does not fit its fixed byte backing");
                 }
                 path.push(
-                    checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { start, end },
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { start, end },
                 );
             }
             SourceProjection::Field(expression, symbol) => {
@@ -219,9 +226,16 @@ pub(crate) fn source_place_path(
                 // Attached Self retains its machine symbol in the source type.
                 // Only an exact self-field observation rejoins that placeholder
                 // to this machine's attached data declaration.
-                let self_field = validation::exact_self_field(&checked.typed, machine, expression);
+                let self_field = typed_trees_to_checked_trees::validation::exact_self_field(
+                    &checked.typed,
+                    machine,
+                    expression,
+                );
                 let owner = if owner == machine.symbol
-                    && root == facts::PlaceRoot::Symbol(machine.symbol)
+                    && root
+                        == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(
+                            machine.symbol,
+                        )
                     && self_field.is_some()
                 {
                     machine.attached_data_symbol
@@ -248,17 +262,20 @@ pub(crate) fn source_place_path(
                     checked
                         .data_members(data)
                         .iter()
-                        .filter_map(|member| match member {
-                            checked_trees::data::DataMember::Field(field)
-                                if if symbol.is_valid() {
-                                    field.symbol == symbol
-                                } else {
-                                    field.name.as_str() == authored.member.as_str()
-                                } =>
-                            {
-                                Some(field)
-                            }
-                            _ => None,
+                        .filter_map(|member| {
+                            match member {
+                        typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(
+                            field,
+                        ) if if symbol.is_valid() {
+                            field.symbol == symbol
+                        } else {
+                            field.name.as_str() == authored.member.as_str()
+                        } =>
+                        {
+                            Some(field)
+                        }
+                        _ => None,
+                    }
                         });
                 let field = fields.next().ok_or(LoweringError::Unsupported(
                     "scalar wrapper field substituted its declaration owner",
@@ -268,7 +285,7 @@ pub(crate) fn source_place_path(
                         "structural source field is ambiguous in its declared owner",
                     );
                 }
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                path.push(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
                     field.path_identity(),
                 ));
                 type_reference = field.type_reference;
@@ -276,7 +293,10 @@ pub(crate) fn source_place_path(
             SourceProjection::Index(index) => {
                 let TypeReferenceNode::FixedArray {
                     element_type,
-                    length: checked_trees::types::FixedArrayLength::Literal(length),
+                    length:
+                        typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(
+                            length,
+                        ),
                 } = checked.type_reference_table.type_reference(type_reference)
                 else {
                     return unsupported("scalar wrapper index has no literal fixed-array owner");
@@ -287,7 +307,7 @@ pub(crate) fn source_place_path(
                 {
                     return unsupported("scalar wrapper structural index is out of bounds");
                 }
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                path.push(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                     index,
                 ));
                 type_reference = *element_type;

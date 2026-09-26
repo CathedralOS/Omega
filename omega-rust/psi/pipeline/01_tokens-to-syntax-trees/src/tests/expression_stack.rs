@@ -1,6 +1,6 @@
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use source_files_to_tokens::Lexer;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 #[test]
 fn nested_aggregates_and_grouped_unary_prefixes_use_the_default_stack() {
@@ -14,7 +14,7 @@ fn nested_aggregates_and_grouped_unary_prefixes_use_the_default_stack() {
     let tokens = Lexer::new(&value)
         .tokenize()
         .expect("tokenize nested values");
-    let mut parsed = syntax_trees::SyntaxTrees::new(source::SourceId::default());
+    let mut parsed = crate::syntax_trees::SyntaxTrees::new(source::SourceId::default());
     let (_, rest) = crate::expressions::parse_expression::parse_expression_handle(
         &mut parsed,
         crate::input::token_cursor::Input::new(source::SourceId::default(), &tokens),

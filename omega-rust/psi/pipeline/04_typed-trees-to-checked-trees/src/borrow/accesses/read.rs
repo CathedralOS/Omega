@@ -1,6 +1,6 @@
 use crate::borrow::accesses::BorrowAccessCollection;
-use checked_trees::BorrowAccessKind;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::BorrowAccessKind;
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn collect_read_accesses(
     collection: &mut BorrowAccessCollection<'_>,
@@ -15,7 +15,7 @@ pub(super) fn collect_read_accesses(
                 .expression_table
                 .match_arms(dispatch.arms)
             {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     collect_read_accesses(collection, pattern);
                 }
                 collect_read_accesses(collection, arm.value);

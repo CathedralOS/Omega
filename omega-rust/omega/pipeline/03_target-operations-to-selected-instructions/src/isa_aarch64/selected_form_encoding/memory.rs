@@ -1,0 +1,301 @@
+//! Unsigned-offset LDR with independently decoded pointer-read evidence.
+use super::{
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
+    ValidatedAarch64SelectedFormEncoding,
+};
+use crate::isa_aarch64::selected_form_encoding::selected_forms::resolve_registers;
+use crate::register_model::RegisterViewId;
+use crate::register_model::ValidatedPhysicalRegisterModel;
+use crate::selected_instructions::MachineAlternativeFamily;
+use crate::selected_instructions::MachineAlternativeKey;
+use crate::selected_instructions::MachineEncodedControlEffect;
+use crate::selected_instructions::MachineEncodedEffects;
+use crate::selected_instructions::MachineEncodedMemoryEffect;
+use crate::selected_instructions::MachineEncodedStackEffect;
+use crate::selected_instructions::MachineEncodedTrapBehavior;
+use crate::selected_instructions::SelectedInstructionKind;
+mod frame;
+mod indexed;
+#[cfg(test)]
+mod load32_tests;
+#[cfg(test)]
+mod narrow_load_tests;
+mod packed;
+mod pointer;
+#[cfg(test)]
+mod pointer_tests;
+
+pub fn encode_aarch64_selected_memory_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+    operands: &[RegisterViewId],
+    displacement: i64,
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::SaveFloatingControl { .. }
+            | SelectedInstructionKind::RestoreFloatingControl { .. }
+    ) {
+        return super::floating_control::encode_aarch64_selected_floating_control_form(
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+        );
+    }
+    // AArch64 frame and pointer addressing is a scaled unsigned immediate;
+    // negative (below-SP) displacements are not encodable and are rejected.
+    let displacement = u32::try_from(displacement)
+        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+    if matches!(
+        kind,
+        SelectedInstructionKind::LoadPacked { .. } | SelectedInstructionKind::StorePacked { .. }
+    ) {
+        return packed::encode(physical, kind, alternative, operands, displacement);
+    }
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store { .. } | SelectedInstructionKind::AddressOffset { .. }
+    ) {
+        return pointer::encode(physical, kind, alternative, operands, displacement);
+    }
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
+    ) {
+        return frame::encode(physical, kind, alternative, operands, displacement);
+    }
+    if kind == SelectedInstructionKind::Load8Indexed {
+        return indexed::encode(physical, alternative, operands, displacement);
+    }
+    let [base, destination] = request(physical, kind, alternative, operands, displacement)?;
+    let width = load_width(kind)?;
+    let opcode = match kind {
+        SelectedInstructionKind::Load8 { .. } => 0x3940_0000,
+        SelectedInstructionKind::Load16 { .. } => 0x7940_0000,
+        SelectedInstructionKind::Load32 { .. } => 0xb940_0000,
+        SelectedInstructionKind::Load64 { .. } => 0xf940_0000,
+        _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
+    };
+    let word =
+        opcode | ((displacement / width) << 10) | (u32::from(base) << 5) | u32::from(destination);
+    validate_aarch64_selected_memory_form(
+        physical,
+        kind,
+        alternative,
+        operands,
+        i64::from(displacement),
+        &word.to_le_bytes(),
+    )
+}
+
+pub fn validate_aarch64_selected_memory_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+    operands: &[RegisterViewId],
+    displacement: i64,
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::SaveFloatingControl { .. }
+            | SelectedInstructionKind::RestoreFloatingControl { .. }
+    ) {
+        return super::floating_control::validate_aarch64_selected_floating_control_form(
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+            bytes,
+        );
+    }
+    let displacement = u32::try_from(displacement)
+        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+    if matches!(
+        kind,
+        SelectedInstructionKind::LoadPacked { .. } | SelectedInstructionKind::StorePacked { .. }
+    ) {
+        return packed::validate(physical, kind, alternative, operands, displacement, bytes);
+    }
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store { .. } | SelectedInstructionKind::AddressOffset { .. }
+    ) {
+        return pointer::validate(physical, kind, alternative, operands, displacement, bytes);
+    }
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
+    ) {
+        return frame::validate(physical, kind, alternative, operands, displacement, bytes);
+    }
+    if kind == SelectedInstructionKind::Load8Indexed {
+        return indexed::validate(physical, alternative, operands, displacement, bytes);
+    }
+    let [base, destination] = request(physical, kind, alternative, operands, displacement)?;
+    let width = load_width(kind)?;
+    let word = bytes
+        .try_into()
+        .ok()
+        .map(u32::from_le_bytes)
+        .filter(|word| {
+            matches!(
+                (kind, word & 0xffc0_0000),
+                (SelectedInstructionKind::Load8 { .. }, 0x3940_0000)
+                    | (SelectedInstructionKind::Load16 { .. }, 0x7940_0000)
+                    | (SelectedInstructionKind::Load32 { .. }, 0xb940_0000)
+                    | (SelectedInstructionKind::Load64 { .. }, 0xf940_0000)
+            )
+        })
+        .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
+    if (word & 31) != u32::from(destination)
+        || ((word >> 5) & 31) != u32::from(base)
+        || ((word >> 10) & 4095) * width != displacement
+    {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(ValidatedAarch64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: Aarch64SelectedFormFootprint {
+            register_reads: vec![operands[0]],
+            register_writes: vec![operands[1]],
+            writes_nzcv: false,
+            encoded: MachineEncodedEffects {
+                external_operand_reads: vec![0],
+                external_operand_writes: vec![1],
+                implicit_unit_uses: Vec::new(),
+                implicit_unit_defs: Vec::new(),
+                implicit_unit_clobbers: Vec::new(),
+                memory: MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand: 0,
+                    byte_count: width as u16,
+                },
+                stack: MachineEncodedStackEffect::UnchangedV1,
+                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                control: MachineEncodedControlEffect::FallThroughV1,
+            },
+        },
+    })
+}
+
+fn request(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+    operands: &[RegisterViewId],
+    displacement: u32,
+) -> Result<[u8; 2], Aarch64SelectedFormEncodingError> {
+    let width = load_width(kind)?;
+    if physical.identity()
+        != crate::isa_aarch64::canonical_aarch64_physical_register_model_identity()
+        || !matches!(kind, SelectedInstructionKind::Load8 { byte_offset } | SelectedInstructionKind::Load16 { byte_offset } | SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Load64 { byte_offset } if byte_offset == displacement)
+        || alternative
+            != (MachineAlternativeKey {
+                family: match kind {
+                    SelectedInstructionKind::Load8 { .. } => MachineAlternativeFamily::Load8,
+                    SelectedInstructionKind::Load16 { .. } => MachineAlternativeFamily::Load16,
+                    SelectedInstructionKind::Load32 { .. } => MachineAlternativeFamily::Load32,
+                    SelectedInstructionKind::Load64 { .. } => MachineAlternativeFamily::Load64,
+                    _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
+                },
+                variant: 0,
+            })
+        || !displacement.is_multiple_of(width)
+        || displacement / width > 4095
+    {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    resolve_registers(physical, operands)?
+        .try_into()
+        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)
+}
+
+fn load_width(kind: SelectedInstructionKind) -> Result<u32, Aarch64SelectedFormEncodingError> {
+    match kind {
+        SelectedInstructionKind::Load8 { .. } => Ok(1),
+        SelectedInstructionKind::Load16 { .. } => Ok(2),
+        SelectedInstructionKind::Load32 { .. } => Ok(4),
+        SelectedInstructionKind::Load64 { .. } => Ok(8),
+        _ => Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
+    use crate::isa_aarch64::aarch64_physical_register_model;
+    use crate::selected_instructions::MachineAlternativeFamily;
+    use crate::selected_instructions::MachineAlternativeKey;
+    use crate::selected_instructions::SelectedInstructionKind;
+
+    #[test]
+    fn pointer_load_replays_opcode_registers_and_scaled_offset() {
+        let physical = crate::register_model::validate_physical_register_model(
+            aarch64_physical_register_model(),
+        )
+        .unwrap();
+        let operands = [
+            physical.model().view_named("x1").unwrap().id,
+            physical.model().view_named("x2").unwrap().id,
+        ];
+        let alternative = MachineAlternativeKey {
+            family: MachineAlternativeFamily::Load64,
+            variant: 0,
+        };
+        for byte_offset in [0, 8, 32760] {
+            let kind = SelectedInstructionKind::Load64 { byte_offset };
+            let displacement = i64::from(byte_offset);
+            let encoded = encode_aarch64_selected_memory_form(
+                &physical,
+                kind,
+                alternative,
+                &operands,
+                displacement,
+            )
+            .unwrap();
+            assert_eq!(encoded.bytes().len(), 4);
+            for byte in 0..4 {
+                let mut corrupt = encoded.bytes().to_vec();
+                corrupt[byte] ^= 1;
+                assert!(
+                    validate_aarch64_selected_memory_form(
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        displacement,
+                        &corrupt
+                    )
+                    .is_err()
+                );
+            }
+            assert!(
+                validate_aarch64_selected_memory_form(
+                    &physical,
+                    kind,
+                    alternative,
+                    &[operands[1], operands[0]],
+                    displacement,
+                    encoded.bytes()
+                )
+                .is_err()
+            );
+        }
+        for byte_offset in [1, 32768] {
+            assert!(
+                encode_aarch64_selected_memory_form(
+                    &physical,
+                    SelectedInstructionKind::Load64 { byte_offset },
+                    alternative,
+                    &operands,
+                    i64::from(byte_offset)
+                )
+                .is_err()
+            );
+        }
+    }
+}

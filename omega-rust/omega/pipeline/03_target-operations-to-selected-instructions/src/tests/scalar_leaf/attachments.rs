@@ -51,7 +51,7 @@ fn attached_scalar_graph_retains_nominal_identity_without_an_implicit_receiver()
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
-            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 previous.fuel_schedule,
             )
@@ -67,7 +67,7 @@ fn attached_scalar_graph_retains_nominal_identity_without_an_implicit_receiver()
             validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
 
             let environment =
-                register_environment::baseline_target_register_environment(native).unwrap();
+                crate::register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = selection_constraints(&legal, &environment);
             let selected = select_instructions(
                 &legal,
@@ -98,7 +98,7 @@ fn attached_scalar_graph_retains_nominal_identity_without_an_implicit_receiver()
                 let mut changed = unit.clone();
                 changed.functions[0].attachment = replacement;
                 changed.identity =
-                    optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+                    terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
                 assert!(legalize_target_operations(&target, &source, &changed).is_err());
                 let mut changed = legal.plan().clone();
                 changed.scalar_functions[0].attachment = replacement;

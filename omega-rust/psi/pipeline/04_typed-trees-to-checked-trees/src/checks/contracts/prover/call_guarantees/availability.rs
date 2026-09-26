@@ -6,18 +6,23 @@ use super::{
     Invocation, actual_projection, builtin_predicate, capture_preserved, captured_place,
     invocation, stable_arguments,
 };
+use crate::checked_trees::FlowStateFact;
+use crate::fact_plan::{
+    ContractFactKind, FactOrigin, FactPayload, FactPlan, PlaceRoot, ProgramPoint,
+};
 use crate::flow::CanonicalPlace;
 use crate::semantic::calls::CallSite;
-use checked_trees::FlowStateFact;
-use facts::{ContractFactKind, FactOrigin, FactPayload, FactPlan, PlaceRoot, ProgramPoint};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::state::State;
 
 pub(in crate::checks) struct AvailableGuarantee<'program> {
     pub(in crate::checks) expression: ExpressionHandle,
-    pub(in crate::checks) fact: arena::Handle<typed_trees::domain::ProofFact>,
+    pub(in crate::checks) fact:
+        arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
     pub(super) invocation: Invocation<'program>,
 }
 
@@ -53,8 +58,8 @@ impl AvailableGuarantee<'_> {
         &self,
         program: &TypedTrees,
         expression: ExpressionHandle,
-    ) -> Option<Vec<facts::PlaceSegment>> {
-        let result = validation::reserved_result_place(program, expression)?;
+    ) -> Option<Vec<crate::fact_plan::PlaceSegment>> {
+        let result = crate::validation::reserved_result_place(program, expression)?;
         (result.machine_symbol == self.invocation.callable.owner_symbol())
             .then_some(result.segments)
     }
@@ -67,7 +72,7 @@ impl AvailableGuarantee<'_> {
         &self,
         program: &TypedTrees,
         expression: ExpressionHandle,
-    ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
+    ) -> Option<(ExpressionHandle, Vec<crate::fact_plan::PlaceSegment>)> {
         if matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Integer(_)
@@ -88,13 +93,15 @@ impl AvailableGuarantee<'_> {
         &self,
         program: &TypedTrees,
         semantic: &FactPlan,
-        contexts: &[facts::FactContextHandle],
+        contexts: &[crate::fact_plan::FactContextHandle],
         state: &State,
     ) -> Option<(SymbolHandle, bool)> {
         if state.symbol != self.invocation.caller_state {
             return None;
         }
-        let typed_trees::statement::StatementNode::LocalData(local) = program
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            local,
+        ) = program
             .statement_table
             .statements(state.statement_nodes)
             .get(self.invocation.statement)?
@@ -123,11 +130,11 @@ impl AvailableGuarantee<'_> {
 
 pub(in crate::checks) fn available<'program>(
     program: &'program TypedTrees,
-    facts: &checked_trees::CheckFacts,
+    facts: &crate::checked_trees::CheckFacts,
     caller: &FlowStateFact,
     statement: usize,
-    contexts: &[facts::FactContextHandle],
-    frames: &validation::CallFrameResolver<'_>,
+    contexts: &[crate::fact_plan::FactContextHandle],
+    frames: &crate::validation::CallFrameResolver<'_>,
 ) -> Vec<AvailableGuarantee<'program>> {
     let Some(caller_machine) = crate::lookup::machine_by_symbol(program, caller.machine_symbol)
     else {
@@ -210,16 +217,16 @@ pub(in crate::checks) fn available<'program>(
 fn owns_guarantee(
     program: &TypedTrees,
     supplied: &Invocation<'_>,
-    source: arena::Handle<typed_trees::domain::ProofFact>,
+    source: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
     expression: ExpressionHandle,
 ) -> bool {
     source.is_valid()
-        && matches!(program.proof_facts.get(source), typed_trees::domain::ProofFact::Expression(actual) if *actual == expression)
+        && matches!(program.proof_facts.get(source), symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(actual) if *actual == expression)
         && supplied
             .callable
             .contracts(program)
             .filter(|contract| {
-                contract.kind == typed_trees::signature::SignatureContractKind::Ensures
+                contract.kind == symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures
             })
             .any(|contract| {
                 (0..contract.facts.count()).any(|offset| {

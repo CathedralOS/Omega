@@ -25,7 +25,7 @@ fn write_frame_stays_opaque_for_non_bijective_exclusive_cycle() {
         .machine_states(machine)
         .first()
         .expect("duplicate-cycle entry state");
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for query in 0..2 {
         assert!(
@@ -79,7 +79,7 @@ fn write_frame_composes_transparent_helpers_in_exclusive_cycles() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
     let frame = |name: &str| {
         let machine = typed
             .machines()
@@ -359,7 +359,7 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     let expected = [
         ("Main::local_alias_acyclic", "self.value"),
@@ -1207,7 +1207,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in [
         "Main::local_origin",

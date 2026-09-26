@@ -1,10 +1,10 @@
 use crate::StackSlotColoringError;
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     FunctionLogicalSpillOperations, LogicalSpillStorageClass, LogicalSpillStorageId,
 };
-use selected_instructions::SelectedBlockId;
+use target_operations_to_selected_instructions::SelectedBlockId;
 
-use selected_instructions::LiveRangePoint;
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::assignment::stack_slot_coloring) struct StackSlotInterval {

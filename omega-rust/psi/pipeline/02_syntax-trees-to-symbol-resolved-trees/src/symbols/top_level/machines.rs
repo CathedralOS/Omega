@@ -1,7 +1,7 @@
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use arena::Arena;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::expressions::assign_expression_table_symbols;
@@ -68,7 +68,7 @@ pub(super) fn assign_machine_symbols(
                     .map(|parameter| {
                         matches!(
                             parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+                            crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
                         )
                     })
                     .collect::<Vec<_>>(),
@@ -91,8 +91,8 @@ pub(super) fn assign_machine_symbols(
                     .map(|parameter| {
                         matches!(
                             parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Machine {
-                                contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+                            crate::symbol_resolved_trees::data::TypeParameterKind::Machine {
+                                contract: crate::symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
                             }
                         )
                     })
@@ -126,7 +126,7 @@ pub(super) fn assign_machine_symbols(
     let machine_states = &mut declarations.machine_states;
     let state_parameters = &mut declarations.state_parameters;
     let child_type_references = &mut declarations.child_type_references;
-    let symbol_resolved_trees::SymbolResolvedRoots {
+    let crate::symbol_resolved_trees::SymbolResolvedRoots {
         data_definitions,
         machines,
         ..
@@ -146,7 +146,7 @@ pub(super) fn assign_machine_symbols(
                 continue;
             }
             let kind = match type_parameter.kind {
-                symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                     SymbolKind::MachineParameter
                 }
                 _ => SymbolKind::TypeParameter,
@@ -185,14 +185,14 @@ pub(super) fn assign_machine_symbols(
                                     && parameter.kind == owner_parameter.kind
                             })
                             .unwrap_or(owner_parameter);
-                        symbol_resolved_trees::types::TypeReference::Named {
+                        crate::symbol_resolved_trees::types::TypeReference::Named {
                             symbol: parameter.symbol,
                             name: parameter.name.clone(),
                         }
                     });
-                symbol_resolved_trees::types::TypeReference::Generic(
-                    symbol_resolved_trees::types::GenericTypeReference {
-                        storage: symbol_resolved_trees::types::GenericTypeReferenceStorage {
+                crate::symbol_resolved_trees::types::TypeReference::Generic(
+                    crate::symbol_resolved_trees::types::GenericTypeReference {
+                        storage: crate::symbol_resolved_trees::types::GenericTypeReferenceStorage {
                             base_symbol: definition.symbol,
                             base_name: machine
                                 .attached_data
@@ -227,7 +227,7 @@ pub(super) fn assign_machine_symbols(
                 (parameter.symbol, parameter.kind.clone())
             };
             let resolved_kind = match kind {
-                symbol_resolved_trees::data::TypeParameterKind::Const {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Const {
                     mut type_reference,
                 } => {
                     assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
@@ -238,9 +238,9 @@ pub(super) fn assign_machine_symbols(
                         machine_symbol,
                         &mut type_reference,
                     );
-                    symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Value {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Value {
                     mut type_reference,
                 } => {
                     assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
@@ -251,9 +251,9 @@ pub(super) fn assign_machine_symbols(
                         machine_symbol,
                         &mut type_reference,
                     );
-                    symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
                     if let Some(signature) = contract.structural_mut() {
                         assign_machine_parameter_signature_symbols(
                             symbols,
@@ -267,7 +267,7 @@ pub(super) fn assign_machine_symbols(
                             machine_symbol,
                         );
                     }
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
                 }
                 other => other,
             };
@@ -523,7 +523,7 @@ pub(super) fn assign_machine_symbols(
                 .state_statements
                 .span_mut_or_empty(state.statements)
             {
-                if let symbol_resolved_trees::statement::Statement::LocalData(local_data) =
+                if let crate::symbol_resolved_trees::statement::Statement::LocalData(local_data) =
                     statement
                 {
                     local_data.symbol =
@@ -583,8 +583,10 @@ pub(super) fn assign_machine_symbols(
 }
 
 fn inherited_field_count<'data>(
-    data_definitions: impl IntoIterator<Item = &'data symbol_resolved_trees::data::DataDefinition>,
-    data_members: &Arena<symbol_resolved_trees::data::DataMember>,
+    data_definitions: impl IntoIterator<
+        Item = &'data crate::symbol_resolved_trees::data::DataDefinition,
+    >,
+    data_members: &Arena<crate::symbol_resolved_trees::data::DataMember>,
     attached_data_symbol: SymbolHandle,
 ) -> usize {
     if !attached_data_symbol.is_valid() {
@@ -599,7 +601,10 @@ fn inherited_field_count<'data>(
                 .span_or_empty(data_definition.members)
                 .iter()
                 .filter(|member| {
-                    matches!(member, symbol_resolved_trees::data::DataMember::Field(_))
+                    matches!(
+                        member,
+                        crate::symbol_resolved_trees::data::DataMember::Field(_)
+                    )
                 })
                 .count()
         })

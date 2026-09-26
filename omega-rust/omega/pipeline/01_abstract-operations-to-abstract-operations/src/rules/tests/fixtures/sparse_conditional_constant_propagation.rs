@@ -2,19 +2,19 @@
 
 use super::{id, with_synthetic_accepted_obligations};
 use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperation as O, AbstractOperationPlan, AbstractResult,
-};
-use optimization_unit::{
-    OptimizationFact, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
-    reconstruct_psi_optimization_unit_seed,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     ObligationId, OperationId, ScalarType, ValueId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperation as O, AbstractOperationPlan, AbstractResult,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    OptimizationFact, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_optimization_unit_seed,
+};
 mod binary;
 mod boolean;
 mod range;

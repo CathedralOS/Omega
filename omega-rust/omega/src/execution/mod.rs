@@ -4,8 +4,8 @@
 
 mod compilation;
 
+use crate::compiler::{CompileOptions, CompileReport, TrustAdmissionSettlement};
 use crate::temporary_directory::TemporaryDirectory;
-use compiler::{CompileOptions, CompileReport, TrustAdmissionSettlement};
 use diagnostics::Diagnostic;
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -182,7 +182,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
 
 fn compare_interpretation(
     native_exit: ProcessExitObservation,
-    interpretation: Option<Result<checked_interpreter::InterpretOutcome, Vec<Diagnostic>>>,
+    interpretation: Option<Result<crate::checked_interpreter::InterpretOutcome, Vec<Diagnostic>>>,
 ) -> InterpreterComparison {
     match interpretation {
         None => InterpreterComparison::NotRequested,

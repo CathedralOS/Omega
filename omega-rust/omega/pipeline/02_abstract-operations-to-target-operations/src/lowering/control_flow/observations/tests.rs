@@ -3,7 +3,7 @@ use super::{
     ScalarType, TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
     TargetUnitScalarHomeRequirement, ValueId, ValueShape, scalar_values,
 };
-use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+use crate::calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use semantic_vocabulary::{BlockId, IntegerSign, IntegerType, OperationId};
 use std::collections::BTreeSet;
 use target::NativeTarget;
@@ -24,7 +24,7 @@ fn graph_scalar_projection_retains_boolean_sources_beside_integer_homes() {
         scalar_type: ScalarType::Boolean,
         shape: ValueShape::integer(1, 1),
     };
-    let block_parameter = target_operations::TargetScalarBlockValue {
+    let block_parameter = crate::target_operations::TargetScalarBlockValue {
         block: BlockId::new(1).unwrap(),
         value: value(4),
         scalar_type: ScalarType::Boolean,

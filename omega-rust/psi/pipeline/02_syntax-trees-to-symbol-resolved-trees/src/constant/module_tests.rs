@@ -2,14 +2,14 @@
 
 use super::{Diagnostic, SyntaxTrees};
 use crate::constant::public_declaration_value_encoding;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::symbol_resolved_trees::statement::StatementNode;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
-use symbol_resolved_trees::statement::StatementNode;
 use symbols::SymbolKind;
-use syntax_trees::item::Item;
+use tokens_to_syntax_trees::syntax_trees::item::Item;
 
 fn resolve(sources: &[&str]) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let mut syntax = SyntaxTrees::default();
@@ -40,10 +40,9 @@ fn public_float_identity_rejects_payloadless_nan() {
         // Evaluator-produced NaN meaning carries no selected payload bits.
         syntax.expressions.replace_expression(
             definition.value,
-            syntax_trees::expression::ExpressionNode::Float(source::SourceText::new(
-                "NaN",
-                definition.name.source_span(),
-            )),
+            tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode::Float(
+                source::SourceText::new("NaN", definition.name.source_span()),
+            ),
         );
         let error = public_declaration_value_encoding(&syntax, &definition, None)
             .expect_err("payloadless NaN cannot acquire public representation identity");
@@ -374,17 +373,18 @@ fn module_constant_yields_to_parser_generated_inferred_local() {
         .items
         .state(syntax.items.state_handles(machine.states)[0]);
     let statement = syntax.items.statements(state.statements)[0];
-    let syntax_trees::statement::StatementNode::LocalData(mut local) =
+    let tokens_to_syntax_trees::syntax_trees::statement::StatementNode::LocalData(mut local) =
         syntax.statements.statement(statement).clone()
     else {
         panic!("first local");
     };
     // Parser-generated destructuring locals use this same absent-type
     // representation; no new inferred-let source syntax is introduced.
-    local.type_reference = syntax_trees::types::TypeReferenceHandle::invalid();
+    local.type_reference =
+        tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle::invalid();
     syntax.statements.replace_statement(
         statement,
-        syntax_trees::statement::StatementNode::LocalData(local),
+        tokens_to_syntax_trees::syntax_trees::statement::StatementNode::LocalData(local),
     );
     let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
         .expect("resolve inferred local shadow");

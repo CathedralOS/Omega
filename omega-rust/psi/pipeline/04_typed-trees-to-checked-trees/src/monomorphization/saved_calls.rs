@@ -1,9 +1,9 @@
 //! Reconcile complete saved calls with instances already selected in this compilation.
 
 use super::{CallSelection, CallSite, Candidate};
-use typed_trees::TypedTrees;
-use typed_trees::machine::Machine;
-use typed_trees::typed_trees::MachineSpecialization;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecialization;
 
 pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Machine) {
     let candidates = super::candidate::collect(source);

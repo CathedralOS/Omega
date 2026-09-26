@@ -104,7 +104,7 @@ fn authored_affine_provider_returns_into_partial_result_cleanup() {
 }
 
 fn execute_candidates(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     module: &terminal_psi::TerminalModule,
     proof: &terminal_verifier::ProofBundle,
 ) {
@@ -288,14 +288,17 @@ fn retained_affine_provider_rejoins_its_authored_return_source() {
         .find(|machine| machine.symbol == plan.machine)
         .unwrap();
     let state = &checked.machine_states(machine)[0];
-    let [checked_trees::statement::StatementNode::Expression(expression)] =
-        checked.statement_table.statements(state.statement_nodes)
+    let [
+        typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Expression(
+            expression,
+        ),
+    ] = checked.statement_table.statements(state.statement_nodes)
     else {
         panic!("identity body")
     };
     for replace_head in [false, true] {
         let mut changed = checked.clone();
-        let checked_trees::expression::ExpressionNode::Name(path) =
+        let typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Name(path) =
             changed.typed.expression_table.expression_mut(*expression)
         else {
             panic!("returned name")

@@ -61,8 +61,8 @@ enum ClosedDomainParameter {
 /// type binder used as its carrier. Fixed carriers retain every parameter.
 pub(in crate::preparation::generic_data) fn domain_index_parameters<'syntax>(
     syntax: &'syntax SyntaxTrees,
-    definition: &syntax_trees::item::DomainDefinition,
-) -> Option<&'syntax [syntax_trees::item::TypeParameter]> {
+    definition: &tokens_to_syntax_trees::syntax_trees::item::DomainDefinition,
+) -> Option<&'syntax [tokens_to_syntax_trees::syntax_trees::item::TypeParameter]> {
     // A non-Named target (for example a fixed-array carrier) can never name a
     // leading type parameter, so the whole telescope is index parameters.
     let target_name = match syntax
@@ -400,12 +400,14 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                         argument,
                         name.source_span(),
                         value.encoding.clone(),
-                        [syntax_trees::types::ConstArgumentOrigin {
-                            reference: name.source_span(),
-                            declaration: definition.name.source_span(),
-                            initializer,
-                            canonical_value_encoding: value.encoding,
-                        }],
+                        [
+                            tokens_to_syntax_trees::syntax_trees::types::ConstArgumentOrigin {
+                                reference: name.source_span(),
+                                declaration: definition.name.source_span(),
+                                initializer,
+                                canonical_value_encoding: value.encoding,
+                            },
+                        ],
                         [],
                     );
                     syntax.type_references.replace_type_reference(

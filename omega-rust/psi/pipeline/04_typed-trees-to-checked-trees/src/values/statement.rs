@@ -1,7 +1,9 @@
 use super::SymbolHandle;
+use crate::checked_trees::CheckedValueStatementRole;
 use crate::values::ValueFactBuilder;
-use checked_trees::CheckedValueStatementRole;
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionGuardNode,
+};
 
 impl ValueFactBuilder<'_, '_> {
     pub(super) fn collect_statement(
@@ -55,8 +57,8 @@ impl ValueFactBuilder<'_, '_> {
                     == Some(call.target_symbol)
                 {
                     [
-                        Some(typed_trees::types::PrimitiveType::U16),
-                        Some(typed_trees::types::PrimitiveType::U8),
+                        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16),
+                        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8),
                     ]
                 } else {
                     [None, None]
@@ -71,7 +73,7 @@ impl ValueFactBuilder<'_, '_> {
                 {
                     self.collect_expression_with_expected_primitive(
                         argument,
-                        checked_trees::CheckedValueOrigin::StateStatement {
+                        crate::checked_trees::CheckedValueOrigin::StateStatement {
                             machine_symbol,
                             state_symbol,
                             statement_index,

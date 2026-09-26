@@ -2,6 +2,13 @@
 //! records entry contexts, runs a transition's arms (`exits`) or its calls
 //! (`expression`), retires and activates borrow loans, drops facts over written
 //! places, adds operator `ensures`, and propagates the written value's facts.
+use crate::checked_trees::statement::StatementNode;
+use crate::checked_trees::{
+    BorrowFacts, DomainFacts, FlowBorrowActivationFact, FlowBorrowWeakeningReason, FlowCallFact,
+    FlowConstraintKind, FlowConstraintRef, FlowInvalidationSource, FlowSemanticContextRef,
+    FlowStatementFact, ProofFacts, StateBorrowFact,
+};
+use crate::fact_plan::{FactPlan, ProgramPoint};
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::append_flow_contexts_for_points;
@@ -15,24 +22,17 @@ use crate::flow::propagate_statement_transfers;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use arena::{Handle, HandleSpan};
-use checked_trees::statement::StatementNode;
-use checked_trees::{
-    BorrowFacts, DomainFacts, FlowBorrowActivationFact, FlowBorrowWeakeningReason, FlowCallFact,
-    FlowConstraintKind, FlowConstraintRef, FlowInvalidationSource, FlowSemanticContextRef,
-    FlowStatementFact, ProofFacts, StateBorrowFact,
-};
-use facts::{FactPlan, ProgramPoint};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_state_statement_flow_facts<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
     build: &mut FlowBuildContext<'plans>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     borrow_state: &StateBorrowFact,
@@ -297,7 +297,9 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // next statement with the context unchanged by the (untaken) branch.
         if matches!(
             statement,
-            typed_trees::statement::StatementNode::Transition(_)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(
+                _
+            )
         ) {
             *active_contexts = fallthrough_contexts;
             *active_constraints = fallthrough_constraints;

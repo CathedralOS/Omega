@@ -9,15 +9,15 @@ use source::SourceId;
 use source_files_to_tokens::Lexer;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::ExpressionHandle;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::DataMember;
-use syntax_trees::item::Item;
-use syntax_trees::types::TypeConstraintNode;
-use syntax_trees::types::TypeReferenceHandle;
-use syntax_trees::types::TypeReferenceNode;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
+use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
+use tokens_to_syntax_trees::syntax_trees::item::DataMember;
+use tokens_to_syntax_trees::syntax_trees::item::Item;
+use tokens_to_syntax_trees::syntax_trees::types::TypeConstraintNode;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
 
 fn parse_sources(root: &str, module: &str, module_first: bool) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::new(SourceId::default());
@@ -723,17 +723,17 @@ fn open_template_domain_index_substitutes_on_the_closed_instance() {
             .iter()
             .find(|definition| definition.name.as_str() == "Buffer<3>")
             .expect("resolved instance");
-        let [symbol_resolved_trees::data::DataMember::Field(field)] =
+        let [crate::symbol_resolved_trees::data::DataMember::Field(field)] =
             program.data_members(resolved_instance.members)
         else {
             panic!("one resolved field: prefix {prefix:?}");
         };
-        let symbol_resolved_trees::types::TypeReference::Constrained(field_type) =
+        let crate::symbol_resolved_trees::types::TypeReference::Constrained(field_type) =
             &field.type_reference
         else {
             panic!("resolved constrained field: prefix {prefix:?}");
         };
-        let [symbol_resolved_trees::types::TypeConstraint::Domain(domain)] = program
+        let [crate::symbol_resolved_trees::types::TypeConstraint::Domain(domain)] = program
             .tables
             .types
             .constraints
@@ -753,7 +753,7 @@ fn open_template_domain_index_substitutes_on_the_closed_instance() {
         assert!(
             matches!(
                 argument,
-                symbol_resolved_trees::types::TypeReference::Named { name, .. }
+                crate::symbol_resolved_trees::types::TypeReference::Named { name, .. }
                     if name.as_str() == "3"
             ),
             "the resolved instance carries the closed index: prefix {prefix:?}"
@@ -814,7 +814,7 @@ fn open_template_domain_expression_index_keeps_the_authored_operator_on_the_inst
     };
     assert_eq!(
         instance_binary.operator,
-        syntax_trees::expression::BinaryOperator::Add,
+        tokens_to_syntax_trees::syntax_trees::expression::BinaryOperator::Add,
         "the copied subtree preserves the authored operator"
     );
     assert!(

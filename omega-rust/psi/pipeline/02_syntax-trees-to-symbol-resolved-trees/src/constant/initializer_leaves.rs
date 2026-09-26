@@ -6,9 +6,11 @@ use crate::preparation::generic_data::constant_selection::{
     type_mentions_parameters,
 };
 use source::{SourceSpan, Span};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember};
-use syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::item::{ConstDefinition, DataDefinition, DataMember};
+use tokens_to_syntax_trees::syntax_trees::types::{
+    FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
+};
 
 /// One pending initializer leaf: the authored expression and the exact
 /// declared carrier it must produce. `structured` leaves are aggregate-producing
@@ -17,7 +19,7 @@ use syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNo
 /// checked interpreter rather than the scalar probe evaluator.
 #[derive(Clone, Copy)]
 pub struct PendingConstInitializerLeaf {
-    pub expression: syntax_trees::expression::ExpressionHandle,
+    pub expression: tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle,
     pub destination: TypeReferenceHandle,
     pub structured: bool,
 }
@@ -90,12 +92,12 @@ pub(crate) fn pending_const_initializer_leaves(
     definition: &ConstDefinition,
     selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
 ) -> Result<Vec<PendingConstInitializerLeaf>, String> {
-    use syntax_trees::expression::ExpressionNode;
+    use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
 
     fn collect(
         syntax: &SyntaxTrees,
         selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
-        expression: syntax_trees::expression::ExpressionHandle,
+        expression: tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle,
         type_reference: TypeReferenceHandle,
         substitution: &GenericApplicationSubstitution,
         leaves: &mut Vec<PendingConstInitializerLeaf>,
@@ -361,7 +363,7 @@ pub(crate) fn pending_const_initializer_leaves(
     fn collect_literal_fields(
         syntax: &SyntaxTrees,
         selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
-        literal: &syntax_trees::expression::TableStructLiteral,
+        literal: &tokens_to_syntax_trees::syntax_trees::expression::TableStructLiteral,
         declared: &DataDefinition,
         substitution: &GenericApplicationSubstitution,
         leaves: &mut Vec<PendingConstInitializerLeaf>,
@@ -464,8 +466,8 @@ pub(crate) fn pending_const_initializer_leaves(
 fn require_closed_data<'syntax>(
     selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
     syntax: &'syntax SyntaxTrees,
-    name: &syntax_trees::identifier::Identifier,
-) -> Result<&'syntax syntax_trees::item::DataDefinition, String> {
+    name: &tokens_to_syntax_trees::syntax_trees::identifier::Identifier,
+) -> Result<&'syntax tokens_to_syntax_trees::syntax_trees::item::DataDefinition, String> {
     let declared = selection.data(syntax, name)?;
     if !declared.type_parameters.is_empty() || !declared.lifetime_parameters.is_empty() {
         return Err("computed nominal constant requires a closed selected declaration".to_owned());
@@ -479,7 +481,7 @@ fn require_closed_data<'syntax>(
 fn name_selects_const(
     syntax: &SyntaxTrees,
     selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
-    path: arena::HandleSpan<syntax_trees::identifier::Identifier>,
+    path: arena::HandleSpan<tokens_to_syntax_trees::syntax_trees::identifier::Identifier>,
 ) -> bool {
     let members = syntax.expressions.identifier_path_members(path);
     let (Some(first), Some(last)) = (members.first(), members.last()) else {
@@ -494,7 +496,9 @@ fn name_selects_const(
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::");
-    selection.selects_const(&syntax_trees::identifier::Identifier::new(name, reference))
+    selection.selects_const(
+        &tokens_to_syntax_trees::syntax_trees::identifier::Identifier::new(name, reference),
+    )
 }
 
 /// Synthesize one closed zero literal standing in for a pending aggregate leaf
@@ -507,7 +511,7 @@ pub(crate) fn pending_aggregate_placeholder(
     selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
     type_reference: TypeReferenceHandle,
     reference: SourceSpan,
-) -> Result<syntax_trees::expression::ExpressionHandle, String> {
+) -> Result<tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle, String> {
     pending_aggregate_placeholder_at(
         syntax,
         selection,
@@ -523,8 +527,8 @@ fn pending_aggregate_placeholder_at(
     type_reference: TypeReferenceHandle,
     substitution: &GenericApplicationSubstitution,
     reference: SourceSpan,
-) -> Result<syntax_trees::expression::ExpressionHandle, String> {
-    use syntax_trees::expression::ExpressionNode;
+) -> Result<tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle, String> {
+    use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
 
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
@@ -705,8 +709,10 @@ fn nominal_placeholder_literal(
     constructor_span: SourceSpan,
     substitution: &GenericApplicationSubstitution,
     reference: SourceSpan,
-) -> Result<syntax_trees::expression::ExpressionNode, String> {
-    use syntax_trees::expression::{ExpressionNode, TableStructLiteral, TableStructLiteralField};
+) -> Result<tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode, String> {
+    use tokens_to_syntax_trees::syntax_trees::expression::{
+        ExpressionNode, TableStructLiteral, TableStructLiteralField,
+    };
     if members.len() != member_count {
         return Err("aggregate initializer placeholder has a stale data member span".to_owned());
     }
@@ -755,13 +761,18 @@ fn nominal_placeholder_literal(
             // selection token: distinct declared fields must not
             // alias one source span as copies of a single authored
             // field selection.
-            name: syntax_trees::identifier::Identifier::generated(field_name),
+            name: tokens_to_syntax_trees::syntax_trees::identifier::Identifier::generated(
+                field_name,
+            ),
             value,
         });
     }
     let fields = syntax.expressions.insert_struct_fields(literal_fields);
     Ok(ExpressionNode::StructLiteral(TableStructLiteral {
-        constructor_name: syntax_trees::identifier::Identifier::new(constructor, constructor_span),
+        constructor_name: tokens_to_syntax_trees::syntax_trees::identifier::Identifier::new(
+            constructor,
+            constructor_span,
+        ),
         fields,
     }))
 }

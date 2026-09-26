@@ -1,29 +1,34 @@
+use crate::checked_trees::expression::ExpressionHandle;
+use crate::checked_trees::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
+use crate::fact_plan::{Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint};
 use crate::flow::CanonicalPlace;
 use crate::flow::domain::invalidation::matching::domain_membership_matching_dependency;
-use checked_trees::expression::ExpressionHandle;
-use checked_trees::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
-use facts::{Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint};
 use symbols::SymbolHandle;
 
-fn integer_expression(program: &mut typed_trees::TypedTrees, value: i64) -> ExpressionHandle {
+fn integer_expression(
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    value: i64,
+) -> ExpressionHandle {
     program
         .expression_table
-        .insert(checked_trees::expression::ExpressionNode::Integer(
+        .insert(crate::checked_trees::expression::ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(value),
         ))
 }
 
-fn name_expression(program: &mut typed_trees::TypedTrees) -> ExpressionHandle {
+fn name_expression(
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> ExpressionHandle {
     program
         .expression_table
-        .insert(checked_trees::expression::ExpressionNode::Name(
-            checked_trees::expression::TableNamePath::default(),
+        .insert(crate::checked_trees::expression::ExpressionNode::Name(
+            crate::checked_trees::expression::TableNamePath::default(),
         ))
 }
 
 fn dependency_facts(
     domain_symbol: SymbolHandle,
-    dependency_segments: &[facts::PlaceSegment],
+    dependency_segments: &[crate::fact_plan::PlaceSegment],
 ) -> DomainFacts {
     let mut facts = DomainFacts::default();
     let mut segment_span = arena::HandleSpan::empty();
@@ -65,25 +70,25 @@ fn indexed_domain_dependency_ignores_disjoint_literal_index_mutations() {
     let entries_symbol = SymbolHandle::from_arena_index(101);
     let value_symbol = SymbolHandle::from_arena_index(102);
     let tag_symbol = SymbolHandle::from_arena_index(103);
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let zero = integer_expression(&mut program, 0);
     let one = integer_expression(&mut program, 1);
     let domains = dependency_facts(
         domain_symbol,
-        &[facts::PlaceSegment::Field {
+        &[crate::fact_plan::PlaceSegment::Field {
             symbol: value_symbol,
         }],
     );
     let fact = domain_membership_fact(domain_symbol);
     let fact_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
-        segments: vec![facts::PlaceSegment::Index { expression: zero }],
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![crate::fact_plan::PlaceSegment::Index { expression: zero }],
     };
     let mutated_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
         segments: vec![
-            facts::PlaceSegment::Index { expression: one },
-            facts::PlaceSegment::Field { symbol: tag_symbol },
+            crate::fact_plan::PlaceSegment::Index { expression: one },
+            crate::fact_plan::PlaceSegment::Field { symbol: tag_symbol },
         ],
     };
 
@@ -104,29 +109,29 @@ fn indexed_domain_dependency_invalidates_same_literal_index_dependency_mutations
     let domain_symbol = SymbolHandle::from_arena_index(110);
     let entries_symbol = SymbolHandle::from_arena_index(111);
     let value_symbol = SymbolHandle::from_arena_index(112);
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let zero_left = integer_expression(&mut program, 0);
     let zero_right = integer_expression(&mut program, 0);
     let domains = dependency_facts(
         domain_symbol,
-        &[facts::PlaceSegment::Field {
+        &[crate::fact_plan::PlaceSegment::Field {
             symbol: value_symbol,
         }],
     );
     let fact = domain_membership_fact(domain_symbol);
     let fact_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
-        segments: vec![facts::PlaceSegment::Index {
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![crate::fact_plan::PlaceSegment::Index {
             expression: zero_left,
         }],
     };
     let mutated_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
         segments: vec![
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::Index {
                 expression: zero_right,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: value_symbol,
             },
         ],
@@ -153,28 +158,28 @@ fn indexed_domain_dependency_preserves_shared_dynamic_index_disjoint_field() {
     let entries_symbol = SymbolHandle::from_arena_index(131);
     let value_symbol = SymbolHandle::from_arena_index(132);
     let tag_symbol = SymbolHandle::from_arena_index(133);
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let shared_index = name_expression(&mut program);
     let domains = dependency_facts(
         domain_symbol,
-        &[facts::PlaceSegment::Field {
+        &[crate::fact_plan::PlaceSegment::Field {
             symbol: value_symbol,
         }],
     );
     let fact = domain_membership_fact(domain_symbol);
     let fact_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
-        segments: vec![facts::PlaceSegment::Index {
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![crate::fact_plan::PlaceSegment::Index {
             expression: shared_index,
         }],
     };
     let mutated_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
         segments: vec![
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::Index {
                 expression: shared_index,
             },
-            facts::PlaceSegment::Field { symbol: tag_symbol },
+            crate::fact_plan::PlaceSegment::Field { symbol: tag_symbol },
         ],
     };
 
@@ -198,29 +203,29 @@ fn indexed_domain_dependency_invalidates_distinct_dynamic_index_same_field() {
     let domain_symbol = SymbolHandle::from_arena_index(140);
     let entries_symbol = SymbolHandle::from_arena_index(141);
     let value_symbol = SymbolHandle::from_arena_index(142);
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let fact_index = name_expression(&mut program);
     let mutated_index = name_expression(&mut program);
     let domains = dependency_facts(
         domain_symbol,
-        &[facts::PlaceSegment::Field {
+        &[crate::fact_plan::PlaceSegment::Field {
             symbol: value_symbol,
         }],
     );
     let fact = domain_membership_fact(domain_symbol);
     let fact_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
-        segments: vec![facts::PlaceSegment::Index {
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![crate::fact_plan::PlaceSegment::Index {
             expression: fact_index,
         }],
     };
     let mutated_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
         segments: vec![
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::Index {
                 expression: mutated_index,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: value_symbol,
             },
         ],
@@ -243,29 +248,29 @@ fn indexed_domain_dependency_is_conservative_for_unknown_indices() {
     let domain_symbol = SymbolHandle::from_arena_index(120);
     let entries_symbol = SymbolHandle::from_arena_index(121);
     let value_symbol = SymbolHandle::from_arena_index(122);
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let literal_zero = integer_expression(&mut program, 0);
     let unknown_index = name_expression(&mut program);
     let domains = dependency_facts(
         domain_symbol,
-        &[facts::PlaceSegment::Field {
+        &[crate::fact_plan::PlaceSegment::Field {
             symbol: value_symbol,
         }],
     );
     let fact = domain_membership_fact(domain_symbol);
     let fact_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
-        segments: vec![facts::PlaceSegment::Index {
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![crate::fact_plan::PlaceSegment::Index {
             expression: literal_zero,
         }],
     };
     let mutated_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
         segments: vec![
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::Index {
                 expression: unknown_index,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: value_symbol,
             },
         ],
@@ -295,37 +300,37 @@ fn indexed_domain_dependency_preserves_disjoint_nested_field_under_same_index() 
     let inner_symbol = SymbolHandle::from_arena_index(132);
     let value_symbol = SymbolHandle::from_arena_index(133);
     let tag_symbol = SymbolHandle::from_arena_index(134);
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let zero_left = integer_expression(&mut program, 0);
     let zero_right = integer_expression(&mut program, 0);
     let domains = dependency_facts(
         domain_symbol,
         &[
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: inner_symbol,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: value_symbol,
             },
         ],
     );
     let fact = domain_membership_fact(domain_symbol);
     let fact_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
-        segments: vec![facts::PlaceSegment::Index {
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![crate::fact_plan::PlaceSegment::Index {
             expression: zero_left,
         }],
     };
     let mutated_place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(entries_symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(entries_symbol),
         segments: vec![
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::Index {
                 expression: zero_right,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: inner_symbol,
             },
-            facts::PlaceSegment::Field { symbol: tag_symbol },
+            crate::fact_plan::PlaceSegment::Field { symbol: tag_symbol },
         ],
     };
 

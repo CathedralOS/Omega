@@ -1,4 +1,4 @@
-use checked_trees::{CheckFacts, CheckedOperatorResolutionIssue};
+use crate::checked_trees::{CheckFacts, CheckedOperatorResolutionIssue};
 use diagnostics::Diagnostic;
 
 use crate::labels::symbol_name;
@@ -9,7 +9,7 @@ mod requires;
 pub(crate) use requires::{named_operator_route_is_false, operator_route_is_false};
 
 pub(crate) fn check_operator_resolution(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = facts
@@ -31,7 +31,7 @@ pub(crate) fn check_operator_resolution(
     diagnostics.extend(destinations::check(program, facts));
     for (_, operator_use) in facts.operators.uses.iter() {
         let selected = facts.operators.selected_candidate(operator_use);
-        if operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression {
+        if operator_use.occurrence == crate::checked_trees::CheckedOperatorOccurrence::Expression {
             continue;
         }
         let Some(selected) = selected else {
@@ -40,11 +40,13 @@ pub(crate) fn check_operator_resolution(
             ));
             continue;
         };
-        if operator_use.status != checked_trees::CheckedOperatorResolutionStatus::Resolved
+        if operator_use.status != crate::checked_trees::CheckedOperatorResolutionStatus::Resolved
             || operator_use.operands(program).is_none()
             || selected.parameter_count != 2
             || program.primitive_type_reference(selected.return_type)
-                != Some(typed_trees::types::PrimitiveType::Bool)
+                != Some(
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool,
+                )
         {
             diagnostics.push(Diagnostic::error(
                 "selected Match equality must have exact operands and return Bool",
@@ -64,7 +66,7 @@ pub(crate) fn check_operator_resolution(
 /// semantic role. This use has domain candidates, none selected, and no
 /// builtin/root fallback.
 fn inadmissible_operator_diagnostic(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     issue: CheckedOperatorResolutionIssue<'_>,
 ) -> Diagnostic {
     let operand = program
@@ -91,7 +93,7 @@ fn inadmissible_operator_diagnostic(
 }
 
 fn ambiguous_operator_diagnostic(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     issue: CheckedOperatorResolutionIssue<'_>,
 ) -> Diagnostic {
     let candidates = issue
@@ -127,15 +129,15 @@ fn ambiguous_operator_diagnostic(
 #[cfg(test)]
 mod tests {
     use super::CheckFacts;
-    use crate::checks::operators::check_operator_resolution;
-    use arena::{Arena, HandleSpan};
-    use checked_trees::{
+    use crate::checked_trees::{
         CheckedOperatorCandidateFact, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
         CheckedValueOrigin,
     };
+    use crate::checks::operators::check_operator_resolution;
+    use arena::{Arena, HandleSpan};
     use language_core::operator_spelling::OperatorSpelling;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
     use symbols::SymbolHandle;
-    use typed_trees::expression::ExpressionHandle;
 
     #[test]
     fn rejects_ambiguous_operator_resolution_with_candidate_details() {
@@ -175,7 +177,7 @@ mod tests {
             status: CheckedOperatorResolutionStatus::Ambiguous,
         });
         let facts = CheckFacts {
-            operators: checked_trees::CheckedOperatorFacts::with_roots(
+            operators: crate::checked_trees::CheckedOperatorFacts::with_roots(
                 uses,
                 Default::default(),
                 candidates,
@@ -183,7 +185,7 @@ mod tests {
             ..Default::default()
         };
 
-        let program = typed_trees::TypedTrees::default();
+        let program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
         let diagnostics = check_operator_resolution(&program, &facts)
             .expect_err("ambiguous operator should be rejected");
         let message = &diagnostics[0].message;
@@ -214,7 +216,7 @@ mod tests {
             status: CheckedOperatorResolutionStatus::Missing,
         });
         let facts = CheckFacts {
-            operators: checked_trees::CheckedOperatorFacts::with_roots(
+            operators: crate::checked_trees::CheckedOperatorFacts::with_roots(
                 uses,
                 Default::default(),
                 Arena::default(),
@@ -222,7 +224,7 @@ mod tests {
             ..Default::default()
         };
 
-        let program = typed_trees::TypedTrees::default();
+        let program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
         check_operator_resolution(&program, &facts)
             .expect("missing operators stay reportable until core contracts are wired");
     }

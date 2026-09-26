@@ -9,12 +9,14 @@ name = "tokens_to_syntax_trees"
 path = "src/lib.rs"
 
 [dependencies]
+source-files-to-tokens = { path = "../00_source-files-to-tokens" }
 arena = { path = "../../foundation/arena" }
 language-core = { path = "../../foundation/language-core" }
 numerics = { path = "../../foundation/numerics" }
 source = { path = "../../foundation/source" }
-syntax-trees = { path = "../../representations/syntax-trees" }
-tokens = { path = "../../representations/tokens" }
+diagnostics = { path = "../../foundation/diagnostics" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 source-files-to-tokens = { path = "../00_source-files-to-tokens" }

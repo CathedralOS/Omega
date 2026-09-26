@@ -85,16 +85,18 @@
 //! for transports that could redefine the carried registers or write the
 //! forwarded place.
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
+use semantic_vocabulary::PlaceId;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess,
+};
+use target_operations_to_selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedCasePayloadTransport, SelectedFunction,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedMemoryAccess, SelectedMemoryAccessRole,
     SelectedStructuralTransport, SelectedSuccessor, SelectedValueTransport, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
-use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoredLoadForwardingError;
@@ -187,7 +189,7 @@ fn bare_function() -> SelectedFunction {
         normalized_foreign_calls: Vec::new(),
         memory_accesses: Vec::new(),
         boundary_settlements: Vec::new(),
-        entry_block: selected_instructions::SelectedBlockId(0),
+        entry_block: target_operations_to_selected_instructions::SelectedBlockId(0),
         virtual_registers: Vec::new(),
         blocks: Vec::new(),
     }
@@ -208,7 +210,7 @@ fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
     let accepted_fact = optimization_core::AcceptedObligationFactIdentity::from_bytes([5; 32]);
     let mut access = SelectedMemoryAccess {
         instruction: SelectedInstructionId(1),
-        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+        origin: target_operations_to_selected_instructions::SelectedMemoryAccessOrigin::Operation(
             semantic_vocabulary::OperationId::new(1).unwrap(),
         ),
         place,
@@ -284,7 +286,7 @@ fn dynamic_read_extent_reverses_the_interference_directions() {
     let accepted_fact = optimization_core::AcceptedObligationFactIdentity::from_bytes([5; 32]);
     let mut access = SelectedMemoryAccess {
         instruction: SelectedInstructionId(1),
-        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+        origin: target_operations_to_selected_instructions::SelectedMemoryAccessOrigin::Operation(
             semantic_vocabulary::OperationId::new(1).unwrap(),
         ),
         place,
@@ -1444,8 +1446,8 @@ pub(super) fn forwarded(admitted: &Admission<'_>) -> SelectedInstruction {
             .operands
             .iter()
             .zip([admitted.value, admitted.output])
-            .map(
-                |(operand, register)| selected_instructions::SelectedOperand {
+            .map(|(operand, register)| {
+                target_operations_to_selected_instructions::SelectedOperand {
                     operand: operand.operand,
                     virtual_register: register,
                     access: operand.access,
@@ -1453,8 +1455,8 @@ pub(super) fn forwarded(admitted: &Admission<'_>) -> SelectedInstruction {
                     fixed_view: operand.fixed_view,
                     tied_to: operand.tied_to,
                     early_clobber: operand.early_clobber,
-                },
-            )
+                }
+            })
             .collect(),
         implicit_uses: admitted.copy.implicit_uses.clone(),
         implicit_defs: admitted.copy.implicit_defs.clone(),

@@ -1,3 +1,5 @@
+use crate::checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
+use crate::fact_plan::{FactPlan, ProgramPoint};
 use crate::flow::append_constraint_ref;
 use crate::flow::append_flow_contexts;
 use crate::flow::append_flow_contexts_for_points;
@@ -8,8 +10,6 @@ use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use crate::tests::front_end::checked_program;
 use arena::{Handle, HandleSpan};
-use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
-use facts::{FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 
 #[test]
@@ -257,7 +257,7 @@ fn projection_retains_borrow_kinds_order_duplicates_and_exact_context_generation
 fn prepared_flow_lists_match_independent_scans_with_late_state_contexts() {
     for machine_count in [8, 32, 128] {
         let mut semantic = FactPlan::default();
-        semantic.append_fact_context(facts::Fact::default());
+        semantic.append_fact_context(crate::fact_plan::Fact::default());
         for index in 1..=machine_count {
             let machine_symbol = SymbolHandle::from_arena_index(index);
             semantic.append_context(
@@ -302,7 +302,7 @@ fn prepared_flow_lists_match_independent_scans_with_late_state_contexts() {
                     state_symbol,
                 };
                 // State-input inference appends facts after initial preparation.
-                semantic.append_fact_context(facts::Fact {
+                semantic.append_fact_context(crate::fact_plan::Fact {
                     point: state_point,
                     ..Default::default()
                 });

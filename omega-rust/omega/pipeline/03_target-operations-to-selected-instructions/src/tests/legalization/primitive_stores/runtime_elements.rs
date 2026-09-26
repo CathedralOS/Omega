@@ -8,13 +8,15 @@ use super::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeId, StructuralTypeShape, TargetUnitOperation, ValueId,
 };
+use crate::selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
 use crate::tests::legalization::primitive_stores::integer;
 use crate::tests::legalization::{accept_referenced_obligations, runtime_operand};
 use crate::{legalize_target_operations, validate_legalized_operations};
-use abstract_operations::{AbstractFunctionResult, AbstractParameter};
-use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
 use semantic_vocabulary::{EdgeId, ObligationId};
 use terminal_psi::StructuralPathSegment as Segment;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunctionResult, AbstractParameter,
+};
 
 const STORE: u64 = 2;
 const FIELD_STORE: u64 = 3;
@@ -44,7 +46,7 @@ fn runtime(index: u64, bound: u64) -> Segment {
 /// behind a 4-byte `padding`, `ents` is `[Entity; 2]` of `{tag: u8, hp: i32}`
 /// records. `i` (value 10) is a `u64` selector and `j` (value 11) a `u32`
 /// one, so the address model widens the second.
-fn source() -> abstract_operations::AbstractOperationPlan {
+fn source() -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let i32_type = integer(IntegerSign::Signed, 32);
     let root = StructuralTypeId::new(1).unwrap();
@@ -197,7 +199,9 @@ fn source() -> abstract_operations::AbstractOperationPlan {
     source
 }
 
-fn store_indices(target: &target_operations::TargetOperationPlan) -> Vec<(ValueId, u32)> {
+fn store_indices(
+    target: &abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+) -> Vec<(ValueId, u32)> {
     target.functions[0]
         .graph
         .blocks
@@ -259,12 +263,12 @@ fn runtime_elements_scale_reads_stores_and_field_stores_through_every_replay() {
             [(value(10), 8)]
         );
 
-        let seed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let seed = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
-        optimization_unit_semantics::validate_psi_optimization_unit(&seed)
+        terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&seed)
             .expect("runtime-element graph keeps canonical custody");
         // A bound reaches legalization only as the verifier's accepted
         // certificate; without one the element has no evidence.
@@ -368,7 +372,7 @@ fn runtime_elements_scale_reads_stores_and_field_stores_through_every_replay() {
         assert!(legalize_target_operations(&changed, &source, &unit).is_err());
 
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legalized, &environment);
         let selected = crate::select_instructions(
             &legalized,
@@ -411,9 +415,9 @@ fn runtime_elements_scale_reads_stores_and_field_stores_through_every_replay() {
                 .iter()
                 .filter(|access| {
                     access.origin
-                        == selected_instructions::SelectedMemoryAccessOrigin::Operation(operation(
-                            psi,
-                        ))
+                        == crate::selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                            operation(psi),
+                        )
                 })
                 .map(|access| (access.byte_offset, access.byte_count, access.role))
                 .collect::<Vec<_>>()

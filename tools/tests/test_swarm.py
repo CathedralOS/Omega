@@ -605,18 +605,18 @@ class SwarmTests(unittest.TestCase):
     def test_partition_hints_flag_uncovered_mentions_and_scale(self):
         self.write_board(
             "- **ITEM-ONE.** Wire `other-crate/src/foo.rs` through "
-            "`omega-rust/omega/build/build-output` and `third-crate` while "
+            "`omega-rust/omega/src/build-output` and `third-crate` while "
             "`fourth-crate` and `fifth-crate` keep their evidence.\n")
         crates = {"x/other-crate": {"name": "other-crate", "on_route": True},
                   "x/third-crate": {"name": "third-crate", "on_route": True},
                   "x/fourth-crate": {"name": "fourth-crate", "on_route": True},
                   "x/fifth-crate": {"name": "fifth-crate", "on_route": True}}
         session = {"name": "a", "board": "TASKS.md", "item": "ITEM-ONE",
-                   "owning_paths": ["omega-rust/omega/build/build-output"]}
+                   "owning_paths": ["omega-rust/omega/src/build-output"]}
         hints = self.module.partition_hints(self.repository, session,
                                             [session], crates)
         self.assertIn("other-crate/src/foo.rs", hints["uncovered_mentions"])
-        self.assertNotIn("omega-rust/omega/build/build-output",
+        self.assertNotIn("omega-rust/omega/src/build-output",
                          hints["uncovered_mentions"])
         self.assertIn("scale_hint", hints)
 

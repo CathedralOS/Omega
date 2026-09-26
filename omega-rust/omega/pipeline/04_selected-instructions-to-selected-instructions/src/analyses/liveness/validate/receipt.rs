@@ -1,7 +1,7 @@
 //! Projects report-only counts and admits the exact validated liveness plan.
 
 use crate::analyses::liveness::{LivenessValidationReceipt, ValidatedLiveness};
-use selected_instructions::{LivenessPlan, liveness_identity};
+use target_operations_to_selected_instructions::{LivenessPlan, liveness_identity};
 
 pub(super) fn admit_validated_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,

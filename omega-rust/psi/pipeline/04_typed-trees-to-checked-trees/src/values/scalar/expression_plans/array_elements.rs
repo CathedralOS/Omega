@@ -33,16 +33,19 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode)
             state.return_type,
             symbols::SymbolHandle::invalid(),
         )),
-        StatementNode::Assignment(assignment) => {
-            validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
-                .and_then(|declared| validation::closed_array_store_type(program, declared))
-                .map(|expected| (assignment.value, expected, symbols::SymbolHandle::invalid()))
-        }
+        StatementNode::Assignment(assignment) => crate::validation::declared_place_type_raw(
+            program,
+            machine,
+            Some(state),
+            assignment.target,
+        )
+        .and_then(|declared| crate::validation::closed_array_store_type(program, declared))
+        .map(|expected| (assignment.value, expected, symbols::SymbolHandle::invalid())),
         _ => None,
     };
     if let Some((expression, expected, destination)) = array_destination
         && let Some(elements) =
-            validation::scalar_array_elements(program, machine.symbol, expression, expected)
+            crate::validation::scalar_array_elements(program, machine.symbol, expression, expected)
     {
         for (element_index, (element, primitive_type)) in elements.elements.into_iter().enumerate()
         {
@@ -63,7 +66,7 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode)
                 continue;
             };
             let role = CheckedScalarExpressionRole::ArrayElement {
-                source: checked_trees::CheckedArrayConstructionSource::Statement,
+                source: crate::checked_trees::CheckedArrayConstructionSource::Statement,
                 element_ordinal,
             };
             source_bindings.append(CheckedScalarExpressionBindings {

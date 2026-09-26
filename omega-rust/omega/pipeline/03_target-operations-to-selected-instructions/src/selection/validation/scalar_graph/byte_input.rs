@@ -3,12 +3,12 @@ use super::{
     LegalizedScalarInstructionKind, SelectedInstructionKind, SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
-use crate::selection::validation::scalar_graph::Replay;
-use legalized_operations::LegalizedScalarInstruction;
-use selected_instructions::{
+use crate::legalized_operations::LegalizedScalarInstruction;
+use crate::selected_instructions::{
     LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
     SelectedLocalStorageSlot,
 };
+use crate::selection::validation::scalar_graph::Replay;
 
 pub(super) fn validate(
     row: &LegalizedScalarInstruction,
@@ -24,7 +24,7 @@ pub(super) fn validate(
     };
     if !row.has_valid_hosted_read_byte_shape()
         || row.result.is_some()
-        || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+        || !matches!(row.ownership.as_slice(), [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
     {
         return Err(SelectedInstructionError::custody());
     }

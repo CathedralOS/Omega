@@ -1,17 +1,17 @@
 //! Scalar contract entry tests.
 
+use crate::checked_trees::CheckedBooleanExpression;
+use crate::checked_trees::CheckedOperatorFacts;
+use crate::checked_trees::CheckedScalarExpression;
 use crate::tests::front_end::typed_program;
 use crate::values::lower_scalar_contract_predicate;
 use crate::values::scalar::contract_entry::EntryOperands;
 use crate::values::scalar::contract_entry::entry_parameters;
-use checked_trees::CheckedBooleanExpression;
-use checked_trees::CheckedOperatorFacts;
-use checked_trees::CheckedScalarExpression;
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 fn requirement(program: &TypedTrees) -> ExpressionHandle {
     program
@@ -19,7 +19,7 @@ fn requirement(program: &TypedTrees) -> ExpressionHandle {
         .iter()
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .find_map(|fact| {
-            if let typed_trees::domain::ProofFact::Expression(expression) = fact {
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) = fact {
                 Some(*expression)
             } else {
                 None
@@ -111,8 +111,11 @@ fn scalar_contracts_keep_concrete_predicates_on_generic_declarations() {
     let machine = &program.machines()[0];
     assert!(!program.machine_type_parameters(machine).is_empty());
     for clause in program.machine_contracts(machine) {
-        let [typed_trees::domain::ProofFact::Expression(expression)] =
-            program.proof_facts.span_or_empty(clause.facts)
+        let [
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                expression,
+            ),
+        ] = program.proof_facts.span_or_empty(clause.facts)
         else {
             panic!("predicate")
         };
@@ -122,7 +125,7 @@ fn scalar_contracts_keep_concrete_predicates_on_generic_declarations() {
                 &CheckedOperatorFacts::default(),
                 machine,
                 *expression,
-                clause.kind == typed_trees::signature::SignatureContractKind::Ensures,
+                clause.kind == symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures,
                 &mut 4096,
             )
             .is_some()

@@ -27,13 +27,15 @@
 //! declared parameter bound to its actual argument's normalized bound;
 //! primitive and witness propositions carry no formula and supply nothing.
 
-use checked_trees::{
+use crate::checked_trees::{
     BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation,
     BorrowCompatibilityPremiseSource, ContractProofFactKind,
 };
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 
 use super::indexes::{NormalizedBound, normalized_bound, selector_value};
 use crate::checks::contracts::prover::call_guarantees::{self, AvailableGuarantee};
@@ -50,7 +52,7 @@ enum PremiseScope<'program> {
         state: &'program State,
     },
     Domain {
-        definition: &'program typed_trees::domain::DomainDefinition,
+        definition: &'program symbol_resolved_trees_to_typed_trees::typed_trees::domain::DomainDefinition,
         subject: NormalizedBound,
     },
     Call {
@@ -67,7 +69,7 @@ enum PremiseScope<'program> {
     Proposition {
         machine: &'program Machine,
         state: &'program State,
-        parameters: &'program [typed_trees::signature::StateParameter],
+        parameters: &'program [symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
         arguments: &'program [ExpressionHandle],
     },
 }
@@ -75,24 +77,26 @@ enum PremiseScope<'program> {
 impl PremiseScope<'_> {
     fn has_builtin_meaning(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         expression: ExpressionHandle,
     ) -> bool {
         match self {
             Self::Call { guarantee, .. } => guarantee.has_builtin_meaning(program, expression),
-            Self::State { machine, state } => validation::has_builtin_decomposed_guard_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            ),
+            Self::State { machine, state } => {
+                crate::validation::has_builtin_decomposed_guard_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+            }
             Self::Domain { definition, .. } => {
-                validation::has_builtin_domain_decomposed_guard_meaning(
+                crate::validation::has_builtin_domain_decomposed_guard_meaning(
                     program, definition, expression,
                 )
             }
             Self::Proposition { machine, state, .. } => {
-                validation::has_builtin_decomposed_guard_meaning(
+                crate::validation::has_builtin_decomposed_guard_meaning(
                     program,
                     machine,
                     Some(state),
@@ -104,8 +108,8 @@ impl PremiseScope<'_> {
 
     fn bound(
         &self,
-        program: &typed_trees::TypedTrees,
-        lookup: &validation::ImmutableBoundLookup<'_>,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        lookup: &crate::validation::ImmutableBoundLookup<'_>,
         expression: ExpressionHandle,
     ) -> Option<NormalizedBound> {
         match self {
@@ -147,8 +151,8 @@ impl PremiseScope<'_> {
                             if segments.iter().all(|segment| {
                                 matches!(
                                     segment,
-                                    facts::PlaceSegment::Field { .. }
-                                        | facts::PlaceSegment::FixedIndex { .. }
+                                    crate::fact_plan::PlaceSegment::Field { .. }
+                                        | crate::fact_plan::PlaceSegment::FixedIndex { .. }
                                 )
                             }) =>
                         {
@@ -198,7 +202,7 @@ impl PremiseScope<'_> {
                             let place =
                                 crate::flow::canonical_place_from_expression(program, actual)?;
                             match (place.root, place.segments.as_slice()) {
-                                (facts::PlaceRoot::Symbol(symbol), []) => {
+                                (crate::fact_plan::PlaceRoot::Symbol(symbol), []) => {
                                     Some(NormalizedBound::Storage { symbol })
                                 }
                                 // A projected actual (`&mut self.cut`,
@@ -208,14 +212,16 @@ impl PremiseScope<'_> {
                                 // runtime `Index` expression or unresolved
                                 // segment is handle identity and stays
                                 // unbound.
-                                (facts::PlaceRoot::Symbol(symbol), segments @ [_, ..])
-                                    if segments.iter().all(|segment| {
-                                        matches!(
-                                            segment,
-                                            facts::PlaceSegment::Field { .. }
-                                                | facts::PlaceSegment::FixedIndex { .. }
-                                        )
-                                    }) =>
+                                (
+                                    crate::fact_plan::PlaceRoot::Symbol(symbol),
+                                    segments @ [_, ..],
+                                ) if segments.iter().all(|segment| {
+                                    matches!(
+                                        segment,
+                                        crate::fact_plan::PlaceSegment::Field { .. }
+                                            | crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                                    )
+                                }) =>
                                 {
                                     Some(NormalizedBound::StorageProjected {
                                         symbol,
@@ -229,8 +235,8 @@ impl PremiseScope<'_> {
                             if remaining.iter().all(|segment| {
                                 matches!(
                                     segment,
-                                    facts::PlaceSegment::Field { .. }
-                                        | facts::PlaceSegment::FixedIndex { .. }
+                                    crate::fact_plan::PlaceSegment::Field { .. }
+                                        | crate::fact_plan::PlaceSegment::FixedIndex { .. }
                                 )
                             }) =>
                         {
@@ -257,7 +263,9 @@ impl PremiseScope<'_> {
                 definition,
                 subject,
             } => {
-                if validation::exact_domain_self_type(program, definition, expression).is_some() {
+                if crate::validation::exact_domain_self_type(program, definition, expression)
+                    .is_some()
+                {
                     Some(subject.clone())
                 } else if let ExpressionNode::Integer(literal) =
                     program.expression_table.expression(expression)
@@ -305,8 +313,8 @@ impl PremiseScope<'_> {
 /// no version pin for — the same contract `normalized_bound` already
 /// applies to whole mutable names.
 fn projected_immutable_bound(
-    program: &typed_trees::TypedTrees,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    lookup: &crate::validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
     match super::indexes::projected_bound(program, lookup, expression)? {
@@ -346,12 +354,12 @@ impl StatedOrderingPremise {
 /// Facts that do not decompose into builtin integer comparisons over immutable
 /// bounds contribute no premise; mutable storage needs version evidence first.
 pub fn stated_ordering_premises<'p>(
-    program: &'p typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    facts: &crate::checked_trees::CheckFacts,
     machine: &Machine,
     state: &State,
     incoming_guards: &IncomingGuardIndex,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) -> Vec<StatedOrderingPremise> {
     // The bound index scans the whole program once; the caller shares one
     // cell across every formation scope this pass visits.
@@ -363,10 +371,12 @@ pub fn stated_ordering_premises<'p>(
         if !state_requires_facts(program, machine, state).any(|candidate| candidate == row.fact) {
             continue;
         }
-        let bound_lookup =
-            bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program));
+        let bound_lookup = bound_lookup
+            .get_or_insert_with(|| crate::validation::ImmutableBoundLookup::new(program));
         match program.proof_facts.get(row.fact) {
-            typed_trees::domain::ProofFact::Expression(expression) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                expression,
+            ) => {
                 decompose_premise_expression(
                     program,
                     bound_lookup,
@@ -378,7 +388,9 @@ pub fn stated_ordering_premises<'p>(
                     &mut premises,
                 );
             }
-            typed_trees::domain::ProofFact::Membership(membership) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+                membership,
+            ) => {
                 domains::append_membership_premises(
                     program,
                     bound_lookup,
@@ -389,7 +401,9 @@ pub fn stated_ordering_premises<'p>(
                     &mut premises,
                 );
             }
-            typed_trees::domain::ProofFact::Proposition(application) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+                application,
+            ) => {
                 propositions::append_proposition_premises(
                     program,
                     bound_lookup,
@@ -427,7 +441,8 @@ pub fn stated_ordering_premises<'p>(
         );
         decompose_premise_expression(
             program,
-            bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program)),
+            bound_lookup
+                .get_or_insert_with(|| crate::validation::ImmutableBoundLookup::new(program)),
             PremiseScope::State {
                 machine,
                 state: evaluation_state,
@@ -448,13 +463,13 @@ pub fn stated_ordering_premises<'p>(
 /// Extend entry premises at the exact statement entry. Later calls and
 /// invalidated captures cannot license earlier loan formation or mutation.
 pub(in crate::checks::borrows) fn append_call_premises<'p>(
-    program: &'p typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
-    state_flow: &checked_trees::FlowStateFact,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    facts: &crate::checked_trees::CheckFacts,
+    state_flow: &crate::checked_trees::FlowStateFact,
     statement: usize,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     premises: &mut Vec<StatedOrderingPremise>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) {
     let Some(frames) = call_frames else {
         return;
@@ -491,7 +506,8 @@ pub(in crate::checks::borrows) fn append_call_premises<'p>(
         let (statement_index, call_ordinal) = guarantee.coordinates();
         decompose_premise_expression(
             program,
-            bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program)),
+            bound_lookup
+                .get_or_insert_with(|| crate::validation::ImmutableBoundLookup::new(program)),
             PremiseScope::Call {
                 guarantee: &guarantee,
                 result,
@@ -518,8 +534,8 @@ pub(in crate::checks::borrows) fn append_call_premises<'p>(
 /// node is gated by its scope's builtin-meaning reader, so an overloaded
 /// comparison cannot masquerade as integer ordering.
 fn decompose_premise_expression(
-    program: &typed_trees::TypedTrees,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    lookup: &crate::validation::ImmutableBoundLookup<'_>,
     scope: PremiseScope<'_>,
     expression: ExpressionHandle,
     negated: bool,
@@ -1047,7 +1063,7 @@ mod tests {
         right: NormalizedBound,
     ) -> StatedOrderingPremise {
         StatedOrderingPremise {
-            source: checked_trees::BorrowCompatibilityPremiseSource::Requires(
+            source: crate::checked_trees::BorrowCompatibilityPremiseSource::Requires(
                 arena::Handle::invalid(),
             ),
             relation,

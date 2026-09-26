@@ -2,19 +2,21 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::{
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::{
     RegisterClassId, RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
 };
-use selected_instructions::VirtualRegisterId;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingHome, GeneralizedReloadCoexistingValue,
     GeneralizedReloadValueHomeError, GeneralizedSpillActionId,
 };
-use selected_instructions::{LiveRangePoint, VirtualInterference};
+use target_operations_to_selected_instructions::{LiveRangePoint, VirtualInterference};
 
 use super::{ActiveHome, ReloadSpec};
-use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
+};
 
 pub(super) fn evict(
     function: usize,
@@ -127,7 +129,7 @@ pub(super) fn original_candidates(
 pub(super) fn reload_candidates(
     function: usize,
     row: &VirtualRegisterAllocationLegality,
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     start: LiveRangePoint,
     exclusive_end: LiveRangePoint,
 ) -> Result<Vec<RegisterViewId>, GeneralizedReloadValueHomeError> {

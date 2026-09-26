@@ -5,18 +5,18 @@ use super::{
     staged_remainder_zero_dividend_inputs, validate,
 };
 use crate::analyses::validated_machine_effect_catalog;
+use crate::register_homes::RecoveryClassification;
 use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
 use crate::{LiteralFoldError, LiteralFoldPolicy};
-use register_environment::baseline_target_register_environment;
-use register_homes::RecoveryClassification;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    MachineEffectCatalogIdentity, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlanIdentity, SelectedTerminator, VirtualRegisterId,
-};
 use semantic_vocabulary::{IntegerValue, ObligationId};
 use std::sync::Arc;
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
+    MachineEffectCatalogIdentity, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionPlanIdentity, SelectedTerminator, VirtualRegisterId,
+};
 
 #[test]
 fn divide_fold_rejects_consumer_operands_carrying_forbidden_bindings() {

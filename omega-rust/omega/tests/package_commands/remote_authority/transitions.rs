@@ -2,10 +2,10 @@ use super::{
     HOST, PROCESS, TARGET, assert_locked_authority, assert_no_proposal, assert_recorded_pin,
     assert_status, check_import, install_authority, package_section, review,
 };
-use package_manager::lock::HistoricalPackagePolicyDecisionSubject;
-use package_manager::resolution::graph::CanonicalDependencySourceRequest;
-use package_manager::review::ReviewOnlyRootPolicyDisposition;
-use package_source::ImmutableSourceResolution;
+use omega::package_manager::lock::HistoricalPackagePolicyDecisionSubject;
+use omega::package_manager::resolution::graph::CanonicalDependencySourceRequest;
+use omega::package_manager::review::ReviewOnlyRootPolicyDisposition;
+use omega::package_source::ImmutableSourceResolution;
 use std::fs;
 
 const REMOVED: &str = "13e4afd9c907503cb674d4450fdd3b1a19033d5d";

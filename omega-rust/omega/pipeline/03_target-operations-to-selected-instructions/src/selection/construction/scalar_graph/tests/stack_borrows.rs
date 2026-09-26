@@ -6,10 +6,10 @@ use super::{
     SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueDefinitionSite,
     ValueId, ValueLocation, ValueShape, build, evaluate_call_plan,
 };
+use crate::selected_instructions::FrameStorageSlotId;
 use crate::selection::construction::scalar_graph::tests::projected_borrows;
-use calling_conventions::IndirectPointerLocation;
-use calling_conventions::ValuePlacement;
-use selected_instructions::FrameStorageSlotId;
+use abstract_operations_to_target_operations::calling_conventions::IndirectPointerLocation;
+use abstract_operations_to_target_operations::calling_conventions::ValuePlacement;
 
 mod narrow_unsigned;
 
@@ -26,7 +26,7 @@ fn ieee_stack_fragments_replay_exact_width_source_and_outgoing_slot() {
             semantic_vocabulary::IeeeFloatFormat::Binary64,
         ] {
             let environment =
-                register_environment::baseline_target_register_environment(target).unwrap();
+                crate::register_environment::baseline_target_register_environment(target).unwrap();
             let scalar_type = ScalarType::IeeeFloat(format);
             let shape = crate::selection::scalar_call_abi::scalar_shape(scalar_type).unwrap();
             let mut source = projected_borrows::projected_call(target);
@@ -263,7 +263,7 @@ fn incoming_stack_borrow_replay_retains_native_ordinal_pointer_load_and_fuel() {
         (target::NativeTarget::macos_arm64(), 8),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -402,18 +402,17 @@ fn incoming_stack_borrow_replay_retains_native_ordinal_pointer_load_and_fuel() {
                             byte_offset: 8,
                         }
                     }
-                    3 => {
-                        rows[incoming].kind = SelectedInstructionKind::FrameAddress {
-                            slot: FrameStorageSlotId::Outgoing(
-                                selected_instructions::OutgoingArgumentSlotId {
-                                    role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-                                    operation: source.blocks[0].instructions[0].operation,
-                                    argument_index: 0,
-                                },
-                            ),
-                            byte_offset: 0,
-                        }
-                    }
+                    3 => rows[incoming].kind = SelectedInstructionKind::FrameAddress {
+                        slot: FrameStorageSlotId::Outgoing(
+                            crate::selected_instructions::OutgoingArgumentSlotId {
+                                role:
+                                    crate::selected_instructions::OutgoingArgumentSlotRole::Argument,
+                                operation: source.blocks[0].instructions[0].operation,
+                                argument_index: 0,
+                            },
+                        ),
+                        byte_offset: 0,
+                    },
                     4 => {
                         rows[incoming + 1].kind = SelectedInstructionKind::Load64 { byte_offset: 8 }
                     }

@@ -2,12 +2,12 @@
 //! Type/domain names retain declaration lookup; index expressions must resolve
 //! lexical subjects before a later phase can establish that their value is static.
 
-use arena::{Arena, Handle};
-use symbol_resolved_trees::{
+use crate::symbol_resolved_trees::{
     expression::ExpressionTable,
     signature::StateParameter,
     types::{TypeConstraint, TypeReference},
 };
+use arena::{Arena, Handle};
 use symbols::{SymbolHandle, SymbolTable};
 
 use crate::symbols::{expressions::assign_statement_expression_symbols, scope::MachineScope};
@@ -18,7 +18,7 @@ use crate::symbols::{expressions::assign_statement_expression_symbols, scope::Ma
 /// field names but has no machine activation: no state parameters or locals are
 /// in scope. Field references remain symbolic, not same-spelled global constants.
 pub(in crate::symbols) fn assign_data_type_value_expression_symbols(
-    program: &mut symbol_resolved_trees::SymbolResolvedTrees,
+    program: &mut crate::symbol_resolved_trees::SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
     let attached_machines = crate::symbols::scope::attached_machines(program);
@@ -43,11 +43,11 @@ pub(in crate::symbols) fn assign_data_type_value_expression_symbols(
         };
         for member in members {
             let fields = match member {
-                symbol_resolved_trees::data::DataMember::Field(field) => {
+                crate::symbol_resolved_trees::data::DataMember::Field(field) => {
                     scope.symbol = definition.symbol;
                     std::slice::from_ref(field)
                 }
-                symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                crate::symbol_resolved_trees::data::DataMember::Variant(variant) => {
                     // Payload subjects shadow common fields and global names.
                     // The symbol hierarchy retains the enclosing data owner.
                     scope.symbol = variant.symbol;

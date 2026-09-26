@@ -14,7 +14,10 @@ fn rejects(source: &str, expected: &str) {
     );
 }
 
-fn machine_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::SymbolHandle {
+fn machine_symbol(
+    checked: &crate::checked_trees::CheckedTrees,
+    name: &str,
+) -> symbols::SymbolHandle {
     checked
         .machines()
         .iter()
@@ -187,7 +190,7 @@ fn erased_nominal_cleanup_member_leaves_the_owner_trivially_affine() {
         .terminal_unit_effects
         .for_machine(enter)
         .expect("an erased member never produces runtime cleanup, so `enter` admits");
-    let Some(checked_trees::CheckedUnitEffectOperationPlan::Complete {
+    let Some(crate::checked_trees::CheckedUnitEffectOperationPlan::Complete {
         trivial_affine_discards,
         ..
     }) = plan.operations.last()

@@ -33,30 +33,34 @@ fn straight_line_arrivals_follow_edges_independently_of_block_storage_order() {
         let jump = AbstractOperation::Jump {
             psi_edge: jump_edge,
             target: destination,
-            bindings: vec![abstract_operations::ValueBinding {
-                parameter: arrival,
-                argument: incoming,
-                scalar_type,
-            }],
+            bindings: vec![
+                terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+                    parameter: arrival,
+                    argument: incoming,
+                    scalar_type,
+                },
+            ],
             structural_bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
         };
-        let mut entry = abstract_operations::AbstractBlockEntry {
-            block: function.entry,
-            parameters: Vec::new(),
-            structural_parameters: Vec::new(),
-            operation_offset: 0,
-        };
-        let mut exit = abstract_operations::AbstractBlockEntry {
-            block: destination,
-            parameters: vec![AbstractParameter {
-                value: arrival,
-                scalar_type,
-            }],
-            structural_parameters: Vec::new(),
-            operation_offset: 2,
-        };
+        let mut entry =
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBlockEntry {
+                block: function.entry,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                operation_offset: 0,
+            };
+        let mut exit =
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBlockEntry {
+                block: destination,
+                parameters: vec![AbstractParameter {
+                    value: arrival,
+                    scalar_type,
+                }],
+                structural_parameters: Vec::new(),
+                operation_offset: 2,
+            };
         if return_first {
             entry.operation_offset = 2;
             exit.operation_offset = 0;
@@ -78,9 +82,9 @@ fn straight_line_arrivals_follow_edges_independently_of_block_storage_order() {
             .find(|block| block.block == destination)
             .unwrap();
         assert!(matches!(&returned.terminator,
-            target_operations::TargetControlTerminator::ReturnScalar {
+            crate::target_operations::TargetControlTerminator::ReturnScalar {
                 source_value,
-                expression: target_operations::TargetScalarExpression::Integer {
+                expression: crate::target_operations::TargetScalarExpression::Integer {
                     expression: TargetIntegerExpression::BlockParameter(parameter), ..
                 }, ..
             } if *source_value == arrival && parameter.value == arrival && parameter.block == destination));

@@ -10,11 +10,13 @@ use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target::Expression;
 use crate::legalization::scalar_graph_input::u32_type;
 use crate::legalization::scalar_graph_input::u64_type;
-use abstract_operations::{AbstractBlockEntry, AbstractParameter, AbstractResult, ValueBinding};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId, OperationId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractParameter, AbstractResult, ValueBinding,
+};
 
 fn value(ordinal: u64) -> ValueId {
     ValueId::new(ordinal).unwrap()
@@ -34,8 +36,11 @@ fn parameter(ordinal: u64) -> AbstractParameter {
         scalar_type: ScalarType::Integer(u64_type()),
     }
 }
-fn successor(ordinal: u64, destination: u64) -> abstract_operations::AbstractSuccessor {
-    abstract_operations::AbstractSuccessor {
+fn successor(
+    ordinal: u64,
+    destination: u64,
+) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractSuccessor {
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractSuccessor {
         psi_edge: edge(ordinal),
         target: block(destination),
         bindings: Vec::new(),
@@ -192,7 +197,7 @@ fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -233,7 +238,7 @@ fn scalar_cycle_returns_replay_arithmetic_calls_and_result_abi() {
             [
                 TargetUnitOperation::ScalarDefinition { .. },
                 TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Scalar(_),
+                    result: abstract_operations_to_target_operations::target_operations::TargetCallResult::Scalar(_),
                     ..
                 },
                 TargetUnitOperation::ScalarDefinition { .. }
@@ -484,7 +489,7 @@ fn scalar_cycle_rejects_changed_arithmetic_and_call_rows() {
         } else {
             let TargetUnitOperation::Call {
                 scalar_arguments: arguments,
-                result: target_operations::TargetCallResult::Scalar(result_home),
+                result: abstract_operations_to_target_operations::target_operations::TargetCallResult::Scalar(result_home),
                 call_plan,
                 ..
             } = &mut graph.blocks[2].operations[1]
@@ -494,7 +499,7 @@ fn scalar_cycle_rejects_changed_arithmetic_and_call_rows() {
             match mutation {
                 "call argument" => {
                     arguments[0].source =
-                        target_operations::TargetUnitScalarArgumentSource::Parameter {
+                        abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::Parameter {
                             parameter_index: 0,
                             source_value: value(1),
                             scalar_type: ScalarType::Integer(u64_type()),

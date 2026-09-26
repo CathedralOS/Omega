@@ -19,15 +19,17 @@
 //! open shape records an unresolved occurrence instead; neither flow bounds
 //! nor type display strings establish a static endpoint.
 
-use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
-use validation::{
+use crate::validation::{
     closed_integer_range_bound, closed_integer_range_maximum,
     declared_integer_range as declared_range,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeConstraintNode, TypeReferenceHandle,
+};
+use symbols::SymbolHandle;
 
 pub(super) fn collect_literals(program: &TypedTrees, literals: &mut Vec<String>) {
     for (_, constraints) in program.type_reference_table.constrained_type_references() {
@@ -140,7 +142,7 @@ pub(super) fn infer(
 /// `collect_binders` so this lookup stays a pure read.
 fn open_endpoint_binder(
     program: &TypedTrees,
-    actual_endpoint: typed_trees::expression::ExpressionHandle,
+    actual_endpoint: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     same_inclusion_position: bool,
 ) -> Option<TypeReferenceHandle> {
     if !same_inclusion_position {
@@ -176,7 +178,10 @@ fn is_const_parameter_symbol(program: &TypedTrees, symbol: SymbolHandle) -> bool
 /// an anonymous value leaf.
 pub(super) fn collect_binders(
     program: &TypedTrees,
-    types: &mut Vec<(SymbolHandle, typed_trees::name::Identifier)>,
+    types: &mut Vec<(
+        SymbolHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+    )>,
 ) {
     for (_, constraints) in program.type_reference_table.constrained_type_references() {
         for constraint in program.type_reference_table.constraints(constraints) {
@@ -215,7 +220,7 @@ mod tests {
     use crate::monomorphization::range_arguments::infer;
     use crate::tests::front_end::typed_program;
     use numerics::arithmetic::ArithmeticDomain;
-    use typed_trees::types::TypeReferenceNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 
     #[test]
     fn open_symbolic_endpoint_binds_the_caller_binder_until_it_specializes() {

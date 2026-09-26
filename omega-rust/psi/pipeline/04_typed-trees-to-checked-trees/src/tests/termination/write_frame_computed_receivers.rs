@@ -20,12 +20,13 @@ fn computed_receiver_cannot_select_a_numeric_builtin_by_spelling() {
             .find(|machine| machine.name.as_str() == "Main::run")
             .expect("caller");
         let state = &typed.machine_states(machine)[0];
-        let typed_trees::statement::StatementNode::LocalData(result) =
-            &typed.statement_table.statements(state.statement_nodes)[0]
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            result,
+        ) = &typed.statement_table.statements(state.statement_nodes)[0]
         else {
             panic!("result");
         };
-        let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
         assert!(
             resolver
                 .expression_write_frame(machine, result.initial_value)
@@ -158,7 +159,7 @@ fn computed_method_receivers_transport_proven_origins_and_all_operand_writes() {
         source.push_str(&format!("machine Main::case_{name}(&mut self) {{ {prefix} let result: u64 = {receiver}.write_value(&mut self.audit); }}"));
     }
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, _, expected) in cases {
         let qualified = format!("Main::case_{name}");
@@ -168,7 +169,9 @@ fn computed_method_receivers_transport_proven_origins_and_all_operand_writes() {
             .find(|machine| machine.name.as_str() == qualified)
             .expect("caller");
         let state = &typed.machine_states(machine)[0];
-        let typed_trees::statement::StatementNode::LocalData(result) = typed
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            result,
+        ) = typed
             .statement_table
             .statements(state.statement_nodes)
             .last()
@@ -176,8 +179,9 @@ fn computed_method_receivers_transport_proven_origins_and_all_operand_writes() {
         else {
             panic!("result");
         };
-        let typed_trees::expression::ExpressionNode::Call(call) =
-            typed.expression_table.expression(result.initial_value)
+        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+            call,
+        ) = typed.expression_table.expression(result.initial_value)
         else {
             panic!("method call");
         };

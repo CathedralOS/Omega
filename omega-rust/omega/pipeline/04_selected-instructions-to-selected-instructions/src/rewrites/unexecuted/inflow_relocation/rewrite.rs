@@ -1,6 +1,6 @@
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::SelectedInstructionId;
+use target_operations_to_selected_instructions::SelectedInstructionId;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::{InflowRelocationError, ValidatedInflowRelocation, admission};
 use crate::ValidatedSelectedAnalysis;

@@ -35,9 +35,9 @@ pub(crate) struct EmittedBoundaryScalarReturn {
     pub(crate) machine: TerminalMachine,
     pub(crate) source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
     pub(crate) selected_ieee_float_comparison_occurrences:
-        Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
+        Vec<crate::lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(crate) selected_integer_comparison_occurrences:
-        Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+        Vec<crate::lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
 }
 
 pub(crate) fn emit_boundary_scalar_return(

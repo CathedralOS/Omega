@@ -7,9 +7,9 @@
 //! every member site. Every other boundary is its own emission and copies
 //! at its fixed-use site.
 
-use selected_instructions::LiveRangeEdgeConnector;
+use target_operations_to_selected_instructions::LiveRangeEdgeConnector;
 
-use selected_instructions::VirtualFixedConstraintSite;
+use target_operations_to_selected_instructions::VirtualFixedConstraintSite;
 
 use super::evidence::AuthenticatedFixedViewBoundary;
 

@@ -203,7 +203,7 @@ fn computed_indexes_preserve_origins_and_all_eager_writes() {
     // Includes malformed index roots to pin the conservative pre-validation
     // frame result. Numeric eligibility and bounds belong to separate checks.
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
     for (name, complete, writes_value, writes_backup) in cases
         .into_iter()
         .map(|(name, _, _, complete, writes_value, writes_backup)| {

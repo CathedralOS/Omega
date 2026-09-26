@@ -6,9 +6,11 @@ use super::{
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralPathSegment, LoweringError,
     Multiplicity, unsupported,
 };
-use checked_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use language_semantics::{
     PermissionAccess, PermissionEventKind, PermissionEventSource, PermissionProvenance,
+};
+use typed_trees_to_checked_trees::checked_trees::types::{
+    FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
 };
 
 pub(super) fn validate(
@@ -54,8 +56,9 @@ pub(crate) fn validate_permissions(
         plan.state,
         *coordinate,
     )?;
-    let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
-        authored_producer.source_site
+    let Some(typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
+        expression,
+    )) = authored_producer.source_site
     else {
         return unsupported("anonymous partial permissions have no expression root");
     };
@@ -121,25 +124,26 @@ pub(crate) fn validate_permissions(
     {
         return unsupported("anonymous partial permissions lost their captured calls");
     }
-    let call_source = |coordinate: checked_trees::CheckedUnitCallCoordinate,
-                       target: symbols::SymbolHandle|
-     -> Result<PermissionEventSource, LoweringError> {
-        let mut matches = calls.iter().filter(|call| {
-            call.statement_index == coordinate.statement_index as usize
-                && call.call_ordinal == coordinate.call_ordinal as usize
-        });
-        let call = matches.next().ok_or(LoweringError::Unsupported(
-            "anonymous partial permissions have no captured call",
-        ))?;
-        if matches.next().is_some() || call.target_symbol != target {
-            return unsupported("anonymous partial permission call identity drifted");
-        }
-        Ok(PermissionEventSource::Call {
-            statement_index: call.statement_index,
-            call_ordinal: call.call_ordinal,
-            target_symbol: call.target_symbol,
-        })
-    };
+    let call_source =
+        |coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
+         target: symbols::SymbolHandle|
+         -> Result<PermissionEventSource, LoweringError> {
+            let mut matches = calls.iter().filter(|call| {
+                call.statement_index == coordinate.statement_index as usize
+                    && call.call_ordinal == coordinate.call_ordinal as usize
+            });
+            let call = matches.next().ok_or(LoweringError::Unsupported(
+                "anonymous partial permissions have no captured call",
+            ))?;
+            if matches.next().is_some() || call.target_symbol != target {
+                return unsupported("anonymous partial permission call identity drifted");
+            }
+            Ok(PermissionEventSource::Call {
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                target_symbol: call.target_symbol,
+            })
+        };
     let producer_source = call_source(*coordinate, authored_producer.source_target)?;
     let consumer_source = call_source(*consumer_coordinate, authored_consumer.source_target)?;
     let provenance = PermissionProvenance::Established {
@@ -156,7 +160,8 @@ pub(crate) fn validate_permissions(
         .filter(|(_, event)| {
             event.machine_symbol == plan.machine
                 && event.state_symbol == plan.state
-                && event.root == facts::PlaceRoot::Expression(expression)
+                && event.root
+                    == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Expression(expression)
         });
     for index in 0..residuals.len() + 2 {
         let (kind, source, path) = match index {
@@ -207,7 +212,7 @@ pub(crate) fn validate_permissions(
 fn validate_path(
     checked: &CheckedTrees,
     mut reference: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[typed_trees_to_checked_trees::fact_plan::PlaceSegment],
     path: &[CheckedUnitStructuralPathSegment],
 ) -> Result<(), LoweringError> {
     if segments.len() != path.len() {
@@ -223,7 +228,7 @@ fn validate_path(
             checked.type_reference_table.type_reference(reference),
         ) {
             (
-                facts::PlaceSegment::Field { symbol },
+                typed_trees_to_checked_trees::fact_plan::PlaceSegment::Field { symbol },
                 CheckedUnitStructuralPathSegment::Field(identity),
                 TypeReferenceNode::Named { symbol: owner, .. }
                 | TypeReferenceNode::Generic {
@@ -244,13 +249,13 @@ fn validate_path(
                     checked
                         .data_members(data)
                         .iter()
-                        .filter_map(|member| match member {
-                            checked_trees::data::DataMember::Field(field)
-                                if field.symbol == *symbol =>
-                            {
-                                Some(field)
-                            }
-                            _ => None,
+                        .filter_map(|member| {
+                            match member {
+                        typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(
+                            field,
+                        ) if field.symbol == *symbol => Some(field),
+                        _ => None,
+                    }
                         });
                 let field = fields.next().ok_or(LoweringError::Unsupported(
                     "anonymous partial permission field substituted its owner",
@@ -262,7 +267,7 @@ fn validate_path(
                 reference = field.type_reference;
             }
             (
-                facts::PlaceSegment::FixedIndex { index },
+                typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index },
                 CheckedUnitStructuralPathSegment::FixedIndex(expected),
                 TypeReferenceNode::FixedArray {
                     element_type,

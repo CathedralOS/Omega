@@ -1,26 +1,26 @@
 //! Pre-worklist reference: every retry rebuilds every state from baseline facts.
 //! Kept test-only so scheduling changes can compare complete published evidence.
+use crate::checked_trees::{BorrowFacts, DomainFacts, FlowFacts, ProofFacts};
+use crate::fact_plan::{FactPlan, ProgramPoint};
 use crate::flow::FlowBuildContext;
 use crate::flow::StateMutationSummaryCache;
 use crate::flow::attach_reach_summaries;
 use crate::flow::build_state_flow_fact;
 use crate::flow::builder::tests;
 use crate::flow::state_values;
-use checked_trees::{BorrowFacts, DomainFacts, FlowFacts, ProofFacts};
-use facts::{FactPlan, ProgramPoint};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_whole_pass_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    operational: &flow_effects::OperationalPlan,
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
-    scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
-    operators: &checked_trees::CheckedOperatorFacts,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    operational: &crate::flow_effects::OperationalPlan,
+    service_reaches: &crate::flow_effects::ServiceReachInferencePlan,
+    scalar_expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) -> FlowFacts {
     // Reuse the ordinary effect/statement transfer once per input revision.
     // Each pass starts from declaration/proof facts, never a prior pass's
@@ -41,7 +41,7 @@ pub(super) fn build_whole_pass_reference(
         .collect();
     // Symbol preparation depends on the immutable program, not the changing
     // incoming value facts. Prefix origins still resolve at each exact site.
-    let call_frames = validation::CallFrameResolver::new(program);
+    let call_frames = crate::validation::CallFrameResolver::new(program);
     // These summaries use only program and borrow facts, neither of which
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy, and never carry this table into another flow-build invocation.

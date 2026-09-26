@@ -13,17 +13,17 @@ use crate::{PsiOptimizationRule, RuleAnalysisView};
 use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use semantic_vocabulary::MachineId;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_adjacent_block_merge_candidate,
     validate_constant_conditional_candidate, validate_linear_empty_block_candidate,
     validate_non_adjacent_block_merge_candidate, validate_path_qualified_empty_block_candidate,
     validate_shared_jump_fusion_candidate, validate_unreachable_private_machines_candidate,
 };
-use semantic_vocabulary::MachineId;
 
 #[derive(Clone, Copy)]
 enum Validator {

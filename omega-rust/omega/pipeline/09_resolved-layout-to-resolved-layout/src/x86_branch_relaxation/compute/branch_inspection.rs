@@ -1,15 +1,15 @@
 //! Separate production and replay inspection of one conditional branch form.
 
-use isa_x86_64::{
+use target_operations_to_selected_instructions::SelectedBlockId;
+use target_operations_to_selected_instructions::isa_x86_64::{
     validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
-use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::SelectedBlockId;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
-use machine_code::{
+use post_allocation_machine_to_selected_form_encoding::machine_code::{
     ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
 };
 
@@ -26,7 +26,7 @@ pub(super) fn inspect_production_branch(
     let branch = row
         .branch
         .as_deref()
-        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+        .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
         .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
             row.instruction,
         ))?;
@@ -108,7 +108,7 @@ pub(super) fn replay_inspect_branch(
     let branch = row
         .branch
         .as_deref()
-        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+        .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
         .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
             row.instruction,
         ))?;

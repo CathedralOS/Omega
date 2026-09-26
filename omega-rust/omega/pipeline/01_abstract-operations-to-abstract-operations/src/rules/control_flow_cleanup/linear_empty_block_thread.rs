@@ -3,16 +3,16 @@
 
 use std::collections::BTreeSet;
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use semantic_vocabulary::BlockId;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     LinearEmptyBlockRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
-use semantic_vocabulary::BlockId;
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{

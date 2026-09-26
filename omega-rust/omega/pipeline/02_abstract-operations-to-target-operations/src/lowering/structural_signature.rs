@@ -2,7 +2,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use crate::calling_conventions::{
+    CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
+};
 use semantic_vocabulary::StructuralTypeId;
 use target::NativeTarget;
 use terminal_psi::{StructuralParameterDeclaration, StructuralTypeDeclaration};

@@ -1,7 +1,7 @@
 use super::{CheckedScalarComputationKind, CheckedScalarExpressionRole, PrimitiveType};
+use crate::checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 use crate::values::scalar::computations::normal_return;
 use crate::values::scalar::computations::tests::checked_source;
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 #[test]
 fn local_record_reads_retain_boolean_and_fixed_integer_carriers() {
@@ -50,7 +50,7 @@ fn local_record_reads_retain_boolean_and_fixed_integer_carriers() {
         else {
             panic!("{name} field is an authored read, not a synthetic scalar parameter");
         };
-        let source = validation::local_scalar_record_field(
+        let source = crate::validation::local_scalar_record_field(
             &checked.typed,
             machine.symbol,
             state.symbol,
@@ -116,7 +116,7 @@ fn local_record_read_keeps_its_declaration_across_owned_selection() {
     else {
         panic!("field node");
     };
-    let source = validation::local_scalar_record_field(
+    let source = crate::validation::local_scalar_record_field(
         &checked.typed,
         machine.symbol,
         state.symbol,

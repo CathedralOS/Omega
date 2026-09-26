@@ -7,9 +7,9 @@
 //! derived condition implies the bucket guard. This is checked implementation
 //! evidence and never enters the public contract fingerprint.
 
-use checked_trees::{CheckFacts, CrashRouteGuard};
+use crate::checked_trees::{CheckFacts, CrashRouteGuard};
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 mod entry_guards;
 mod entry_requirements;
@@ -29,7 +29,7 @@ mod source_fallthrough;
 /// arm already rejects in `bind_outcome_specific_arm_facts`, and a `When`
 /// guard on a crash exit rejects above regardless.
 pub(crate) fn check_crash_exit_edge_isolation(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    use typed_trees::statement::{
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
         StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
     };
 
@@ -126,7 +126,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
     facts: &mut CheckFacts,
     incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
 ) {
-    let content_conservation = validation::content_conservation_plans(program);
+    let content_conservation = crate::validation::build_content_conservation_plans(program);
     let mut integer_types = None;
     for machine in program.machines() {
         let incoming = incoming_guards.for_machine(machine.symbol);
@@ -305,11 +305,11 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
 struct StateGuardClassification {
     /// Canonical identities of the state's applicable entry-meaning
     /// conjuncts, in conjunct order.
-    conjunct_identities: Vec<checked_trees::CrashPredicateIdentity>,
+    conjunct_identities: Vec<crate::checked_trees::CrashPredicateIdentity>,
     /// Structural consequences of the applicable conjuncts plus the full
     /// transitive order-relation consequences, excluding the machine entry
     /// requirements each site joins separately.
-    consequences: Vec<checked_trees::CrashPredicateIdentity>,
+    consequences: Vec<crate::checked_trees::CrashPredicateIdentity>,
     /// The closed order-relation set, retained so a statement-local
     /// fallthrough can extend it without rediscovering the incoming-guard
     /// relations.
@@ -323,16 +323,16 @@ struct StateGuardClassification {
 #[allow(clippy::too_many_arguments)]
 fn classify_state_guards(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state: symbols::SymbolHandle,
     incoming: &[super::ranges::incoming_guards::IncomingGuard],
     eval_sites: &[(
-        typed_trees::expression::ExpressionHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
         symbols::SymbolHandle,
         usize,
     )],
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
     integer_types: &IntegerTypeClassification,
 ) -> StateGuardClassification {
     let conjuncts = incoming
@@ -414,11 +414,11 @@ fn site_path_classification(
     fallthrough: Option<&source_fallthrough::SiteFallthrough>,
     entry_requirements: &entry_requirements::EntryRequirements,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
     integer_types: &IntegerTypeClassification,
 ) -> (
-    Vec<checked_trees::CrashPredicateIdentity>,
-    Vec<checked_trees::CrashPredicateIdentity>,
+    Vec<crate::checked_trees::CrashPredicateIdentity>,
+    Vec<crate::checked_trees::CrashPredicateIdentity>,
 ) {
     let mut path_guard_conjuncts = classification.conjunct_identities.clone();
     path_guard_conjuncts.extend(entry_requirements.conjuncts.iter().cloned());
@@ -472,11 +472,9 @@ pub(crate) fn check_published_ceiling_coverage(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    for caller in
-        facts.contract_plans.machines.iter().filter(|plan| {
-            plan.crash.interface() == checked_trees::CrashInterface::PublishedCeiling
-        })
-    {
+    for caller in facts.contract_plans.machines.iter().filter(|plan| {
+        plan.crash.interface() == crate::checked_trees::CrashInterface::PublishedCeiling
+    }) {
         let caller_machine = crate::lookup::machine_by_symbol(program, caller.machine);
         let caller_name = caller_machine
             .map(|machine| machine.name.as_str())
@@ -554,7 +552,7 @@ pub(crate) fn check_published_ceiling_coverage(
 fn call_route_guard_covers(
     published: &CrashRouteGuard,
     surviving: &CrashRouteGuard,
-    path_guard_consequences: &[checked_trees::CrashPredicateIdentity],
+    path_guard_consequences: &[crate::checked_trees::CrashPredicateIdentity],
 ) -> bool {
     match published {
         CrashRouteGuard::Truth => true,
@@ -574,14 +572,16 @@ fn call_route_guard_covers(
 /// rewrite public routes.
 fn collect_structural_guard_consequences(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
     integer_types: &IntegerTypeClassification,
-    output: &mut Vec<checked_trees::CrashPredicateIdentity>,
+    output: &mut Vec<crate::checked_trees::CrashPredicateIdentity>,
 ) {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, ExpressionNode, UnaryOperator,
+    };
 
     output.push(crate::facts::canonical_crash_path_predicate(
         program,
@@ -697,30 +697,32 @@ fn collect_structural_guard_consequences(
 
 #[derive(Clone, PartialEq, Eq)]
 struct IntegerOrderRelation {
-    left_identity: checked_trees::CrashPredicateIdentity,
-    right_identity: checked_trees::CrashPredicateIdentity,
-    left: typed_trees::expression::ExpressionHandle,
-    right: typed_trees::expression::ExpressionHandle,
+    left_identity: crate::checked_trees::CrashPredicateIdentity,
+    right_identity: crate::checked_trees::CrashPredicateIdentity,
+    left: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    right: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     strict: bool,
 }
 
 #[derive(Clone, PartialEq, Eq)]
 struct IntegerDisequality {
-    left_identity: checked_trees::CrashPredicateIdentity,
-    right_identity: checked_trees::CrashPredicateIdentity,
+    left_identity: crate::checked_trees::CrashPredicateIdentity,
+    right_identity: crate::checked_trees::CrashPredicateIdentity,
 }
 
 fn collect_integer_order_relations(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
     integer_types: &IntegerTypeClassification,
     output: &mut Vec<IntegerOrderRelation>,
     disequalities: &mut Vec<IntegerDisequality>,
 ) {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, ExpressionNode, UnaryOperator,
+    };
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
@@ -823,17 +825,17 @@ fn collect_integer_order_relations(
 #[allow(clippy::too_many_arguments)]
 fn collect_normalized_integer_order_relation(
     program: &TypedTrees,
-    operator: typed_trees::expression::BinaryOperator,
-    left: typed_trees::expression::ExpressionHandle,
-    right: typed_trees::expression::ExpressionHandle,
+    operator: symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator,
+    left: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    right: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
     integer_types: &IntegerTypeClassification,
     output: &mut Vec<IntegerOrderRelation>,
     disequalities: &mut Vec<IntegerDisequality>,
 ) {
-    use typed_trees::expression::BinaryOperator;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
 
     if !comparison_operands_are_integers(program, left, right, integer_types) {
         return;
@@ -900,8 +902,8 @@ fn push_transitive_integer_order_consequences(
     relations: &mut Vec<IntegerOrderRelation>,
     disequalities: &[IntegerDisequality],
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
-    output: &mut Vec<checked_trees::CrashPredicateIdentity>,
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
+    output: &mut Vec<crate::checked_trees::CrashPredicateIdentity>,
 ) {
     let strict_refinements = relations
         .iter()
@@ -966,7 +968,7 @@ fn push_transitive_integer_order_consequences(
     for (left, right) in nonstrict_equalities {
         push_comparison_consequences(
             program,
-            typed_trees::expression::BinaryOperator::Equal,
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal,
             left,
             right,
             true,
@@ -980,9 +982,9 @@ fn push_transitive_integer_order_consequences(
         push_comparison_consequences(
             program,
             if relation.strict {
-                typed_trees::expression::BinaryOperator::Less
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Less
             } else {
-                typed_trees::expression::BinaryOperator::LessOrEqual
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::LessOrEqual
             },
             relation.left,
             relation.right,
@@ -996,15 +998,15 @@ fn push_transitive_integer_order_consequences(
 
 fn push_comparison_consequences(
     program: &TypedTrees,
-    normalized: typed_trees::expression::BinaryOperator,
-    left: typed_trees::expression::ExpressionHandle,
-    right: typed_trees::expression::ExpressionHandle,
+    normalized: symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator,
+    left: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    right: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     operands_are_integers: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
-    output: &mut Vec<checked_trees::CrashPredicateIdentity>,
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
+    output: &mut Vec<crate::checked_trees::CrashPredicateIdentity>,
 ) {
-    use typed_trees::expression::BinaryOperator;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
 
     let mut consequences = vec![normalized];
     if operands_are_integers {
@@ -1042,11 +1044,11 @@ fn push_comparison_consequences(
 }
 
 fn normalized_comparison(
-    operator: typed_trees::expression::BinaryOperator,
+    operator: symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator,
     negated: bool,
     operands_have_total_order: bool,
-) -> Option<typed_trees::expression::BinaryOperator> {
-    use typed_trees::expression::BinaryOperator;
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator> {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
 
     Some(match (operator, negated) {
         (BinaryOperator::Equal, false) => BinaryOperator::Equal,
@@ -1069,8 +1071,8 @@ fn normalized_comparison(
 
 fn comparison_operands_are_integers(
     program: &TypedTrees,
-    left: typed_trees::expression::ExpressionHandle,
-    right: typed_trees::expression::ExpressionHandle,
+    left: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    right: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     integer_types: &IntegerTypeClassification,
 ) -> bool {
     expression_is_integer_typed(program, left, integer_types)
@@ -1079,10 +1081,10 @@ fn comparison_operands_are_integers(
 
 fn expression_is_integer_typed(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     integer_types: &IntegerTypeClassification,
 ) -> bool {
-    use typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
@@ -1107,12 +1109,12 @@ fn expression_is_integer_typed(
 
 fn type_reference_is_integer(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     program
         .type_reference_table
         .primitive_type(type_reference)
-        .is_some_and(typed_trees::types::PrimitiveType::accepts_integer_literal)
+        .is_some_and(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::accepts_integer_literal)
 }
 
 /// Whole-program integer-type classification built once per path-conditioned
@@ -1142,7 +1144,7 @@ impl IntegerTypeClassification {
                     classification.record(program, parameter.symbol, parameter.type_reference);
                 }
                 for statement in program.statement_table.statements(state.statement_nodes) {
-                    if let typed_trees::statement::StatementNode::LocalData(local) = statement {
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement {
                         classification.record(program, local.symbol, local.type_reference);
                     }
                 }
@@ -1154,10 +1156,10 @@ impl IntegerTypeClassification {
         for data in program.data_definitions() {
             for member in program.data_members(data) {
                 match member {
-                    typed_trees::data::DataMember::Field(field) => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
                         classification.record(program, field.symbol, field.type_reference);
                     }
-                    typed_trees::data::DataMember::Variant(variant) => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) => {
                         for field in program.data_payload_fields(variant) {
                             classification.record(program, field.symbol, field.type_reference);
                         }
@@ -1174,7 +1176,7 @@ impl IntegerTypeClassification {
         &mut self,
         program: &TypedTrees,
         symbol: symbols::SymbolHandle,
-        type_reference: typed_trees::types::TypeReferenceHandle,
+        type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     ) {
         if !symbol.is_valid() {
             return;
@@ -1198,9 +1200,9 @@ impl IntegerTypeClassification {
 }
 
 fn reversed_comparison(
-    operator: typed_trees::expression::BinaryOperator,
-) -> typed_trees::expression::BinaryOperator {
-    use typed_trees::expression::BinaryOperator;
+    operator: symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
 
     match operator {
         BinaryOperator::Equal => BinaryOperator::Equal,

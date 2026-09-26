@@ -1,5 +1,9 @@
 //! Planning and resolving reborrow disposition events.
 
+use crate::checked_trees::{
+    CheckedDirectBorrowLoanResource, CheckedReborrowAccessEffect,
+    CheckedReborrowResourceDisposition, FlowFacts,
+};
 use crate::checks::borrows::resources::lifecycle::{
     DispositionUpdate, EphemeralResourceStatus, EphemeralStatuses, LifecycleBoundaryKey,
     LifecycleEvent, LifecycleEventKind, LifecyclePhase, activation_boundary,
@@ -11,10 +15,6 @@ use crate::checks::borrows::resources::reborrow_drafts::{
     ParentResourceIndex,
 };
 use crate::checks::borrows::resources::retained_validation::reborrow_disposition_drift;
-use checked_trees::{
-    CheckedDirectBorrowLoanResource, CheckedReborrowAccessEffect,
-    CheckedReborrowResourceDisposition, FlowFacts,
-};
 use diagnostics::Diagnostic;
 
 pub(crate) fn plan_reborrow_disposition_events(
@@ -163,7 +163,7 @@ pub(crate) fn plan_reborrow_disposition_events(
 fn resolve_disposition_event(
     flow: &FlowFacts,
     child_index: usize,
-    child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+    child_weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
     boundary: LifecycleBoundaryKey,
     statuses: &EphemeralStatuses,
     direct: &[CheckedDirectBorrowLoanResource],
@@ -317,7 +317,7 @@ fn closing_disposition(
 
 fn resolve_shared_disposition_event(
     child_index: usize,
-    child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+    child_weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
     boundary: LifecycleBoundaryKey,
     statuses: &EphemeralStatuses,
     child: &CheckedReborrowLoanResourceDraft,

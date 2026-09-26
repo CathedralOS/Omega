@@ -1,12 +1,17 @@
 use crate::tests::front_end::typed_program;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
-fn case_result_program(body: &str) -> typed_trees::TypedTrees {
+fn case_result_program(
+    body: &str,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     case_result_program_with_helpers(body, "")
 }
 
-fn case_result_program_with_helpers(body: &str, helpers: &str) -> typed_trees::TypedTrees {
+fn case_result_program_with_helpers(
+    body: &str,
+    helpers: &str,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let source = format!(
         r#"
         data View {{ body: &mut u64; }}
@@ -63,14 +68,16 @@ fn visible_paths(paths: Option<Vec<String>>) -> Option<Vec<String>> {
     })
 }
 
-fn caller_frames(program: &typed_trees::TypedTrees) -> [Option<Vec<String>>; 2] {
+fn caller_frames(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> [Option<Vec<String>>; 2] {
     let machine = program
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "Main::run")
         .expect("caller");
     let state = &program.machine_states(machine)[0];
-    let resolver = validation::CallFrameResolver::new(program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(program).expect("resolver");
     let public = match program
         .statement_table
         .statements(state.statement_nodes)

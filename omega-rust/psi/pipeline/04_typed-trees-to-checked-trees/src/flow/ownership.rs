@@ -2,11 +2,11 @@
 //! state's statements and borrow calls and returns the moves they make, for the
 //! multiplicity checks and terminal cleanup. `place_types` answers the declared
 //! type at a place or expression.
+use crate::checked_trees::BorrowFacts;
+use crate::checked_trees::statement::StatementNode;
 use crate::flow::borrow_state_fact;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
-use checked_trees::BorrowFacts;
-use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
 pub(crate) mod calls;
@@ -33,7 +33,7 @@ pub(crate) use place_types::{
 use type_references::type_requires_ownership;
 
 pub(super) fn append_statement_ownership_events(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -142,7 +142,7 @@ pub(super) fn append_statement_ownership_events(
                 if !handle.is_valid() {
                     continue;
                 }
-                if let typed_trees::statement::TransitionTargetNode::Value(value) =
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(value) =
                     program.statement_table.transition_target(handle)
                 {
                     append_move_events_for_expression(
@@ -189,12 +189,12 @@ pub(super) fn append_statement_ownership_events(
 /// producer. The discovered vocabulary is private to checked lowering; only
 /// normalized permission events are published.
 pub(crate) fn discover_state_move_events(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
-    operators: &checked_trees::CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    segments: &mut arena::Arena<facts::PlaceSegment>,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    segments: &mut arena::Arena<crate::fact_plan::PlaceSegment>,
 ) -> Vec<DiscoveredMoveEvent> {
     let mut sink = DirectMoveEventSink::new(segments, operators, machine, state);
     let borrow_calls = borrow_state_fact(borrow, machine.symbol, state.symbol)

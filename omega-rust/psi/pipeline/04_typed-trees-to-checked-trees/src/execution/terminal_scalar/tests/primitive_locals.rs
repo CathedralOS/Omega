@@ -1,13 +1,15 @@
 use super::super::build_checked_scalar_graph_plans;
-use crate::tests::front_end::checked_program_result;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedScalarBindingDestination, CheckedScalarBindingValue, CheckedScalarComputationKind,
     CheckedScalarExpressionRole, CheckedScalarPrimitiveLocalPlan, CheckedUnitStructuralTypePlan,
     CheckedUnitStructuralTypeShape,
 };
-use typed_trees::{statement::StatementNode, types::PrimitiveType};
+use crate::tests::front_end::checked_program_result;
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    statement::StatementNode, types::PrimitiveType,
+};
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
@@ -156,7 +158,7 @@ fn orphan_computations_do_not_create_local_places() {
         .unwrap()[0]
         .clone();
     argument.as_place_mut().unwrap().source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
             symbol: unused.symbol,
         };
     *structural_arguments = computations.structural_arguments.insert_many([argument]);
@@ -221,9 +223,10 @@ fn borrowed_local_rejects_missing_or_mismatched_initializer_facts() {
                             && expression.role == role
                     })
                     .unwrap();
-                expression.expression = checked_trees::CheckedScalarExpression::Boolean(Box::new(
-                    checked_trees::CheckedBooleanExpression::Constant(false),
-                ));
+                expression.expression =
+                    crate::checked_trees::CheckedScalarExpression::Boolean(Box::new(
+                        crate::checked_trees::CheckedBooleanExpression::Constant(false),
+                    ));
             }
             _ => {
                 expressions
@@ -342,7 +345,7 @@ fn borrowed_local_demand_rejects_wrong_referent_or_type() {
     };
     for mutation in 0..4 {
         let mut computations = checked.facts.values.scalar_computations.clone();
-        let handles = computations.structural_arguments.iter().filter_map(|(handle, argument)| matches!(argument.as_place().unwrap().source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } if symbol == slot.symbol).then_some(handle)).collect::<Vec<_>>();
+        let handles = computations.structural_arguments.iter().filter_map(|(handle, argument)| matches!(argument.as_place().unwrap().source, crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } if symbol == slot.symbol).then_some(handle)).collect::<Vec<_>>();
         assert!(!handles.is_empty());
         for handle in handles {
             let argument = computations
@@ -351,20 +354,16 @@ fn borrowed_local_demand_rejects_wrong_referent_or_type() {
                 .as_place_mut()
                 .unwrap();
             match mutation {
-                0 => {
-                    argument.source =
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
-                            symbol: symbols::SymbolHandle::invalid(),
-                        }
-                }
-                1 => {
-                    argument.source =
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
-                            symbol: snapshot.symbol,
-                        }
-                }
+                0 => argument.source =
+                    crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                        symbol: symbols::SymbolHandle::invalid(),
+                    },
+                1 => argument.source =
+                    crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                        symbol: snapshot.symbol,
+                    },
                 2 => argument.type_identity = "wrong referent".to_owned(),
-                _ => argument.access = checked_trees::CheckedStructuralAccess::Owned,
+                _ => argument.access = crate::checked_trees::CheckedStructuralAccess::Owned,
             }
         }
         let plans = build_checked_scalar_graph_plans(
@@ -406,7 +405,7 @@ fn borrowed_local_graphs_do_not_admit_multiple_source_states() {
             .iter()
             .any(|(_, argument)| matches!(
                 argument.as_place().unwrap().source,
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+                crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             ))
     );
     assert!(

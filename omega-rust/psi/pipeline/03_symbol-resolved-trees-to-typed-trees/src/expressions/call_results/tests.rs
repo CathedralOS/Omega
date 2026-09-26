@@ -40,7 +40,7 @@ fn computed_receiver_candidates_follow_exact_declared_result_types() {
             .find(|machine| machine.name.as_str() == "Owner::run")
             .expect("caller");
         let state = &typed.machine_states(machine)[0];
-        let typed_trees::statement::StatementNode::LocalData(result) =
+        let crate::typed_trees::statement::StatementNode::LocalData(result) =
             &typed.statement_table.statements(state.statement_nodes)[0]
         else {
             panic!("result");
@@ -82,7 +82,7 @@ fn computed_receiver_rejects_stale_and_foreign_producer_targets() {
         .find(|machine| machine.name.as_str() == "Owner::run")
         .expect("caller");
     let state = &typed.machine_states(machine)[0];
-    let typed_trees::statement::StatementNode::LocalData(result) =
+    let crate::typed_trees::statement::StatementNode::LocalData(result) =
         &typed.statement_table.statements(state.statement_nodes)[0]
     else {
         panic!("result");

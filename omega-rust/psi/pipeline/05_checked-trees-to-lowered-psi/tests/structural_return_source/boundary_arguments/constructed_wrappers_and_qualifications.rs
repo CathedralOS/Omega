@@ -8,10 +8,10 @@ use crate::structural_return_source::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalInterpretError,
     TerminalScalarValue, Terminator, decode_module,
 };
-use checked_trees::CheckedUnitEffectOperationPlan;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 
 #[test]
 fn unit_wrapper_constructor_source_and_permission_mutations_reject() {
@@ -54,9 +54,9 @@ fn unit_wrapper_constructor_source_and_permission_mutations_reject() {
             });
         } else if mutation == 1 {
             let handle = changed.typed.data_members.iter().find_map(|(handle, member)| {
-                matches!(member, typed_trees::data::DataMember::Field(field) if field.symbol == field_symbol).then_some(handle)
+                matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) if field.symbol == field_symbol).then_some(handle)
             }).unwrap();
-            let typed_trees::data::DataMember::Field(field) =
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
                 changed.typed.data_members.get_mut(handle)
             else {
                 unreachable!()
@@ -71,7 +71,10 @@ fn unit_wrapper_constructor_source_and_permission_mutations_reject() {
                 .iter()
                 .find_map(|(_, event)| {
                     (event.machine_symbol == root_symbol
-                        && event.root == facts::PlaceRoot::Symbol(local_symbol))
+                        && event.root
+                            == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(
+                                local_symbol,
+                            ))
                     .then_some(event.clone())
                 })
                 .unwrap();
@@ -154,7 +157,7 @@ fn unit_wrapper_cannot_substitute_a_same_typed_local_and_its_cleanup() {
                     Some(1)
                 );
                 structural_arguments[0].source =
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
                         declaration_ordinal: 0,
                     };
                 changed_call = true;
@@ -389,7 +392,7 @@ fn unit_wrapper_consumes_established_affine_result_without_duplicate_cleanup() {
                 unreachable!()
             };
             structural_arguments[0].source =
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: 0,
                 };
         } else {
@@ -541,7 +544,7 @@ fn unit_wrapper_rejects_same_typed_structural_argument_substitution() {
     };
     assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
     structural_arguments[0].source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
     assert!(
         checked_trees_to_lowered_psi::lower_machine(
             &checked,

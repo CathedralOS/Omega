@@ -3,13 +3,15 @@ use std::{
     sync::Arc,
 };
 
-use optimization::PsiOptimization;
 use optimization_core::{
     AnalysisKind, AnalysisSet, OptimizationPassIdentity, OptimizationRuleContract,
     OptimizationRuleIdentity, OptimizationRuleSetIdentity,
 };
-use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError};
 use semantic_vocabulary::{MachineId, ObligationId, OperationId};
+use terminal_codec::optimization::PsiOptimization;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError,
+};
 
 use crate::AnalysisProduct;
 

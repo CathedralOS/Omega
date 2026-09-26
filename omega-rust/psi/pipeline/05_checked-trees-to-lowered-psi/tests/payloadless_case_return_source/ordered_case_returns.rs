@@ -3,14 +3,16 @@ use super::{
     integer_case_argument,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
+use omega::terminal_fixed_fuel::derive_fixed_entry_fuel;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
-use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus};
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, Terminator};
 
 #[test]
@@ -45,7 +47,7 @@ fn ordered_case_returns_reject_changed_construction_control_and_coverage() {
                 plan.states.iter().any(|state| {
                     matches!(
                         state.terminator,
-                        checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
+                        typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
                     )
                 })
             })
@@ -53,7 +55,7 @@ fn ordered_case_returns_reject_changed_construction_control_and_coverage() {
             .states
             .first_mut()
             .unwrap();
-        let checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {
+        let typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {
             arms,
             fallback,
             return_values: returns,
@@ -63,7 +65,7 @@ fn ordered_case_returns_reject_changed_construction_control_and_coverage() {
         };
         match mutation {
             0 => {
-                let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     value: replacement,
                     ..
                 } = &returns[1]
@@ -71,7 +73,7 @@ fn ordered_case_returns_reject_changed_construction_control_and_coverage() {
                     panic!("selected value")
                 };
                 let replacement = *replacement;
-                let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     value,
                     ..
                 } = &mut returns[0]
@@ -108,7 +110,7 @@ fn ordered_case_returns_reject_changed_construction_control_and_coverage() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("MemoryAlignment::from")
             )
@@ -190,15 +192,16 @@ fn borrowed_case_membership_uses_an_observation_operation() {
             machine observe(choice: &Choice) -> bool {{ {body} }}
         "
         ));
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("observe"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("whole borrowed case membership reaches Terminal")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("observe"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("whole borrowed case membership reaches Terminal")
+            .into_artifact();
         let module = decode_module(artifact.semantic_bytes()).unwrap();
         assert!(
             module

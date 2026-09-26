@@ -10,13 +10,13 @@ use super::invariant_operations::{
 use super::member_blocks::{
     member_scalar_operand_substitution, shared_entry_source, value_definition_sites,
 };
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralPlaceKind, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationBlock, OptimizationNode, OptimizerCycleComponent, OwnershipEvent,
     PsiOptimizationFunction, PsiProvenance, ValueDefinitionSite,
 };
-use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralPlaceKind, ValueId};
-use std::collections::{BTreeMap, BTreeSet};
 
 /// The storage root an admitted place observation, byte read, field byte
 /// read, or subslice names — whichever observation gate the node's operation
@@ -670,13 +670,13 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
         | O::EstablishRecord { result, .. }
         | O::CallStructural { result, .. } => Some(result.place),
         O::BoundaryCall {
-            result: abstract_operations::AbstractBoundaryResult::Structural(result),
+            result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(result),
             ..
         } => Some(result.place),
         O::EstablishByteSequenceLiteral { place, .. }
         | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
         O::AtomicEvent {
-            event: abstract_operations::AbstractAtomicEvent::CompareExchangeOnce { outcome, .. },
+            event: terminal_psi_to_abstract_operations::abstract_operations::AbstractAtomicEvent::CompareExchangeOnce { outcome, .. },
             ..
         } => Some(outcome.place),
         _ => None,

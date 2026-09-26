@@ -1,5 +1,7 @@
-use symbol_resolved_trees::{SymbolResolvedTrees, types::TypeReference};
 use symbols::SymbolHandle;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::{
+    SymbolResolvedTrees, types::TypeReference,
+};
 
 pub(super) fn all_instances_reachable_from_ordinary_data(
     source: &SymbolResolvedTrees,
@@ -35,16 +37,16 @@ pub(super) fn all_instances_reachable_from_ordinary_data(
 
 fn collect_member_references(
     source: &SymbolResolvedTrees,
-    definition: &symbol_resolved_trees::data::DataDefinition,
+    definition: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataDefinition,
     instance_symbols: &[SymbolHandle],
     reachable: &mut Vec<SymbolHandle>,
 ) {
     for member in source.data_members(definition.members) {
         match member {
-            symbol_resolved_trees::data::DataMember::Field(field) => {
+            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(field) => {
                 collect_type_references(source, &field.type_reference, instance_symbols, reachable);
             }
-            symbol_resolved_trees::data::DataMember::Variant(variant) => {
+            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(variant) => {
                 for field in source.data_payload_fields(variant.payload) {
                     collect_type_references(
                         source,

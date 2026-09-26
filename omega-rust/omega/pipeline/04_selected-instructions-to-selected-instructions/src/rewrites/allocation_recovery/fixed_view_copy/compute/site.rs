@@ -8,7 +8,7 @@ use super::{
     RegisterInstructionConstraint, RegisterOperandAccess, SelectedInstructionId,
     VirtualFixedConstraintSite, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use register_model::RegisterConstraintKey;
+use target_operations_to_selected_instructions::register_model::RegisterConstraintKey;
 
 /// The virtual register a boundary copies from, under the leaf-local or
 /// immediate admission gate: `leaf_local` admits only live-in entry
@@ -16,12 +16,12 @@ use register_model::RegisterConstraintKey;
 /// admits any origin that still names a scalar source value.
 pub(super) fn admitted_source<'a>(
     function_index: usize,
-    function: &'a selected_instructions::SelectedFunction,
+    function: &'a target_operations_to_selected_instructions::SelectedFunction,
     boundary: &super::super::evidence::AuthenticatedFixedViewBoundary,
     leaf_local: bool,
 ) -> Result<
     (
-        &'a selected_instructions::VirtualRegister,
+        &'a target_operations_to_selected_instructions::VirtualRegister,
         semantic_vocabulary::ValueId,
     ),
     FixedViewCopyError,
@@ -75,13 +75,13 @@ pub(super) fn admitted_source<'a>(
 /// site's own block at any operand-Use position.
 pub(super) fn destination_block(
     function_index: usize,
-    function: &selected_instructions::SelectedFunction,
+    function: &target_operations_to_selected_instructions::SelectedFunction,
     boundary: &super::super::evidence::AuthenticatedFixedViewBoundary,
     instruction: SelectedInstructionId,
     operand: u16,
     source: VirtualRegisterId,
     leaf_local: bool,
-) -> Result<selected_instructions::SelectedBlockId, FixedViewCopyError> {
+) -> Result<target_operations_to_selected_instructions::SelectedBlockId, FixedViewCopyError> {
     let block = if leaf_local {
         find_leaf_block(
             function_index,
@@ -114,9 +114,9 @@ pub(super) fn destination_block(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_site_copies(
     function_index: usize,
-    source_function: &selected_instructions::SelectedFunction,
+    source_function: &target_operations_to_selected_instructions::SelectedFunction,
     boundaries: &[&super::super::evidence::AuthenticatedFixedViewBoundary],
-    transformed: &mut selected_instructions::SelectedFunction,
+    transformed: &mut target_operations_to_selected_instructions::SelectedFunction,
     copy_row: &RegisterInstructionConstraint,
     copy_key: RegisterConstraintKey,
     leaf_local: bool,

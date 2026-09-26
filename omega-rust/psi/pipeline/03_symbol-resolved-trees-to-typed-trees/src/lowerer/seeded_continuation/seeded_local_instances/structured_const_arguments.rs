@@ -2,12 +2,12 @@
 
 use super::super::{exact_field_symbol, exact_top_level_data_symbol};
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
-use symbol_resolved_trees::{
+use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::{
     SymbolResolvedTrees,
     data::{DataDefinition, DataMember, DataShapeKind, DataVariant},
     types::{FixedArrayLength, TypeReference},
 };
-use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 
 pub(super) fn carrier_is_supported(
     source: &SymbolResolvedTrees,
@@ -28,7 +28,7 @@ pub(super) fn carrier_is_supported(
 
 pub(super) fn declaration_is_supported(
     source: &SymbolResolvedTrees,
-    declaration: &symbol_resolved_trees::constant::ConstDeclaration,
+    declaration: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::constant::ConstDeclaration,
 ) -> bool {
     let Some(name_span) = source.symbols.symbol_source_span(declaration.symbol) else {
         return false;

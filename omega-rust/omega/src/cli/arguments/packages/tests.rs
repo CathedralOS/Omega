@@ -7,7 +7,7 @@ mod offline;
 
 #[test]
 fn install_and_update_retain_canonical_input_obligations() {
-    use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
+    use omega::package_compilation::BuildSourceCaptureObligation::{Optional, Required};
     for kind in [PackageCommandKind::Install, PackageCommandKind::Update] {
         let mut arguments = vec![
             "--build-input",

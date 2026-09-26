@@ -1,16 +1,11 @@
 //! A caller that owns an aggregate actual, invokes a callee returning the
 //! same structural type, and returns that result itself.
 
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan,
-};
-use optimization_unit::PsiOptimizationUnit;
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
-use target_operations::TargetOperationPlan;
 use terminal_psi::{
     CrashRouteBucket, SemanticFingerprint, StructuralAccess, StructuralArgument,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
@@ -18,6 +13,11 @@ use terminal_psi::{
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalPsiIdentity, VocabularyMarker,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 pub(in crate::tests) fn fixture(
     native: target::NativeTarget,
@@ -157,7 +157,7 @@ pub(in crate::tests) fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let mut unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -173,7 +173,7 @@ pub(in crate::tests) fn fixture(
             outcome_specific_ensures: Vec::new(),
         });
     }
-    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    unit.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&unit);
     (plan, targeted, unit)
 }
 
@@ -351,7 +351,7 @@ pub(in crate::tests) fn reference_fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let mut unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -367,7 +367,7 @@ pub(in crate::tests) fn reference_fixture(
             outcome_specific_ensures: Vec::new(),
         });
     }
-    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    unit.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&unit);
     (plan, targeted, unit)
 }
 
@@ -547,30 +547,33 @@ pub(in crate::tests) fn sum_reference_fixture(
     // abstract→target lowering of a sum-typed reference carrier is still a
     // pending admission upstream, while every layer below it replays this
     // exact emission.
-    let shape = calling_conventions::ValueShape::integer(4, 4);
-    let call_plan = calling_conventions::evaluate_call_plan(
-        calling_conventions::CallingPolicy::native_for_target(native),
-        &calling_conventions::CallSignature {
+    let shape =
+        abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(4, 4);
+    let call_plan = abstract_operations_to_target_operations::calling_conventions::evaluate_call_plan(
+        abstract_operations_to_target_operations::calling_conventions::CallingPolicy::native_for_target(native),
+        &abstract_operations_to_target_operations::calling_conventions::CallSignature {
             parameters: vec![shape],
             result: Some(shape),
         },
     )
     .unwrap();
     let parameter_placement = call_plan.parameters[0].clone();
-    let parameter_row = |place| target_operations::TargetStructuralParameter {
-        place,
-        structural_type: carrier,
-        multiplicity: StructuralMultiplicity::Affine,
-        access: StructuralAccess::Owned,
-        projected_qualifications: Vec::new(),
-        shape,
-        placement: parameter_placement.clone(),
+    let parameter_row = |place| {
+        abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
+            place,
+            structural_type: carrier,
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
+            projected_qualifications: Vec::new(),
+            shape,
+            placement: parameter_placement.clone(),
+        }
     };
-    let sum_layout = calling_conventions::evaluate_conventional_sum_layout(
+    let sum_layout = abstract_operations_to_target_operations::calling_conventions::evaluate_conventional_sum_layout(
         &[],
         &[
             Vec::new(),
-            vec![calling_conventions::ValueShape::integer(0, 1)],
+            vec![abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(0, 1)],
         ],
     )
     .unwrap();
@@ -583,60 +586,62 @@ pub(in crate::tests) fn sum_reference_fixture(
         projected_qualifications: Vec::new(),
         claims: Vec::new(),
     };
-    let caller_home = || target_operations::TargetStructuralHomeRequirement {
-        origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+    let caller_home = || {
+        abstract_operations_to_target_operations::target_operations::TargetStructuralHomeRequirement {
+        origin: abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult {
             operation: OperationId::new(12).unwrap(),
             result: operation_result(result_place),
         },
-        layout: target_operations::TargetStructuralHomeLayout::Sum(sum_layout.clone()),
+        layout: abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Sum(sum_layout.clone()),
+    }
     };
     let caller_parameter = parameter_row(caller_place);
     let callee_parameter = parameter_row(callee_place);
-    let targeted = target_operations::TargetOperationPlan {
+    let targeted = abstract_operations_to_target_operations::target_operations::TargetOperationPlan {
         psi: plan.psi,
         target: native,
         entry: caller_machine,
         functions: vec![
-            target_operations::TargetFunction {
+            abstract_operations_to_target_operations::target_operations::TargetFunction {
                 machine: caller_machine,
                 attachment: None,
                 scalar_abi: None,
                 mixed_structural_scalar_abi: None,
-                provenance: target_operations::TerminalPsiProvenance {
+                provenance: abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance {
                     operations: vec![OperationId::new(12).unwrap()],
                     edges: vec![EdgeId::new(1).unwrap()],
                 },
-                graph: target_operations::TargetControlGraph {
+                graph: abstract_operations_to_target_operations::target_operations::TargetControlGraph {
                     structural_types: plan.structural_types.clone(),
                     call_plan: call_plan.clone(),
                     scalar_parameters: Vec::new(),
                     parameters: vec![caller_parameter.clone()],
                     dynamic_parameters: Vec::new(),
                     entry: BlockId::new(1).unwrap(),
-                    blocks: vec![target_operations::TargetControlBlock {
+                    blocks: vec![abstract_operations_to_target_operations::target_operations::TargetControlBlock {
                         block: BlockId::new(1).unwrap(),
                         parameters: Vec::new(),
                         structural_parameters: Vec::new(),
-                        operations: vec![target_operations::TargetUnitOperation::Call {
-                            origin: target_operations::NativeCallOrigin::Authored,
+                        operations: vec![abstract_operations_to_target_operations::target_operations::TargetUnitOperation::Call {
+                            origin: abstract_operations_to_target_operations::target_operations::NativeCallOrigin::Authored,
                             psi_operation: OperationId::new(12).unwrap(),
                             callee: callee_machine,
                             call_plan: call_plan.clone(),
-                            result: target_operations::TargetCallResult::Structural {
+                            result: abstract_operations_to_target_operations::target_operations::TargetCallResult::Structural {
                                 result: operation_result(result_place),
                                 callee_result: declaration(
                                     PlaceId::new(98).unwrap(),
                                     ingress(callee_place),
                                 ),
                                 result_home: Some(caller_home()),
-                                reference_results: vec![target_operations::TargetReferenceResult {
+                                reference_results: vec![abstract_operations_to_target_operations::target_operations::TargetReferenceResult {
                                     path: leaf_path(),
                                     root: caller_place,
                                 }],
                                 returned_claim_transfers: Vec::new(),
                             },
                             scalar_arguments: Vec::new(),
-                            arguments: vec![target_operations::TargetStructuralArgument {
+                            arguments: vec![abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
                                 place: caller_place,
                                 access: StructuralAccess::Owned,
                                 path: Vec::new(),
@@ -647,7 +652,7 @@ pub(in crate::tests) fn sum_reference_fixture(
                                 fixed_array_length: None,
                                 element_stride: None,
                                 source:
-                                    target_operations::TargetStructuralArgumentSource::Placement(
+                                    abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::Placement(
                                         parameter_placement.clone(),
                                     ),
                                 destination: parameter_placement.clone(),
@@ -656,9 +661,9 @@ pub(in crate::tests) fn sum_reference_fixture(
                             requirement_obligations: Vec::new(),
                             crash_continuations: crash_routes.clone(),
                         }],
-                        terminator: target_operations::TargetControlTerminator::ReturnStructural {
+                        terminator: abstract_operations_to_target_operations::target_operations::TargetControlTerminator::ReturnStructural {
                             psi_edge: EdgeId::new(1).unwrap(),
-                            source: target_operations::TargetStructuralReturnSource::Home(
+                            source: abstract_operations_to_target_operations::target_operations::TargetStructuralReturnSource::Home(
                                 caller_home(),
                             ),
                             cleanup_actions: Vec::new(),
@@ -666,30 +671,30 @@ pub(in crate::tests) fn sum_reference_fixture(
                     }],
                 },
             },
-            target_operations::TargetFunction {
+            abstract_operations_to_target_operations::target_operations::TargetFunction {
                 machine: callee_machine,
                 attachment: None,
                 scalar_abi: None,
                 mixed_structural_scalar_abi: None,
-                provenance: target_operations::TerminalPsiProvenance {
+                provenance: abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance {
                     operations: Vec::new(),
                     edges: vec![EdgeId::new(2).unwrap()],
                 },
-                graph: target_operations::TargetControlGraph {
+                graph: abstract_operations_to_target_operations::target_operations::TargetControlGraph {
                     structural_types: plan.structural_types.clone(),
                     call_plan: call_plan.clone(),
                     scalar_parameters: Vec::new(),
                     parameters: vec![callee_parameter.clone()],
                     dynamic_parameters: Vec::new(),
                     entry: BlockId::new(2).unwrap(),
-                    blocks: vec![target_operations::TargetControlBlock {
+                    blocks: vec![abstract_operations_to_target_operations::target_operations::TargetControlBlock {
                         block: BlockId::new(2).unwrap(),
                         parameters: Vec::new(),
                         structural_parameters: Vec::new(),
                         operations: Vec::new(),
-                        terminator: target_operations::TargetControlTerminator::ReturnStructural {
+                        terminator: abstract_operations_to_target_operations::target_operations::TargetControlTerminator::ReturnStructural {
                             psi_edge: EdgeId::new(2).unwrap(),
-                            source: target_operations::TargetStructuralReturnSource::Parameter(
+                            source: abstract_operations_to_target_operations::target_operations::TargetStructuralReturnSource::Parameter(
                                 callee_parameter,
                             ),
                             cleanup_actions: Vec::new(),
@@ -700,7 +705,7 @@ pub(in crate::tests) fn sum_reference_fixture(
         ],
         native_callback_arguments: Vec::new(),
     };
-    let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let mut unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -716,7 +721,7 @@ pub(in crate::tests) fn sum_reference_fixture(
             outcome_specific_ensures: Vec::new(),
         });
     }
-    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    unit.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&unit);
     (plan, targeted, unit)
 }
 
@@ -858,7 +863,7 @@ pub(in crate::tests) fn mixed_result_fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let mut unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -874,6 +879,6 @@ pub(in crate::tests) fn mixed_result_fixture(
             outcome_specific_ensures: Vec::new(),
         });
     }
-    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    unit.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&unit);
     (plan, targeted, unit)
 }

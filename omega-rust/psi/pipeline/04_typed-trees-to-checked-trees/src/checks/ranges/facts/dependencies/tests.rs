@@ -2,7 +2,7 @@ use super::{ExpressionHandle, ExpressionNode, State, SymbolHandle, TypedTrees};
 use crate::checks::ranges::RangeFacts;
 use crate::flow::CanonicalPlace;
 use crate::tests::front_end::typed_program;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 mod atomics;
 mod borrows;
@@ -32,7 +32,7 @@ fn parameter_place(program: &TypedTrees, state: &State, name: &str) -> Canonical
         .find(|parameter| parameter.name.as_str() == name)
         .expect("parameter");
     CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(parameter.symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(parameter.symbol),
         segments: Vec::new(),
     }
 }
@@ -40,8 +40,8 @@ fn parameter_place(program: &TypedTrees, state: &State, name: &str) -> Canonical
 /// Build the checked operator evidence production hands to range facts: the
 /// same value/operator fact construction, including domain selection, so a
 /// recorded use row is the exact occurrence custody the checker consults.
-fn selected_operator_facts(program: &TypedTrees) -> checked_trees::CheckedOperatorFacts {
-    let proof_plan = proof::obligations::build_proof_plan(program);
+fn selected_operator_facts(program: &TypedTrees) -> crate::checked_trees::CheckedOperatorFacts {
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(program);
     let values = crate::values::build_value_facts(program, &proof_plan);
     let mut operators = crate::operators::build_operator_facts(program, &values);
     crate::operators::select_pending_domain_operator_meanings(program, &mut operators);
@@ -78,9 +78,9 @@ fn retention_requires_complete_disjoint_writes_for_every_operand() {
             .is_empty()
     );
     for root in [
-        facts::PlaceRoot::Unknown,
-        facts::PlaceRoot::Symbol(SymbolHandle::invalid()),
-        facts::PlaceRoot::Expression(expression),
+        crate::fact_plan::PlaceRoot::Unknown,
+        crate::fact_plan::PlaceRoot::Symbol(SymbolHandle::invalid()),
+        crate::fact_plan::PlaceRoot::Expression(expression),
     ] {
         let writes = [CanonicalPlace {
             root,

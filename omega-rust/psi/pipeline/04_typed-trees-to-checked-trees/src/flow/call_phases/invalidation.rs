@@ -1,3 +1,8 @@
+use crate::checked_trees::{
+    BorrowCallFact, BorrowFacts, DomainFacts, FlowConstraintRef, FlowInvalidationFact,
+    FlowInvalidationSource, FlowSemanticContextRef,
+};
+use crate::fact_plan::FactPlan;
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::appended_span_since;
@@ -6,11 +11,6 @@ use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::mutation::close_storage_places_over_aliases_with_resolver;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use arena::HandleSpan;
-use checked_trees::{
-    BorrowCallFact, BorrowFacts, DomainFacts, FlowConstraintRef, FlowInvalidationFact,
-    FlowInvalidationSource, FlowSemanticContextRef,
-};
-use facts::FactPlan;
 
 pub(in crate::flow) struct CallInvalidationResult {
     pub(in crate::flow) post_contexts: HandleSpan<FlowSemanticContextRef>,
@@ -19,11 +19,11 @@ pub(in crate::flow) struct CallInvalidationResult {
 }
 
 pub(in crate::flow) fn call_storage_writes(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     borrow_call: &BorrowCallFact,
 ) -> Option<Vec<CanonicalPlace>> {
     call_mutated_places(
@@ -53,13 +53,13 @@ pub(in crate::flow) fn call_storage_writes(
 }
 
 pub(in crate::flow) fn apply_call_invalidations(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     domains: &DomainFacts,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     active_contexts: HandleSpan<FlowSemanticContextRef>,
     active_constraints: HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,

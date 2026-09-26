@@ -1,0 +1,78 @@
+use super::super::FunctionRelativeOptimizationRealizationStatistics;
+use super::super::error::FunctionRelativeOptimizationRealizationError;
+use post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedMachineLayout;
+
+pub(crate) fn function_relative_statistics(
+    layout: &ResolvedMachineLayout,
+) -> Result<
+    FunctionRelativeOptimizationRealizationStatistics,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let count = |value: usize| {
+        u64::try_from(value)
+            .map_err(|_| FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
+    };
+    let functions = count(layout.functions().len())?;
+    let blocks = layout
+        .functions()
+        .iter()
+        .try_fold(0_u64, |total, function| {
+            total
+                .checked_add(count(function.blocks.len())?)
+                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
+        })?;
+    let instructions = layout
+        .functions()
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .try_fold(0_u64, |total, block| {
+            total
+                .checked_add(count(block.instructions.len())?)
+                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
+        })?;
+    let bytes = layout
+        .functions()
+        .iter()
+        .try_fold(0_u64, |total, function| {
+            total
+                .checked_add(function.byte_count)
+                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
+        })?;
+    let resolved_conditional_branches = layout
+        .functions()
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .filter(|instruction| {
+            instruction
+                .branch
+                .as_deref()
+                .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
+                .is_some()
+        })
+        .try_fold(0_u64, |total, _| {
+            total
+                .checked_add(1)
+                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
+        })?;
+    let ordinary_internal_machine_fixups = layout
+        .functions()
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .filter(|instruction| instruction.internal_machine_fixup.is_some())
+        .try_fold(0_u64, |total, _| {
+            total
+                .checked_add(1)
+                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
+        })?;
+    let unresolved_internal_machine_fixups = ordinary_internal_machine_fixups;
+    Ok(FunctionRelativeOptimizationRealizationStatistics {
+        functions,
+        blocks,
+        instructions,
+        bytes,
+        resolved_conditional_branches,
+        unresolved_internal_machine_fixups,
+    })
+}

@@ -1,8 +1,8 @@
 //! Ordinary and composed Unit bodies share one complete call-target closure.
 use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
+use crate::checked_trees::CheckedUnitPlanOmissionStage;
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::CheckedUnitPlanOmissionStage;
 
 const CHAIN: &str = r#"
     data Root {}
@@ -28,7 +28,7 @@ const CHAIN: &str = r#"
     machine Helper::unrelated() {}
 "#;
 
-fn assert_unique_catalogs(plans: &checked_trees::CheckedUnitEffectPlans) {
+fn assert_unique_catalogs(plans: &crate::checked_trees::CheckedUnitEffectPlans) {
     let identities = plans
         .machines
         .iter()
@@ -209,14 +209,14 @@ fn missing_composed_leaf_evidence_prunes_upstream_without_relaxing_body_admissio
 }
 
 fn without_interleaved_local_evidence(
-    checked: &checked_trees::CheckedTrees,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-) -> checked_trees::CheckedUnitEffectPlans {
+    checked: &crate::checked_trees::CheckedTrees,
+    state: &crate::checked_trees::CheckedComposedUnitControlStatePlan,
+) -> crate::checked_trees::CheckedUnitEffectPlans {
     // The source sequence is supported. Remove only its required scalar fact,
     // so pruning is still tested against a genuinely incomplete checked body.
     assert!(matches!(state.operations.as_slice(), [
         CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. },
-        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value: checked_trees::CheckedCallScalarArgument::Pure(_), .. },
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value: crate::checked_trees::CheckedCallScalarArgument::Pure(_), .. },
     ] if coordinate.statement_index == 0 && result.statement_index == 1 && result.binding_ordinal == 0));
     let mut facts = checked.facts.clone();
     let before = facts.values.scalar_expressions.expressions.len();
@@ -280,12 +280,12 @@ fn empty_two_state_body_remains_in_the_transitive_call_closure() {
     assert!(done.operations.is_empty());
     assert!(matches!(
         &entry.terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor }
+        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor }
             if successor.target_state == done.state
     ));
     assert!(matches!(
         done.terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnUnit
     ));
     assert_unique_catalogs(plans);
 }

@@ -3,10 +3,10 @@ use super::parse_generic_parameters::{
 };
 use crate::ParseError;
 use crate::input::token_cursor::Input;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{MachineParameterContract, TypeParameterKind};
 use source::SourceId;
 use source_files_to_tokens::Lexer;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{MachineParameterContract, TypeParameterKind};
 
 const SYNTAX_CHOICES: [GenericParameterSyntax; 6] = [
     GenericParameterSyntax::TypeAndConst,

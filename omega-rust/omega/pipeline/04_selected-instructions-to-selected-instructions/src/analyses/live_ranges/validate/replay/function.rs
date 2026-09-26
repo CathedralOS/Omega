@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use crate::LiveRangeError;
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     FunctionLiveRanges, VirtualFixedConstraint, VirtualFixedConstraintSite, VirtualInterference,
     VirtualLiveRange, VirtualOccurrence,
 };
@@ -12,8 +12,8 @@ use super::{architectural_units, constraints, fragments};
 
 pub(super) fn replay_function(
     function: usize,
-    selected: &selected_instructions::SelectedFunction,
-    live: &selected_instructions::FunctionLiveness,
+    selected: &target_operations_to_selected_instructions::SelectedFunction,
+    live: &target_operations_to_selected_instructions::FunctionLiveness,
 ) -> Result<FunctionLiveRanges, LiveRangeError> {
     constraints::reject_unsupported(function, live)?;
     let tied_pairs = constraints::derive_ties(function, live)?;
@@ -127,9 +127,9 @@ pub(super) fn replay_function(
 
 fn replay_copy_affinities(
     function: usize,
-    selected: &selected_instructions::SelectedFunction,
-) -> Result<Vec<selected_instructions::CopyAffinity>, LiveRangeError> {
-    use selected_instructions::SelectedInstructionKind;
+    selected: &target_operations_to_selected_instructions::SelectedFunction,
+) -> Result<Vec<target_operations_to_selected_instructions::CopyAffinity>, LiveRangeError> {
+    use target_operations_to_selected_instructions::SelectedInstructionKind;
     let mut affinities = Vec::new();
     for block in &selected.blocks {
         for row in &block.instructions {
@@ -142,7 +142,7 @@ fn replay_copy_affinities(
             if input.virtual_register == output.virtual_register {
                 continue;
             }
-            affinities.push(selected_instructions::CopyAffinity {
+            affinities.push(target_operations_to_selected_instructions::CopyAffinity {
                 block: block.id,
                 instruction: row.id,
                 source: input.virtual_register,
@@ -155,10 +155,10 @@ fn replay_copy_affinities(
 
 fn replay_edge_transfers(
     function: usize,
-    selected: &selected_instructions::SelectedFunction,
-    live: &selected_instructions::FunctionLiveness,
-) -> Result<Vec<selected_instructions::EdgeRegisterTransfer>, LiveRangeError> {
-    use selected_instructions::{SelectedTerminator, VirtualRegisterOrigin};
+    selected: &target_operations_to_selected_instructions::SelectedFunction,
+    live: &target_operations_to_selected_instructions::FunctionLiveness,
+) -> Result<Vec<target_operations_to_selected_instructions::EdgeRegisterTransfer>, LiveRangeError> {
+    use target_operations_to_selected_instructions::{SelectedTerminator, VirtualRegisterOrigin};
     let mut transfers = BTreeSet::new();
     for predecessor in &selected.blocks {
         let edges = match &predecessor.terminator {
@@ -205,14 +205,16 @@ fn replay_edge_transfers(
                     *destination,
                 )
                 .map_err(LiveRangeError::LivenessRevalidation)?;
-                if !transfers.insert(selected_instructions::EdgeRegisterTransfer {
-                    source: predecessor.id,
-                    target: edge.block,
-                    psi_edge: edge.psi_edge,
-                    argument,
-                    parameter: *destination,
-                    class: parameter.class,
-                }) {
+                if !transfers.insert(
+                    target_operations_to_selected_instructions::EdgeRegisterTransfer {
+                        source: predecessor.id,
+                        target: edge.block,
+                        psi_edge: edge.psi_edge,
+                        argument,
+                        parameter: *destination,
+                        class: parameter.class,
+                    },
+                ) {
                     return Err(LiveRangeError::FunctionMismatch { function });
                 }
             }

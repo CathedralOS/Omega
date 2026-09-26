@@ -1,7 +1,7 @@
 use crate::AdmittedBoundaryExecution;
+use crate::target_operations::BoundarySettlementBinding;
 use crate::{AdmittedBoundarySettlement, LoweringError};
-use abstract_operations::AbstractOperationPlan;
-use target_operations::BoundarySettlementBinding;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
 
 pub(super) fn bind_provider_executions(
     plan: &AbstractOperationPlan,
@@ -26,13 +26,13 @@ pub(super) fn bind_provider_executions(
                             actual: provider_execution.requirement_identity().to_owned(),
                         });
                     }
-                    let provider_plan = target_operations::ProviderPlanReportIdentity::new(
+                    let provider_plan = crate::target_operations::ProviderPlanReportIdentity::new(
                         provider_execution.provider_plan_report_identity(),
                     )
                     .ok_or_else(|| {
                         LoweringError::ProviderExecutionBinding("zero provider plan".into())
                     })?;
-                    target_operations::ProviderExecutionBinding::from_execution_record(
+                    crate::target_operations::ProviderExecutionBinding::from_execution_record(
                         provider_plan,
                         provider_execution.provider_execution_report_identity(),
                         provider_execution.provider_execution_report_fingerprint(),
@@ -47,7 +47,7 @@ pub(super) fn bind_provider_executions(
                     .into()
                 }
                 AdmittedBoundaryExecution::CompilerBuiltin(execution) => {
-                    target_operations::BoundaryExecutionBinding::CompilerBuiltin(execution)
+                    crate::target_operations::BoundaryExecutionBinding::CompilerBuiltin(execution)
                 }
             };
             Ok(BoundarySettlementBinding {

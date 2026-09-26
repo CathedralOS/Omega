@@ -72,11 +72,11 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
                 bytes.extend_from_slice(&action.fresh_materialize.0.to_le_bytes());
                 bytes.extend_from_slice(&action.result_virtual_register.0.to_le_bytes());
                 bytes.push(match action.materialize_constraint.family {
-                    register_model::RegisterConstraintFamily::Call => 0,
-                    register_model::RegisterConstraintFamily::Return => 1,
-                    register_model::RegisterConstraintFamily::SystemCall => 2,
-                    register_model::RegisterConstraintFamily::InlineAssembly => 3,
-                    register_model::RegisterConstraintFamily::Instruction => 4,
+                    target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Call => 0,
+                    target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Return => 1,
+                    target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::SystemCall => 2,
+                    target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::InlineAssembly => 3,
+                    target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Instruction => 4,
                 });
                 bytes.extend_from_slice(&action.materialize_constraint.variant.to_le_bytes());
             }
@@ -94,23 +94,23 @@ mod tests {
     use crate::PressureRematerializationPlan;
     use crate::PressureRematerializationPolicy;
     use crate::PressureRematerializationRewrite;
+    use crate::register_homes::{
+        AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
+        SpillChoiceIdentity,
+    };
     use crate::rewrites::pressure_rematerialization_identity;
     use optimization_core::{
         OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
     };
-    use register_homes::{
-        AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
-        SpillChoiceIdentity,
-    };
-    use register_model::{
+    use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, ValueId};
+    use target_operations_to_selected_instructions::register_model::{
         RegisterConstraintFamily, RegisterConstraintKey, RegisterViewId,
         TargetRegisterEnvironmentIdentity,
     };
-    use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
-    use selected_instructions::{
+    use target_operations_to_selected_instructions::{LiveRangeIdentity, LiveRangePoint};
+    use target_operations_to_selected_instructions::{
         SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
     };
-    use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, ValueId};
 
     fn plan() -> PressureRematerializationPlan {
         PressureRematerializationPlan {

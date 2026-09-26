@@ -9,7 +9,9 @@ use super::{AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionT
 use crate::semantic::calls::MeasureReceiver;
 use crate::tests::front_end::{checked_program, typed_program};
 use language_semantics::declaration_selection::CollectionMeasure;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
 
 const BOTH_SPELLINGS: &str = r#"
     data Tally { len: u8; }
@@ -22,7 +24,9 @@ const BOTH_SPELLINGS: &str = r#"
 "#;
 
 /// Both `len` members, as (expression, receiver display name) pairs.
-fn len_members(program: &typed_trees::TypedTrees) -> Vec<(ExpressionHandle, String)> {
+fn len_members(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> Vec<(ExpressionHandle, String)> {
     program
         .expression_table
         .iter_expressions()

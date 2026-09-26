@@ -7,13 +7,13 @@ use crate::tests::front_end::typed_program;
 struct ForwardingFixture {
     program: TypedTrees,
     facts: CheckFacts,
-    call: checked_trees::FlowCallFact,
+    call: crate::checked_trees::FlowCallFact,
     machine: SymbolHandle,
     state: SymbolHandle,
     parameter: SymbolHandle,
-    argument: typed_trees::expression::ExpressionHandle,
-    borrow_state: arena::Handle<checked_trees::StateBorrowFact>,
-    borrow_call: arena::Handle<checked_trees::BorrowCallFact>,
+    argument: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    borrow_state: arena::Handle<crate::checked_trees::StateBorrowFact>,
+    borrow_call: arena::Handle<crate::checked_trees::BorrowCallFact>,
 }
 
 impl ForwardingFixture {
@@ -55,37 +55,38 @@ impl ForwardingFixture {
             .expression_handles(authored.arguments)[0];
         let machine = machine.symbol;
         let state = state.symbol;
-        let call = checked_trees::FlowCallFact {
+        let call = crate::checked_trees::FlowCallFact {
             statement_index,
             target_symbol: authored.target_symbol,
             ..Default::default()
         };
         let mut facts = CheckFacts::default();
-        let accesses =
-            facts
-                .borrow
-                .argument_accesses
-                .insert_many([checked_trees::BorrowArgumentAccessFact {
-                    root_symbol: parameter,
-                    kind: checked_trees::BorrowAccessKind::Read,
-                    ..Default::default()
-                }]);
+        let accesses = facts.borrow.argument_accesses.insert_many([
+            crate::checked_trees::BorrowArgumentAccessFact {
+                root_symbol: parameter,
+                kind: crate::checked_trees::BorrowAccessKind::Read,
+                ..Default::default()
+            },
+        ]);
         let mut calls = arena::HandleSpan::default();
         let borrow_call = facts.borrow.calls.append_to_span(
             &mut calls,
-            checked_trees::BorrowCallFact {
+            crate::checked_trees::BorrowCallFact {
                 statement_index,
                 target_symbol: call.target_symbol,
                 accesses,
                 ..Default::default()
             },
         );
-        let borrow_state = facts.borrow.states.append(checked_trees::StateBorrowFact {
-            machine_symbol: machine,
-            state_symbol: state,
-            calls,
-            ..Default::default()
-        });
+        let borrow_state = facts
+            .borrow
+            .states
+            .append(crate::checked_trees::StateBorrowFact {
+                machine_symbol: machine,
+                state_symbol: state,
+                calls,
+                ..Default::default()
+            });
         Self {
             program,
             facts,
@@ -242,9 +243,9 @@ fn forwarding_does_not_invent_loan_restoration_or_duplicate_access_authority() {
     for mutation in 0..4 {
         let mut fixture = ForwardingFixture::new("&mut", "&mut");
         if mutation == 0 {
-            let access = checked_trees::BorrowArgumentAccessFact {
+            let access = crate::checked_trees::BorrowArgumentAccessFact {
                 root_symbol: fixture.parameter,
-                kind: checked_trees::BorrowAccessKind::Read,
+                kind: crate::checked_trees::BorrowAccessKind::Read,
                 ..Default::default()
             };
             fixture
@@ -258,7 +259,7 @@ fn forwarding_does_not_invent_loan_restoration_or_duplicate_access_authority() {
                 .argument_accesses
                 .insert_many([access.clone(), access]);
         } else {
-            let loan = checked_trees::BorrowLoanFact {
+            let loan = crate::checked_trees::BorrowLoanFact {
                 root_symbol: if mutation == 3 {
                     fixture.machine
                 } else {

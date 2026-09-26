@@ -1,11 +1,15 @@
 //! Producer-local candidate, interval, and physical-overlap mechanics.
 
-use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
-use selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
+};
 
 use crate::unsequenced_spill_stages::RecursiveReloadValueHomeError;
-use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
-use selected_instructions::LiveRangePoint;
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
+};
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 pub(super) fn legality_row(
     function: usize,
@@ -44,7 +48,7 @@ pub(super) fn original_end(
 pub(super) fn reload_candidates(
     function: usize,
     row: &VirtualRegisterAllocationLegality,
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     start: LiveRangePoint,
     exclusive_end: LiveRangePoint,
 ) -> Result<Vec<RegisterViewId>, RecursiveReloadValueHomeError> {

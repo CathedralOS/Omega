@@ -1,16 +1,16 @@
 //! Affine cleanup permission events.
 
+use crate::checked_trees::FlowPermissionEventFact;
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::checks::multiplicity::type_multiplicity::type_multiplicity;
 use arena::HandleSpan;
-use checked_trees::FlowPermissionEventFact;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceHandle;
 
 /// Discover ordinary affine cleanup directly from typed ownership. Locals drop in
 /// reverse declaration order, followed by owned by-value parameters in reverse
@@ -18,8 +18,8 @@ use typed_trees::types::TypeReferenceHandle;
 /// and conditional roots are excluded because their path-sensitive settlement
 /// is represented by the permission events produced above.
 pub(crate) fn append_affine_cleanup_permission_events(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     machine_symbol: SymbolHandle,
     tracked_places: &[LinearPlace],
     permission_events: &mut Vec<FlowPermissionEventFact>,
@@ -48,7 +48,7 @@ pub(crate) fn append_affine_cleanup_permission_events(
             provenance: tracked_root
                 .and_then(|place| place.provenance)
                 .unwrap_or(PermissionProvenance::Unknown),
-            root: facts::PlaceRoot::Symbol(symbol),
+            root: crate::fact_plan::PlaceRoot::Symbol(symbol),
             segments: HandleSpan::empty(),
             obligation_live: false,
         });

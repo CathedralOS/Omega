@@ -46,11 +46,11 @@ use crate::unit::dynamic_composed_unit::structural_types::{
     lower_dynamic_structural_types_for_source, terminal_structural_multiplicity,
 };
 use crate::unit::emit_direct_expression;
-use checked_trees::{
+use semantic_vocabulary::{MachineId, ScalarType, ValueId};
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedDynamicJoinBranchPlan, CheckedDynamicJoinControlPlan,
     CheckedDynamicRealizationCallablePlan, CheckedStructuralScalarParameterPlan,
 };
-use semantic_vocabulary::{MachineId, ScalarType, ValueId};
 
 /// Lower one checked join: validate the control split and both branch calls,
 /// lower their shared caller ABI and sources once, retain each branch's exact
@@ -692,7 +692,7 @@ fn join_boolean_guard_is_supported(
 /// leaf, mirroring the binding resolution grammar the emission path uses.
 fn retained_field_subject(
     parameter_position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> bool {
     parameter_position <= 1
         && !path.is_empty()
@@ -701,7 +701,7 @@ fn retained_field_subject(
             .filter(|segment| {
                 matches!(
                     segment,
-                    checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
                 )
             })
             .count()
@@ -710,8 +710,8 @@ fn retained_field_subject(
             .iter()
             .enumerate()
             .all(|(ordinal, segment)| match segment {
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(_) => true,
-                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(_) => true,
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_) => {
                     ordinal + 2 == path.len() || ordinal + 1 == path.len()
                 }
                 _ => false,

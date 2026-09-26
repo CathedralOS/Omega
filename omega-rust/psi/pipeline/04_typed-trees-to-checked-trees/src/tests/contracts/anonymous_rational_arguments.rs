@@ -1,7 +1,9 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
 use crate::CheckingRequest;
-use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees};
+use crate::checked_trees::{
+    CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees,
+};
 
 mod call_results;
 
@@ -106,7 +108,7 @@ fn assert_delivered_value(checked: &CheckedTrees, expected: i64) {
     for argument in arguments {
         assert_eq!(
             crate::values::evaluate_checked_scalar(argument, &mut |_| None),
-            Some(facts::ScalarValue::Integer(
+            Some(crate::fact_plan::ScalarValue::Integer(
                 numerics::bignum::BigInt::from_i64(expected)
             )),
             "the argument's checked operations must deliver {expected}: {argument:#?}"
@@ -195,8 +197,8 @@ fn bounded_statement_argument_proof_consumes_the_exact_anonymous_value() {
     for (parameter_type, accepted) in [("i32 [7..=7]", true), ("i32 [6..=6]", false)] {
         let source = source(CallForm::Statement, "7 / 2 * 2", parameter_type, "");
         let program = parse_typed_trees(&source);
-        let plan = proof::obligations::build_proof_plan(&program);
-        match proof::checker::check_proof_plan(&plan) {
+        let plan = crate::proof_engine::obligations::build_proof_plan(&program);
+        match crate::proof_engine::checker::check_proof_plan(&plan) {
             Ok(()) => assert!(
                 accepted,
                 "wrong singleton argument proof accepted: {source}"
@@ -226,9 +228,9 @@ fn decimal_argument_proofs_establish_only_the_exact_integer_value() {
         for (parameter_type, accepted) in [("i32 [7..=7]", true), ("i32 [6..=6]", false)] {
             let source = source(CallForm::Statement, argument, parameter_type, "");
             let program = parse_typed_trees(&source);
-            let plan = proof::obligations::build_proof_plan(&program);
+            let plan = crate::proof_engine::obligations::build_proof_plan(&program);
             assert_eq!(
-                proof::checker::check_proof_plan(&plan).is_ok(),
+                crate::proof_engine::checker::check_proof_plan(&plan).is_ok(),
                 accepted,
                 "{source}"
             );
@@ -246,8 +248,8 @@ fn named_state_rational_argument_checks_and_proves_the_same_singleton() {
             }}"
         );
         let program = parse_typed_trees(&source);
-        let plan = proof::obligations::build_proof_plan(&program);
-        match proof::checker::check_proof_plan(&plan) {
+        let plan = crate::proof_engine::obligations::build_proof_plan(&program);
+        match crate::proof_engine::checker::check_proof_plan(&plan) {
             Ok(()) => assert!(
                 accepted,
                 "wrong named-state singleton proof accepted: {source}"
@@ -275,7 +277,7 @@ fn named_state_rational_argument_checks_and_proves_the_same_singleton() {
                 .expect("transition argument value");
             assert_eq!(
                 crate::values::evaluate_checked_scalar(argument, &mut |_| None),
-                Some(facts::ScalarValue::Integer(
+                Some(crate::fact_plan::ScalarValue::Integer(
                     numerics::bignum::BigInt::from_i64(7)
                 ))
             );

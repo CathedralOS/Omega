@@ -1,9 +1,9 @@
 //! Whole-value edge mechanics, independently exercised with swaps and narrow tails.
 use super::{SelectedTerminator, VirtualRegisterId, project};
+use crate::selected_instructions::{FrameStorageSlotId, SelectedStructuralTransport};
+use crate::selected_instructions::{SelectedInstructionKind, SelectedSelectionConstraints};
 use crate::selection::edge_transfers::prepare;
-use optimization_unit::{FuelSettlement, PsiProvenance};
-use selected_instructions::{FrameStorageSlotId, SelectedStructuralTransport};
-use selected_instructions::{SelectedInstructionKind, SelectedSelectionConstraints};
+use terminal_psi_to_abstract_operations::optimization_unit::{FuelSettlement, PsiProvenance};
 
 #[test]
 fn whole_values_snapshot_before_parallel_replacement_and_replay_exact_extents() {
@@ -14,7 +14,7 @@ fn whole_values_snapshot_before_parallel_replacement_and_replay_exact_extents() 
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

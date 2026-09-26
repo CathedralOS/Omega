@@ -1,0 +1,430 @@
+//! Current graph identity coverage; raw mutation tests do not grant source admission.
+use super::super::super::{
+    LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarInstruction,
+    LegalizedValueDefinition,
+};
+use super::super::{EffectLink, FuelSettlement, PsiProvenance};
+use super::{
+    IntegerSign, IntegerType, IntegerValue, LegalizedOperationPlan, LegalizedScalarInstructionKind,
+    OwnershipEvent, ScalarType, assert_identity_drift, id, legalized_operation_plan_identity,
+    scalar_call_unit_plan,
+};
+use optimization_core::AcceptedObligationFactIdentity;
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
+
+fn operation_plan() -> LegalizedOperationPlan {
+    let mut plan = scalar_call_unit_plan();
+    let function = &mut plan.scalar_functions[0];
+    let narrow = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let wide = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let rows = [
+        (
+            ScalarType::Integer(narrow),
+            LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(7)),
+        ),
+        (
+            ScalarType::Integer(narrow),
+            LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(9)),
+        ),
+        (
+            ScalarType::Integer(narrow),
+            LegalizedScalarInstructionKind::ExactBinary {
+                operator: LegalizedExactIntegerOperator::Add,
+                left: id(200),
+                right: id(201),
+                obligation: id(300),
+                accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+            },
+        ),
+        (
+            ScalarType::Integer(wide),
+            LegalizedScalarInstructionKind::IntegerWiden {
+                operand: id(202),
+                source_type: narrow,
+            },
+        ),
+        (
+            ScalarType::Boolean,
+            LegalizedScalarInstructionKind::Compare {
+                predicate: LegalizedScalarComparison::Equal,
+                operand_type: ScalarType::Integer(wide),
+                left: id(203),
+                right: id(203),
+            },
+        ),
+        (
+            ScalarType::Boolean,
+            LegalizedScalarInstructionKind::BooleanNot { operand: id(204) },
+        ),
+    ];
+    function.blocks[0].instructions = rows
+        .into_iter()
+        .enumerate()
+        .map(|(position, (scalar_type, kind))| {
+            let operation = id(400 + position as u64);
+            LegalizedScalarInstruction {
+                operation,
+                result: Some(LegalizedValueDefinition {
+                    value: id(200 + position as u64),
+                    scalar_type,
+                    definition_site: ValueDefinitionSite::Node {
+                        block: function.entry_block,
+                        node: position as u32,
+                    },
+                }),
+                kind,
+                fuel: vec![FuelSettlement {
+                    site: PsiProvenance::Operation(operation),
+                    units: 1,
+                }],
+                effect: EffectLink {
+                    input: position as u64,
+                    output: position as u64 + 1,
+                },
+                ownership: vec![],
+            }
+        })
+        .collect();
+    function.provenance.operations = function.blocks[0]
+        .instructions
+        .iter()
+        .map(|row| row.operation)
+        .collect();
+    plan
+}
+
+#[test]
+fn ieee_comparison_identity_binds_relation_format_and_ordered_operands() {
+    use semantic_vocabulary::{IeeeFloatComparisonOperation as Comparison, IeeeFloatFormat};
+    let mut plan = operation_plan();
+    plan.scalar_functions[0].blocks[0].instructions[4].kind =
+        LegalizedScalarInstructionKind::IeeeFloatCompare {
+            comparison: Comparison::Less,
+            format: IeeeFloatFormat::Binary32,
+            left: id(200),
+            right: id(201),
+        };
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..4 {
+        let mut changed = plan.clone();
+        let LegalizedScalarInstructionKind::IeeeFloatCompare {
+            comparison,
+            format,
+            left,
+            right,
+        } = &mut changed.scalar_functions[0].blocks[0].instructions[4].kind
+        else {
+            panic!("comparison")
+        };
+        match mutation {
+            0 => *comparison = Comparison::Greater,
+            1 => *format = IeeeFloatFormat::Binary64,
+            2 => std::mem::swap(left, right),
+            3 => *left = id(202),
+            _ => unreachable!(),
+        }
+        assert_ne!(identity, legalized_operation_plan_identity(&changed));
+    }
+}
+
+#[test]
+fn wrapping_remainder_identity_binds_policy_width_operands_and_nonzero_fact() {
+    let mut plan = operation_plan();
+    let row = &mut plan.scalar_functions[0].blocks[0].instructions[2];
+    row.result.as_mut().unwrap().scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    row.kind = LegalizedScalarInstructionKind::WrappingRemainder {
+        left: id(200),
+        right: id(201),
+        obligation: id(300),
+        accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+    };
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..6 {
+        let mut changed = plan.clone();
+        let row = &mut changed.scalar_functions[0].blocks[0].instructions[2];
+        let LegalizedScalarInstructionKind::WrappingRemainder {
+            left,
+            right,
+            obligation,
+            accepted_fact,
+        } = &mut row.kind
+        else {
+            panic!("remainder");
+        };
+        match mutation {
+            0 => std::mem::swap(left, right),
+            1 => *left = id(999),
+            2 => *obligation = id(999),
+            3 => *accepted_fact = AcceptedObligationFactIdentity::from_bytes([4; 32]),
+            4 => {
+                row.result.as_mut().unwrap().scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap())
+            }
+            _ => {
+                row.kind = LegalizedScalarInstructionKind::ExactBinary {
+                    operator: LegalizedExactIntegerOperator::Divide,
+                    left: *left,
+                    right: *right,
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                }
+            }
+        }
+        assert_identity_drift(identity, &changed);
+    }
+}
+
+#[test]
+fn wrapping_divide_identity_binds_operands_and_nonzero_fact() {
+    let mut plan = operation_plan();
+    let row = &mut plan.scalar_functions[0].blocks[0].instructions[2];
+    row.result.as_mut().unwrap().scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    row.kind = LegalizedScalarInstructionKind::WrappingDivide {
+        left: id(200),
+        right: id(201),
+        obligation: id(300),
+        accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+    };
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..6 {
+        let mut changed = plan.clone();
+        let row = &mut changed.scalar_functions[0].blocks[0].instructions[2];
+        let LegalizedScalarInstructionKind::WrappingDivide {
+            left,
+            right,
+            obligation,
+            accepted_fact,
+        } = &mut row.kind
+        else {
+            panic!("divide");
+        };
+        match mutation {
+            0 => std::mem::swap(left, right),
+            1 => *left = id(999),
+            2 => *obligation = id(999),
+            3 => *accepted_fact = AcceptedObligationFactIdentity::from_bytes([4; 32]),
+            4 => {
+                row.result.as_mut().unwrap().scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+            }
+            _ => {
+                row.kind = LegalizedScalarInstructionKind::WrappingRemainder {
+                    left: *left,
+                    right: *right,
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                }
+            }
+        }
+        assert_identity_drift(identity, &changed);
+    }
+}
+
+/// Each carrier and each saturating sibling has its own tag: a multiply row
+/// naming another carrier, another saturating operation, or the wrapping
+/// product must not collide with the accepted row, and operand order binds.
+#[test]
+fn saturating_multiply_identity_binds_carrier_operation_and_operands() {
+    use crate::legalized_operations::SaturatingCarrier;
+    let mut plan = operation_plan();
+    let row = &mut plan.scalar_functions[0].blocks[0].instructions[2];
+    row.kind = LegalizedScalarInstructionKind::SaturatingMultiply {
+        carrier: SaturatingCarrier::U8,
+        left: id(200),
+        right: id(201),
+    };
+    let identity = legalized_operation_plan_identity(&plan);
+    let (left, right) = (id(200), id(201));
+    let mut substitutes = vec![
+        LegalizedScalarInstructionKind::SaturatingMultiply {
+            carrier: SaturatingCarrier::U8,
+            left: right,
+            right: left,
+        },
+        LegalizedScalarInstructionKind::WrappingMultiply { left, right },
+    ];
+    for carrier in SaturatingCarrier::ALL {
+        if carrier != SaturatingCarrier::U8 {
+            substitutes.push(LegalizedScalarInstructionKind::SaturatingMultiply {
+                carrier,
+                left,
+                right,
+            });
+        }
+        substitutes.push(LegalizedScalarInstructionKind::SaturatingAdd {
+            carrier,
+            left,
+            right,
+        });
+        substitutes.push(LegalizedScalarInstructionKind::SaturatingSubtract {
+            carrier,
+            left,
+            right,
+        });
+    }
+    for substitute in substitutes {
+        let mut changed = plan.clone();
+        changed.scalar_functions[0].blocks[0].instructions[2].kind = substitute;
+        assert_identity_drift(identity, &changed);
+    }
+}
+
+#[test]
+fn bitwise_and_wrapping_kind_identity_binds_the_named_operation() {
+    let plan = operation_plan();
+    let identity = legalized_operation_plan_identity(&plan);
+    for kind in [
+        LegalizedScalarInstructionKind::WrappingSubtract {
+            left: id(200),
+            right: id(201),
+        },
+        LegalizedScalarInstructionKind::WrappingMultiply {
+            left: id(200),
+            right: id(201),
+        },
+        LegalizedScalarInstructionKind::BitwiseOr {
+            left: id(200),
+            right: id(201),
+        },
+        LegalizedScalarInstructionKind::BitwiseNot { operand: id(200) },
+    ] {
+        let mut changed = plan.clone();
+        changed.scalar_functions[0].blocks[0].instructions[2].kind = kind;
+        assert_identity_drift(identity, &changed);
+    }
+    // Operand and result custody still bind inside each new row.
+    let mut multiply = plan.clone();
+    multiply.scalar_functions[0].blocks[0].instructions[2].kind =
+        LegalizedScalarInstructionKind::WrappingMultiply {
+            left: id(200),
+            right: id(201),
+        };
+    let multiply_identity = legalized_operation_plan_identity(&multiply);
+    let mut changed = multiply.clone();
+    let LegalizedScalarInstructionKind::WrappingMultiply { left, .. } =
+        &mut changed.scalar_functions[0].blocks[0].instructions[2].kind
+    else {
+        panic!("multiply fixture")
+    };
+    *left = id(999);
+    assert_identity_drift(multiply_identity, &changed);
+}
+
+#[test]
+fn scalar_operation_identity_binds_each_authored_row_envelope_and_order() {
+    let plan = operation_plan();
+    let identity = legalized_operation_plan_identity(&plan);
+    assert_eq!(identity, legalized_operation_plan_identity(&plan.clone()));
+    for position in 0..6 {
+        for mutation in 0..9 {
+            let mut changed = plan.clone();
+            let row = &mut changed.scalar_functions[0].blocks[0].instructions[position];
+            match mutation {
+                0 => row.operation = id(999),
+                1 => row.result.as_mut().unwrap().value = id(999),
+                2 => {
+                    row.result.as_mut().unwrap().scalar_type =
+                        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+                }
+                3 => {
+                    row.result.as_mut().unwrap().definition_site =
+                        ValueDefinitionSite::FunctionParameter(0)
+                }
+                4 => row.fuel[0].site = PsiProvenance::Operation(id(999)),
+                5 => row.fuel[0].units += 1,
+                6 => row.effect.input += 1,
+                7 => row.effect.output += 1,
+                _ => row.ownership.push(OwnershipEvent::Cleanup(vec![])),
+            }
+            assert_identity_drift(identity, &changed);
+        }
+        let mut omitted = plan.clone();
+        omitted.scalar_functions[0].blocks[0]
+            .instructions
+            .remove(position);
+        assert_identity_drift(identity, &omitted);
+        if position > 0 {
+            let mut reordered = plan.clone();
+            reordered.scalar_functions[0].blocks[0]
+                .instructions
+                .swap(position - 1, position);
+            assert_identity_drift(identity, &reordered);
+        }
+    }
+}
+
+#[test]
+fn scalar_operation_identity_binds_narrow_proof_widening_and_boolean_sources() {
+    let plan = operation_plan();
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..15 {
+        let mut changed = plan.clone();
+        let rows = &mut changed.scalar_functions[0].blocks[0].instructions;
+        match mutation {
+            0 => rows[0].kind = LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(8)),
+            1..=5 | 12..=14 => {
+                let LegalizedScalarInstructionKind::ExactBinary {
+                    operator,
+                    left,
+                    right,
+                    obligation,
+                    accepted_fact,
+                } = &mut rows[2].kind
+                else {
+                    panic!("exact binary fixture")
+                };
+                match mutation {
+                    1 => *operator = LegalizedExactIntegerOperator::Subtract,
+                    12 => *operator = LegalizedExactIntegerOperator::Divide,
+                    13 => *operator = LegalizedExactIntegerOperator::Multiply,
+                    14 => *operator = LegalizedExactIntegerOperator::Remainder,
+                    2 => *left = id(999),
+                    3 => *right = id(999),
+                    4 => *obligation = id(999),
+                    _ => *accepted_fact = AcceptedObligationFactIdentity::from_bytes([4; 32]),
+                }
+            }
+            6..=7 => {
+                let LegalizedScalarInstructionKind::IntegerWiden {
+                    operand,
+                    source_type,
+                } = &mut rows[3].kind
+                else {
+                    panic!("widen fixture")
+                };
+                if mutation == 6 {
+                    *operand = id(999);
+                } else {
+                    *source_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+                }
+            }
+            8..=10 => {
+                let LegalizedScalarInstructionKind::Compare {
+                    predicate,
+                    left,
+                    right,
+                    ..
+                } = &mut rows[4].kind
+                else {
+                    panic!("compare fixture")
+                };
+                match mutation {
+                    8 => *predicate = LegalizedScalarComparison::LessOrEqual,
+                    9 => *left = id(999),
+                    _ => *right = id(999),
+                }
+            }
+            _ => rows[5].kind = LegalizedScalarInstructionKind::BooleanNot { operand: id(999) },
+        }
+        assert_identity_drift(identity, &changed);
+    }
+    let mut role = plan.clone();
+    role.scalar_functions[0].blocks[0].instructions[5].kind =
+        LegalizedScalarInstructionKind::IntegerWiden {
+            operand: id(204),
+            source_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+        };
+    assert_identity_drift(identity, &role);
+}

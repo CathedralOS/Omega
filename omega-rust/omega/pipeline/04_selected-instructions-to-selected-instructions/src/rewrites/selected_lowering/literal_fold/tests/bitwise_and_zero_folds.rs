@@ -3,19 +3,19 @@ use super::{
     restage_literal, staged_and_inputs, staged_inputs, validate,
 };
 use crate::analyses::validated_machine_effect_catalog;
+use crate::register_homes::RecoveryClassification;
 use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
 use crate::{LiteralFoldError, LiteralFoldPolicy};
-use register_environment::baseline_target_register_environment;
-use register_homes::RecoveryClassification;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::IntegerValue;
+use std::sync::Arc;
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     MachineEffectCatalogIdentity, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlanIdentity, SelectedOperand, SelectedTerminator, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::IntegerValue;
-use std::sync::Arc;
-use target::NativeTarget;
 
 #[test]
 fn and_zero_fold_rewrites_the_consumer_to_a_zero_materialization_on_both_linux_targets() {
@@ -438,7 +438,13 @@ fn and_zero_fold_rejects_consumer_operands_carrying_forbidden_bindings() {
             let operand =
                 &mut plan.functions[0].blocks[0].instructions[1].operands[dropped_use_position];
             match mutation {
-                0 => operand.fixed_view = Some(register_model::RegisterViewId(0)),
+                0 => {
+                    operand.fixed_view = Some(
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
+                    )
+                }
                 1 => operand.tied_to = Some(0),
                 _ => operand.early_clobber = true,
             }

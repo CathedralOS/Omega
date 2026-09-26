@@ -1,6 +1,6 @@
 //! Rejoin whole affine parameter custody without duplicating path frontiers.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedStructuralAccess,
     CheckedUnitStructuralParameterPlan, FlowOwnershipFacts,
 };
@@ -8,8 +8,8 @@ use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::{TypedTrees, state::State};
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, state::State};
 
 #[cfg(test)]
 mod tests;
@@ -21,7 +21,7 @@ pub(super) fn validate(
     machine: SymbolHandle,
     state: &State,
     parameters: &[CheckedUnitStructuralParameterPlan],
-    transition_transfers: &[(PermissionEventSource, facts::PlaceRoot)],
+    transition_transfers: &[(PermissionEventSource, crate::fact_plan::PlaceRoot)],
 ) -> Option<()> {
     if !parameters
         .iter()
@@ -51,13 +51,15 @@ pub(super) fn validate(
             match &computations.nodes.get(handle).kind {
                 CheckedScalarComputationKind::CaseMembership {
                     subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
-                        | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+                        crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
+                        | crate::checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                            ..
+                        },
                     ..
                 } => {}
                 CheckedScalarComputationKind::CaseMembership {
                     subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                        crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                     ..
                 } => {
                     pending.extend(
@@ -78,7 +80,7 @@ pub(super) fn validate(
                 CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                     pending.push(*subject);
                     for arm in computations.dispatch_arms.span(*arms)? {
-                        if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                        if let crate::checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
                             arm.pattern
                         {
                             pending.push(pattern);
@@ -112,7 +114,7 @@ pub(super) fn validate(
                         .span(*structural_arguments)?
                     {
                         let argument = match argument {
-                            checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                            crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(
                                 subject,
                             ) => {
                                 pending.extend(
@@ -124,10 +126,10 @@ pub(super) fn validate(
                                 );
                                 continue;
                             }
-                            checked_trees::CheckedScalarComputationStructuralArgument::Place(
+                            crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(
                                 argument,
                             ) => argument,
-                            checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                            crate::checked_trees::CheckedScalarComputationStructuralArgument::Array {
                                 elements,
                                 ..
                             } => {
@@ -158,7 +160,7 @@ pub(super) fn validate(
                                 call_ordinal: usize::try_from(*call_ordinal).ok()?,
                                 target_symbol: *target_state,
                             },
-                            facts::PlaceRoot::Symbol(source.symbol),
+                            crate::fact_plan::PlaceRoot::Symbol(source.symbol),
                         );
                         if expected_transfers.contains(&transfer) {
                             return None;
@@ -184,7 +186,7 @@ pub(super) fn validate(
         .position(|statement| {
             matches!(
                 statement,
-                typed_trees::statement::StatementNode::Transition(_)
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(_)
             )
         })
         .unwrap_or(statements.len());
@@ -192,11 +194,15 @@ pub(super) fn validate(
     // owned parameter; the local's own custody ledger (which must succeed
     // before the graph publishes) then owns the follow-on disposition.
     for (statement_index, statement) in statements[..prefix_end].iter().enumerate() {
-        let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            local,
+        ) = statement
+        else {
             continue;
         };
-        let typed_trees::expression::ExpressionNode::Name(path) =
-            program.expression_table.expression(local.initial_value)
+        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
+            path,
+        ) = program.expression_table.expression(local.initial_value)
         else {
             continue;
         };
@@ -223,7 +229,7 @@ pub(super) fn validate(
         }
         let transfer = (
             PermissionEventSource::Statement { statement_index },
-            facts::PlaceRoot::Symbol(source.symbol),
+            crate::fact_plan::PlaceRoot::Symbol(source.symbol),
         );
         if expected_transfers.contains(&transfer) {
             return None;
@@ -242,7 +248,7 @@ pub(super) fn validate(
                 .selection_sources
                 .span_or_empty(receipt.sources)
                 .iter()
-                .map(|source| facts::PlaceRoot::Symbol(source.symbol))
+                .map(|source| crate::fact_plan::PlaceRoot::Symbol(source.symbol))
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
@@ -256,7 +262,7 @@ pub(super) fn validate(
         let source = program
             .state_parameters(state)
             .get(parameter.position as usize)?;
-        let root = facts::PlaceRoot::Symbol(source.symbol);
+        let root = crate::fact_plan::PlaceRoot::Symbol(source.symbol);
         if selection_source_roots.contains(&root) {
             continue;
         }
@@ -271,19 +277,19 @@ pub(super) fn validate(
     let mut actual_discards = Vec::new();
     let mut actual_transfers = Vec::new();
     // Graph discovery has already retained every record value in this prefix.
-    // Its local ledger belongs to validation::record_local_disposition,
+    // Its local ledger belongs to crate::validation::record_local_disposition,
     // which must succeed before the completed graph is published. Keep that
     // local provenance separate from this whole-parameter transfer audit; an
     // unknown root still reaches the checks below and rejects.
     let local_roots = statements[..prefix_end]
         .iter()
         .filter_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if program
                     .primitive_type_reference(local.type_reference)
                     .is_none() =>
             {
-                Some(facts::PlaceRoot::Symbol(local.symbol))
+                Some(crate::fact_plan::PlaceRoot::Symbol(local.symbol))
             }
             _ => None,
         })

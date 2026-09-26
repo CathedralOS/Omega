@@ -3,7 +3,7 @@
 //! `stage_register_allocation`'s runtime-spill recovery sequences this
 //! boundary: it colors the retained logical-operation plan and replays the
 //! coloring. The durable record, canonical identity, and versioned transport
-//! live in `register_homes::stack_slot_coloring`; computation, validation, and
+//! live in `selected_instructions_to_selected_instructions::register_homes::stack_slot_coloring`; computation, validation, and
 //! replay stay transform-local.
 
 use crate::ValidatedLogicalSpillOperations;
@@ -15,16 +15,16 @@ mod validate;
 mod tests;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-pub use register_homes::stack_slot_coloring::{
+pub use selected_instructions_to_selected_instructions::register_homes::stack_slot_coloring::{
     FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringDecodeError,
     StackSlotColoringIdentity, StackSlotColoringPlan, StackSlotColoringPolicy,
     stack_slot_coloring_identity,
 };
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     AllocatorAvailabilityIdentity, LogicalSpillOperationIdentity, LogicalSpillStorageId,
 };
-use register_model::TargetRegisterEnvironmentIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity;
 pub use validate::validate_stack_slot_coloring;
 
 /// Assign target-neutral, spill-area-relative storage to validated logical spills.

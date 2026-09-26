@@ -4,17 +4,17 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use semantic_vocabulary::BlockId;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, NonAdjacentBlockMergeRewrite, OptimizationBlock, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
     PsiRewriteCandidate, ScalarSubstitution,
 };
-use semantic_vocabulary::BlockId;
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;

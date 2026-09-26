@@ -105,7 +105,7 @@ derived facts carry a closed reason and no invented source location. Canonical
 sorting keeps semantic rows and explanatory custody paired. Missing, duplicate,
 or contradictory required custody rejects. The current source roles and
 cross-representation joins are documented
-[beside capture](../../../omega-rust/omega/packages/review/evidence/capture.md).
+[beside capture](../../../omega-rust/omega/docs/package-evidence/capture.md).
 
 ## Distinct evidence roles
 

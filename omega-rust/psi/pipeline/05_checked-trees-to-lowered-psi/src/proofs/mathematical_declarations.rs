@@ -8,7 +8,7 @@
 //! omits the declaration. Once the encoding lands this gate becomes the
 //! producer that lowers the checked signature onto the module.
 
-use checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 use crate::lowering_error::{LoweringError, unsupported};
 

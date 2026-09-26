@@ -1,6 +1,5 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use optimization_unit::ValueDefinitionSite;
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
     FunctionLogicalSpillOperations, FunctionSpillChoices, LogicalReloadValueId, LogicalSpillAction,
     LogicalSpillOperationPlan, LogicalSpillOperationPolicy, LogicalSpillReload,
@@ -8,18 +7,21 @@ use register_homes::{
     LogicalSpillUseRewrite, PressureContender, PressureResident, SpillChoice, SpillChoiceIdentity,
     VirtualRegisterAllocationLegality,
 };
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ScalarType, ValueId,
+};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
+};
+use target_operations_to_selected_instructions::{
     BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity, LiveRangePoint,
     LivenessPosition, SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlanIdentity,
     SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualLiveRange,
     VirtualOccurrence, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ScalarType, ValueId,
-};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 pub(super) struct Fixture {
     pub(super) plan: LogicalSpillOperationPlan,
@@ -114,8 +116,8 @@ pub(super) fn raw_fixture() -> RawFixture {
     let machine = MachineId::new(20).unwrap();
     let source_block = BlockId::new(21).unwrap();
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-    let key = register_model::RegisterConstraintKey {
-        family: register_model::RegisterConstraintFamily::Instruction,
+    let key = target_operations_to_selected_instructions::register_model::RegisterConstraintKey {
+        family: target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Instruction,
         variant: 1,
     };
     let operand = |register, access| SelectedOperand {
@@ -159,7 +161,10 @@ pub(super) fn raw_fixture() -> RawFixture {
         id: SelectedInstructionId(3),
         kind: SelectedInstructionKind::CompareI64Zero,
         constraint: key,
-        operands: vec![operand(0, register_model::RegisterOperandAccess::Use)],
+        operands: vec![operand(
+            0,
+            target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Use,
+        )],
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),
         clobbers: Vec::new(),
@@ -169,7 +174,10 @@ pub(super) fn raw_fixture() -> RawFixture {
         id: SelectedInstructionId(4),
         kind: SelectedInstructionKind::ReturnScalar,
         constraint: key,
-        operands: vec![operand(0, register_model::RegisterOperandAccess::Use)],
+        operands: vec![operand(
+            0,
+            target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Use,
+        )],
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),
         clobbers: Vec::new(),
@@ -190,11 +198,11 @@ pub(super) fn raw_fixture() -> RawFixture {
         virtual_registers: registers,
         blocks: vec![SelectedBlock {
             id: SelectedBlockId(0),
-            origin: selected_instructions::SelectedBlockOrigin::Source(source_block),
+            origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(source_block),
             instructions: vec![
-                instruction(0, 0, register_model::RegisterOperandAccess::Def),
-                instruction(1, 1, register_model::RegisterOperandAccess::Def),
-                instruction(2, 2, register_model::RegisterOperandAccess::Def),
+                instruction(0, 0, target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def),
+                instruction(1, 1, target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def),
+                instruction(2, 2, target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def),
                 future_use,
             ],
             terminator: SelectedTerminator::Return {
@@ -234,9 +242,9 @@ pub(super) fn raw_fixture() -> RawFixture {
             range(
                 0,
                 vec![
-                    occurrence(0, 1, 0, register_model::RegisterOperandAccess::Def),
-                    occurrence(3, 6, 3, register_model::RegisterOperandAccess::Use),
-                    occurrence(4, 8, 4, register_model::RegisterOperandAccess::Use),
+                    occurrence(0, 1, 0, target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def),
+                    occurrence(3, 6, 3, target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Use),
+                    occurrence(4, 8, 4, target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Use),
                 ],
                 1,
                 9,
@@ -247,7 +255,7 @@ pub(super) fn raw_fixture() -> RawFixture {
                     1,
                     3,
                     1,
-                    register_model::RegisterOperandAccess::Def,
+                    target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def,
                 )],
                 3,
                 7,
@@ -258,7 +266,7 @@ pub(super) fn raw_fixture() -> RawFixture {
                     2,
                     5,
                     2,
-                    register_model::RegisterOperandAccess::Def,
+                    target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def,
                 )],
                 5,
                 7,

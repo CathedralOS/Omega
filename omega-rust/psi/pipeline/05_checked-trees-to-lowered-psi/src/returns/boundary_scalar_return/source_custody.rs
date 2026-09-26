@@ -4,8 +4,8 @@ use super::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
     LoweringError, checked_requirements, memberships, terminal_scalar_type, unsupported,
 };
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -110,16 +110,16 @@ pub(super) fn validate(
                         .iter()
                         .any(|fact| match (&contract.kind, fact) {
                             (
-                                checked_trees::signature::SignatureContractKind::Requires,
-                                checked_trees::domain::ProofFact::Membership(_),
+                                typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind::Requires,
+                                typed_trees_to_checked_trees::checked_trees::domain::ProofFact::Membership(_),
                             ) => memberships::validate(checked, plan, fact).is_err(),
                             (
-                                checked_trees::signature::SignatureContractKind::Requires,
-                                checked_trees::domain::ProofFact::Expression(_),
+                                typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind::Requires,
+                                typed_trees_to_checked_trees::checked_trees::domain::ProofFact::Expression(_),
                             ) => !program.machine_contracts(machine).contains(contract),
                             (
-                                checked_trees::signature::SignatureContractKind::Ensures,
-                                checked_trees::domain::ProofFact::Expression(expression),
+                                typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind::Ensures,
+                                typed_trees_to_checked_trees::checked_trees::domain::ProofFact::Expression(expression),
                             ) => {
                                 !program.expression_table.expression_is_valid(*expression)
                                     || !matches!(
@@ -128,7 +128,7 @@ pub(super) fn validate(
                                     )
                             }
                             (
-                                checked_trees::signature::SignatureContractKind::Crashes { .. },
+                                typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind::Crashes { .. },
                                 _,
                             ) => false,
                             _ => true,
@@ -203,7 +203,7 @@ pub(super) fn validate(
             plan.result_type == PrimitiveType::Bool
                 && matches!(
                     expression.as_ref(),
-                    checked_trees::CheckedBooleanExpression::Local { position }
+                    typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Local { position }
                         if *position == result_position
                 )
         }
@@ -223,7 +223,7 @@ pub(super) fn validate(
     if scalar_arguments.iter().any(|argument| {
         matches!(
             argument,
-            checked_trees::CheckedCallScalarArgument::Computation(_)
+            typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(_)
         )
     }) {
         crate::emission::call_source_custody::initializers::validate(

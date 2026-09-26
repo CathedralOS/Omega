@@ -1,10 +1,10 @@
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders};
 
 use super::{build_structural_scalar_field_store_sequence, frame};
+use crate::checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 use crate::execution::terminal_unit::calls::structural_signature;
 use crate::execution::terminal_unit::control::build_checked_machine;
 use crate::tests::front_end::{checked_program, typed_program};
-use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
 mod arithmetic_policies;
 mod array_literal_fields;
@@ -61,8 +61,8 @@ fn array_byte_field_store_retains_the_borrowed_receiver_and_exact_path() {
     assert_eq!(
         store.carrier_path,
         [
-            checked_trees::CheckedUnitStructuralPathSegment::Field("cells".into()),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)
+            crate::checked_trees::CheckedUnitStructuralPathSegment::Field("cells".into()),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)
         ]
     );
     assert_eq!(store.field_identity, "out");
@@ -138,14 +138,14 @@ fn byte_field_sequence_rejects_missing_extra_and_opaque_write_frames() {
         ]
     ));
     for replacement in [
-        facts::NormalizedWriteFrame::complete(vec!["self.out".into()]),
-        facts::NormalizedWriteFrame::complete(vec!["self.flag".into()]),
-        facts::NormalizedWriteFrame::complete(vec![
+        crate::fact_plan::NormalizedWriteFrame::complete(vec!["self.out".into()]),
+        crate::fact_plan::NormalizedWriteFrame::complete(vec!["self.flag".into()]),
+        crate::fact_plan::NormalizedWriteFrame::complete(vec![
             "self.flag".into(),
             "self.out".into(),
             "self.absent".into(),
         ]),
-        facts::NormalizedWriteFrame::opaque(),
+        crate::fact_plan::NormalizedWriteFrame::opaque(),
     ] {
         let mut changed = checked.facts.clone();
         changed
@@ -314,13 +314,13 @@ fn ordered_stores_replay_successor_writes_and_reject_modified_frames() {
         "only this state's local assignment is emitted"
     );
     for replacement in [
-        facts::NormalizedWriteFrame::complete(vec!["self.first".into()]),
-        facts::NormalizedWriteFrame::complete(vec![
+        crate::fact_plan::NormalizedWriteFrame::complete(vec!["self.first".into()]),
+        crate::fact_plan::NormalizedWriteFrame::complete(vec![
             "self.first".into(),
             "self.second".into(),
             "self.absent".into(),
         ]),
-        facts::NormalizedWriteFrame::opaque(),
+        crate::fact_plan::NormalizedWriteFrame::opaque(),
     ] {
         let mut changed = checked.facts.clone();
         changed

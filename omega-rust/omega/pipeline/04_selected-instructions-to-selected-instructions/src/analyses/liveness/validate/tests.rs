@@ -7,37 +7,40 @@ use super::{
     replay::replay_function,
 };
 
-use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId};
-use selected_instructions::{
+use semantic_vocabulary::{BlockId, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterOperandAccess, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedOperand, VirtualRegisterId,
 };
-use semantic_vocabulary::{BlockId, MachineId};
 
 #[test]
 fn successor_parameter_replay_rejects_stale_argument_flow_and_missing_bindings() {
     let mut selected = crate::analyses::liveness::tests::successor_parameter_function();
     let expected = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
     assert_eq!(replay_function(0, &selected).unwrap(), expected);
-    let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+    let target_operations_to_selected_instructions::SelectedTerminator::Jump { successor, .. } =
         &mut selected.blocks[0].terminator
     else {
         unreachable!()
     };
     successor.bindings[0].semantic.argument = semantic_vocabulary::ValueId::new(2).unwrap();
     assert!(replay_function(0, &selected).is_err());
-    let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+    let target_operations_to_selected_instructions::SelectedTerminator::Jump { successor, .. } =
         &mut selected.blocks[0].terminator
     else {
         unreachable!()
     };
-    successor.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
-        argument: VirtualRegisterId(1),
-        parameter: VirtualRegisterId(2),
-    };
+    successor.bindings[0].transport =
+        target_operations_to_selected_instructions::SelectedValueTransport::Registers {
+            argument: VirtualRegisterId(1),
+            parameter: VirtualRegisterId(2),
+        };
     let changed = replay_function(0, &selected).unwrap();
     assert_ne!(changed, expected);
     assert!(validate_function(0, &expected, &changed).is_err());
-    let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+    let target_operations_to_selected_instructions::SelectedTerminator::Jump { successor, .. } =
         &mut selected.blocks[0].terminator
     else {
         unreachable!()
@@ -53,22 +56,23 @@ fn replay_retains_the_explicit_duplicate_copy_transport() {
     let mut copy = selected.virtual_registers[0].clone();
     copy.id = VirtualRegisterId(3);
     selected.virtual_registers.push(copy);
-    let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+    let target_operations_to_selected_instructions::SelectedTerminator::Jump { successor, .. } =
         &mut selected.blocks[0].terminator
     else {
         unreachable!()
     };
-    successor.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
-        argument: VirtualRegisterId(3),
-        parameter: VirtualRegisterId(2),
-    };
+    successor.bindings[0].transport =
+        target_operations_to_selected_instructions::SelectedValueTransport::Registers {
+            argument: VirtualRegisterId(3),
+            parameter: VirtualRegisterId(2),
+        };
     let replayed = replay_function(0, &selected).unwrap();
     assert_eq!(replayed.blocks[0].virtual_live_out, [VirtualRegisterId(3)]);
     assert_eq!(
         replayed,
         crate::analyses::liveness::compute::compute_function(0, &selected).unwrap()
     );
-    let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+    let target_operations_to_selected_instructions::SelectedTerminator::Jump { successor, .. } =
         &mut selected.blocks[0].terminator
     else {
         unreachable!()
@@ -77,31 +81,35 @@ fn replay_retains_the_explicit_duplicate_copy_transport() {
     assert!(replay_function(0, &selected).is_err());
 }
 
-fn ordinary_liveness(machine: MachineId) -> selected_instructions::FunctionLiveness {
-    selected_instructions::FunctionLiveness {
+fn ordinary_liveness(
+    machine: MachineId,
+) -> target_operations_to_selected_instructions::FunctionLiveness {
+    target_operations_to_selected_instructions::FunctionLiveness {
         machine,
         entry_definitions: Vec::new(),
         operand_positions: Vec::new(),
-        blocks: vec![selected_instructions::BlockLiveness {
+        blocks: vec![target_operations_to_selected_instructions::BlockLiveness {
             block: SelectedBlockId(0),
             source_block: BlockId::new(machine.get()).unwrap(),
             virtual_live_in: Vec::new(),
             virtual_live_out: Vec::new(),
             unit_live_in: vec![RegisterUnitId(1)],
             unit_live_out: Vec::new(),
-            instructions: vec![selected_instructions::InstructionLiveness {
-                position: selected_instructions::LivenessPosition(0),
-                instruction: SelectedInstructionId(0),
-                virtual_uses: Vec::new(),
-                virtual_defs: Vec::new(),
-                virtual_live_in: Vec::new(),
-                virtual_live_out: Vec::new(),
-                unit_uses: vec![RegisterUnitId(1)],
-                unit_defs: vec![RegisterUnitId(2)],
-                unit_clobbers: Vec::new(),
-                unit_live_in: vec![RegisterUnitId(1)],
-                unit_live_out: Vec::new(),
-            }],
+            instructions: vec![
+                target_operations_to_selected_instructions::InstructionLiveness {
+                    position: target_operations_to_selected_instructions::LivenessPosition(0),
+                    instruction: SelectedInstructionId(0),
+                    virtual_uses: Vec::new(),
+                    virtual_defs: Vec::new(),
+                    virtual_live_in: Vec::new(),
+                    virtual_live_out: Vec::new(),
+                    unit_uses: vec![RegisterUnitId(1)],
+                    unit_defs: vec![RegisterUnitId(2)],
+                    unit_clobbers: Vec::new(),
+                    unit_live_in: vec![RegisterUnitId(1)],
+                    unit_live_out: Vec::new(),
+                },
+            ],
             successors: Vec::new(),
         }],
     }

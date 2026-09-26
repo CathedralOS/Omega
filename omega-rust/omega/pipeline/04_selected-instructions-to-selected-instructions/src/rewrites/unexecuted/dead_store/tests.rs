@@ -11,10 +11,15 @@ use crate::rewrites::unexecuted::dead_store::{
     eliminate_selected_dead_store,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::ValueDefinitionSite;
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterInstructionConstraint;
-use selected_instructions::{
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     PackedByteWidth, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedFunction,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
@@ -22,13 +27,8 @@ use selected_instructions::{
     SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
@@ -261,7 +261,7 @@ fn fixture(target: NativeTarget) -> ValidatedDeadStoreElimination {
 /// mutated plan is a well-formed analysis source.
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedDeadStoreElimination {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(target);
@@ -277,7 +277,7 @@ fn mutated(
 
 fn eliminate(
     source: &ValidatedDeadStoreElimination,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedDeadStoreElimination, DeadStoreEliminationError> {
     eliminate_selected_dead_store(source, 0, STORE, environment, budget())
 }
@@ -329,7 +329,7 @@ fn chained(target: NativeTarget) -> ValidatedDeadStoreElimination {
 /// so the mutated plan is a well-formed analysis source.
 fn mutated_chained(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedDeadStoreElimination {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = chained(target);
@@ -357,7 +357,7 @@ fn crossed_edge(function: &mut SelectedFunction) -> &mut SelectedSuccessor {
 /// packed range sits inside the covering store's eight bytes at offset 0.
 fn make_packed_dead(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) {
     let packed = environment
         .constraint(environment.selected_keys().store_packed.unwrap())
@@ -399,7 +399,7 @@ fn packed_dead(target: NativeTarget) -> ValidatedDeadStoreElimination {
 /// unbounded upward from `offset`.
 fn sequence_store(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     id: SelectedInstructionId,
     row: usize,
     offset: u32,
@@ -506,7 +506,7 @@ const MATERIALIZE_INDEX: SelectedInstructionId = SelectedInstructionId(12);
 /// Works on the chained fixture too: its block 0 keeps the same head.
 fn dead_byte(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     offset: u32,
 ) {
     let store = environment
@@ -543,7 +543,7 @@ fn dead_byte(
 /// what the span really writes.
 fn span_copy(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     id: SelectedInstructionId,
     write_row: usize,
     byte_offset: u32,
@@ -571,7 +571,7 @@ fn span_copy(
 #[allow(clippy::too_many_arguments)]
 fn span_copy_on(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     id: SelectedInstructionId,
     write_row: usize,
     byte_offset: u32,
@@ -658,7 +658,7 @@ fn span_copy_on(
 /// `bits`.
 fn define_count(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     block: usize,
     position: usize,
     register: VirtualRegisterId,
@@ -683,7 +683,7 @@ fn define_count(
 #[allow(clippy::too_many_arguments)]
 fn define_count_as(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     block: usize,
     position: usize,
     id: SelectedInstructionId,
@@ -728,7 +728,7 @@ fn define_count_as(
 /// unbounded upward.
 fn dead_span_copy(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     byte_offset: u32,
     count: VirtualRegisterId,
     length: ValueId,
@@ -754,7 +754,7 @@ fn dead_span_copy(
 /// stays runtime.
 fn runtime_count(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     register: VirtualRegisterId,
     source_value: ValueId,
 ) {

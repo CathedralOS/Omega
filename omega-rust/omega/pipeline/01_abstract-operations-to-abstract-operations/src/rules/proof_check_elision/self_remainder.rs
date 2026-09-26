@@ -1,11 +1,11 @@
 //! Proof-certified self remainder.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     IntegerConstantRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };

@@ -1,5 +1,7 @@
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess,
+};
+use target_operations_to_selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionKind, SelectedInstructionProvenance,
     SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
@@ -125,7 +127,7 @@ pub(super) fn apply(
 
 fn rewrite_operand(
     function: usize,
-    block: &mut selected_instructions::SelectedBlock,
+    block: &mut target_operations_to_selected_instructions::SelectedBlock,
     victim: VirtualRegisterId,
     result: VirtualRegisterId,
     rewrite: PressureRematerializationRewrite,

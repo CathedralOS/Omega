@@ -1,5 +1,5 @@
-use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
-use package_manager::operations::PackageInspectionOptions;
+use omega::package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
+use omega::package_manager::operations::PackageInspectionOptions;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use target::TargetProfile;
@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn inspection_retains_required_and_optional_input_obligations() {
-        use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
+        use omega::package_compilation::BuildSourceCaptureObligation::{Optional, Required};
         let options = parse(arguments(&[
             "--build-input",
             "main.omg",

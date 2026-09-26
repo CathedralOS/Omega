@@ -173,7 +173,7 @@ fn authored_memberships_and_struct_literals_ignore_extension_first_declarations(
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
+            crate::symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
                 Some(literal)
             }
             _ => None,
@@ -193,7 +193,9 @@ fn authored_memberships_and_struct_literals_ignore_extension_first_declarations(
         .proof_facts(accepted.facts)
         .iter()
         .filter_map(|fact| match fact {
-            symbol_resolved_trees::domain::ProofFact::Membership(membership) => Some(membership),
+            crate::symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                Some(membership)
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -207,7 +209,7 @@ fn authored_memberships_and_struct_literals_ignore_extension_first_declarations(
         .expressions
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
-            symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+            crate::symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
                 Some(membership)
             }
             _ => None,
@@ -352,12 +354,12 @@ fn authored_trait_machine_conformance_and_dynamic_assignments_ignore_extension_f
         .find(|machine| machine.name.as_str() == "erase")
         .expect("base erase");
     let entry = program.machine_state(program.machine_state_handles(erase.states)[0]);
-    let Some(symbol_resolved_trees::types::TypeReference::Reference(reference)) =
+    let Some(crate::symbol_resolved_trees::types::TypeReference::Reference(reference)) =
         &entry.return_type
     else {
         panic!("erase return remains a reference")
     };
-    let symbol_resolved_trees::types::TypeReference::DynamicTrait {
+    let crate::symbol_resolved_trees::types::TypeReference::DynamicTrait {
         symbol,
         conformance,
         ..
@@ -417,7 +419,7 @@ fn trait_slot_catalogs_and_evidence_seeding_use_exact_trait_identity() {
     })
     .expect("same-named trait catalogs must retain exact stratum identity");
     let argument_kind = |arguments| {
-        let [symbol_resolved_trees::types::TypeReference::Named { symbol, .. }] =
+        let [crate::symbol_resolved_trees::types::TypeReference::Named { symbol, .. }] =
             program.child_type_references(arguments)
         else {
             panic!("one named static trait argument")

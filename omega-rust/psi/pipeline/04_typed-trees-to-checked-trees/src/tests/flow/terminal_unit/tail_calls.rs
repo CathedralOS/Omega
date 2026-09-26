@@ -1,9 +1,11 @@
 //! Unit tails retain authored call expressions and normal return cleanup.
 use super::CheckedUnitEffectOperationPlan;
+use crate::checked_trees::CheckedCallScalarArgument;
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::CheckedCallScalarArgument;
-use typed_trees::{expression::ExpressionNode, statement::StatementNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    expression::ExpressionNode, statement::StatementNode,
+};
 
 const SOURCE: &str = r#"
     boundary trait Host { machine send(value: u8); }

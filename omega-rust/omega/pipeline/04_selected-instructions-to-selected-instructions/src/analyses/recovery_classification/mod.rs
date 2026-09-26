@@ -3,19 +3,21 @@ use crate::ValidatedAllocationLegality;
 use crate::ValidatedLiveRanges;
 use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
-use register_homes::RecoveryClassificationPolicy;
+use crate::register_homes::RecoveryClassificationPolicy;
 
 pub(crate) mod compute;
 pub(crate) mod validate;
 
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{
+use crate::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
     RecoveryClassificationPlan, SpillChoiceIdentity,
 };
-use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity;
+use target_operations_to_selected_instructions::{
+    LiveRangeIdentity, SelectedInstructionPlanIdentity,
+};
 pub use validate::validate_recovery_classifications;
 
 /// Classify an already selected pressure victim under one exact recovery

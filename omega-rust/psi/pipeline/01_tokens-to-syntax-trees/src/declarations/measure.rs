@@ -1,11 +1,11 @@
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::ExpressionHandle;
+use crate::syntax_trees::item::{MeasureDefinition, StateParameterHandle};
 use arena::HandleSpan;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::ExpressionHandle;
-use syntax_trees::item::{MeasureDefinition, StateParameterHandle};
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 /// Parses a `measure` item, in either the simple body form
 ///   `measure Card::PowerOrder(card: Card) -> usize { card.power }`
@@ -30,7 +30,7 @@ pub(super) fn parse_measure_definition<'tokens, 'source>(
             MeasureDefinition {
                 name,
                 parameter: StateParameterHandle::invalid(),
-                return_type: syntax_trees::types::TypeReferenceHandle::invalid(),
+                return_type: crate::syntax_trees::types::TypeReferenceHandle::invalid(),
                 lexicographic: true,
                 body: components,
                 token_count,

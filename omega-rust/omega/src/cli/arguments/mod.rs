@@ -12,8 +12,8 @@ pub(crate) use execution::RunArguments;
 pub(crate) use inspection::InspectTerminalArguments;
 pub(crate) use source_audit::SourceArguments;
 
-use package_manager::operations::PackageInspectionOptions;
-use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
+use omega::package_manager::operations::PackageInspectionOptions;
+use omega::package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::ffi::OsString;
 use std::path::PathBuf;
 

@@ -9,8 +9,8 @@
 //! includes other mathematical declarations. Arrow binders are retained as
 //! authored names only; the typed-tree telescope owns their scoping.
 
-use symbol_resolved_trees::data::TypeParameterKind;
-use symbol_resolved_trees::mathematical::{MathematicalBody, MathematicalType};
+use crate::symbol_resolved_trees::data::TypeParameterKind;
+use crate::symbol_resolved_trees::mathematical::{MathematicalBody, MathematicalType};
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::propositions::assign_expression_symbols;
@@ -23,7 +23,7 @@ const MATHEMATICAL_CALL_KINDS: &[SymbolKind] =
     &[SymbolKind::MathematicalDefinition, SymbolKind::Proposition];
 
 pub(super) fn assign_mathematical_expression_symbols(
-    program: &mut symbol_resolved_trees::SymbolResolvedTrees,
+    program: &mut crate::symbol_resolved_trees::SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;

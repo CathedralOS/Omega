@@ -18,7 +18,7 @@ use crate::borrow::view_link::{
 mod templates;
 
 pub(super) fn check_view_return_elision(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut deferred = Vec::new();
@@ -43,7 +43,7 @@ pub(super) fn check_view_return_elision(
         }
 
         for parameter in program.machine_type_parameters(machine) {
-            let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
                 continue;
             };
             let signature = program
@@ -61,7 +61,7 @@ pub(super) fn check_view_return_elision(
                 .iter()
                 .chain(program.state_signature_type_parameters(signature))
                 .filter(|parameter| {
-                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                    matches!(parameter.kind, symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type)
                 })
                 .map(|parameter| parameter.symbol)
                 .collect::<Vec<_>>();
@@ -91,8 +91,8 @@ pub(super) fn check_view_return_elision(
 }
 
 fn check_bodyless_signature(
-    program: &typed_trees::TypedTrees,
-    signature: &typed_trees::signature::StateSignature,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let ViewReturnSource::Ambiguous(ambiguity) = resolve_signature_view_return_source(

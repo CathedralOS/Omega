@@ -1,16 +1,16 @@
 //! Project the Nat checker's judgment without recognizing another rank syntax.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedScalarMachineGraph, CheckedStructuralRankedArgumentPlan,
     CheckedStructuralRankedGuardPlan, CheckedStructuralRankedSccEdgePlan,
     CheckedStructuralRankedSccPlan,
 };
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 pub(super) fn plan(
     program: &TypedTrees,
     graph: &CheckedScalarMachineGraph,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Option<CheckedStructuralRankedSccPlan>> {
     let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
     if machine.termination_plan.implementation_witness.is_none() {
@@ -36,7 +36,8 @@ pub(super) fn plan(
         .is_some_and(|ranks| {
             !ranks.is_empty()
                 && ranks.iter().all(|rank| {
-                    rank.measure == checked_trees::CheckedNaturalRankMeasure::ByteSequenceLength
+                    rank.measure
+                        == crate::checked_trees::CheckedNaturalRankMeasure::ByteSequenceLength
                 })
         }) {
             Some(None)

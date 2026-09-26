@@ -1,0 +1,69 @@
+//! Direct owned projections contribute storage bounds under their exact owner.
+
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
+use symbols::SymbolKind;
+
+pub(super) fn type_reference(
+    program: &TypedTrees,
+    state: &State,
+    expression: ExpressionHandle,
+    // When true, a mutable receiver still contributes the field's declared
+    // storage bounds: every store maintains them, so they hold at every
+    // evaluation. When false, mutable places are opaque.
+    declared_mutable_leaves: bool,
+) -> Option<TypeReferenceHandle> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let ExpressionNode::Name(receiver) = program.expression_table.expression(member.receiver)
+    else {
+        return None;
+    };
+    let [name] = program.expression_table.name_path_members(receiver.members) else {
+        return None;
+    };
+    let parameter = program.state_parameters(state).iter().find(|parameter| {
+        receiver.symbol.is_valid()
+            && receiver.symbol == receiver.head_symbol
+            && parameter.symbol == receiver.symbol
+            && parameter.name == *name
+            && !parameter.is_self
+            && (declared_mutable_leaves || !parameter.is_mutable)
+            && !parameter.is_const
+    })?;
+    // Reference and generic receivers need load or instantiated-field evidence.
+    // A named record contributes only its stored field's own enforced bounds.
+    let TypeReferenceNode::Named { symbol: owner, .. } = program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return None;
+    };
+    let declaration = program
+        .data_definitions()
+        .iter()
+        .find(|declaration| owner.is_valid() && declaration.symbol == *owner)?;
+    let selected = program.symbols.get(member.member_symbol);
+    if !member.member_symbol.is_valid()
+        || selected.kind != SymbolKind::Field
+        || selected.parent != *owner
+        || member.case_variant.is_some()
+    {
+        return None;
+    }
+    crate::validation::value_custody::places::exact_data_member_field(
+        program,
+        declaration,
+        member.member_symbol,
+        member.member.as_str(),
+        None,
+    )
+    .map(|field| field.type_reference)
+}

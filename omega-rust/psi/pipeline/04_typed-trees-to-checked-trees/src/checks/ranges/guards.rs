@@ -1,6 +1,6 @@
 mod bounds;
 
-use typed_trees::expression::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
 
@@ -20,13 +20,18 @@ use bounds::{
 /// machine/state context, so it runs beside `seed_guard_facts` at the
 /// sites that have it (the co-located transition arm).
 pub(super) fn seed_value_vs_value_endpoints(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
-    if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
+    if !crate::validation::has_builtin_decomposed_guard_meaning(
+        program,
+        machine,
+        Some(state),
+        guard,
+    ) {
         return;
     }
     // A boolean local's name stands for its comparison: `has_next ->
@@ -94,13 +99,18 @@ pub(super) fn seed_value_vs_value_endpoints(
 }
 
 pub(super) fn seed_guard_facts(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
-    if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
+    if !crate::validation::has_builtin_decomposed_guard_meaning(
+        program,
+        machine,
+        Some(state),
+        guard,
+    ) {
         return;
     }
 
@@ -126,9 +136,9 @@ pub(super) fn seed_guard_facts(
 }
 
 fn seed_binary_guard_facts(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     binary: &TableBinaryExpression,
     operator: BinaryOperator,
@@ -270,9 +280,9 @@ fn seed_binary_guard_facts(
 }
 
 fn seed_boolean_equality_guard_facts(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     possible_boolean: ExpressionHandle,
     guard: ExpressionHandle,
@@ -287,9 +297,9 @@ fn seed_boolean_equality_guard_facts(
 }
 
 fn seed_boolean_inequality_guard_facts(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     possible_boolean: ExpressionHandle,
     guard: ExpressionHandle,
@@ -304,15 +314,20 @@ fn seed_boolean_inequality_guard_facts(
 }
 
 pub(super) fn seed_negated_guard_facts(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
     // Test the actual selected operation, not the complement used below to
     // represent its false branch.
-    if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
+    if !crate::validation::has_builtin_decomposed_guard_meaning(
+        program,
+        machine,
+        Some(state),
+        guard,
+    ) {
         return;
     }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {

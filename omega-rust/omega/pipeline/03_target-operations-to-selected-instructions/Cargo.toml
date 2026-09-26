@@ -8,31 +8,24 @@ version.workspace = true
 name = "target_operations_to_selected_instructions"
 path = "src/lib.rs"
 
-[dependencies]
-calling-conventions = { path = "../../representations/calling-conventions" }
-optimization-core = { path = "../../representations/optimization-core" }
-optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
-optimization-unit = { path = "../../representations/optimization-unit" }
-register-model = { path = "../../representations/register-model" }
-target = { path = "../../representations/target" }
-abstract-operations = { path = "../../representations/abstract-operations" }
-abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
-abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
-terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
-register-environment = { path = "../../backend/register-environment" }
-legalized-operations = { path = "../../representations/legalized-operations" }
-selected-instructions = { path = "../../representations/selected-instructions" }
-target-operations = { path = "../../representations/target-operations" }
-semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-terminal-psi = { path = "../../../psi/representations/terminal-psi" }
-terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
+[features]
+test-support = []
 
-terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
-terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
-proof-admission = { path = "../../../psi/semantics/proof-admission" }
+[dependencies]
+abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+sha2 = { version = "0.10.9" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+optimization-core = { path = "../../../psi/optimization-core" }
+target = { path = "../../../psi/target" }
+abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/terminal-psi" }
+terminal-semantics = { path = "../../../psi/terminal-semantics" }
+
+terminal-codec = { path = "../../../psi/terminal-codec" }
 
 [dev-dependencies]
 mimalloc = { version = "0.1", default-features = false }
-installation-evidence = { path = "../../representations/installation-evidence" }
-isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
-task-plans = { path = "../../representations/task-plans" }
+abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
+installation-evidence = { path = "../../../psi/installation-evidence" }

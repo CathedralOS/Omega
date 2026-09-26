@@ -3,8 +3,8 @@ mod names;
 
 use std::sync::Arc;
 
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use source::SourceMap;
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{
     SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder, builtin_function_symbols,
     builtin_type_symbols,

@@ -1,7 +1,7 @@
 //! Dynamic receiver places and stored receivers.
 
 use crate::execution::terminal_unit::{CheckFacts, ExpressionNode, SymbolHandle, TypedTrees};
-use typed_trees::name::Identifier;
+use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
 
 pub(crate) struct DynamicReceiverPlace {
     pub(crate) root: SymbolHandle,
@@ -11,7 +11,7 @@ pub(crate) struct DynamicReceiverPlace {
 
 pub(crate) fn dynamic_receiver_place(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<DynamicReceiverPlace> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(name) => {
@@ -46,7 +46,7 @@ pub(crate) fn dynamic_receiver_place(
 /// storage it names.
 pub(crate) fn statement_receiver_place(
     program: &TypedTrees,
-    call: &typed_trees::statement::TableCall,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
 ) -> Option<DynamicReceiverPlace> {
     let path = program
         .statement_table
@@ -73,7 +73,7 @@ pub(crate) fn stored_dynamic_receiver<'facts>(
     state: SymbolHandle,
     statement_index: usize,
     call_site: &crate::semantic::calls::CallSite<'_>,
-) -> Option<&'facts checked_trees::DynamicDescriptorStorageFact> {
+) -> Option<&'facts crate::checked_trees::DynamicDescriptorStorageFact> {
     let crate::semantic::calls::CallSite::Expression { call, .. } = call_site else {
         return None;
     };

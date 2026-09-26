@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
 };
 
-use machine_code::SelectedFormEncodingRow;
+use post_allocation_machine_to_selected_form_encoding::machine_code::SelectedFormEncodingRow;
 
 use super::super::super::OptimizedResolvedSelectedFormLayoutError;
 use super::PreLayoutRows;

@@ -1,10 +1,10 @@
 //! Trailing call preservation is separate from checking its result type.
 
 use crate::resolution::{ResolutionRequest, resolve};
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::expression::ExpressionNode;
+use crate::symbol_resolved_trees::statement::StatementNode;
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::expression::ExpressionNode;
-use symbol_resolved_trees::statement::StatementNode;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn resolved(source: &str) -> SymbolResolvedTrees {

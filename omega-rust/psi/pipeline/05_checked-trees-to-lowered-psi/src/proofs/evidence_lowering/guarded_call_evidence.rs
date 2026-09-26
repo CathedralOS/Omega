@@ -49,7 +49,7 @@ pub(crate) fn lower_outcome_specific_ensures(
         .ok_or(LoweringError::Unsupported(
             "guarded payloadless producer state is absent",
         ))?;
-    let checked_trees::types::TypeReferenceNode::Named {
+    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
         symbol: result_data,
         ..
     } = checked
@@ -98,19 +98,23 @@ pub(crate) fn lower_outcome_specific_ensures(
         if guarantee.result_data != *result_data {
             return unsupported("guarded guarantee references a foreign result sum");
         }
-        let case_identity = checked
-            .typed
-            .data_members(data)
-            .iter()
-            .find_map(|member| {
-                let checked_trees::data::DataMember::Variant(variant) = member else {
-                    return None;
-                };
-                (variant.symbol == guarantee.result_case).then(|| variant.path_identity())
-            })
-            .ok_or(LoweringError::Unsupported(
-                "guarded guarantee references an unknown result case",
-            ))?;
+        let case_identity =
+            checked
+                .typed
+                .data_members(data)
+                .iter()
+                .find_map(|member| {
+                    let typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(
+                        variant,
+                    ) = member
+                    else {
+                        return None;
+                    };
+                    (variant.symbol == guarantee.result_case).then(|| variant.path_identity())
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "guarded guarantee references an unknown result case",
+                ))?;
         let result_case = cases
             .iter()
             .find_map(|case| (case.identity == case_identity).then_some(case.id))
@@ -127,22 +131,25 @@ pub(crate) fn lower_outcome_specific_ensures(
             .expect("guarded position was inserted") = position.checked_add(1).ok_or(
             LoweringError::Unsupported("guarded guarantee position exceeds u32"),
         )?;
-        let (proposition, evidence) =
-            match (guarantee.public_selector.as_ref(), guarantee.evidence_term) {
-                (Some(selector), Some(term_handle)) => {
-                    let checked_term = checked.facts.proof.evidence_terms.get(term_handle);
-                    let checked_trees::domain::ProofFact::Proposition(application) =
-                        checked.typed.proof_facts.get(guarantee.fact)
-                    else {
-                        return unsupported("named guarded guarantee is not nominal");
-                    };
-                    let normalized = checked
-                        .typed
-                        .normalize_nominal_proposition_application(application, None)
-                        .ok_or(LoweringError::Unsupported(
-                            "named guarded guarantee has no normalized proposition endpoint",
-                        ))?;
-                    if normalized.declaration != checked_term.proposition.declaration
+        let (proposition, evidence) = match (
+            guarantee.public_selector.as_ref(),
+            guarantee.evidence_term,
+        ) {
+            (Some(selector), Some(term_handle)) => {
+                let checked_term = checked.facts.proof.evidence_terms.get(term_handle);
+                let typed_trees_to_checked_trees::checked_trees::domain::ProofFact::Proposition(
+                    application,
+                ) = checked.typed.proof_facts.get(guarantee.fact)
+                else {
+                    return unsupported("named guarded guarantee is not nominal");
+                };
+                let normalized = checked
+                    .typed
+                    .normalize_nominal_proposition_application(application, None)
+                    .ok_or(LoweringError::Unsupported(
+                        "named guarded guarantee has no normalized proposition endpoint",
+                    ))?;
+                if normalized.declaration != checked_term.proposition.declaration
                         || normalized.arguments != checked_term.proposition.arguments
                         || normalized.binder_arguments.len()
                             != checked_term.proposition.binder_arguments.len()
@@ -152,13 +159,13 @@ pub(crate) fn lower_outcome_specific_ensures(
                             .zip(&checked_term.proposition.binder_arguments)
                             .any(|(left, right)| {
                                 let kind = match left.kind {
-                            checked_trees::proposition::PropositionBinderArgumentKind::Type => {
+                            typed_trees_to_checked_trees::checked_trees::proposition::PropositionBinderArgumentKind::Type => {
                                 CheckedPropositionBinderArgumentKind::Type
                             }
-                            checked_trees::proposition::PropositionBinderArgumentKind::Const => {
+                            typed_trees_to_checked_trees::checked_trees::proposition::PropositionBinderArgumentKind::Const => {
                                 CheckedPropositionBinderArgumentKind::Const
                             }
-                            checked_trees::proposition::PropositionBinderArgumentKind::Machine => {
+                            typed_trees_to_checked_trees::checked_trees::proposition::PropositionBinderArgumentKind::Machine => {
                                 CheckedPropositionBinderArgumentKind::Machine
                             }
                         };
@@ -171,45 +178,46 @@ pub(crate) fn lower_outcome_specific_ensures(
                             "named guarded guarantee disagrees with its evidence term",
                         );
                     }
-                    let term = terminal_evidence_term_id(
-                        term_ids,
-                        term_handle,
-                        "guarded guarantee term has no terminal identity",
-                    )?;
-                    let declaration = evidence_terms
-                        .iter()
-                        .find(|declaration| declaration.id == term)
-                        .ok_or(LoweringError::Unsupported(
-                            "guarded guarantee term declaration is absent",
-                        ))?;
-                    (
-                        Proposition::Atom(declaration.proposition),
-                        Some(OutcomeSpecificEvidence {
-                            term,
-                            output_field: selector.clone(),
-                        }),
-                    )
-                }
-                (None, None) => {
-                    let checked_trees::domain::ProofFact::Expression(expression) =
-                        checked.typed.proof_facts.get(guarantee.fact)
-                    else {
-                        return unsupported(
-                            "unnamed guarded guarantee is outside the bounded truth proposition",
-                        );
-                    };
-                    if !matches!(
+                let term = terminal_evidence_term_id(
+                    term_ids,
+                    term_handle,
+                    "guarded guarantee term has no terminal identity",
+                )?;
+                let declaration = evidence_terms
+                    .iter()
+                    .find(|declaration| declaration.id == term)
+                    .ok_or(LoweringError::Unsupported(
+                        "guarded guarantee term declaration is absent",
+                    ))?;
+                (
+                    Proposition::Atom(declaration.proposition),
+                    Some(OutcomeSpecificEvidence {
+                        term,
+                        output_field: selector.clone(),
+                    }),
+                )
+            }
+            (None, None) => {
+                let typed_trees_to_checked_trees::checked_trees::domain::ProofFact::Expression(
+                    expression,
+                ) = checked.typed.proof_facts.get(guarantee.fact)
+                else {
+                    return unsupported(
+                        "unnamed guarded guarantee is outside the bounded truth proposition",
+                    );
+                };
+                if !matches!(
                         checked.typed.expression_table.expression(*expression),
-                        checked_trees::expression::ExpressionNode::Boolean(true)
+                        typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Boolean(true)
                     ) {
                         return unsupported(
                             "unnamed guarded guarantee is outside the bounded truth proposition",
                         );
                     }
-                    (Proposition::Truth, None)
-                }
-                _ => return unsupported("guarded guarantee has an incomplete evidence endpoint"),
-            };
+                (Proposition::Truth, None)
+            }
+            _ => return unsupported("guarded guarantee has an incomplete evidence endpoint"),
+        };
         rows.push(OutcomeSpecificEnsure {
             guard,
             position,
@@ -227,7 +235,7 @@ pub(crate) fn lower_outcome_specific_ensures(
 
 pub(crate) fn lower_and_install_payloadless_guarded_call_evidence(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedPayloadlessGuardedCallReturnMachinePlan,
+    plan: &typed_trees_to_checked_trees::checked_trees::CheckedPayloadlessGuardedCallReturnMachinePlan,
     lowered: &mut LoweredPsi,
 ) -> Result<(), LoweringError> {
     let provisional_term_ids = lower_payloadless_guarded_call_term_ids(checked, plan)?;
@@ -793,7 +801,7 @@ fn canonical_payloadless_guarded_call_term_ids(
 
 fn lower_payloadless_guarded_call_term_ids(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedPayloadlessGuardedCallReturnMachinePlan,
+    plan: &typed_trees_to_checked_trees::checked_trees::CheckedPayloadlessGuardedCallReturnMachinePlan,
 ) -> Result<Vec<Option<EvidenceTermId>>, LoweringError> {
     let mut handles = checked
         .facts

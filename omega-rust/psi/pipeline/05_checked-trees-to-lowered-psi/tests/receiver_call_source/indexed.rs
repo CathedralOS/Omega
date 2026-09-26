@@ -4,10 +4,10 @@ use super::{
     CheckedUnitEffectOperationPlan, OperationKind, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue, unit_plan,
 };
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 fn source(signature: &str, receiver: &str) -> String {
     format!(
         "data Record [copy] {{ value: u16; }}
@@ -27,15 +27,16 @@ fn indexed_ieee_write_only_receiver_retains_runtime_and_literal_stores() {
                  machine Record::replace(&write self, value: {primitive}) {{ self.value = {replacement}; }}
                  machine forward(records: &write [Record; 2], value: {primitive}) {{ records[1].replace(value); }}"
             ));
-            let artifact = terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("forward"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("indexed IEEE receiver preserves canonical store custody")
-            .into_artifact();
+            let artifact =
+                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                    &checked,
+                    TerminalMachineSelection::Name("forward"),
+                )
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default(),
+                ))
+                .expect("indexed IEEE receiver preserves canonical store custody")
+                .into_artifact();
             let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
             let caller = module
                 .machines
@@ -117,15 +118,16 @@ fn fixed_indexed_receiver_paths_keep_fields_and_nested_arrays() {
     ] {
         let source = source(signature, receiver);
         let checked = crate::front_end::checked_program(&source);
-        let _artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name(caller),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap_or_else(|error| panic!("{receiver} must retain its source path: {error:?}"))
-        .into_artifact();
+        let _artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name(caller),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap_or_else(|error| panic!("{receiver} must retain its source path: {error:?}"))
+            .into_artifact();
     }
 }
 
@@ -152,9 +154,11 @@ fn indexed_receiver_plan_cannot_substitute_another_in_bounds_element() {
         panic!("one indexed receiver call");
     };
     structural_arguments[0].path[0] =
-        checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0);
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+            0,
+        );
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("forward")
         )
@@ -206,16 +210,19 @@ fn projected_alias_capture_executes_once_across_every_fuel_boundary() {
     }
 }
 
-fn assert_indexed_receiver_fuel(checked: &checked_trees::CheckedTrees) {
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        checked,
-        TerminalMachineSelection::Name("forward"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+fn assert_indexed_receiver_fuel(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) {
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            checked,
+            TerminalMachineSelection::Name("forward"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     assert_eq!(
@@ -225,7 +232,7 @@ fn assert_indexed_receiver_fuel(checked: &checked_trees::CheckedTrees) {
     let profile = proof_admission::AdmissionProfile::default();
     let verified = terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
     let certificate =
-        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
     let caller = module
         .machines
         .iter()
@@ -311,7 +318,7 @@ fn dynamic_indexed_receiver_remains_checked_without_static_terminal_geometry() {
         "records[index]",
     ));
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("forward")
         )
@@ -328,16 +335,17 @@ fn unused_projected_receiver_keeps_existing_self_erasure() {
         let source =
             source("Container::forward(&write self)", receiver).replace("self.value = 17;", "");
         let checked = crate::front_end::checked_program(&source);
-        let _artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Container::forward"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap_or_else(|error| {
-            panic!("an unused receiver remains erasable: {receiver}: {error:?}")
-        })
-        .into_artifact();
+        let _artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Container::forward"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap_or_else(|error| {
+                panic!("an unused receiver remains erasable: {receiver}: {error:?}")
+            })
+            .into_artifact();
     }
 }

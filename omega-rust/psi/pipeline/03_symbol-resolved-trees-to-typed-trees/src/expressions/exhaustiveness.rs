@@ -39,7 +39,7 @@ use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataMember};
 use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use resolved::statement::{StatementNode, TransitionGuardNode};
-use symbol_resolved_trees as resolved;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(crate) fn validate_case_dispatch_exhaustiveness(
     program: &SymbolResolvedTrees,

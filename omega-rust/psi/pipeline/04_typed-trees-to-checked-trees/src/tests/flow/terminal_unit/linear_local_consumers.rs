@@ -168,7 +168,7 @@ fn a_fresh_linear_literal_still_stops_at_its_local_binding() {
     assert!(matches!(
         plans.omission_for_machine(machine).map(|row| &row.stage),
         Some(
-            checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+            crate::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
                 phase: "statement sequence: local data: structural call binding",
                 statement_index: Some(0),
                 ..

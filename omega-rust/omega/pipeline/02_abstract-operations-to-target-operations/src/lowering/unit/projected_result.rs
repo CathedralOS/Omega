@@ -1,9 +1,9 @@
 //! Stored ordinary results remain distinct roots after whole-input transfer.
 
-use calling_conventions::{ValueClass, ValueLocation, ValuePlacement};
+use crate::calling_conventions::{ValueClass, ValueLocation, ValuePlacement};
+use crate::target_operations::TargetUnitOperation;
+use crate::target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
 use semantic_vocabulary::PlaceId;
-use target_operations::TargetUnitOperation;
-use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
 use terminal_psi::StructuralMultiplicity;
 
 /// A direct register fragment contains at most eight logical bytes. Native
@@ -39,7 +39,7 @@ pub(super) fn source(
         let TargetUnitOperation::Call {
             psi_operation,
             result:
-                target_operations::TargetCallResult::Structural {
+                crate::target_operations::TargetCallResult::Structural {
                     result,
                     result_home: Some(home),
                     ..

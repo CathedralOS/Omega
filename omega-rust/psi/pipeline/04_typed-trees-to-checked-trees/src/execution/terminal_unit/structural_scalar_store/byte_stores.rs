@@ -18,11 +18,11 @@ use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_fie
 pub(super) fn view_write(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     destination: &Destination<'_>,
     statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
+    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
@@ -36,7 +36,7 @@ pub(super) fn view_write(
         || plan.multiplicity != Multiplicity::Unrestricted
         || !plan.qualifications.is_empty()
         || plan.fused_service_erasure.is_some()
-        || !checked_trees::is_borrowed_view(byte_sequence_carrier(
+        || !crate::checked_trees::is_borrowed_view(byte_sequence_carrier(
             program,
             parameter.type_reference,
             &[],
@@ -45,7 +45,7 @@ pub(super) fn view_write(
         return None;
     }
     Some(CheckedUnitEffectOperationPlan::ByteSequenceWrite(
-        checked_trees::CheckedByteSequenceWritePlan {
+        crate::checked_trees::CheckedByteSequenceWritePlan {
             statement_index,
             destination_parameter_position: plan.position,
             index: value::runtime_index(facts, state, statement_index, index)?,
@@ -73,14 +73,14 @@ pub(super) fn view_write(
 pub(super) fn field_store(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     destination: &Destination<'_>,
-    carrier_path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-    field: &typed_trees::data::DataField,
+    carrier_path: Vec<crate::checked_trees::CheckedUnitStructuralPathSegment>,
+    field: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField,
     capacity: Option<u64>,
     statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
+    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
@@ -112,7 +112,7 @@ pub(super) fn field_store(
         }
         return Some(
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(
-                checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan {
+                crate::checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan {
                     statement_index,
                     destination_parameter_position,
                     carrier_path,
@@ -147,7 +147,7 @@ pub(super) fn field_store(
     }
     Some(
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(
-            checked_trees::CheckedStructuralByteSequenceFieldStorePlan {
+            crate::checked_trees::CheckedStructuralByteSequenceFieldStorePlan {
                 statement_index,
                 destination_parameter_position,
                 carrier_path,
@@ -164,7 +164,7 @@ pub(super) fn field_store(
 /// while the Reference node still exists.
 pub(super) fn field_view_is_mutable(
     program: &TypedTrees,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
+    mut type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     loop {
         match program.type_reference_table.type_reference(type_reference) {

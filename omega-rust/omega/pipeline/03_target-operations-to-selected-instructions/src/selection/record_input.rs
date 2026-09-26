@@ -1,8 +1,8 @@
 //! Reconstruct record field geometry from exact declarations.
-use calling_conventions::ValueShape;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
+use abstract_operations_to_target_operations::calling_conventions::ValueShape;
 use terminal_psi::{
     RecordFieldValue, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
 };

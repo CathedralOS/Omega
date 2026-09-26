@@ -1,13 +1,13 @@
 //! Boundary edges for one call: a `FlowBoundaryEdgeFact` for each signature named
 //! like the called state in each boundary trait that the callee's machine conforms
 //! to, directly or through trait requirements.
+use crate::checked_trees::{BorrowCallFact, FlowBoundaryEdgeFact};
 use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
-use checked_trees::{BorrowCallFact, FlowBoundaryEdgeFact};
 use symbols::SymbolHandle;
 
 pub(super) fn append_call_boundary_edges(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     build: &mut FlowBuildContext,
     borrow_call: &BorrowCallFact,
 ) -> HandleSpan<FlowBoundaryEdgeFact> {
@@ -39,10 +39,10 @@ pub(super) fn append_call_boundary_edges(
 }
 
 fn append_boundary_edges_for_trait(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     build: &mut FlowBuildContext,
     borrow_call: &BorrowCallFact,
-    target_state: &typed_trees::state::State,
+    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     trait_symbol: SymbolHandle,
     visited_traits: &mut Vec<SymbolHandle>,
     span: &mut HandleSpan<FlowBoundaryEdgeFact>,

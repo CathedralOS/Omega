@@ -25,7 +25,10 @@ fn check(source: &str, rejection: Option<&str>) {
     let _ = checked_fixture(source, rejection);
 }
 
-fn checked_fixture(source: &str, rejection: Option<&str>) -> Option<checked_trees::CheckedTrees> {
+fn checked_fixture(
+    source: &str,
+    rejection: Option<&str>,
+) -> Option<crate::checked_trees::CheckedTrees> {
     match checked_program_result(source) {
         Ok(checked) => {
             assert!(rejection.is_none(), "expected {rejection:?}\n{source}");
@@ -73,9 +76,9 @@ fn window_source(scalar: &str, requirement: &str, body: &str, access: &str) -> S
 }
 
 fn snapshot_local(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     name: &str,
-) -> typed_trees::statement::TableLocalData {
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData {
     checked
         .typed
         .machines()
@@ -88,7 +91,7 @@ fn snapshot_local(
                 .statements(state.statement_nodes)
         })
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == name =>
             {
                 Some(local.clone())
@@ -98,8 +101,8 @@ fn snapshot_local(
         .expect("snapshot fixture local")
 }
 
-fn assert_captured_adjacency(checked: &mut checked_trees::CheckedTrees, reverse: bool) {
-    use checked_trees::BorrowCompatibilitySelectorValue::{Integer, Symbol};
+fn assert_captured_adjacency(checked: &mut crate::checked_trees::CheckedTrees, reverse: bool) {
+    use crate::checked_trees::BorrowCompatibilitySelectorValue::{Integer, Symbol};
 
     let certificates = checked
         .facts
@@ -111,8 +114,9 @@ fn assert_captured_adjacency(checked: &mut checked_trees::CheckedTrees, reverse:
     assert_eq!(certificates.len(), 1, "one simultaneously active loan pair");
     let certificate = &certificates[0];
     let cut = snapshot_local(checked, "cut");
-    let typed_trees::expression::ExpressionNode::Name(original) =
-        checked.typed.expression_table.expression(cut.initial_value)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
+        original,
+    ) = checked.typed.expression_table.expression(cut.initial_value)
     else {
         panic!("cut captures the nonconstant mutable parameter");
     };
@@ -145,7 +149,7 @@ fn assert_captured_adjacency(checked: &mut checked_trees::CheckedTrees, reverse:
     assert!(certificate.conclusion.non_interfering);
     assert_eq!(
         certificate.conclusion.containment,
-        checked_trees::CapturedPlaceContainment::None
+        crate::checked_trees::CapturedPlaceContainment::None
     );
     assert!(
         checked

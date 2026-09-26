@@ -1,7 +1,7 @@
 use crate::legalization::ValidatedLegalizedOperations;
+use crate::selected_instructions::SelectedInstructionPlan;
+use crate::selected_instructions::selected_instruction_plan_identity;
 use crate::selection::model::SelectedInstructionValidationReceipt;
-use selected_instructions::SelectedInstructionPlan;
-use selected_instructions::selected_instruction_plan_identity;
 
 pub(super) fn receipt(
     plan: &SelectedInstructionPlan,

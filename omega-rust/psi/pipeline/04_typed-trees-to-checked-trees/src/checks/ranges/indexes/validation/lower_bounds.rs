@@ -5,8 +5,8 @@ use crate::checks::ranges::expressions::{ensured_call_result_bounds, expression_
 use crate::checks::ranges::types::{
     expression_enforced_declared_range, expression_is_unsigned_integer,
 };
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
 pub(super) fn prove(
     program: &TypedTrees,
@@ -39,7 +39,7 @@ pub(super) fn prove(
             return value >= 0;
         }
         let label = program.expression_table.display_name(expression);
-        validation::collection_length_receiver(program, machine, Some(state), expression).is_some()
+        crate::validation::collection_length_receiver(program, machine, Some(state), expression).is_some()
             || crate::checks::ranges::proofs::length_difference_is_within_collection(
                 program,
                 machine,

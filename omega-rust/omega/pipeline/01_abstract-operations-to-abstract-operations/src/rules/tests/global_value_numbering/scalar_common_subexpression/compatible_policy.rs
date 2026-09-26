@@ -13,18 +13,18 @@ use crate::rules::tests::fixtures::global_value_numbering::{
 };
 use crate::rules::tests::fixtures::id;
 use crate::{PsiOptimizationRule, RuleAnalysisView};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationRuleContract;
-use optimization_unit::{
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, ObligationId, OperationId, ScalarType, ValueId,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_dominating_scalar_common_subexpression_candidate,
     validate_local_scalar_common_subexpression_candidate,
-};
-use semantic_vocabulary::{
-    IntegerSign, IntegerType, ObligationId, OperationId, ScalarType, ValueId,
 };
 
 #[test]

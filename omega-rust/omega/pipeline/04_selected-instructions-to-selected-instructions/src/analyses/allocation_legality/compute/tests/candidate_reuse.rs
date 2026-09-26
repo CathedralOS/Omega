@@ -14,14 +14,17 @@ use crate::analyses::allocation_legality::compute::tests::physical;
 use crate::analyses::allocation_legality::validate::{
     replay_function_for_test, replay_register_for_test,
 };
-use register_homes::FunctionAllocationLegality;
-use register_model::{RegisterReservationOverlay, ReservationReason};
-use selected_instructions::{
+use crate::register_homes::FunctionAllocationLegality;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterReservationOverlay, ReservationReason,
+};
+use target_operations_to_selected_instructions::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
     VirtualFixedConstraint, VirtualFixedConstraintSite,
 };
 
-fn environment() -> register_model::ValidatedPhysicalRegisterModel {
+fn environment()
+-> target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel {
     let mut model = physical().model().clone();
     for unit in 2..4 {
         model.units.push(RegisterUnit {
@@ -62,7 +65,7 @@ fn environment() -> register_model::ValidatedPhysicalRegisterModel {
 }
 
 fn available(
-    physical: &register_model::ValidatedPhysicalRegisterModel,
+    physical: &target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel,
 ) -> ValidatedAllocatorAvailability {
     let mut available = availability(physical);
     available.plan.classes.push(RegisterClassAvailability {
@@ -76,9 +79,10 @@ fn available(
 }
 
 fn reservations(
-    physical: &register_model::ValidatedPhysicalRegisterModel,
+    physical: &target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel,
     reserve: bool,
-) -> register_model::ValidatedRegisterReservationProfile {
+) -> target_operations_to_selected_instructions::register_model::ValidatedRegisterReservationProfile
+{
     validate_register_reservation_profile(
         RegisterReservationProfile {
             name: "test".into(),
@@ -173,9 +177,9 @@ fn fixed(view: u16) -> VirtualFixedConstraint {
 
 fn compare(
     function: &FunctionLiveRanges,
-    physical: &register_model::ValidatedPhysicalRegisterModel,
+    physical: &target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel,
     available: &ValidatedAllocatorAvailability,
-    reservations: &register_model::ValidatedRegisterReservationProfile,
+    reservations: &target_operations_to_selected_instructions::register_model::ValidatedRegisterReservationProfile,
 ) -> Result<FunctionAllocationLegality, AllocationLegalityError> {
     let expected = function
         .virtual_registers
@@ -376,7 +380,7 @@ fn early_fixed_views_recheck_occupancy_outside_general_candidates() {
                     point: LiveRangePoint(1),
                     instruction: SelectedInstructionId(0),
                     operand: 1,
-                    access: register_model::RegisterOperandAccess::Def,
+                    access: target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def,
                 },
                 view: RegisterViewId(view),
             });

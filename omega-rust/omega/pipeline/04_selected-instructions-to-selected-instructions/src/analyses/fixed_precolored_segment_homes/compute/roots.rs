@@ -1,15 +1,15 @@
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
 
+use crate::register_homes::{FixedPrecoloredIntervalPolicy, FixedPrecoloredSplitRequirementPolicy};
 use crate::{
     FixedPrecoloredSegmentHomeError, ValidatedAllocationLegality,
     ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSplitRequirements,
     ValidatedLiveRanges,
 };
-use register_homes::{FixedPrecoloredIntervalPolicy, FixedPrecoloredSplitRequirementPolicy};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate(

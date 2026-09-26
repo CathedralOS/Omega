@@ -14,11 +14,11 @@ use crate::execution::terminal_unit::calls::provider_attachment_receiver_matches
 pub(super) fn checked_provider_attachment_requirements(
     program: &TypedTrees,
     shapes: &ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     attachment_type_identity: &str,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    calls: &[checked_trees::FlowCallFact],
+    calls: &[crate::checked_trees::FlowCallFact],
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<Vec<CheckedProviderAttachmentRequirementPlan>> {
     let attachment = shapes.types.get(attachment_type_identity)?;
@@ -94,7 +94,7 @@ pub(super) fn checked_provider_attachment_requirements(
             if source_field.name.as_str() != field.identity {
                 return None;
             }
-            typed_trees::service::exact_bound_service_requirement(
+            symbol_resolved_trees_to_typed_trees::typed_trees::service::exact_bound_service_requirement(
                 program,
                 source_field.type_reference,
             )
@@ -299,7 +299,7 @@ fn shape_fields(
 ) -> impl Iterator<Item = &CheckedUnitStructuralFieldPlan> + '_ {
     let (fields, cases): (
         &[CheckedUnitStructuralFieldPlan],
-        &[checked_trees::CheckedUnitStructuralCasePlan],
+        &[crate::checked_trees::CheckedUnitStructuralCasePlan],
     ) = match shape {
         CheckedUnitStructuralTypeShape::Record { fields } => (fields.as_slice(), &[]),
         CheckedUnitStructuralTypeShape::Sum { cases } => (&[], cases.as_slice()),
@@ -316,11 +316,11 @@ fn shape_fields(
 pub(super) fn checked_composed_provider_attachment_requirements(
     program: &TypedTrees,
     shapes: &ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     attachment_type_identity: &str,
     leaves: &[(
-        &typed_trees::state::State,
-        &[checked_trees::FlowCallFact],
+        &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        &[crate::checked_trees::FlowCallFact],
         &[CheckedUnitEffectOperationPlan],
     )],
 ) -> Option<Vec<CheckedProviderAttachmentRequirementPlan>> {

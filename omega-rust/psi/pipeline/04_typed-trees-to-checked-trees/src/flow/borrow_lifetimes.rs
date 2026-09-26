@@ -2,12 +2,12 @@
 //! drops loans past their last use, and `filter_reassigned_borrow_loans` drops
 //! loans carried by the place an assignment overwrites. Each dropped loan
 //! records a `FlowBorrowWeakeningFact`.
-use crate::flow::CanonicalPlace;
-use crate::flow::reference_spans;
-use checked_trees::{
+use crate::checked_trees::{
     BorrowFacts, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowConstraintKind,
     FlowConstraintRef, FlowInvalidationSource,
 };
+use crate::flow::CanonicalPlace;
+use crate::flow::reference_spans;
 
 pub(crate) fn filter_expired_borrow_loans(
     borrow_weakenings: &mut arena::Arena<FlowBorrowWeakeningFact>,
@@ -59,7 +59,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
     constraint_refs: &mut arena::Arena<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     reassigned_place: Option<CanonicalPlace>,
     statement_index: usize,
 ) -> arena::HandleSpan<FlowConstraintRef> {
@@ -67,7 +67,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
         return source;
     };
     let (reassigned_symbol, reassigned_segments) = match place.root {
-        facts::PlaceRoot::Symbol(symbol) => (symbol, place.segments),
+        crate::fact_plan::PlaceRoot::Symbol(symbol) => (symbol, place.segments),
         _ => return source,
     };
 
@@ -105,9 +105,9 @@ pub(crate) fn filter_reassigned_borrow_loans(
 }
 
 fn borrow_owner_path_overlaps_place(
-    program: &typed_trees::TypedTrees,
-    owner_path: &[checked_trees::BorrowLoanOwnerSegment],
-    place_segments: &[facts::PlaceSegment],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    owner_path: &[crate::checked_trees::BorrowLoanOwnerSegment],
+    place_segments: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
     // An assignment retires loans carried by the exact target or anything
     // nested inside it. A loan carried by the whole owner (empty path) is not
@@ -119,32 +119,33 @@ fn borrow_owner_path_overlaps_place(
             .zip(place_segments)
             .all(|(owner, place)| match (owner, place) {
                 (
-                    checked_trees::BorrowLoanOwnerSegment::Field(owner_symbol),
-                    facts::PlaceSegment::Field {
+                    crate::checked_trees::BorrowLoanOwnerSegment::Field(owner_symbol),
+                    crate::fact_plan::PlaceSegment::Field {
                         symbol: place_symbol,
                     },
                 ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
                 (
-                    checked_trees::BorrowLoanOwnerSegment::Case(owner_variant),
-                    facts::PlaceSegment::Case {
+                    crate::checked_trees::BorrowLoanOwnerSegment::Case(owner_variant),
+                    crate::fact_plan::PlaceSegment::Case {
                         variant: place_variant,
                     },
                 ) => owner_variant == place_variant,
                 (
-                    checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
-                    facts::PlaceSegment::FixedIndex { index: place_index },
+                    crate::checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
+                    crate::fact_plan::PlaceSegment::FixedIndex { index: place_index },
                 ) => owner_index == place_index,
                 (
-                    checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
-                    facts::PlaceSegment::Index { expression },
+                    crate::checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
+                    crate::fact_plan::PlaceSegment::Index { expression },
                 ) => program
                     .expression_table
                     .constant_integer_value(*expression)
                     .and_then(|value| usize::try_from(value).ok())
                     .is_none_or(|place_index| *owner_index == place_index),
                 (
-                    checked_trees::BorrowLoanOwnerSegment::DynamicIndex,
-                    facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. },
+                    crate::checked_trees::BorrowLoanOwnerSegment::DynamicIndex,
+                    crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                    | crate::fact_plan::PlaceSegment::Index { .. },
                 ) => true,
                 _ => false,
             })

@@ -1,6 +1,6 @@
 //! Case selection consumes its subject; ordinary edges own every other local.
 use super::{CLOSED_SUM_UNIT_SOURCE, checked_source_with_core_service, lower_machine, roundtrip};
-use crate::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
 use terminal_psi::{OperationResult, Terminator};
 
@@ -155,7 +155,7 @@ fn closed_sum_successor_computations_preserve_later_payload_arguments() {
 
 #[test]
 fn closed_sum_successor_catalogs_reject_duplicate_and_mixed_value_lanes() {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedLocatedScalarExpression, CheckedScalarExpression, CheckedScalarExpressionBindings,
         CheckedScalarExpressionRole,
     };
@@ -259,7 +259,7 @@ fn closed_sum_exit_roster_rejects_unknown_duplicate_and_missing_receipts() {
             plan.states.iter().any(|state| {
                 matches!(
                     state.terminator,
-                    checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+                    typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
                 )
             })
         })
@@ -316,9 +316,9 @@ fn closed_sum_exit_roster_rejects_unknown_duplicate_and_missing_receipts() {
                 4 | 5 => {
                     let mut extra = original.clone();
                     extra.root = if mutation == 4 {
-                        facts::PlaceRoot::Unknown
+                        typed_trees_to_checked_trees::fact_plan::PlaceRoot::Unknown
                     } else {
-                        facts::PlaceRoot::Symbol(receiver)
+                        typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(receiver)
                     };
                     changed.facts.flow.ownership.permissions.insert(extra);
                 }

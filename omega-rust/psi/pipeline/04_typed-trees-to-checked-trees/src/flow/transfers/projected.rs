@@ -18,26 +18,26 @@
 //! invalidation, so transported evidence cannot go stale while it is
 //! consultable.
 use super::PlaceHandle;
+use crate::checked_trees::FlowSemanticContextRef;
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::statement::StatementNode;
+use crate::fact_plan::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use crate::flow::FlowBuildContext;
 use crate::flow::origin_place;
 use arena::HandleSpan;
-use checked_trees::FlowSemanticContextRef;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::StatementNode;
-use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_copied_field_predicates(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     contexts: &FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
     source: PlaceHandle,
     destination: PlaceHandle,
     point: ProgramPoint,
-    references: &mut HandleSpan<facts::FactRef>,
+    references: &mut HandleSpan<crate::fact_plan::FactRef>,
 ) {
     let source_place = *semantic.places.get(source);
     let destination_place = *semantic.places.get(destination);
@@ -46,15 +46,15 @@ pub(super) fn append_copied_field_predicates(
     // facts (flow/calls.rs). Other expression roots carry no such evidence, so
     // a non-call expression source still stops here.
     let valid_source_root = match source_place.root {
-        facts::PlaceRoot::Symbol(symbol) => symbol.is_valid(),
-        facts::PlaceRoot::Expression(expression) => matches!(
+        crate::fact_plan::PlaceRoot::Symbol(symbol) => symbol.is_valid(),
+        crate::fact_plan::PlaceRoot::Expression(expression) => matches!(
             program.expression_table.expression(expression),
-            checked_trees::expression::ExpressionNode::Call(_)
+            crate::checked_trees::expression::ExpressionNode::Call(_)
         ),
         _ => false,
     };
     if !valid_source_root
-        || !matches!(destination_place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+        || !matches!(destination_place.root, crate::fact_plan::PlaceRoot::Symbol(symbol) if symbol.is_valid())
     {
         return;
     }
@@ -182,7 +182,7 @@ pub(super) fn append_copied_field_predicates(
             continue;
         }
         let suffix = segments[source_segments.len()..].to_vec();
-        let copied_place = semantic.append_place(facts::Place {
+        let copied_place = semantic.append_place(crate::fact_plan::Place {
             root: destination_place.root,
             segments: HandleSpan::empty(),
         });
@@ -200,11 +200,11 @@ pub(super) fn append_copied_field_predicates(
     }
 }
 
-fn stable_segment(segment: &facts::PlaceSegment) -> bool {
+fn stable_segment(segment: &crate::fact_plan::PlaceSegment) -> bool {
     match segment {
-        facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
-        facts::PlaceSegment::Case { variant } => variant.is_valid(),
-        facts::PlaceSegment::FixedIndex { .. } => true,
+        crate::fact_plan::PlaceSegment::Field { symbol } => symbol.is_valid(),
+        crate::fact_plan::PlaceSegment::Case { variant } => variant.is_valid(),
+        crate::fact_plan::PlaceSegment::FixedIndex { .. } => true,
         // A fixed extent is a stable coordinate: `recv[0..usize::MAX].f` is the
         // same elementwise evidence as `view[0..usize::MAX].f` after an
         // `as_slice`/`as_mut_slice` re-anchor (the view lends the receiver's
@@ -214,7 +214,7 @@ fn stable_segment(segment: &facts::PlaceSegment) -> bool {
         // `FixedRange` with `Index`/`FixedIndex`), so transport cannot extend
         // the evidence past a mutation. Only an unresolved `Index` stays
         // unstable -- a runtime selector is never a fact coordinate.
-        facts::PlaceSegment::FixedRange { .. } => true,
+        crate::fact_plan::PlaceSegment::FixedRange { .. } => true,
         _ => false,
     }
 }
@@ -231,7 +231,7 @@ fn stable_segment(segment: &facts::PlaceSegment) -> bool {
 /// carrier rather than element views of a collection, so this lane claims only
 /// the two element views. A non-collection receiver fails closed the same way.
 pub(super) fn collection_view_source_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -261,12 +261,12 @@ pub(super) fn collection_view_source_place(
             return None;
         }
         match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-            | typed_trees::types::TypeReferenceNode::Constrained {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
                 base_type: referee, ..
             } => reference = *referee,
-            typed_trees::types::TypeReferenceNode::FixedArray { .. }
-            | typed_trees::types::TypeReferenceNode::Slice { .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { .. } => {
                 return super::contextual_expression_place(
                     program,
                     semantic,
@@ -292,7 +292,7 @@ pub(super) fn collection_view_source_place(
 /// index truncation, no coarse-only path) may lend evidence to the binding.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn bound_reference_referent_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     contexts: &FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -305,7 +305,7 @@ pub(super) fn bound_reference_referent_place(
     if !destination.segments.is_empty() {
         return None;
     }
-    let facts::PlaceRoot::Symbol(local_symbol) = destination.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(local_symbol) = destination.root else {
         return None;
     };
     if !local_symbol.is_valid() {
@@ -327,10 +327,10 @@ pub(super) fn bound_reference_referent_place(
             return None;
         }
         match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type;
             }
-            typed_trees::types::TypeReferenceNode::Reference { .. } => break,
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. } => break,
             _ => return None,
         }
     }
@@ -370,11 +370,11 @@ pub(super) fn bound_reference_referent_place(
 }
 
 fn declared_local_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     local_symbol: SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     let state = crate::semantic::calls::find_state(program, state_symbol)?;
     let mut declarations = program
         .statement_table

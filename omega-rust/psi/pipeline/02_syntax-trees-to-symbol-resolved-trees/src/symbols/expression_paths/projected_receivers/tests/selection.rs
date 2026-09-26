@@ -3,13 +3,13 @@ use crate::ResolutionRequest;
 use source_files_to_tokens::Lexer;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
-fn resolve(source: &str) -> symbol_resolved_trees::SymbolResolvedTrees {
+fn resolve(source: &str) -> crate::symbol_resolved_trees::SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize receiver");
     let syntax = parse_syntax_trees(&tokens).expect("parse receiver");
     crate::resolve(ResolutionRequest::new(&syntax)).expect("resolve receiver")
 }
 
-fn read_target(program: &symbol_resolved_trees::SymbolResolvedTrees) -> SymbolHandle {
+fn read_target(program: &crate::symbol_resolved_trees::SymbolResolvedTrees) -> SymbolHandle {
     let calls = program
         .tables
         .bodies

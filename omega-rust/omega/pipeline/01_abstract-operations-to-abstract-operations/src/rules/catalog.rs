@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use optimization::PsiOptimization;
+use terminal_codec::optimization::PsiOptimization;
 
 use crate::rules::{
     control_flow_cleanup, copy_propagation, dead_scalar_elimination, global_value_numbering,

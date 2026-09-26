@@ -1,10 +1,10 @@
 //! Readable-reference initialization rejoins the authored input, not cached agreement.
 
-use checked_trees::{
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
-};
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
 };
 
 #[test]
@@ -63,7 +63,7 @@ fn reference_initializer_rejects_coherent_cached_and_operation_read_substitution
             assert!(rows.next().is_none());
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("observe")
             )
@@ -138,12 +138,12 @@ fn retained_write_only_access_cannot_authorize_a_primitive_initializer_read() {
             .unwrap();
         assert_eq!(
             caller.structural_parameters[1].access,
-            checked_trees::CheckedStructuralAccess::SharedBorrow
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
         );
         caller.structural_parameters[1].access =
-            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow;
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow;
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("observe")
             )

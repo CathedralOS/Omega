@@ -1,10 +1,12 @@
 //! Scalar prefixes compose with ordinary graph edges and effect sequencing.
 
-use super::{CheckedTrees, LoweringError, lower_machine};
-use crate::TerminalMachineSelection;
-use checked_trees::CheckedComposedUnitControlTerminatorPlan;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use super::{CheckedTrees, lower_machine};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::{Operation, OperationKind, Terminator};
+use typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan;
 
 #[test]
 fn interleaved_states_preserve_mixed_handoffs_and_effect_order() {
@@ -37,15 +39,18 @@ fn interleaved_states_preserve_mixed_handoffs_and_effect_order() {
             }
         "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Root::enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("mixed signatures and interleaved state declarations publish one graph")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Root::enter",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("mixed signatures and interleaved state declarations publish one graph")
+        .into_artifact();
 
     #[derive(Default)]
     struct Trace(Vec<i128>);
@@ -229,7 +234,7 @@ fn prefixed_control_rejects_scalar_edge_and_topology_corruption() {
     let rejects = |checked: &CheckedTrees| {
         assert!(matches!(
             lower_machine(checked, TerminalMachineSelection::Name("Root::enter")),
-            Err(LoweringError::Unsupported(_))
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
         ));
     };
 
@@ -325,10 +330,10 @@ fn multi_prefixed_control_rejects_second_edge_corruption() {
         unreachable!()
     };
     successor.scalar_arguments[0].source =
-        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 };
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 };
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(_))
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
     ));
 }
 

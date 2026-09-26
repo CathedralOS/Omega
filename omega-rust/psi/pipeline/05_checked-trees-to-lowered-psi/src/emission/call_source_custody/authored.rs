@@ -2,13 +2,15 @@
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use checked_trees::CheckedTrees;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::signature::StateParameter;
-use checked_trees::statement::StatementNode;
-use checked_trees::types::{PrimitiveType, TypeReferenceHandle};
-use checked_trees::{CheckedUnitCallCoordinate, NominalMachineUseSite};
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::signature::StateParameter;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitCallCoordinate, NominalMachineUseSite,
+};
 
 pub(crate) mod nested;
 
@@ -168,7 +170,7 @@ pub(crate) fn locate_source(
                 expression_call(checked, assignment.value)?
             }
             StatementNode::Expression(expression) if coordinate.call_ordinal == 0 => {
-                if validation::unit_statement_call_is_supported(
+                if typed_trees_to_checked_trees::validation::unit_statement_call_is_supported(
                     program,
                     machine,
                     state,
@@ -186,7 +188,7 @@ pub(crate) fn locate_source(
                         program
                             .type_reference_table
                             .type_reference(state.return_type),
-                        checked_trees::types::TypeReferenceNode::Unit
+                        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Unit
                     )
                 {
                     return unsupported(
@@ -320,7 +322,10 @@ pub(crate) fn target_signature(
         return unsupported("call source custody has no live target identity");
     }
     let intrinsic =
-        validation::exact_compiler_intrinsic_boundary_requirement(program, source_target);
+        typed_trees_to_checked_trees::validation::exact_compiler_intrinsic_boundary_requirement(
+            program,
+            source_target,
+        );
     let mut states = program.machines().iter().flat_map(|machine| {
         program
             .machine_states(machine)

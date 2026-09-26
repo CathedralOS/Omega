@@ -32,13 +32,15 @@ fn transparent_proposition_zero_value_target_resolves_in_its_binder_scope() {
         .expressions
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
-            symbol_resolved_trees::expression::ExpressionNode::ZeroValue(target) => Some(*target),
+            crate::symbol_resolved_trees::expression::ExpressionNode::ZeroValue(target) => {
+                Some(*target)
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
     assert_eq!(targets.len(), 2);
     for target in targets {
-        let symbol_resolved_trees::types::TypeReference::Generic(target) =
+        let crate::symbol_resolved_trees::types::TypeReference::Generic(target) =
             program.child_type_reference(target)
         else {
             panic!("zero-value target should remain a generic type")
@@ -49,7 +51,7 @@ fn transparent_proposition_zero_value_target_resolves_in_its_binder_scope() {
         };
         assert!(matches!(
             argument,
-            symbol_resolved_trees::types::TypeReference::Named { symbol, name }
+            crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name }
                 if *symbol == binder.symbol && name.as_str() == "Item"
         ));
     }
@@ -77,7 +79,7 @@ fn retains_exact_expression_selection_symbols() {
     let path = expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            symbol_resolved_trees::expression::ExpressionNode::Name(path)
+            crate::symbol_resolved_trees::expression::ExpressionNode::Name(path)
                 if expressions.name_path_members(path.members).len() == 3 =>
             {
                 Some(path)
@@ -104,7 +106,7 @@ fn retains_exact_expression_selection_symbols() {
     let literals = expressions
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
-            symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
+            crate::symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
                 Some(literal)
             }
             _ => None,
@@ -128,7 +130,7 @@ fn retains_exact_expression_selection_symbols() {
     let membership = expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+            crate::symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
                 Some(membership)
             }
             _ => None,
@@ -150,15 +152,15 @@ fn retains_exact_expression_selection_symbols() {
     assert!(!selections.is_empty());
     assert!(selections.iter().all(|selection| {
         selection.exposure()
-            == symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+            == crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
     }));
     for required_kind in [
-        symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticPathSegment,
-        symbol_resolved_trees::AuthoredDeclarationSelectionKind::StructLiteralType,
-        symbol_resolved_trees::AuthoredDeclarationSelectionKind::StructLiteralCase,
-        symbol_resolved_trees::AuthoredDeclarationSelectionKind::StructLiteralField,
-        symbol_resolved_trees::AuthoredDeclarationSelectionKind::CaseReference,
-        symbol_resolved_trees::AuthoredDeclarationSelectionKind::CaseMembership,
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticPathSegment,
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::StructLiteralType,
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::StructLiteralCase,
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::StructLiteralField,
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::CaseReference,
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::CaseMembership,
     ] {
         assert!(
             selections
@@ -197,7 +199,7 @@ fn outcome_specific_ensures_normalizes_only_against_declared_result_sum() {
         .data_members(outcome.members)
         .iter()
         .find_map(|member| match member {
-            symbol_resolved_trees::data::DataMember::Variant(variant)
+            crate::symbol_resolved_trees::data::DataMember::Variant(variant)
                 if variant.name.as_str() == "Success" =>
             {
                 Some(variant)
@@ -215,7 +217,7 @@ fn outcome_specific_ensures_normalizes_only_against_declared_result_sum() {
     };
     assert_eq!(
         contract.kind,
-        symbol_resolved_trees::signature::SignatureContractKind::EnsuresForResultCase {
+        crate::symbol_resolved_trees::signature::SignatureContractKind::EnsuresForResultCase {
             result_data: outcome.symbol,
             result_case: success.symbol,
         }
@@ -268,7 +270,7 @@ fn authored_outcome_specific_contract_uses_the_exact_base_result_sum() {
     let [contract] = program.machine_contracts(machine) else {
         panic!("one outcome-specific contract")
     };
-    let symbol_resolved_trees::signature::SignatureContractKind::EnsuresForResultCase {
+    let crate::symbol_resolved_trees::signature::SignatureContractKind::EnsuresForResultCase {
         result_data,
         result_case,
     } = contract.kind
@@ -331,17 +333,17 @@ fn captures_resolved_calls_and_late_checked_operators_in_private_bodies() {
     let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve authored selections");
     let selections = program.authored_declaration_selections();
     assert!(selections.iter().any(|selection| {
-        selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+        selection.kind() == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
             && matches!(
                 selection.target(),
-                symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
+                crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
             )
     }));
     assert!(selections.iter().any(|selection| {
-        selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Operator
+        selection.kind() == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Operator
             && selection.target()
-                == symbol_resolved_trees::AuthoredDeclarationSelectionTarget::LateBound(
-                    symbol_resolved_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+                == crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::LateBound(
+                    crate::symbol_resolved_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator,
                 )
     }));
 }
@@ -371,7 +373,7 @@ fn guard_hoist_copies_share_one_authored_call_occurrence() {
         .authored_declaration_selections()
         .iter()
         .filter(|selection| {
-            selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+            selection.kind() == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
                 && selection.source_span().span.start == target_start
         })
         .collect::<Vec<_>>();
@@ -380,7 +382,7 @@ fn guard_hoist_copies_share_one_authored_call_occurrence() {
     };
     assert!(matches!(
         selection.target(),
-        symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
     ));
     assert!(
         program
@@ -417,14 +419,14 @@ fn const_specialization_copies_share_the_authored_member_declaration() {
         .iter()
         .filter(|selection| {
             selection.kind()
-                == symbol_resolved_trees::AuthoredDeclarationSelectionKind::MemberAccess
+                == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::MemberAccess
                 && selection.source_span().span.start == items_start
         })
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
         panic!("one source member must own every specialized copy: {selections:?}");
     };
-    let symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
+    let crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
         selection.target()
     else {
         panic!("specialized member selection must resolve exactly")
@@ -454,18 +456,16 @@ fn distinguishes_public_contract_expressions_from_public_machine_bodies() {
         .authored_declaration_selections()
         .iter()
         .filter(|selection| {
-            selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+            selection.kind() == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
         })
         .map(|selection| selection.exposure())
         .collect::<Vec<_>>();
 
-    assert!(
-        call_exposures.contains(
-            &symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
-        )
-    );
     assert!(call_exposures.contains(
-        &symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+        &crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+    ));
+    assert!(call_exposures.contains(
+        &crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
     ));
 }
 
@@ -492,7 +492,7 @@ fn retains_authored_expression_exposure_for_embedded_type_lowering() {
         .filter(|&(_, node)| {
             matches!(
                 node,
-                symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_)
+                crate::symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_)
             )
         })
         .map(|(expression, _)| {
@@ -505,16 +505,16 @@ fn retains_authored_expression_exposure_for_embedded_type_lowering() {
         })
         .collect::<Vec<_>>();
     exposures.sort_by_key(|exposure| match exposure {
-        symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation => 0,
-        symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface => 1,
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation => 0,
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface => 1,
     });
     assert_eq!(
         exposures,
         [
-            symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-            symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-            symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface,
-            symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface,
+            crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface,
+            crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface,
         ]
     );
 }
@@ -542,7 +542,7 @@ fn qualification_cast_domains_retain_exact_expression_custody() {
         .expressions
         .iter_expressions()
         .filter_map(|(expression, node)| match node {
-            symbol_resolved_trees::expression::ExpressionNode::Cast(cast)
+            crate::symbol_resolved_trees::expression::ExpressionNode::Cast(cast)
                 if !cast.semantic_domain.is_empty() =>
             {
                 Some(expression)
@@ -570,12 +570,12 @@ fn qualification_cast_domains_retain_exact_expression_custody() {
                 .expect("qualification-cast occurrence must rejoin its selection");
             assert_eq!(
                 selection.kind(),
-                symbol_resolved_trees::AuthoredDeclarationSelectionKind::DomainMembership
+                crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::DomainMembership
             );
             assert_eq!(
                 selection.target(),
-                symbol_resolved_trees::AuthoredDeclarationSelectionTarget::LateBound(
-                    symbol_resolved_trees::AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
+                crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::LateBound(
+                    crate::symbol_resolved_trees::AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
                 )
             );
             let source_span = selection.source_span();
@@ -585,14 +585,14 @@ fn qualification_cast_domains_retain_exact_expression_custody() {
         })
         .collect::<Vec<_>>();
     exposures.sort_by_key(|exposure| match exposure {
-        symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation => 0,
-        symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface => 1,
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation => 0,
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface => 1,
     });
     assert_eq!(
         exposures,
         [
-            symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-            symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface,
+            crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface,
         ]
     );
 }
@@ -611,12 +611,12 @@ fn retains_nested_unary_operator_custody_in_public_propositions() {
         .iter()
         .find(|proposition| proposition.name.as_str() == "inverted")
         .expect("inverted proposition");
-    let symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+    let crate::symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
         proposition.body
     else {
         panic!("inverted proposition must remain transparent")
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Binary(binary) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Binary(binary) =
         program.tables.bodies.expressions.expression(proposition)
     else {
         panic!("inverted proposition must retain its binary root")
@@ -624,7 +624,7 @@ fn retains_nested_unary_operator_custody_in_public_propositions() {
     let unary = binary.left;
     assert!(matches!(
         program.tables.bodies.expressions.expression(unary),
-        symbol_resolved_trees::expression::ExpressionNode::Unary(_)
+        crate::symbol_resolved_trees::expression::ExpressionNode::Unary(_)
     ));
     let occurrences = program
         .tables
@@ -641,11 +641,11 @@ fn retains_nested_unary_operator_custody_in_public_propositions() {
         .expect("nested unary occurrence must rejoin its selection");
     assert_eq!(
         selection.kind(),
-        symbol_resolved_trees::AuthoredDeclarationSelectionKind::Operator
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Operator
     );
     assert_eq!(
         selection.exposure(),
-        symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
     );
 }
 
@@ -686,7 +686,7 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
         .authored_declaration_selections()
         .iter()
         .filter_map(|selection| match selection.target() {
-            symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+            crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
                 if [issues.symbol, issue.symbol, hide.symbol]
                     .contains(&target.selected_symbol()) =>
             {
@@ -715,9 +715,9 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
         rows.iter()
             .filter(|(kind, exposure, symbol)| {
                 *kind
-                    == symbol_resolved_trees::AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
+                    == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
                     && *exposure
-                        == symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+                        == crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
                     && *symbol == issues.symbol
             })
             .count(),
@@ -727,9 +727,9 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
         rows.iter()
             .filter(|(kind, exposure, symbol)| {
                 *kind
-                    == symbol_resolved_trees::AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
+                    == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
                     && *exposure
-                        == symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+                        == crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
                     && *symbol == issue.symbol
             })
             .count(),
@@ -739,7 +739,7 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
         rows.iter()
             .filter(|(_, exposure, _)| {
                 *exposure
-                    == symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                    == crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
             })
             .count(),
         2
@@ -766,18 +766,16 @@ fn distinguishes_boundary_contract_expressions_from_boundary_adapter_bodies() {
         .authored_declaration_selections()
         .iter()
         .filter(|selection| {
-            selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+            selection.kind() == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
         })
         .map(|selection| selection.exposure())
         .collect::<Vec<_>>();
 
-    assert!(
-        call_exposures.contains(
-            &symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
-        )
-    );
     assert!(call_exposures.contains(
-        &symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+        &crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+    ));
+    assert!(call_exposures.contains(
+        &crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
     ));
 }
 
@@ -805,10 +803,10 @@ fn captures_expression_static_type_and_machine_arguments() {
         .iter()
         .filter(|selection| {
             selection.kind()
-                == symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticArgument
+                == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticArgument
         })
         .filter_map(|selection| match selection.target() {
-            symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) => {
+            crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) => {
                 Some(program.symbols.get(target.selected_symbol()).kind)
             }
             _ => None,
@@ -901,9 +899,9 @@ fn static_and_proof_static_arguments_obey_current_activation_resolution_strata()
     .expect("resolve extension-first static arguments");
 
     fn statement_arguments<'a>(
-        program: &'a symbol_resolved_trees::SymbolResolvedTrees,
+        program: &'a crate::symbol_resolved_trees::SymbolResolvedTrees,
         machine_name: &str,
-    ) -> &'a [symbol_resolved_trees::expression::StaticMachineArgument] {
+    ) -> &'a [crate::symbol_resolved_trees::expression::StaticMachineArgument] {
         let machine = program
             .machines
             .iter()
@@ -917,7 +915,7 @@ fn static_and_proof_static_arguments_obey_current_activation_resolution_strata()
             .statements(state.statement_nodes)
             .iter()
             .find_map(|statement| match statement {
-                symbol_resolved_trees::statement::StatementNode::Call(call)
+                crate::symbol_resolved_trees::statement::StatementNode::Call(call)
                     if call.target.as_str() == "sink" =>
                 {
                     Some(call.machine_arguments.as_ref())
@@ -928,20 +926,20 @@ fn static_and_proof_static_arguments_obey_current_activation_resolution_strata()
     }
 
     fn proof_arguments<'a>(
-        program: &'a symbol_resolved_trees::SymbolResolvedTrees,
+        program: &'a crate::symbol_resolved_trees::SymbolResolvedTrees,
         proposition_name: &str,
-    ) -> &'a [symbol_resolved_trees::expression::StaticMachineArgument] {
+    ) -> &'a [crate::symbol_resolved_trees::expression::StaticMachineArgument] {
         let proposition = program
             .propositions
             .iter()
             .find(|proposition| proposition.name.as_str() == proposition_name)
             .expect("transparent proposition");
-        let symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+        let crate::symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
             proposition.body
         else {
             panic!("transparent proposition body")
         };
-        let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
             program.tables.bodies.expressions.expression(proposition)
         else {
             panic!("proposition call")
@@ -950,8 +948,8 @@ fn static_and_proof_static_arguments_obey_current_activation_resolution_strata()
     }
 
     fn assert_argument_sources(
-        program: &symbol_resolved_trees::SymbolResolvedTrees,
-        arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+        program: &crate::symbol_resolved_trees::SymbolResolvedTrees,
+        arguments: &[crate::symbol_resolved_trees::expression::StaticMachineArgument],
         expected: source::SourceId,
     ) {
         assert_eq!(arguments.len(), 4);
@@ -1037,10 +1035,10 @@ fn resolves_named_const_static_arguments_with_exact_authored_custody() {
         .iter()
         .filter(|selection| {
             selection.kind()
-                == symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticArgument
+                == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticArgument
                 && matches!(
                     selection.target(),
-                    symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
                         if program.symbols.get(target.selected_symbol()).kind
                             == symbols::SymbolKind::Const
                 )
@@ -1051,7 +1049,7 @@ fn resolves_named_const_static_arguments_with_exact_authored_custody() {
     };
     assert_eq!(
         selection.exposure(),
-        symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
     );
 }
 
@@ -1104,7 +1102,7 @@ fn captures_statement_calls_and_their_explicit_conformance_arguments() {
                 .statements(program.machine_state(*state).statement_nodes)
         })
         .filter_map(|statement| match statement {
-            symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
+            crate::symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -1120,27 +1118,29 @@ fn captures_statement_calls_and_their_explicit_conformance_arguments() {
 
     assert!(
         selections.iter().any(|selection| {
-            selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+            selection.kind() == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
                 && matches!(
                     selection.target(),
-                    symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
+                    crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
                 )
         }),
         "selections={selections:#?}"
     );
     assert!(selections.iter().any(|selection| {
-        selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticArgument
+        selection.kind()
+            == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticArgument
             && matches!(
                 selection.target(),
-                symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
                     if target.selected_symbol() == selected_type
             )
     }));
     assert!(selections.iter().any(|selection| {
-        selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Conformance
+        selection.kind()
+            == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Conformance
             && matches!(
                 selection.target(),
-                symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
                     if target.selected_symbol() == selected
             )
     }));
@@ -1163,7 +1163,7 @@ fn substituted_const_retains_authored_declaration_selection_custody() {
         .find(|selection| {
             matches!(
                 selection.target(),
-                symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
                     if program.symbols.get(target.selected_symbol()).kind
                         == symbols::SymbolKind::Const
             )
@@ -1257,7 +1257,7 @@ fn const_substitution_obeys_current_activation_resolution_strata() {
         .authored_declaration_selections()
         .iter()
         .filter_map(|selection| {
-            let symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
+            let crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
                 selection.target()
             else {
                 return None;
@@ -1307,7 +1307,7 @@ fn abs_desugar_subtraction_retains_authored_operator_custody() {
         .filter_map(|(expression, node)| {
             matches!(
                 node,
-                symbol_resolved_trees::expression::ExpressionNode::Binary(_)
+                crate::symbol_resolved_trees::expression::ExpressionNode::Binary(_)
             )
             .then_some(expression)
         })
@@ -1327,11 +1327,11 @@ fn abs_desugar_subtraction_retains_authored_operator_custody() {
         .expect("synthesized subtraction occurrence must rejoin its selection");
     assert_eq!(
         selection.kind(),
-        symbol_resolved_trees::AuthoredDeclarationSelectionKind::Operator
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Operator
     );
     assert_eq!(
         selection.exposure(),
-        symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+        crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
     );
     let abs_offset = source.find("abs(").expect("authored abs token");
     assert_eq!(selection.source_span().span.start, abs_offset);
@@ -1358,7 +1358,7 @@ fn contract_clause_calls_naming_no_declaration_skip_call_selection() {
         .authored_declaration_selections()
         .iter()
         .filter(|selection| {
-            selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+            selection.kind() == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
         })
         .map(|selection| selection.source_span())
         .collect::<Vec<_>>();

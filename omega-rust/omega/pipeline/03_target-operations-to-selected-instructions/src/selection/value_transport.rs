@@ -3,7 +3,7 @@
 //! binding needs no register copy, including a closed cycle of unused bindings.
 use std::collections::{BTreeMap, BTreeSet};
 
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarReturnValue, LegalizedScalarTerminator as Terminator,
 };
 use semantic_vocabulary::ValueId;
@@ -18,7 +18,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
         for instruction in &block.instructions {
             instruction.visit_scalar_operands(|value| pending.push(value));
         }
-        let mut bind = |successor: &legalized_operations::LegalizedScalarSuccessor| {
+        let mut bind = |successor: &crate::legalized_operations::LegalizedScalarSuccessor| {
             for binding in &successor.bindings {
                 incoming
                     .entry(binding.parameter)

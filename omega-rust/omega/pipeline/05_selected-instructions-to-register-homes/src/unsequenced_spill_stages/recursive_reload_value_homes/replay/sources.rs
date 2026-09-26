@@ -6,10 +6,10 @@ use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId, RecursiveReloadValueHomeError,
     RecursiveSpillEvent, RecursiveSpillStoredValue,
 };
-use selected_instructions::LiveRangePoint;
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 use super::{ReplaySpec, homes};
-use register_homes::FunctionAllocationLegality;
+use selected_instructions_to_selected_instructions::register_homes::FunctionAllocationLegality;
 
 #[derive(Clone, Copy)]
 struct IndexedStore {
@@ -198,7 +198,10 @@ fn trace(
     action: GeneralizedSpillActionId,
     remaining_stores: &BTreeMap<GeneralizedSpillActionId, IndexedStore>,
     recursive: &crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
-) -> Result<selected_instructions::VirtualRegisterId, RecursiveReloadValueHomeError> {
+) -> Result<
+    target_operations_to_selected_instructions::VirtualRegisterId,
+    RecursiveReloadValueHomeError,
+> {
     let mut all = remaining_stores.clone();
     for event in &recursive.schedule {
         if let RecursiveSpillEvent::Store {

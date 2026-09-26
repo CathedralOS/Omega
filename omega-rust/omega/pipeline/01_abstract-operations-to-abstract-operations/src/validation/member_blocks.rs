@@ -4,11 +4,11 @@
 //! operand substitution a relocated computation needs.
 
 use super::invariant_operations::admissible_invariant_scalar_computation;
-use optimization_unit::{
-    OptimizationNode, OptimizerCycleComponent, PsiOptimizationFunction, ValueDefinitionSite,
-};
 use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    OptimizationNode, OptimizerCycleComponent, PsiOptimizationFunction, ValueDefinitionSite,
+};
 
 /// Every scalar value definition site in `function`: function parameters,
 /// block parameters, and node results. Sites are the only authority needed to

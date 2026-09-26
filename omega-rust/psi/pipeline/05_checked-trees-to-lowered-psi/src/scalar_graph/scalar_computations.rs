@@ -21,7 +21,9 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
 use arena::Handle;
-use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarComputation, CheckedScalarComputationKind,
+};
 
 pub(crate) mod arrays;
 mod calls;
@@ -89,7 +91,7 @@ impl<'a> Expansion<'a> {
     /// lowering its computations.
     pub(crate) fn enter_proof_scope(
         mut self,
-        roster: &[checked_trees::CheckedErasedProofParameterPlan],
+        roster: &[typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan],
     ) -> Self {
         self.erased_proof_formals =
             crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(roster);
@@ -100,7 +102,7 @@ impl<'a> Expansion<'a> {
     /// the builder form, for an already-bound expansion.
     pub(crate) fn refresh_proof_scope(
         &mut self,
-        roster: &[checked_trees::CheckedErasedProofParameterPlan],
+        roster: &[typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan],
     ) {
         self.erased_proof_formals =
             crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(roster);
@@ -132,9 +134,9 @@ impl<'a> Expansion<'a> {
     pub(crate) fn call_arguments(
         &mut self,
         state: symbols::SymbolHandle,
-        coordinate: checked_trees::CheckedUnitCallCoordinate,
+        coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
         boundary: bool,
-        arguments: &[checked_trees::CheckedCallScalarArgument],
+        arguments: &[typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument],
         argument_ordinal_start: usize,
         bindings: &storage::ScalarBindings,
         source_types: &[QualifiedScalarType],
@@ -168,10 +170,10 @@ impl<'a> Expansion<'a> {
                 }
             };
             operands.push(match argument {
-                checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(expression) => {
                     Argument::Value(bindings.expression(expression)?)
                 }
-                checked_trees::CheckedCallScalarArgument::Computation(root) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(root) => {
                     source_custody::validate(
                         self.checked,
                         self.machine,

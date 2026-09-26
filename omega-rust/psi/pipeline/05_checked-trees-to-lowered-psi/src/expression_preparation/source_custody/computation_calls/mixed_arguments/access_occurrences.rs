@@ -1,7 +1,7 @@
 //! Replay ordered observations using the same authored places as call operands.
 
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{BorrowAccessKind, BorrowCallFact, CheckedTrees};
+use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::{BorrowAccessKind, BorrowCallFact, CheckedTrees};
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
@@ -53,9 +53,15 @@ pub(crate) fn rejoin(
                     },
                 ),
                 ExpressionNode::Name(_) | ExpressionNode::StructLiteral(_)
-                    if validation::scalar_case_constructor(checked, expression).is_some() =>
+                    if typed_trees_to_checked_trees::validation::scalar_case_constructor(
+                        checked, expression,
+                    )
+                    .is_some() =>
                 {
-                    let constructor = validation::scalar_case_constructor(checked, expression)
+                    let constructor =
+                        typed_trees_to_checked_trees::validation::scalar_case_constructor(
+                            checked, expression,
+                        )
                         .ok_or(LoweringError::Unsupported(
                             "computed case lost its source constructor",
                         ))?;
@@ -93,7 +99,7 @@ pub(crate) fn rejoin(
                         );
                     }
                     for arm in arms {
-                        if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                        if let typed_trees_to_checked_trees::checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern
                         {
                             children.push(pattern);
                         }

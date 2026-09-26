@@ -53,7 +53,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     facts: &CheckFacts,
     plans: &[CheckedUnitEffectMachinePlan],
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<CheckedNominalAffineUnitCleanupMachinePlan> {
     let [state] = program.machine_states(machine) else {

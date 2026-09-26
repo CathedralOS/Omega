@@ -2,6 +2,7 @@
 //! shared support modules are declared once, and `cargo nextest run -p <crate> --test suite`
 //! runs them all. A new `tests/<topic>.rs` joins by one `mod` line below.
 
+mod authored_declaration_selection_ledger;
 mod case_where_generic_instance;
 mod constant_carriers;
 mod data_where_identity;

@@ -26,9 +26,9 @@
 //! reject here rather than drifting to a later stage's weaker error.
 
 use diagnostics::Diagnostic;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::Item;
-use syntax_trees::types::TypeReferenceNode;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::item::Item;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
 
 pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
     let selection = crate::preparation::generic_data::constant_selection::ConstantSelection::new(
@@ -186,9 +186,9 @@ pub(crate) fn validate_with_const_resolution_mode(
 
 pub(crate) fn module_literal_constant(
     syntax: &SyntaxTrees,
-    constant: &syntax_trees::item::ConstDefinition,
+    constant: &tokens_to_syntax_trees::syntax_trees::item::ConstDefinition,
 ) -> bool {
-    use syntax_trees::expression::ExpressionNode;
+    use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
     if !scalar_literal_tree(syntax, constant.value) {
         return false;
     }
@@ -219,7 +219,7 @@ pub(crate) fn module_literal_constant(
             }
             TypeReferenceNode::FixedArray {
                 element_type,
-                length: syntax_trees::types::FixedArrayLength::Literal(_),
+                length: tokens_to_syntax_trees::syntax_trees::types::FixedArrayLength::Literal(_),
             } => type_reference = *element_type,
             _ => return false,
         }
@@ -231,8 +231,8 @@ pub(crate) fn module_literal_constant(
 /// other leaf — named, constrained, builtin — keeps its existing owner.
 fn generic_const_carrier_leaf<'a>(
     syntax: &'a SyntaxTrees,
-    constant: &syntax_trees::item::ConstDefinition,
-) -> Option<&'a syntax_trees::identifier::Identifier> {
+    constant: &tokens_to_syntax_trees::syntax_trees::item::ConstDefinition,
+) -> Option<&'a tokens_to_syntax_trees::syntax_trees::identifier::Identifier> {
     let mut carrier = constant.type_reference;
     loop {
         carrier = match syntax.type_references.type_reference(carrier) {
@@ -245,9 +245,9 @@ fn generic_const_carrier_leaf<'a>(
 
 fn scalar_literal_tree(
     syntax: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
+    expression: tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle,
 ) -> bool {
-    use syntax_trees::expression::ExpressionNode;
+    use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
     match syntax.expressions.expression(expression) {
         ExpressionNode::Boolean(_)
         | ExpressionNode::Integer(_)

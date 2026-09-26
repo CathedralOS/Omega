@@ -1,13 +1,13 @@
 //! Payloadless Unit-return source without structural or provider custody.
 
-use abstract_operations::{
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
+use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId};
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan,
 };
-use optimization_unit::PsiOptimizationUnit;
-use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId};
-use target_operations::TargetOperationPlan;
-use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 pub(in crate::tests) fn plain_unit_fixture() -> (
     AbstractOperationPlan,
@@ -53,7 +53,7 @@ pub(in crate::tests) fn plain_unit_fixture() -> (
         ),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &abstract_plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )

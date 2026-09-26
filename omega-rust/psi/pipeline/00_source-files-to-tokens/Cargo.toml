@@ -10,4 +10,3 @@ path = "src/lib.rs"
 
 [dependencies]
 source = { path = "../../foundation/source" }
-tokens = { path = "../../representations/tokens" }

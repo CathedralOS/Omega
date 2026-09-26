@@ -467,7 +467,7 @@ fn duplicate_prior_receipts_cannot_launder_a_fresh_origin_as_unknown() {
         .root_at(selection.state, incoming.statement_ordinal)
         .expect("fresh source has a retained structural producer")
         .expression;
-    let bogus_prior = checked_trees::FlowOwnedSelectionReceipt {
+    let bogus_prior = typed_trees_to_checked_trees::checked_trees::FlowOwnedSelectionReceipt {
         machine: selection.machine,
         state: selection.state,
         statement_ordinal: incoming.statement_ordinal,

@@ -1,4 +1,4 @@
-use abstract_operations::AbstractOperation;
+use crate::abstract_operations::AbstractOperation;
 use terminal_psi::{Operation, OperationKind};
 
 use crate::lowering::LoweringError;

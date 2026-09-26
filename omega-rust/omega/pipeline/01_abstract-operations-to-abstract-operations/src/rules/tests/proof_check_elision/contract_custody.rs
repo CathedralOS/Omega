@@ -24,18 +24,18 @@ use crate::rules::tests::fixtures::proof_check_elision::{
     live_signed_remainder_by_negative_one_unit, live_zero_dividend_unit,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisKind, Optimization, OptimizationRuleContract, OptimizationRuleIdentity,
     OptimizationSafetyClass, OptimizationSelections, OptimizationValidatorIdentity,
 };
-use optimization_unit::{
+use semantic_vocabulary::{IntegerSign, IntegerType};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType};
 
 use optimization_core::{AnalysisInvalidationSet, AnalysisSet};
-use optimization_unit_semantics::validate_psi_rewrite_candidate;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_rewrite_candidate;
 
 struct Case {
     unit: PsiOptimizationUnit,

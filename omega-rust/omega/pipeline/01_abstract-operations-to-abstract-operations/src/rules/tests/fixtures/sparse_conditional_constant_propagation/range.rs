@@ -8,8 +8,8 @@ use super::{
     reconstruct_psi_optimization_unit_seed,
 };
 use crate::rules::{IntegerRangeComparisonKind, IntegerRangePairComparisonKind};
-use abstract_operations::AbstractParameter;
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractParameter;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     AcceptedObligationFact, ProofQuestion, ProofQuestionClass, ProofQuestionOwner,
     attach_accepted_obligation_facts, attach_proof_questions,
 };

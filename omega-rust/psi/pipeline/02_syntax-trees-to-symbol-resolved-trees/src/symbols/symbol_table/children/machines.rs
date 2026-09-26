@@ -1,4 +1,4 @@
-use symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::insert_machine_parameter_signature_children;
@@ -8,8 +8,8 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     machine_symbol: SymbolHandle,
-    machine: &symbol_resolved_trees::machine::Machine,
-    attached_data: Option<&symbol_resolved_trees::data::DataDefinition>,
+    machine: &crate::symbol_resolved_trees::machine::Machine,
+    attached_data: Option<&crate::symbol_resolved_trees::data::DataDefinition>,
     has_sources: bool,
     sources: Option<&source::SourceMap>,
 ) {
@@ -22,7 +22,7 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
             .iter()
             .map(|parameter| {
                 let kind = match parameter.kind {
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                         SymbolKind::MachineParameter
                     }
                     _ => SymbolKind::TypeParameter,
@@ -57,7 +57,7 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
         let parameter_symbol = machine_children.next();
         if let (
             Some(parameter_symbol),
-            symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
+            crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
         ) = (parameter_symbol, &parameter.kind)
             && let Some(contract) = contract.structural()
         {
@@ -113,10 +113,10 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
 
 fn collect_evidence_requirement_closure<'program>(
     program: &'program SymbolResolvedTrees,
-    trait_definition: &'program symbol_resolved_trees::trait_definition::TraitDefinition,
+    trait_definition: &'program crate::symbol_resolved_trees::trait_definition::TraitDefinition,
     sources: Option<&source::SourceMap>,
     visited: &mut Vec<(String, source::SourceSpan)>,
-    output: &mut Vec<&'program symbol_resolved_trees::signature::StateSignature>,
+    output: &mut Vec<&'program crate::symbol_resolved_trees::signature::StateSignature>,
 ) {
     if visited.iter().any(|(name, source_span)| {
         name == trait_definition.name.as_str()
@@ -161,9 +161,9 @@ fn reference_can_see_declaration(
 
 fn select_visible_trait_definition<'program>(
     program: &'program SymbolResolvedTrees,
-    reference_name: &symbol_resolved_trees::name::DiagnosticName,
+    reference_name: &crate::symbol_resolved_trees::name::DiagnosticName,
     sources: Option<&source::SourceMap>,
-) -> Option<&'program symbol_resolved_trees::trait_definition::TraitDefinition> {
+) -> Option<&'program crate::symbol_resolved_trees::trait_definition::TraitDefinition> {
     let reference = reference_name.source_span();
     let candidates = program
         .traits
@@ -191,7 +191,7 @@ fn insert_state_symbol_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     state_symbol: SymbolHandle,
-    state: &symbol_resolved_trees::state::State,
+    state: &crate::symbol_resolved_trees::state::State,
     has_sources: bool,
 ) {
     builder.insert_children(
@@ -209,14 +209,14 @@ fn insert_state_symbol_children(
 
 fn inherited_data_field_symbols<'program>(
     program: &'program SymbolResolvedTrees,
-    selected: Option<&'program symbol_resolved_trees::data::DataDefinition>,
+    selected: Option<&'program crate::symbol_resolved_trees::data::DataDefinition>,
     has_sources: bool,
 ) -> Vec<SymbolSeed<'program>> {
     selected
         .into_iter()
         .flat_map(|data_definition| program.data_members(data_definition.members).iter())
         .filter_map(move |member| match member {
-            symbol_resolved_trees::data::DataMember::Field(field) => {
+            crate::symbol_resolved_trees::data::DataMember::Field(field) => {
                 // Copied inherited fields retain the authored declaration even
                 // for syntax-only clients without a SourceMap. Specialization
                 // replay must not confuse a fresh storage symbol with a new
@@ -227,19 +227,19 @@ fn inherited_data_field_symbols<'program>(
                     has_sources || field.name.is_source_backed(),
                 ))
             }
-            symbol_resolved_trees::data::DataMember::Variant(_) => None,
+            crate::symbol_resolved_trees::data::DataMember::Variant(_) => None,
         })
         .collect()
 }
 
 fn local_symbol_seeds<'program>(
-    statements: &'program [symbol_resolved_trees::statement::Statement],
+    statements: &'program [crate::symbol_resolved_trees::statement::Statement],
     has_sources: bool,
 ) -> impl Iterator<Item = SymbolSeed<'program>> + 'program {
     statements
         .iter()
         .filter_map(move |statement| match statement {
-            symbol_resolved_trees::statement::Statement::LocalData(local_data) => Some(
+            crate::symbol_resolved_trees::statement::Statement::LocalData(local_data) => Some(
                 symbol_seed(SymbolKind::Local, &local_data.name, has_sources),
             ),
             _ => None,

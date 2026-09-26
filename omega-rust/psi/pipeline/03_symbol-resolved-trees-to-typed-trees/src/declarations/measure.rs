@@ -5,8 +5,8 @@ use diagnostics::Diagnostic;
 
 pub(crate) fn lower_measure_definition(
     lowerer: &mut Lowerer,
-    measure: &symbol_resolved_trees::measure::MeasureDefinition,
-) -> Result<typed_trees::measure::MeasureDefinition, Diagnostic> {
+    measure: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::measure::MeasureDefinition,
+) -> Result<crate::typed_trees::measure::MeasureDefinition, Diagnostic> {
     let parameter = measure
         .parameter
         .as_ref()
@@ -18,9 +18,9 @@ pub(crate) fn lower_measure_definition(
         .as_ref()
         .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
         .transpose()?
-        .unwrap_or_else(typed_trees::types::TypeReferenceHandle::invalid);
+        .unwrap_or_else(crate::typed_trees::types::TypeReferenceHandle::invalid);
 
-    let mut typed_measure = typed_trees::measure::MeasureDefinition {
+    let mut typed_measure = crate::typed_trees::measure::MeasureDefinition {
         symbol: measure.symbol,
         name: Default::default(),
         parameter,
@@ -55,10 +55,10 @@ pub(crate) fn lower_measure_definition(
 
 fn lower_measure_parameter(
     lowerer: &mut Lowerer,
-    parameter: &symbol_resolved_trees::signature::StateParameter,
-) -> Result<typed_trees::signature::StateParameter, Diagnostic> {
+    parameter: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::StateParameter,
+) -> Result<crate::typed_trees::signature::StateParameter, Diagnostic> {
     let type_reference = lower_type_reference_into_table(lowerer, &parameter.type_reference)?;
-    Ok(typed_trees::signature::StateParameter {
+    Ok(crate::typed_trees::signature::StateParameter {
         symbol: parameter.symbol,
         name: crate::lowerer::name::lower_name(&parameter.name),
         type_reference,

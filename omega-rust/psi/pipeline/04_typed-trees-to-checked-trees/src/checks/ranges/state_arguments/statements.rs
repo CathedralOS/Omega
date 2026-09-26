@@ -1,12 +1,14 @@
-use typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionTargetHandle, TransitionTargetNode,
+};
 
 use super::calls::collect_state_argument_facts_for_call;
 use super::expressions::collect_state_argument_facts_from_expression;
 use super::{StateArgumentContext, StateArgumentFacts};
 use crate::checks::ranges::facts::RangeFacts;
 use crate::checks::ranges::statement_transfer::{StatementTransferSink, transfer_statement_facts};
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::statement::TableCall;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall;
 
 /// Replay one statement's fact transfer through the SHARED statement
 /// transfer, collecting the argument facts each outgoing call/transition

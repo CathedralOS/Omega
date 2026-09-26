@@ -6,8 +6,10 @@ use super::{
     SelectedInstructionKind, SelectedSelectionConstraints, StructuralPlaceKind, StructuralTypeId,
     ValueDefinitionSite, ValueShape, build, evaluate_call_plan, returned,
 };
+use crate::selected_instructions::{
+    FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole,
+};
 use crate::selection::construction::scalar_graph::tests::borrowed_calls::borrowed_call;
-use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole};
 
 fn literal_call(target: target::NativeTarget, bytes: &[u8]) -> LegalizedScalarFunction {
     let mut source = borrowed_call(target);
@@ -42,7 +44,7 @@ fn literal_call(target: target::NativeTarget, bytes: &[u8]) -> LegalizedScalarFu
     let LegalizedScalarArgument::Structural { target, .. } = &mut call.arguments[0] else {
         panic!("view argument");
     };
-    target.source = target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+    target.source = abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedByteView {
         psi_operation: operation,
     };
     let establishment = LegalizedScalarInstruction {
@@ -81,7 +83,7 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -115,7 +117,7 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
             validate(&source, &selected).unwrap();
             let mut wrong_origin_ownership = source.clone();
             wrong_origin_ownership.blocks[0].instructions[1].ownership =
-                vec![optimization_unit::OwnershipEvent::ClaimCompletion(
+                vec![terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(
                     Vec::new(),
                 )];
             assert!(
@@ -174,7 +176,7 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
                 match mutation {
                     0 => {
                         changed.local_storage_slots[0].id =
-                            selected_instructions::LocalStorageSlotId::Structural {
+                            crate::selected_instructions::LocalStorageSlotId::Structural {
                                 operation: OperationId::new(99).unwrap(),
                                 place: changed.local_storage_slots[0]
                                     .id
@@ -184,7 +186,7 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
                     }
                     1 => {
                         changed.local_storage_slots[0].id =
-                            selected_instructions::LocalStorageSlotId::Structural {
+                            crate::selected_instructions::LocalStorageSlotId::Structural {
                                 operation: changed.local_storage_slots[0]
                                     .id
                                     .operation()
@@ -279,7 +281,7 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
                         unreachable!()
                     };
                     target.source =
-                        target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                             psi_operation: OperationId::new(99).unwrap(),
                         };
                 } else {

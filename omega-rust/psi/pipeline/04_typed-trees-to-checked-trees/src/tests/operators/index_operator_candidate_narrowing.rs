@@ -5,7 +5,9 @@ use crate::tests::{
     TypeReferenceNode,
 };
 use language_core::operator_spelling::OperatorSpelling;
-use typed_trees::expression::{ExpressionNode, TableIndexedExpression};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionNode, TableIndexedExpression,
+};
 
 #[test]
 fn narrows_index_operator_candidates_by_receiver_type() {
@@ -18,7 +20,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
     let index_symbol = SymbolHandle::from_arena_index(126);
     let mismatched_parameter_symbol = SymbolHandle::from_arena_index(127);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let i32_type = named_type(&mut program, "i32");
     let usize_type = named_type(&mut program, "u64");
     let type_parameter = program
@@ -58,11 +60,12 @@ fn narrows_index_operator_candidates_by_receiver_type() {
         operator_with_spelling(matching_operator_symbol, OperatorSpelling::Index);
     program.push_operator_type_parameter(
         &mut matching_operator,
-        typed_trees::data::TypeParameter {
+        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter {
             symbol: type_parameter_symbol,
             name: Identifier::generated("T"),
-            kind: typed_trees::data::TypeParameterKind::Type,
-            bounds: typed_trees::data::DataProperties::default(),
+            kind: symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type,
+            bounds:
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataProperties::default(),
         },
     );
     program.push_operator_parameter(
@@ -149,20 +152,20 @@ fn narrows_index_operator_candidates_by_receiver_type() {
                 collection,
                 index,
             }));
-    let origin = checked_trees::CheckedValueOrigin::StateStatement {
+    let origin = crate::checked_trees::CheckedValueOrigin::StateStatement {
         machine_symbol,
         state_symbol,
         statement_index: 0,
-        role: checked_trees::CheckedValueStatementRole::Expression,
+        role: crate::checked_trees::CheckedValueStatementRole::Expression,
     };
     let mut value_roots = arena::Arena::default();
-    value_roots.append(checked_trees::CheckedValueFact {
+    value_roots.append(crate::checked_trees::CheckedValueFact {
         expression: indexed,
         origin,
         ..Default::default()
     });
 
-    let values = checked_trees::CheckedValueFacts::with_roots(value_roots);
+    let values = crate::checked_trees::CheckedValueFacts::with_roots(value_roots);
     let facts = build_operator_facts(&program, &values);
     let indexed_use = facts
         .expression_use_in_origin(indexed, origin)
@@ -170,7 +173,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
 
     assert_eq!(
         indexed_use.status,
-        checked_trees::CheckedOperatorResolutionStatus::Resolved
+        crate::checked_trees::CheckedOperatorResolutionStatus::Resolved
     );
     assert_eq!(
         indexed_use.selected_operator_symbol,
@@ -204,7 +207,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
     let matching_parameter_symbol = SymbolHandle::from_arena_index(135);
     let mismatched_parameter_symbol = SymbolHandle::from_arena_index(136);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let i32_type = named_type(&mut program, "i32");
     let usize_type = named_type(&mut program, "u64");
     let slice_of_i32 = program
@@ -329,11 +332,11 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
     };
     program.statement_table.push_statement(
         &mut state.statement_nodes,
-        StatementNode::LocalData(typed_trees::statement::TableLocalData {
+        StatementNode::LocalData(symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData {
             symbol: local_symbol,
             name: Identifier::generated("items"),
             type_reference: reference_to_slice_of_i32,
-            initial_value: typed_trees::expression::ExpressionHandle::invalid(),
+            initial_value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
             relevance: language_core::BindingRelevance::Relevant,
@@ -341,11 +344,11 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
     );
     program.statement_table.push_statement(
         &mut state.statement_nodes,
-        StatementNode::LocalData(typed_trees::statement::TableLocalData {
+        StatementNode::LocalData(symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData {
             symbol: index_symbol,
             name: Identifier::generated("index"),
             type_reference: usize_type,
-            initial_value: typed_trees::expression::ExpressionHandle::invalid(),
+            initial_value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
             relevance: language_core::BindingRelevance::Relevant,
@@ -358,20 +361,20 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
     program.push_machine_state(&mut machine, state);
     program.push_machine(machine);
 
-    let origin = checked_trees::CheckedValueOrigin::StateStatement {
+    let origin = crate::checked_trees::CheckedValueOrigin::StateStatement {
         machine_symbol,
         state_symbol,
         statement_index: 2,
-        role: checked_trees::CheckedValueStatementRole::Expression,
+        role: crate::checked_trees::CheckedValueStatementRole::Expression,
     };
     let mut value_roots = arena::Arena::default();
-    value_roots.append(checked_trees::CheckedValueFact {
+    value_roots.append(crate::checked_trees::CheckedValueFact {
         expression: indexed,
         origin,
         ..Default::default()
     });
 
-    let values = checked_trees::CheckedValueFacts::with_roots(value_roots);
+    let values = crate::checked_trees::CheckedValueFacts::with_roots(value_roots);
     let facts = build_operator_facts(&program, &values);
     let indexed_use = facts
         .expression_use_in_origin(indexed, origin)
@@ -379,7 +382,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
 
     assert_eq!(
         indexed_use.status,
-        checked_trees::CheckedOperatorResolutionStatus::Resolved
+        crate::checked_trees::CheckedOperatorResolutionStatus::Resolved
     );
     assert_eq!(
         indexed_use.selected_operator_symbol,

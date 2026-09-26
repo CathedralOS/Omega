@@ -29,13 +29,16 @@ fn proof_slice_extraction_definition_accepts_guarded_tail_recursion() {
             .iter()
             .find(|machine| machine.name.as_str() == "extract")
             .expect("extractor");
-        assert!(typed_trees::proof_only::classify(&program).is_proof_machine(&program, extractor));
+        assert!(
+            symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(&program)
+                .is_proof_machine(&program, extractor)
+        );
         let entry_parameter = &program.state_parameters(&program.machine_states(extractor)[0])[0];
-        let subjects = typed_trees::ranking::resolve_machine_witness_subjects(&program, extractor)
+        let subjects = symbol_resolved_trees_to_typed_trees::typed_trees::ranking::resolve_machine_witness_subjects(&program, extractor)
             .expect("resolved witness");
         assert!(
             matches!(subjects.as_slice(), [subject] if matches!(program.expression_table.expression(*subject),
-            typed_trees::expression::ExpressionNode::Name(path) if path.symbol == entry_parameter.symbol && path.head_symbol == entry_parameter.symbol))
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) if path.symbol == entry_parameter.symbol && path.head_symbol == entry_parameter.symbol))
         );
         lower_typed_trees(program, &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{measure}: {diagnostics:#?}"));
@@ -185,8 +188,10 @@ fn runtime_slice_ranking_checks_every_recursive_edge() {
 
 #[test]
 fn proof_slice_decrease_requires_exact_witness_and_bare_parameter_identity() {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+        StatementNode, TransitionGuardNode, TransitionTargetNode,
+    };
     let source = format!(
         r#"{SEQUENCE}
         machine unrelated(items: &[u64]) -> u64 {{ 0 }}
@@ -206,7 +211,7 @@ fn proof_slice_decrease_requires_exact_witness_and_bare_parameter_identity() {
             .expect("extract");
         let entry = &program.machine_states(machine)[0];
         let parameter = program.state_parameters(entry)[0].clone();
-        let witness = typed_trees::ranking::resolve_machine_witness_subjects(&program, machine)
+        let witness = symbol_resolved_trees_to_typed_trees::typed_trees::ranking::resolve_machine_witness_subjects(&program, machine)
             .expect("witness")[0];
         let StatementNode::Transition(transition) =
             &program.statement_table.statements(entry.statement_nodes)[0]
@@ -240,7 +245,7 @@ fn proof_slice_decrease_requires_exact_witness_and_bare_parameter_identity() {
             panic!("slice")
         };
         let collection = indexed.collection;
-        assert!(validation::slice_tail_strictly_decreases(
+        assert!(crate::validation::slice_tail_strictly_decreases(
             &program, guard, argument, &parameter
         ));
         if corruption == "foreign_witness" {
@@ -262,18 +267,20 @@ fn proof_slice_decrease_requires_exact_witness_and_bare_parameter_identity() {
                 .set_name_path_member_symbol_at_offset(symbols, 0, symbol);
         } else {
             let mut members = arena::HandleSpan::empty();
-            program
-                .expression_table
-                .push_name_path_member(&mut members, typed_trees::name::Identifier::from("items"));
-            program
-                .expression_table
-                .push_name_path_member(&mut members, typed_trees::name::Identifier::from("other"));
+            program.expression_table.push_name_path_member(
+                &mut members,
+                symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::from("items"),
+            );
+            program.expression_table.push_name_path_member(
+                &mut members,
+                symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::from("other"),
+            );
             let ExpressionNode::Name(path) = program.expression_table.expression_mut(collection)
             else {
                 panic!("name")
             };
             path.members = members;
-            assert!(!validation::slice_tail_strictly_decreases(
+            assert!(!crate::validation::slice_tail_strictly_decreases(
                 &program, guard, argument, &parameter
             ));
         }

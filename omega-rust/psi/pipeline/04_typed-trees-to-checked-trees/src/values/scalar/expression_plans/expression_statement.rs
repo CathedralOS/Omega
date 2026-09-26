@@ -34,9 +34,9 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
             .data_definitions()
             .iter()
             .find(|data| data.symbol == literal.type_symbol)
-        && let Some(typed_trees::data::DataMember::Variant(variant)) =
+        && let Some(symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)) =
             program.data_members(data).iter().find(|member| {
-                matches!(member, typed_trees::data::DataMember::Variant(variant) if variant.symbol == case_symbol)
+                matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) if variant.symbol == case_symbol)
             })
     {
         for (field_index, field) in program
@@ -90,7 +90,7 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
         }
     }
     let unit_statement =
-        validation::unit_statement_call_is_supported(program, machine, state, expression);
+        crate::validation::unit_statement_call_is_supported(program, machine, state, expression);
     if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
         && let Some(arguments) = lower_call_arguments(
             program,

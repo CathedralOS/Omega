@@ -21,13 +21,13 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::view_subslice::{self, ViewFamily};
 use crate::expression_preparation::bindings::ScalarBindings;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use terminal_psi::{StructuralPlaceDeclaration, ValueDeclaration};
+use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedSubsliceSite,
     CheckedUnitStructuralPathSegment,
 };
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use terminal_psi::{StructuralPlaceDeclaration, ValueDeclaration};
 
 /// The established view a range narrows, as the emitting route found it.
 #[derive(Debug, Clone, Copy)]
@@ -212,10 +212,10 @@ fn endpoints(
                 || selected.candidate_count != 0
                 || !matches!(
                     selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::Missing
+                        | typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                 ))
-    }) || !validation::has_builtin_subslice_meaning(
+    }) || !typed_trees_to_checked_trees::validation::has_builtin_subslice_meaning(
         &checked.typed,
         machine,
         Some(authored),
@@ -240,7 +240,8 @@ fn endpoints(
             ))?;
         if binding.expression != authored_endpoint
             || binding.destination.is_valid()
-            || selected.primitive_type() != Some(checked_trees::types::PrimitiveType::U64)
+            || selected.primitive_type()
+                != Some(typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::U64)
             || retained.is_some_and(|retained| retained.as_ref() != Some(selected))
         {
             return unsupported("view subslice endpoint differs from its source-bound plan");
@@ -269,18 +270,19 @@ fn endpoints(
 pub(crate) fn binding_local<'a>(
     checked: &'a CheckedTrees,
     state: symbols::SymbolHandle,
-    operation: &checked_trees::CheckedUnitEffectOperationPlan,
-) -> Result<&'a checked_trees::statement::TableLocalData, LoweringError> {
-    let checked_trees::CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } =
+    operation: &typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan,
+) -> Result<&'a typed_trees_to_checked_trees::checked_trees::statement::TableLocalData, LoweringError>
+{
+    let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } =
         operation
     else {
         return unsupported("view subslice binding has no producer");
     };
-    let (checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+    let (typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
         expression,
         ..
     }
-    | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+    | typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
         expression,
         ..
     }) = &source.source
@@ -289,7 +291,9 @@ pub(crate) fn binding_local<'a>(
     };
     let (_, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
-    let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
+    let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+        local,
+    )) = checked
         .statement_table
         .statements(authored.statement_nodes)
         .get(result.statement_index as usize)
@@ -300,8 +304,8 @@ pub(crate) fn binding_local<'a>(
     // it, carries a path: the field projection to the array it views whole.
     let field_range = matches!(
         source.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-            root: checked_trees::CheckedStorageRoot::Parameter { .. },
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            root: typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter { .. },
             ..
         }
     );
@@ -309,7 +313,8 @@ pub(crate) fn binding_local<'a>(
         || !local.symbol.is_valid()
         || local.initial_value != *expression
         || (!source.path.is_empty() && !field_range)
-        || source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+        || source.access
+            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
         || source.type_identity != result.type_identity
         || result.multiplicity != language_semantics::Multiplicity::Unrestricted
     {

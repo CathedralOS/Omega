@@ -1,11 +1,11 @@
 //! Console adapter for the project compilation operation.
 
 use super::{admissions::report_unsettled_admissions, arguments::CompileArguments};
-use compiler::CompileOptions;
 use omega::compilation::{
     CompileProjectError, CompileProjectRequest, ProjectProduct, TargetProjectOutcome,
     compile_project, compile_project_for_targets,
 };
+use omega::compiler::CompileOptions;
 
 pub(crate) fn compile_project_command(arguments: CompileArguments) {
     let started = arguments.timings.then(std::time::Instant::now);
@@ -27,9 +27,9 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
         accept_admissions: arguments.accept_admissions,
         require_package_project: false,
         optimization_rollback: arguments.optimization_rollback,
-        build_snapshot: arguments
-            .build_inputs
-            .map(|capture| compiler::BuildSnapshotRequest::scoped(std::iter::empty(), capture)),
+        build_snapshot: arguments.build_inputs.map(|capture| {
+            omega::compiler::BuildSnapshotRequest::scoped(std::iter::empty(), capture)
+        }),
     };
     if target_names.len() > 1 {
         compile_several_targets(request, &target_names, started, report_file.as_deref());
@@ -250,9 +250,9 @@ fn write_report_text(path: &std::path::Path, contents: &str) -> std::io::Result<
 #[cfg(test)]
 mod tests {
     use super::{report_text, write_report_text};
-    use artifacts::compile_timings::CompileTimings;
-    use compiler::CompileReport;
+    use omega::artifacts::compile_timings::CompileTimings;
     use omega::compilation::CompileProjectOutcome;
+    use omega::compiler::CompileReport;
     use std::path::PathBuf;
 
     #[test]

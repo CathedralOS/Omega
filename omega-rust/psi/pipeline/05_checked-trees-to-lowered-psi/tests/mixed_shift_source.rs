@@ -1,8 +1,8 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use omega::terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use proof_admission::{AdmissionProfile, EvidenceRoute};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
-use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
@@ -24,7 +24,10 @@ const COMPOSITION_SOURCE: &str = r#"
     }
 "#;
 
-fn check_composition_source(expression: &str, requirements: &str) -> checked_trees::CheckedTrees {
+fn check_composition_source(
+    expression: &str,
+    requirements: &str,
+) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let source = COMPOSITION_SOURCE
         .replace("$EXPRESSION", expression)
         .replace("$REQUIRES", requirements);

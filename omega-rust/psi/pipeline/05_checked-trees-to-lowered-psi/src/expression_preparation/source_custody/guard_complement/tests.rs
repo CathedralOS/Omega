@@ -1,5 +1,5 @@
 use super::complementary;
-use checked_trees::{CheckedScalarExpressionRole, CheckedTrees};
+use typed_trees_to_checked_trees::checked_trees::{CheckedScalarExpressionRole, CheckedTrees};
 
 fn entry_state(checked: &CheckedTrees) -> symbols::SymbolHandle {
     let machine = checked
@@ -67,13 +67,17 @@ fn a_substituted_second_row_cannot_manufacture_a_complement() {
                 && row.role == CheckedScalarExpressionRole::Guard
         })
         .expect("second guard row");
-    let checked_trees::CheckedScalarExpression::Boolean(first_guard) = &rows[first].expression
+    let typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Boolean(first_guard) =
+        &rows[first].expression
     else {
         panic!("Boolean guard row")
     };
-    rows[second].expression = checked_trees::CheckedScalarExpression::Boolean(Box::new(
-        checked_trees::CheckedBooleanExpression::Not(first_guard.clone()),
-    ));
+    rows[second].expression =
+        typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Boolean(Box::new(
+            typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Not(
+                first_guard.clone(),
+            ),
+        ));
     assert!(
         !matches!(complementary(&checked, state, 0), Ok(true)),
         "`!(value < 3)` does not rejoin the authored `value >= 3`"

@@ -1,16 +1,16 @@
-use checked_trees::statement::StatementNode;
-use checked_trees::{BorrowRootKind, BorrowWritableRootFact};
+use crate::checked_trees::statement::StatementNode;
+use crate::checked_trees::{BorrowRootKind, BorrowWritableRootFact};
 
 pub(super) fn append_state_writable_roots(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     writable_roots: &mut arena::Arena<BorrowWritableRootFact>,
     writable_roots_span: &mut arena::HandleSpan<BorrowWritableRootFact>,
 ) {
-    for field in attached_data_fields(program, machine)
-        .filter(|_| validation::receiver_allows_mutation(program, program.state_parameters(state)))
-    {
+    for field in attached_data_fields(program, machine).filter(|_| {
+        crate::validation::receiver_allows_mutation(program, program.state_parameters(state))
+    }) {
         writable_roots.append_to_span(
             writable_roots_span,
             BorrowWritableRootFact {
@@ -80,8 +80,8 @@ pub(super) fn append_state_writable_roots(
 /// mutation-capable (`receiver_allows_mutation`), and not already reported
 /// as a `mut`/reference parameter.
 fn is_consuming_self_parameter(
-    program: &typed_trees::TypedTrees,
-    parameter: &typed_trees::signature::StateParameter,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
 ) -> bool {
     parameter.is_self
         && !parameter.is_mutable
@@ -92,14 +92,15 @@ fn is_consuming_self_parameter(
             program
                 .type_reference_table
                 .type_reference(parameter.type_reference),
-            typed_trees::types::TypeReferenceNode::Reference { .. }
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. }
         )
 }
 
 pub(super) fn attached_data_fields<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> impl Iterator<Item = &'program typed_trees::data::DataField> {
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+) -> impl Iterator<Item = &'program symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField>
+{
     machine
         .attached_data
         .as_ref()
@@ -112,14 +113,16 @@ pub(super) fn attached_data_fields<'program>(
         .into_iter()
         .flat_map(|definition| program.data_members(definition).iter())
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field),
-            typed_trees::data::DataMember::Variant(_) => None,
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
+                Some(field)
+            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(_) => None,
         })
 }
 
 pub(super) fn mutable_parameter_count(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> usize {
     program
         .state_parameters(state)
@@ -131,8 +134,8 @@ pub(super) fn mutable_parameter_count(
 /// Consuming `self` parameters join the writable roots beside the `mut`
 /// parameters, so the estimate counts them too.
 fn consuming_self_parameter_count(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> usize {
     program
         .state_parameters(state)
@@ -141,7 +144,9 @@ fn consuming_self_parameter_count(
         .count()
 }
 
-pub(super) fn estimated_borrow_root_capacity(program: &typed_trees::TypedTrees) -> usize {
+pub(super) fn estimated_borrow_root_capacity(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> usize {
     program
         .machines()
         .iter()

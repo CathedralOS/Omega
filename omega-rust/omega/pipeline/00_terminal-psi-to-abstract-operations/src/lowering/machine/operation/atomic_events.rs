@@ -33,8 +33,8 @@
 //! identity, which would split one modification order in two.
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::atomic::AbstractAtomicLocation;
-use abstract_operations::{
+use crate::abstract_operations::atomic::AbstractAtomicLocation;
+use crate::abstract_operations::{
     AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractOperation, AbstractResult,
     AtomicModificationAfter, AtomicReadsFrom,
 };

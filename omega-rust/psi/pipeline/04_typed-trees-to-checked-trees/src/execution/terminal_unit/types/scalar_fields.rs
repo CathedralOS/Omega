@@ -32,7 +32,7 @@ pub(super) fn retain_scalar_field(
                 constraints,
             } => {
                 for constraint in program.type_reference_table.constraints(*constraints) {
-                    if let typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain) =
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain) =
                         constraint
                     {
                         has_non_exact_domain |=
@@ -42,9 +42,9 @@ pub(super) fn retain_scalar_field(
                     // restricts the field as a bracketed range did: the place
                     // establishes it at every write and every read may assume
                     // it. An unstated side is the carrier's own extreme.
-                    if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
                         && let Some((lower, upper)) =
-                            validation::exact_declared_domain_interval(program, domain)
+                            crate::validation::exact_declared_domain_interval(program, domain)
                     {
                         let lower = lower.unwrap_or_else(|| BigInt::from_i128(i128::MIN));
                         let upper = upper.unwrap_or_else(|| BigInt::from_u128(u128::MAX));
@@ -55,7 +55,7 @@ pub(super) fn retain_scalar_field(
                             None => (lower, upper),
                         });
                     }
-                    if let typed_trees::types::TypeConstraintNode::Range {
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range {
                         minimum,
                         maximum,
                         end_inclusive,
@@ -63,8 +63,8 @@ pub(super) fn retain_scalar_field(
                     {
                         // Use the same closed-expression evaluation as source range
                         // validation. Failure is unsupported, never an unbounded field.
-                        let lower = validation::closed_integer_range_bound(program, *minimum)?;
-                        let upper = validation::closed_integer_range_maximum(
+                        let lower = crate::validation::closed_integer_range_bound(program, *minimum)?;
+                        let upper = crate::validation::closed_integer_range_maximum(
                             program,
                             *maximum,
                             *end_inclusive,

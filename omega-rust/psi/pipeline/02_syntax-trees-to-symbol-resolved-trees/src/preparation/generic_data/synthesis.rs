@@ -32,18 +32,18 @@ use diagnostics::Diagnostic;
 use numerics::literals::IntegerLiteral;
 use numerics::literals::IntegerRadix;
 use std::collections::HashMap;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::ConstDefinition;
-use syntax_trees::item::DataDefinition;
-use syntax_trees::item::DataMember;
-use syntax_trees::item::Item;
-use syntax_trees::item::ProofFact;
-use syntax_trees::item::TypeParameterKind;
-use syntax_trees::types::FixedArrayLength;
-use syntax_trees::types::TypeReferenceHandle;
-use syntax_trees::types::TypeReferenceNode;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
+use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
+use tokens_to_syntax_trees::syntax_trees::item::ConstDefinition;
+use tokens_to_syntax_trees::syntax_trees::item::DataDefinition;
+use tokens_to_syntax_trees::syntax_trees::item::DataMember;
+use tokens_to_syntax_trees::syntax_trees::item::Item;
+use tokens_to_syntax_trees::syntax_trees::item::ProofFact;
+use tokens_to_syntax_trees::syntax_trees::item::TypeParameterKind;
+use tokens_to_syntax_trees::syntax_trees::types::FixedArrayLength;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
 
 pub(in crate::preparation::generic_data) fn desugar_generic_data_instances(
     syntax: &mut SyntaxTrees,
@@ -73,7 +73,10 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
 ) -> Result<(), Vec<Diagnostic>> {
     // Attachments belong to the carrier selected in their declaring source,
     // not to every generic declaration with the same leaf spelling.
-    let mut attached_machines: HashMap<syntax_trees::item::ItemHandle, Vec<usize>> = HashMap::new();
+    let mut attached_machines: HashMap<
+        tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
+        Vec<usize>,
+    > = HashMap::new();
     for (item_index, item) in syntax.root_items().enumerate() {
         if let Item::Machine(machine) = item
             && let Some(attached) = &machine.attached_data
@@ -86,7 +89,10 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
         }
     }
 
-    let mut generic_data: HashMap<syntax_trees::item::ItemHandle, GenericData> = HashMap::new();
+    let mut generic_data: HashMap<
+        tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
+        GenericData,
+    > = HashMap::new();
     for &declaration in syntax.root_item_handles() {
         let Item::Data(definition) = syntax.root_item(declaration) else {
             continue;
@@ -436,8 +442,8 @@ fn synthesize_instance(
     syntax: &mut SyntaxTrees,
     warnings: &mut Vec<Diagnostic>,
     synthesized: &mut Vec<Instantiation>,
-    generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
-    attached_machines: &HashMap<syntax_trees::item::ItemHandle, Vec<usize>>,
+    generic_data: &HashMap<tokens_to_syntax_trees::syntax_trees::item::ItemHandle, GenericData>,
+    attached_machines: &HashMap<tokens_to_syntax_trees::syntax_trees::item::ItemHandle, Vec<usize>>,
     const_values: &HashMap<String, i128>,
     selection: Option<&super::constant_selection::ConstantSelection>,
     instance: &Instantiation,
@@ -619,15 +625,13 @@ fn synthesize_instance(
         .tables
         .type_references
         .insert_type_reference_handles(instance.argument_handles.iter().copied());
-    let generic_instance =
-        syntax
-            .tables
-            .type_references
-            .insert(syntax_trees::types::TypeReferenceNode::Generic {
-                base_name: base_info.origin_name.clone(),
-                lifetime_arguments: Vec::new(),
-                arguments: origin_arguments,
-            });
+    let generic_instance = syntax.tables.type_references.insert(
+        tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode::Generic {
+            base_name: base_info.origin_name.clone(),
+            lifetime_arguments: Vec::new(),
+            arguments: origin_arguments,
+        },
+    );
 
     let members: Vec<DataMember> = syntax.tables.items.data_members(base_info.members).to_vec();
     let properties = base_info.properties;

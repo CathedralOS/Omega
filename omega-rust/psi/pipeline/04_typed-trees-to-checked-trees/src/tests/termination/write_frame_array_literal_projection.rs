@@ -204,7 +204,7 @@ fn transparent_returned_place_composes_direct_array_literal_index_frames() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in ["Main::direct", "Main::wrapped"] {
         let machine = typed

@@ -1,10 +1,10 @@
 use crate::contracts::facts::parse_proof_facts_until;
 use crate::input::token_cursor::Input;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::{CapabilityContract, CapabilityContractKind, CrashCause};
 use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{CapabilityContract, CapabilityContractKind, CrashCause};
-use tokens::{KeywordKind, PunctuationKind};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 /// Parses the `reaches`/`requires`/`ensures` clauses that may follow a bodyless
 /// machine signature: trait machine signatures and platform entry signatures
@@ -16,10 +16,10 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
 ) -> Result<
     (
         (
-            HandleSpan<syntax_trees::identifier::Identifier>,
+            HandleSpan<crate::syntax_trees::identifier::Identifier>,
             Vec<source::SourceSpan>,
             bool,
-            HandleSpan<syntax_trees::identifier::Identifier>,
+            HandleSpan<crate::syntax_trees::identifier::Identifier>,
             Vec<source::SourceSpan>,
             Vec<source::SourceSpan>,
             bool,
@@ -31,7 +31,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             // Signature-level `where` proof facts (the finite generic method
             // family roster is authored here as explicit equality
             // disjunctions).
-            HandleSpan<syntax_trees::item::ProofFact>,
+            HandleSpan<crate::syntax_trees::item::ProofFact>,
         ),
         Input<'tokens, 'source>,
     ),

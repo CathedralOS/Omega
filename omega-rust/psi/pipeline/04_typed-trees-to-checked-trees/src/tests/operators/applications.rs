@@ -1,7 +1,7 @@
 use super::{Identifier, OperatorSpelling, StateParameter, SymbolHandle, TypeReferenceNode};
 use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
 use crate::tests::operators::operator_with_spelling;
-use typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
 mod const_arguments;
 mod property_bounds;
@@ -11,7 +11,7 @@ fn exact_operator_application_does_not_bind_a_same_spelled_foreign_nominal() {
     let operator_symbol = SymbolHandle::from_arena_index(151);
     let binder_symbol = SymbolHandle::from_arena_index(152);
     let foreign_symbol = SymbolHandle::from_arena_index(153);
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let foreign_type = program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -21,11 +21,12 @@ fn exact_operator_application_does_not_bind_a_same_spelled_foreign_nominal() {
     let mut operator = operator_with_spelling(operator_symbol, OperatorSpelling::Add);
     program.push_operator_type_parameter(
         &mut operator,
-        typed_trees::data::TypeParameter {
+        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter {
             symbol: binder_symbol,
             name: Identifier::generated("Element"),
-            kind: typed_trees::data::TypeParameterKind::Type,
-            bounds: typed_trees::data::DataProperties::default(),
+            kind: symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type,
+            bounds:
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataProperties::default(),
         },
     );
     for name in ["left", "right"] {
@@ -45,7 +46,7 @@ fn exact_operator_application_does_not_bind_a_same_spelled_foreign_nominal() {
     program.push_operator(operator);
 
     assert!(
-        typed_trees::operator::closed_operator_application_for_operands(
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_operator_application_for_operands(
             &program,
             &program.operators()[0],
             &[Some(foreign_type), Some(foreign_type)],
@@ -58,7 +59,7 @@ fn exact_operator_application_does_not_bind_a_same_spelled_foreign_nominal() {
 fn exact_operator_application_rejects_unresolved_nominal_argument() {
     let operator_symbol = SymbolHandle::from_arena_index(154);
     let binder_symbol = SymbolHandle::from_arena_index(155);
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let binder_type = program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -74,10 +75,10 @@ fn exact_operator_application_rejects_unresolved_nominal_argument() {
     let mut operator = operator_with_spelling(operator_symbol, OperatorSpelling::Add);
     program.push_operator_type_parameter(
         &mut operator,
-        typed_trees::data::TypeParameter {
+        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter {
             symbol: binder_symbol,
             name: Identifier::generated("Element"),
-            kind: typed_trees::data::TypeParameterKind::Type,
+            kind: symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type,
             bounds: Default::default(),
         },
     );
@@ -98,7 +99,7 @@ fn exact_operator_application_rejects_unresolved_nominal_argument() {
     program.push_operator(operator);
 
     assert!(
-        typed_trees::operator::closed_operator_application_for_operands(
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_operator_application_for_operands(
             &program,
             &program.operators()[0],
             &[Some(unresolved_type), Some(unresolved_type)],
@@ -109,12 +110,12 @@ fn exact_operator_application_rejects_unresolved_nominal_argument() {
 
 #[test]
 fn exact_operator_application_rejects_unsupported_binder_categories() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let unsupported = [
-        typed_trees::data::TypeParameterKind::Machine {
+        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
             contract: Default::default(),
         },
-        typed_trees::data::TypeParameterKind::Proposition {
+        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Proposition {
             contract: Default::default(),
         },
     ];
@@ -125,7 +126,7 @@ fn exact_operator_application_rejects_unsupported_binder_categories() {
         );
         program.push_operator_type_parameter(
             &mut operator,
-            typed_trees::data::TypeParameter {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter {
                 symbol: SymbolHandle::from_arena_index(170 + ordinal as u32),
                 name: Identifier::generated("Unsupported"),
                 kind,
@@ -133,7 +134,7 @@ fn exact_operator_application_rejects_unsupported_binder_categories() {
             },
         );
         assert!(
-            typed_trees::operator::closed_operator_application_for_operands(
+            symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_operator_application_for_operands(
                 &program,
                 &operator,
                 &[],
@@ -148,7 +149,7 @@ fn exact_operator_application_rejects_unsupported_binder_categories() {
         .lifetime_parameters
         .push(Identifier::generated("'value"));
     assert!(
-        typed_trees::operator::closed_operator_application_for_operands(
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_operator_application_for_operands(
             &program,
             &lifetime_operator,
             &[],
@@ -182,7 +183,7 @@ fn checked_boundary_operator_uses_retain_empty_and_typed_applications() {
         .find(|application| application.arguments.len() == 1)
         .expect("generic boundary use has one typed application");
     let [
-        checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+        crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
             binder_owner,
             binder_ordinal,
             binder_symbol,
@@ -198,7 +199,7 @@ fn checked_boundary_operator_uses_retain_empty_and_typed_applications() {
     assert!(type_reference.is_valid());
     assert_eq!(
         checked.typed.primitive_type_reference(*type_reference),
-        Some(typed_trees::types::PrimitiveType::I32)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
     );
 }
 
@@ -229,7 +230,7 @@ fn checked_boundary_type_application_retains_declaration_order() {
         .arguments
         .iter()
         .map(|argument| match argument {
-            checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+            crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
                 binder_ordinal,
                 type_reference,
                 ..
@@ -237,7 +238,7 @@ fn checked_boundary_type_application_retains_declaration_order() {
                 *binder_ordinal,
                 checked.typed.primitive_type_reference(*type_reference),
             ),
-            checked_trees::CheckedBoundaryOperatorApplicationArgument::Const { .. } => {
+            crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Const { .. } => {
                 panic!("type-only application retained a const argument")
             }
         })
@@ -245,8 +246,14 @@ fn checked_boundary_type_application_retains_declaration_order() {
     assert_eq!(
         arguments,
         vec![
-            (0, Some(typed_trees::types::PrimitiveType::I32)),
-            (1, Some(typed_trees::types::PrimitiveType::U64)),
+            (
+                0,
+                Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
+            ),
+            (
+                1,
+                Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U64)
+            ),
         ]
     );
 }
@@ -266,8 +273,10 @@ fn checked_named_monomorphic_boundary_use_retains_empty_application() {
         panic!("one named boundary application")
     };
     assert!(application.arguments.is_empty());
-    let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { expression, origin } =
-        application.site
+    let crate::checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+        expression,
+        origin,
+    } = application.site
     else {
         panic!("named value call must retain an expression site")
     };
@@ -302,10 +311,10 @@ fn checked_named_unit_statement_boundary_use_retains_type_application() {
     };
     assert!(matches!(
         application.site,
-        checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { .. }
+        crate::checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { .. }
     ));
     let [
-        checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+        crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
             binder_owner,
             binder_ordinal,
             binder_symbol,
@@ -320,7 +329,7 @@ fn checked_named_unit_statement_boundary_use_retains_type_application() {
     assert!(binder_symbol.is_valid());
     assert_eq!(
         checked.typed.primitive_type_reference(*type_reference),
-        Some(typed_trees::types::PrimitiveType::I32)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
     );
 }
 
@@ -339,7 +348,7 @@ fn checked_named_generic_boundary_use_replays_inferred_type_application() {
         panic!("one inferred named boundary application")
     };
     let [
-        checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+        crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
             binder_ordinal,
             type_reference,
             ..
@@ -351,7 +360,7 @@ fn checked_named_generic_boundary_use_replays_inferred_type_application() {
     assert_eq!(*binder_ordinal, 0);
     assert_eq!(
         checked.typed.primitive_type_reference(*type_reference),
-        Some(typed_trees::types::PrimitiveType::I32)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
     );
 }
 
@@ -369,14 +378,18 @@ fn checked_named_generic_boundary_use_closes_from_landed_literals() {
     let [application] = checked.facts.operators.boundary_applications.as_slice() else {
         panic!("one landed-literal boundary application")
     };
-    let [checked_trees::CheckedBoundaryOperatorApplicationArgument::Type { type_reference, .. }] =
-        application.arguments.as_slice()
+    let [
+        crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+            type_reference,
+            ..
+        },
+    ] = application.arguments.as_slice()
     else {
         panic!("one exact landed-literal type argument")
     };
     assert_eq!(
         checked.typed.primitive_type_reference(*type_reference),
-        Some(typed_trees::types::PrimitiveType::I32)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
     );
 }
 
@@ -435,8 +448,12 @@ fn checked_named_generic_boundary_use_replays_nested_type_application() {
     let [application] = checked.facts.operators.boundary_applications.as_slice() else {
         panic!("one nested named boundary application")
     };
-    let [checked_trees::CheckedBoundaryOperatorApplicationArgument::Type { type_reference, .. }] =
-        application.arguments.as_slice()
+    let [
+        crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+            type_reference,
+            ..
+        },
+    ] = application.arguments.as_slice()
     else {
         panic!("one nested type argument")
     };
@@ -456,7 +473,7 @@ fn checked_named_generic_boundary_use_replays_nested_type_application() {
     };
     assert_eq!(
         checked.typed.primitive_type_reference(*element),
-        Some(typed_trees::types::PrimitiveType::I32)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
     );
 }
 
@@ -530,7 +547,7 @@ fn checked_named_open_generic_boundary_application_retains_symbolic_type_binder(
         checked.operators()[0].symbol
     );
     let [
-        checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+        crate::checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
             binder_owner,
             binder_ordinal,
             binder_symbol,
@@ -572,7 +589,7 @@ fn checked_named_bounded_generic_boundary_application_retains_exact_type() {
         panic!("one closed bounded boundary application")
     };
     let [
-        checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+        crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
             binder_owner,
             binder_ordinal,
             binder_symbol,
@@ -587,7 +604,7 @@ fn checked_named_bounded_generic_boundary_application_retains_exact_type() {
     assert!(binder_symbol.is_valid());
     assert_eq!(
         checked.typed.primitive_type_reference(*type_reference),
-        Some(typed_trees::types::PrimitiveType::I32)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
     );
 }
 
@@ -606,7 +623,7 @@ fn checked_boundary_type_application_ignores_binder_renames() {
     };
     let original = compile("Element");
     let renamed = compile("Value");
-    let project = |checked: &checked_trees::CheckedTrees| {
+    let project = |checked: &crate::checked_trees::CheckedTrees| {
         let [application] = checked.facts.operators.boundary_applications.as_slice() else {
             panic!("one exact boundary application")
         };
@@ -614,7 +631,7 @@ fn checked_boundary_type_application_ignores_binder_renames() {
             .arguments
             .iter()
             .map(|argument| match argument {
-                checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+                crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
                     binder_ordinal,
                     type_reference,
                     ..
@@ -625,7 +642,9 @@ fn checked_boundary_type_application_ignores_binder_renames() {
                         .package_qualified_type_identity(*type_reference)
                         .into_string(),
                 ),
-                checked_trees::CheckedBoundaryOperatorApplicationArgument::Const { .. } => {
+                crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
+                    ..
+                } => {
                     panic!("type-only application retained a const argument")
                 }
             })
@@ -671,13 +690,13 @@ fn checked_boundary_first_cohort_maps_direct_open_applications_symbolically() {
         .find(|machine| machine.name.as_str() == "compare")
         .expect("generic producer machine");
     assert_eq!(application.machine_symbol, machine.symbol);
-    let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { .. } =
+    let crate::checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { .. } =
         application.site
     else {
         panic!("spelled open application keeps its expression use site")
     };
     let [
-        checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+        crate::checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
             binder_owner,
             binder_ordinal,
             binder_symbol,
@@ -751,7 +770,7 @@ fn specialized_generic_operator_provider_retains_exact_closed_realization() {
         panic!("specialization retains one exact operator realization")
     };
     let [
-        typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument::Type {
             binder_symbol,
             type_reference,
         },
@@ -763,11 +782,11 @@ fn specialized_generic_operator_provider_retains_exact_closed_realization() {
     assert!(binder_symbol.is_valid());
     assert_eq!(
         checked.typed.primitive_type_reference(*type_reference),
-        Some(typed_trees::types::PrimitiveType::I32)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
     );
     assert!(!specialization.commitment.is_zero());
     assert_eq!(
-        validation::recompute_checked_machine_specialization_commitment(
+        crate::validation::recompute_checked_machine_specialization_commitment(
             &checked,
             specialization.instance,
         )
@@ -782,7 +801,7 @@ fn specialized_generic_operator_provider_retains_exact_closed_realization() {
         .iter()
         .position(|candidate| candidate.instance == specialization.instance)
         .expect("same specialization survives cloning");
-    let typed_trees::operator::ClosedOperatorApplicationArgument::Type { binder_symbol, .. } =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument::Type { binder_symbol, .. } =
         &mut tampered.typed.machine_specializations[specialization_index].operator_realizations[0]
             .arguments[0]
     else {
@@ -790,7 +809,7 @@ fn specialized_generic_operator_provider_retains_exact_closed_realization() {
     };
     *binder_symbol = SymbolHandle::invalid();
     assert!(
-        validation::recompute_checked_machine_specialization_commitment(
+        crate::validation::recompute_checked_machine_specialization_commitment(
             &tampered,
             tampered.typed.machine_specializations[specialization_index].instance,
         )
@@ -875,11 +894,11 @@ fn selected_generic_operator_provider_closes_application_in_specialized_helper()
                     && application.arguments.iter().any(|argument| {
                         matches!(
                             argument,
-                            checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+                            crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
                                 type_reference,
                                 ..
                             } if checked.typed.primitive_type_reference(*type_reference)
-                                == Some(typed_trees::types::PrimitiveType::I32)
+                                == Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
                         )
                     })
             })
@@ -981,7 +1000,7 @@ fn selected_generic_operator_providers_reach_nested_provider_fixed_point() {
 fn checked_program_with_selected_generic_providers(
     source: &str,
     providers: &[(&str, &str, &str)],
-) -> checked_trees::CheckedTrees {
+) -> crate::checked_trees::CheckedTrees {
     let typed = typed_program(source);
     let selected = providers
         .iter()

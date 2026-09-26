@@ -53,7 +53,7 @@ selected subtree. Retain declaration bytes outside that subtree for replay.
 All selections in one closure share the same pinned commit/root tree, including
 symbolic revisions; do not observe a moving branch separately for each member.
 
-The [resolver security contract](../../../omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md)
+The [resolver security contract](../../../omega-rust/omega/docs/package-source/SOURCE_RESOLVER_SECURITY.md)
 owns locator validation, host-routed Git/SSH, frozen operator-selected Git,
 containment, resource controls, and immutable snapshot publication. Host routing
 does not change authored lineage. Known adapters may establish namespace
@@ -111,5 +111,5 @@ source restricts source diagnostics, not comparison with the accepted baseline.
 
 Offline policy changes acquisition, not compilation, scoped build outputs,
 project decisions, or publication recovery; it is not runtime containment.
-The [resolution owner](../../../omega-rust/omega/packages/manager/src/resolution/README.md)
+The [resolution owner](../../../omega-rust/omega/src/package_manager/resolution/README.md)
 maps these rules to pin and acquisition APIs.

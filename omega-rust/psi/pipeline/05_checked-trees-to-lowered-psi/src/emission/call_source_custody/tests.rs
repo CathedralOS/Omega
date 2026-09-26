@@ -14,8 +14,8 @@
 //! a completed call result is such a value, so no authored local has to name
 //! it.
 
-use crate::TerminalMachineSelection;
-use crate::lower_machine;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
 /// The carrier path of the one field store that reads the one emitted call's
@@ -162,7 +162,7 @@ fn dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs() {
         );
         let checked = crate::front_end::checked_program(&source);
         match lower_machine(&checked, TerminalMachineSelection::Name("run")) {
-            Err(crate::LoweringError::Unsupported(message)) => {
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(message)) => {
                 assert_eq!(message, expected, "{index_decl} {requires}");
             }
             other => panic!(
@@ -171,20 +171,20 @@ fn dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs() {
                  the emitted RuntimeIndex segment and terminal production"
             ),
         }
-        match terminal_production::TerminalProductionRequest::new(
+        match lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &checked,
-            terminal_production::TerminalMachineSelection::Name("run"),
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("run"),
         )
         .produce(
-            terminal_production::TerminalProductionCustody::artifact_only(
-                &mut terminal_production::TerminalProductionTimings::default(),
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionCustody::artifact_only(
+                &mut lowered_psi_to_terminal_psi::terminal_production::TerminalProductionTimings::default(),
             ),
         ) {
             Err(error) => match error.error() {
                 // `LoweringError` arrives through terminal-production's own
                 // dependency edge, so this test cannot name the variant —
                 // compare the rendered `Unsupported("…")` instead.
-                terminal_production::TerminalArtifactProductionError::Lowering(inner) => {
+                lowered_psi_to_terminal_psi::terminal_production::TerminalArtifactProductionError::Lowering(inner) => {
                     assert_eq!(
                         format!("{inner}"),
                         format!("Unsupported({expected:?})"),

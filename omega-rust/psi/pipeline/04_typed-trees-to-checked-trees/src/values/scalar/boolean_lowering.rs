@@ -1,6 +1,10 @@
 //! Lowering Boolean expressions and guards, including closed evaluation and
 //! integer comparisons.
 
+use crate::checked_trees::{
+    CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedOperatorFacts,
+    CheckedScalarExpression,
+};
 use crate::values::scalar::case_membership;
 use crate::values::scalar::constant_array_projection;
 use crate::values::scalar::expression_facts::{
@@ -12,15 +16,13 @@ use crate::values::scalar::scalar_lowering::{
     land_contextual_integer_literal, lower_scalar_operands,
 };
 use crate::values::scalar::structural_fields;
-use checked_trees::{
-    CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedOperatorFacts,
-    CheckedScalarExpression,
-};
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use typed_trees::signature::StateParameter;
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 /// Recover a normal-return Boolean using the same selected operations as
 /// scalar computation folding, without assumptions about any runtime binding.
@@ -30,7 +32,7 @@ pub(crate) fn evaluate_closed_boolean_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) -> Option<bool> {
     let selected = lower_boolean_expression(
         program,
@@ -42,7 +44,7 @@ pub(crate) fn evaluate_closed_boolean_expression(
         &[],
         exact_integer_casts,
     )?;
-    let facts::ScalarValue::Boolean(value) = crate::values::evaluate_checked_scalar(
+    let crate::fact_plan::ScalarValue::Boolean(value) = crate::values::evaluate_checked_scalar(
         &CheckedScalarExpression::Boolean(Box::new(selected)),
         &mut |_| None,
     )?
@@ -60,7 +62,7 @@ pub(crate) fn lower_boolean_expression(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     if let Some(CheckedScalarExpression::Boolean(read)) = primitive_reference_read::lower(
         program,
@@ -90,7 +92,7 @@ pub(crate) fn lower_boolean_expression(
         return Some(membership);
     }
     if let Some((leaf, PrimitiveType::Bool)) =
-        validation::closed_record_scalar_projection(program, expression)
+        crate::validation::closed_record_scalar_projection(program, expression)
     {
         let ExpressionNode::Boolean(value) = program.expression_table.expression(leaf) else {
             return None;
@@ -291,7 +293,7 @@ pub(crate) fn lower_boolean_expression(
 /// leftmost so short-circuit evaluation dominates every indexed read.
 fn bounded_carrier_literal_equality(
     program: &TypedTrees,
-    binary: &typed_trees::expression::TableBinaryExpression,
+    binary: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBinaryExpression,
     authored_parameters: &[StateParameter],
 ) -> Option<CheckedBooleanExpression> {
     for (carrier, literal) in [(binary.left, binary.right), (binary.right, binary.left)] {
@@ -306,14 +308,14 @@ fn bounded_carrier_literal_equality(
                 type_reference,
                 &[],
             ),
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+            Some(crate::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
         ) {
             continue;
         }
         let mut equality = CheckedBooleanExpression::IntegerComparison {
             kind: CheckedIntegerComparisonKind::Equal,
             left: Box::new(CheckedScalarExpression::StructuralParameterByteLength {
-                root: checked_trees::CheckedStorageRoot::Parameter {
+                root: crate::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
                 },
                 path: path.clone(),
@@ -325,7 +327,7 @@ fn bounded_carrier_literal_equality(
         };
         for (index, byte) in bytes.iter().enumerate() {
             let read = CheckedScalarExpression::StructuralParameterIndexedRead {
-                root: checked_trees::CheckedStorageRoot::Parameter {
+                root: crate::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
                 },
                 path: path.clone(),
@@ -429,7 +431,7 @@ pub(crate) fn lower_boolean_guard(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     if let Some(value) = lower_closed_integer_literal_guard(program, operators, expression) {
         return Some(value);

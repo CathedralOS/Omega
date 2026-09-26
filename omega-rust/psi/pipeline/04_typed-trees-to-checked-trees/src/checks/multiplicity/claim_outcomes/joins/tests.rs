@@ -1,10 +1,10 @@
 use super::{publish_conditional_claim_joins, validate_conditional_claim_joins};
+use crate::checked_trees::{FlowClaimJoinAlternativeSource, FlowClaimJoinExitKind};
 use crate::checks::multiplicity::linear_validation::permission_event_statement_index;
+use crate::fact_plan::PlaceRoot;
 use crate::tests::front_end::checked_program_result;
 use arena::HandleSpan;
-use checked_trees::{FlowClaimJoinAlternativeSource, FlowClaimJoinExitKind};
 use diagnostics::Diagnostic;
-use facts::PlaceRoot;
 use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
 
 const CHOICE: &str = r#"
@@ -30,7 +30,7 @@ machine consume(flag: bool, left: Receipt, right: Receipt) {
 }
 "#;
 
-fn lower(source: &str) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
+fn lower(source: &str) -> Result<crate::checked_trees::CheckedTrees, Vec<Diagnostic>> {
     checked_program_result(source)
 }
 

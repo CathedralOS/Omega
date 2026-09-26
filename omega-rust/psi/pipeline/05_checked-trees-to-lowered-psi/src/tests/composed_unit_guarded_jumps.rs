@@ -6,9 +6,11 @@
 //! uses.
 
 use super::lower_machine;
-use crate::TerminalMachineSelection;
-use checked_trees::CheckedComposedUnitControlTerminatorPlan;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
+use typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan;
 
 #[test]
 fn ordered_literal_dispatch_selects_each_arm_and_the_fallback() {
@@ -35,15 +37,18 @@ fn ordered_literal_dispatch_selects_each_arm_and_the_fallback() {
             }
         "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Root::enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("ordered literal dispatch publishes one terminal artifact")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Root::enter",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("ordered literal dispatch publishes one terminal artifact")
+        .into_artifact();
 
     #[derive(Default)]
     struct Trace(Vec<i128>);
@@ -153,13 +158,13 @@ const SELECTED_FLOAT_GUARD: &str = r#"
     }
 "#;
 
-fn selected_float_guard() -> checked_trees::CheckedTrees {
+fn selected_float_guard() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     crate::front_end::checked_program(SELECTED_FLOAT_GUARD)
 }
 
 fn computed_guard(
-    checked: &mut checked_trees::CheckedTrees,
-) -> &mut checked_trees::CheckedCallScalarArgument {
+    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> &mut typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument {
     let CheckedComposedUnitControlTerminatorPlan::Conditional { guard, .. } =
         &mut checked.facts.flow.terminal_unit_effects.composed_machines[0].states[0].terminator
     else {
@@ -173,7 +178,7 @@ fn selected_float_guard_evaluates_its_computation_root_once() {
     let mut checked = selected_float_guard();
     assert!(matches!(
         computed_guard(&mut checked),
-        checked_trees::CheckedCallScalarArgument::Computation(_)
+        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(_)
     ));
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("a computed graph guard lowers through the shared computation expander");
@@ -193,14 +198,17 @@ fn selected_float_guard_evaluates_its_computation_root_once() {
         1,
         "the guard is evaluated once, before either successor edge"
     );
-    let produced = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Root::enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("the composed guard's selected comparison custody publishes");
+    let produced =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Root::enter",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("the composed guard's selected comparison custody publishes");
     let [published] = produced.boundary_operator_scope().occurrences() else {
         panic!("one exact published comparison occurrence");
     };
@@ -216,23 +224,26 @@ fn computed_guard_drift_rejects_lowering() {
     // `(left < right) == true` subject's inner selected comparison is a real
     // Boolean node, but not the retained guard.
     let mut retargeted = selected_float_guard();
-    let checked_trees::CheckedCallScalarArgument::Computation(root) =
+    let typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(root) =
         *computed_guard(&mut retargeted)
     else {
         panic!("the selected float guard is computed");
     };
     let computations = &retargeted.facts.values.scalar_computations;
-    let checked_trees::CheckedScalarComputationKind::Apply { operands, .. } =
-        computations.nodes.get(root).kind
+    let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Apply {
+        operands,
+        ..
+    } = computations.nodes.get(root).kind
     else {
         panic!("the guard root applies Boolean equality to the selected comparison");
     };
     let inner = computations.operands.span_or_empty(operands)[0];
     assert!(matches!(
         computations.nodes.get(inner).kind,
-        checked_trees::CheckedScalarComputationKind::SelectedComparison { .. }
+        typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::SelectedComparison { .. }
     ));
-    *computed_guard(&mut retargeted) = checked_trees::CheckedCallScalarArgument::Computation(inner);
+    *computed_guard(&mut retargeted) =
+        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(inner);
     assert!(
         lower_machine(&retargeted, TerminalMachineSelection::Name("Root::enter")).is_err(),
         "a guard naming another computation node must reject"
@@ -240,11 +251,16 @@ fn computed_guard_drift_rejects_lowering() {
     // A pure Boolean in place of the computed guard competes with no retained
     // pure expression and must not replace the selected comparison.
     let mut replaced = selected_float_guard();
-    *computed_guard(&mut replaced) = checked_trees::CheckedCallScalarArgument::Pure(
-        checked_trees::CheckedScalarExpression::Boolean(Box::new(
-            checked_trees::CheckedBooleanExpression::Constant(true),
-        )),
-    );
+    *computed_guard(&mut replaced) =
+        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Boolean(
+                Box::new(
+                    typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Constant(
+                        true,
+                    ),
+                ),
+            ),
+        );
     assert!(
         lower_machine(&replaced, TerminalMachineSelection::Name("Root::enter")).is_err(),
         "a pure guard replacing the retained computation must reject"
@@ -278,15 +294,18 @@ fn short_circuit_chain_guards_select_each_arm_in_order() {
         checked.facts.flow.terminal_unit_effects.composed_machines[0].states[0].terminator,
         CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
     ));
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Root::enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("a short-circuit guard chain publishes one terminal artifact")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Root::enter",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("a short-circuit guard chain publishes one terminal artifact")
+        .into_artifact();
 
     run_exits(
         artifact,
@@ -320,15 +339,18 @@ fn short_circuit_chain_guards_never_evaluate_an_excluded_right_operand() {
             }
         "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Root::enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("a guarded division chain publishes one terminal artifact")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Root::enter",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("a guarded division chain publishes one terminal artifact")
+        .into_artifact();
     run_exits(
         artifact,
         &[

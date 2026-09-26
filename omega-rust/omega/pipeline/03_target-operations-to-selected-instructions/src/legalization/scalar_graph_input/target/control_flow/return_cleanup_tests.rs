@@ -4,20 +4,20 @@ use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationUnit, ScalarType,
     TargetControlTerminator, TargetOperationPlan,
 };
-use abstract_operations::{
-    AbstractBlockEntry, AbstractBoundaryResult, AbstractParameter,
-    AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor,
-};
+use crate::legalized_operations::LegalizedScalarTerminator;
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
-use legalized_operations::LegalizedScalarTerminator;
-use optimization_unit::OwnershipEvent;
 use semantic_vocabulary::{
     BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, OperationId,
     PlaceId, StructuralCaseId, StructuralFieldId,
 };
 use terminal_psi::TerminalAffineCleanupAction;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractBoundaryResult, AbstractParameter,
+    AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent;
 
 fn place(ordinal: u64) -> PlaceId {
     PlaceId::new(ordinal).unwrap()
@@ -119,7 +119,7 @@ fn source_fixture(native: ::target::NativeTarget) -> AbstractOperationPlan {
 }
 
 fn current(plan: &AbstractOperationPlan) -> PsiOptimizationUnit {
-    optimization_unit::reconstruct_psi_optimization_unit_seed(
+    terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -134,9 +134,9 @@ fn target(plan: &AbstractOperationPlan, native: ::target::NativeTarget) -> Targe
             settlements: &[AdmittedBoundarySettlement {
                 boundary: BoundaryMachineId::new(1).unwrap(),
                 execution: AdmittedBoundaryExecution::CompilerBuiltin(
-                    target_operations::CompilerBuiltinExecution::HostedReadByte,
+                    abstract_operations_to_target_operations::target_operations::CompilerBuiltinExecution::HostedReadByte,
                 ),
-                realization: target_operations::HostedReadByteRealization.into(),
+                realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
             }],
             installation: None,
             ieee_float_fma: &[],
@@ -296,7 +296,7 @@ fn legalized_return_replay_rejects_cleanup_edge_fuel_and_effect_substitution() {
     let unit = current(&plan);
     let target = target(&plan, native);
     let legal = crate::legalize_target_operations(&target, &plan, &unit).unwrap();
-    let identity = legalized_operations::legalized_operation_plan_identity(legal.plan());
+    let identity = crate::legalized_operations::legalized_operation_plan_identity(legal.plan());
     for mutation in [
         "missing",
         "sibling",
@@ -320,7 +320,7 @@ fn legalized_return_replay_rejects_cleanup_edge_fuel_and_effect_substitution() {
             _ => returned.ownership = vec![OwnershipEvent::Cleanup(hostile_cleanup(mutation))],
         }
         assert_ne!(
-            legalized_operations::legalized_operation_plan_identity(&changed),
+            crate::legalized_operations::legalized_operation_plan_identity(&changed),
             identity,
             "identity omitted {mutation}"
         );

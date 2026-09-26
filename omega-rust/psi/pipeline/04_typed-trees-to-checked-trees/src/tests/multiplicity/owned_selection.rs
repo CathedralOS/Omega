@@ -1,6 +1,6 @@
 use crate::tests::front_end::checked_program_result;
 
-fn lower(body: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn lower(body: &str) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let source = format!(
         "data Choice {{ case Empty; case Some(value: u32); }}
          machine choose(selected: bool, other: bool) -> bool {{
@@ -14,7 +14,7 @@ fn lower(body: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Dia
 
 fn lower_program(
     source: &str,
-) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     checked_program_result(source)
 }
 
@@ -101,7 +101,7 @@ fn owned_selection_preserves_two_origins_and_reverse_residual_order() {
             event.kind != language_semantics::PermissionEventKind::Transfer
                 || !sources
                     .iter()
-                    .any(|source| event.root == facts::PlaceRoot::Symbol(source.symbol))
+                    .any(|source| event.root == crate::fact_plan::PlaceRoot::Symbol(source.symbol))
         }),
         "conditional alternatives are not unconditional transfers"
     );
@@ -304,8 +304,8 @@ fn owned_selection_replay_rejects_a_loan_made_live_past_the_edge() {
     );
     facts.flow.contexts.constraint_refs.append_to_span(
         &mut entry_constraints,
-        checked_trees::FlowConstraintRef {
-            kind: checked_trees::FlowConstraintKind::BorrowLoan { loan },
+        crate::checked_trees::FlowConstraintRef {
+            kind: crate::checked_trees::FlowConstraintKind::BorrowLoan { loan },
         },
     );
     facts
@@ -400,7 +400,7 @@ fn owned_selection_membership_subject_observes_without_transferring_it() {
     .expect("observed affine local remains movable after the selection");
 }
 
-fn lower_projection_program() -> checked_trees::CheckedTrees {
+fn lower_projection_program() -> crate::checked_trees::CheckedTrees {
     lower_program(
         "data Payload { left:u64; right:u64; }
          data Pair { first:Payload; second:Payload; }
@@ -442,8 +442,8 @@ fn owned_selection_projected_children_record_exact_paths_and_roots() {
     let local_path = ownership.segments.span_or_empty(local.path);
     let product_path = ownership.segments.span_or_empty(product.path);
     assert!(
-        matches!(local_path, [facts::PlaceSegment::Field { .. }])
-            && matches!(product_path, [facts::PlaceSegment::Field { .. }])
+        matches!(local_path, [crate::fact_plan::PlaceSegment::Field { .. }])
+            && matches!(product_path, [crate::fact_plan::PlaceSegment::Field { .. }])
             && local_path != product_path,
         "each transfer records its own exact field path: {local_path:?} {product_path:?}"
     );
@@ -461,14 +461,14 @@ fn owned_selection_projected_children_record_exact_paths_and_roots() {
     let root = values
         .root_at(receipt.state, receipt.statement_ordinal)
         .expect("structural result root");
-    let checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } =
+    let crate::checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } =
         &values.nodes.get(root.root).kind
     else {
         panic!("selected result is a structural dispatch")
     };
     let mut sources = Vec::new();
     for arm in values.dispatch_arms.span(*arms).expect("arm span") {
-        let checked_trees::CheckedStructuralValueKind::Projection {
+        let crate::checked_trees::CheckedStructuralValueKind::Projection {
             source,
             path,
             type_identity,
@@ -487,15 +487,15 @@ fn owned_selection_projected_children_record_exact_paths_and_roots() {
     }
     assert!(matches!(
         values.nodes.get(sources[0]).kind,
-        checked_trees::CheckedStructuralValueKind::Place(_)
+        crate::checked_trees::CheckedStructuralValueKind::Place(_)
     ));
     assert!(matches!(
         values.nodes.get(sources[1]).kind,
-        checked_trees::CheckedStructuralValueKind::Call { .. }
+        crate::checked_trees::CheckedStructuralValueKind::Call { .. }
     ));
 }
 
-fn lower_record_arm_program(arm: &str) -> checked_trees::CheckedTrees {
+fn lower_record_arm_program(arm: &str) -> crate::checked_trees::CheckedTrees {
     lower_program(&format!(
         "data Payload {{ left:u64; right:u64; }}
          data Pair {{ first:Payload; second:Payload; }}
@@ -542,7 +542,7 @@ fn owned_selection_record_fields_record_each_moved_child() {
         .iter()
         .map(
             |transfer| match ownership.segments.span_or_empty(transfer.path) {
-                [facts::PlaceSegment::Field { symbol }] => *symbol,
+                [crate::fact_plan::PlaceSegment::Field { symbol }] => *symbol,
                 path => panic!("one exact field segment per leaf: {path:?}"),
             },
         )
@@ -556,7 +556,7 @@ fn owned_selection_record_fields_record_each_moved_child() {
     let root = values
         .root_at(receipt.state, receipt.statement_ordinal)
         .expect("structural result root");
-    let checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } =
+    let crate::checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } =
         &values.nodes.get(root.root).kind
     else {
         panic!("selected result is a structural dispatch")
@@ -569,11 +569,11 @@ fn owned_selection_record_fields_record_each_moved_child() {
         .find(|arm| {
             matches!(
                 values.nodes.get(arm.value).kind,
-                checked_trees::CheckedStructuralValueKind::Record { .. }
+                crate::checked_trees::CheckedStructuralValueKind::Record { .. }
             )
         })
         .expect("the record arm");
-    let checked_trees::CheckedStructuralValueKind::Record { fields, .. } =
+    let crate::checked_trees::CheckedStructuralValueKind::Record { fields, .. } =
         &values.nodes.get(record_arm.value).kind
     else {
         unreachable!()
@@ -581,11 +581,12 @@ fn owned_selection_record_fields_record_each_moved_child() {
     let field_values = values.record_fields.span(*fields).expect("field span");
     assert_eq!(field_values.len(), 2);
     for field in field_values {
-        let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) = field.value
+        let crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
+            field.value
         else {
             panic!("each moved field retains a structural value")
         };
-        let checked_trees::CheckedStructuralValueKind::Projection {
+        let crate::checked_trees::CheckedStructuralValueKind::Projection {
             path,
             type_identity,
             ..
@@ -678,7 +679,7 @@ fn owned_selection_projected_replay_rejects_mutated_paths_and_sources() {
                     .expect("local transfer")
                     .path;
                 *ownership.segments.get_mut(path.start()) =
-                    facts::PlaceSegment::FixedIndex { index: 0 };
+                    crate::fact_plan::PlaceSegment::FixedIndex { index: 0 };
             }
             // A call-product transfer must not gain a roster source.
             1 => {
@@ -809,7 +810,7 @@ fn owned_selection_replay_rejects_changed_origin_arm_and_death() {
 
 fn lower_linear_program(
     source: &str,
-) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     lower_program(&format!(
         "pub data Token [linear] {{ id: u64; }}
          boundary machine Token::settle(self) ensures true;
@@ -958,7 +959,7 @@ fn linear_owned_selection_projected_child_keeps_the_residual_sibling_live() {
         assert!(
             matches!(
                 ownership.segments.span_or_empty(transfer.path),
-                [facts::PlaceSegment::Field { .. }]
+                [crate::fact_plan::PlaceSegment::Field { .. }]
             ),
             "each edge consumes the exact `first` claim path: {transfer:?}"
         );
@@ -1062,7 +1063,7 @@ fn linear_owned_selection_return_maps_the_result_to_the_source_claim() {
             entry.output_segments.is_empty()
                 && matches!(
                     entry.source,
-                    checked_trees::FlowClaimOutcomeSource::Input { .. }
+                    crate::checked_trees::FlowClaimOutcomeSource::Input { .. }
                 )
         }),
         "the selected result maps to the caller's parameter claim: {entries:?}"
@@ -1160,7 +1161,7 @@ fn carrier_owned_selection_moves_the_whole_claim_frontier_on_every_edge() {
                 assert!(
                     matches!(
                         ownership.segments.span_or_empty(claim.path),
-                        [facts::PlaceSegment::Field { .. }]
+                        [crate::fact_plan::PlaceSegment::Field { .. }]
                     ),
                     "{name}: each claim names its exact field path: {claim:?}"
                 );
@@ -1287,7 +1288,7 @@ fn carrier_owned_selection_replay_rejects_mutated_claim_evidence() {
                     .get(claims_span.start())
                     .path;
                 *ownership.segments.get_mut(claim_path.start()) =
-                    facts::PlaceSegment::FixedIndex { index: 0 };
+                    crate::fact_plan::PlaceSegment::FixedIndex { index: 0 };
             }
             // The consumed place's minted claim identity rides the row.
             1 => {

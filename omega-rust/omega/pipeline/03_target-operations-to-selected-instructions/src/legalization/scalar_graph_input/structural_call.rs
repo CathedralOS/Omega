@@ -1,10 +1,14 @@
 //! Source and target joins for borrowed arguments in ordinary helper calls.
 use crate::LegalizationError;
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
-use calling_conventions::{CallPlan, ValueShape};
-use optimization_unit::PsiOptimizationFunction;
-use target_operations::{TargetOperationPlan, TargetStructuralArgument};
+use abstract_operations_to_target_operations::calling_conventions::{CallPlan, ValueShape};
+use abstract_operations_to_target_operations::target_operations::{
+    TargetOperationPlan, TargetStructuralArgument,
+};
 use terminal_psi::{StructuralAccess, StructuralArgument};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractOperationPlan,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction;
 
 mod exclusive;
 
@@ -20,7 +24,7 @@ pub(in crate::legalization) fn argument_at(
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
-    use target_operations::TargetStructuralArgumentSource;
+    use abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource;
     let destination_parameter = called
         .structural_parameters
         .get(position)
@@ -278,7 +282,7 @@ pub(super) fn primitive_argument(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
-    use target_operations::TargetStructuralArgumentSource;
+    use abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource;
     if let Some((producer, result, value)) =
         super::primitive_locals::producer(caller, semantic.place)
     {

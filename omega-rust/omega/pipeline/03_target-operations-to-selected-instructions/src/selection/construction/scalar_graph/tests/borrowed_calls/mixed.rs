@@ -29,7 +29,8 @@ fn mixed_borrowed_calls_replay_macos_arm64() {
 }
 
 fn replay(target: target::NativeTarget, maximum: usize) {
-    let environment = register_environment::baseline_target_register_environment(target).unwrap();
+    let environment =
+        crate::register_environment::baseline_target_register_environment(target).unwrap();
     for parameter_count in [0, 1, maximum - 1] {
         for scalar_count in 1..maximum {
             for conditional in [false, true] {

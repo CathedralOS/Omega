@@ -1,6 +1,6 @@
 use super::{check_dynamic_source, sole_direct_dynamic_unit_plan, sole_rebound_dynamic_unit_plan};
-use checked_trees::CheckedDynamicBinding::{Direct, Rebound};
-use checked_trees::CheckedDynamicDispatchPlan::Unit;
+use crate::checked_trees::CheckedDynamicBinding::{Direct, Rebound};
+use crate::checked_trees::CheckedDynamicDispatchPlan::Unit;
 
 #[test]
 fn direct_dynamic_unit_plan_retains_the_complete_operation_free_callable_roster() {
@@ -36,7 +36,7 @@ fn direct_dynamic_unit_plan_retains_the_complete_operation_free_callable_roster(
     let plan = sole_direct_dynamic_unit_plan(&checked);
     assert_eq!(
         plan.origin,
-        checked_trees::CheckedDynamicUnitCallOrigin::Local
+        crate::checked_trees::CheckedDynamicUnitCallOrigin::Local
     );
     assert_eq!(plan.coordinate.statement_index, 1);
     assert_eq!(plan.coordinate.call_ordinal, 0);
@@ -44,7 +44,7 @@ fn direct_dynamic_unit_plan_retains_the_complete_operation_free_callable_roster(
     assert_eq!(plan.realization_callables.len(), 2);
     assert_eq!(
         plan.source_access,
-        checked_trees::CheckedStructuralAccess::SharedBorrow
+        crate::checked_trees::CheckedStructuralAccess::SharedBorrow
     );
     assert_eq!(
         plan.realization_callables
@@ -98,7 +98,7 @@ fn rebound_dynamic_unit_plan_retains_exact_operation_free_callable_without_a_res
     let (initial, latest) = sole_rebound_dynamic_unit_plan(&checked);
     assert_eq!(
         latest.origin,
-        checked_trees::CheckedDynamicUnitCallOrigin::Local
+        crate::checked_trees::CheckedDynamicUnitCallOrigin::Local
     );
     assert_eq!(initial.fact.statement_index, 0);
     assert_eq!(latest.selection.statement_index, 1);
@@ -108,7 +108,7 @@ fn rebound_dynamic_unit_plan_retains_exact_operation_free_callable_without_a_res
     assert_eq!(initial.type_identity, latest.source_type_identity);
     assert_eq!(
         latest.source_access,
-        checked_trees::CheckedStructuralAccess::SharedBorrow
+        crate::checked_trees::CheckedStructuralAccess::SharedBorrow
     );
     let [callable] = latest.realization_callables.as_slice() else {
         panic!("one exact Unit callable expected")
@@ -225,7 +225,7 @@ fn forwarded_dynamic_unit_plan_rejoins_outer_transfer_and_inner_parameter_call()
     let [Unit(Rebound { latest, .. })] = dynamic.calls.as_slice() else {
         panic!("one forwarded rebound Unit plan expected, got {dynamic:#?}")
     };
-    let checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
+    let crate::checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
         machine,
         state,
         coordinate,
@@ -286,7 +286,7 @@ fn forwarded_direct_dynamic_unit_plan_retains_the_same_two_machine_join() {
     let [Unit(Direct(plan))] = dynamic.calls.as_slice() else {
         panic!("one forwarded direct Unit plan expected, got {dynamic:#?}")
     };
-    let checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
+    let crate::checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
         machine,
         state,
         coordinate,
@@ -346,7 +346,7 @@ fn forwarded_dynamic_unit_plan_retains_the_helper_locals_around_its_call() {
     let [Unit(Direct(plan))] = dynamic.calls.as_slice() else {
         panic!("one forwarded direct Unit plan expected, got {dynamic:#?}")
     };
-    let checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
+    let crate::checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
         state, coordinate, ..
     } = plan.origin
     else {

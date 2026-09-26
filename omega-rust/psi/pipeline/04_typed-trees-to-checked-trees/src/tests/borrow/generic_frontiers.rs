@@ -121,7 +121,9 @@ fn unresolved_generic_receiver_calls_cannot_produce_or_discard_carriers() {
 
 #[test]
 fn a_non_template_incomplete_frontier_is_not_deferred() {
-    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+        FixedArrayLength, TypeReferenceNode,
+    };
     let mut program = typed_program(
         r#"
         data View { body: &[u8]; }

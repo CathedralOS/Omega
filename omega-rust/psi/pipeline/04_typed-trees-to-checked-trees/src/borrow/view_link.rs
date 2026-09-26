@@ -28,11 +28,13 @@
 //! loan follows the candidate union. Elision requires one contained source, not
 //! one parameter containing several unnamed sources.
 
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::signature::StateParameter;
-use typed_trees::state::State;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::tracker::BorrowOwnerSegment;
 
@@ -62,7 +64,7 @@ pub(crate) struct ViewReturnFieldSource {
     pub(crate) source_path: Vec<BorrowOwnerSegment>,
     pub(crate) source_type: TypeReferenceHandle,
     pub(crate) non_self_index: usize,
-    pub(crate) kind: checked_trees::BorrowAccessKind,
+    pub(crate) kind: crate::checked_trees::BorrowAccessKind,
 }
 
 /// Why a view-returning signature could not be resolved to a single input.
@@ -426,13 +428,13 @@ fn structural_view_return_source(
                 non_self_index: *index,
                 kind: match output.access {
                     language_semantics::ReferenceAccess::Mutable => {
-                        checked_trees::BorrowAccessKind::Mutable
+                        crate::checked_trees::BorrowAccessKind::Mutable
                     }
                     language_semantics::ReferenceAccess::Shared => {
-                        checked_trees::BorrowAccessKind::Read
+                        crate::checked_trees::BorrowAccessKind::Read
                     }
                     language_semantics::ReferenceAccess::WriteOnly => {
-                        checked_trees::BorrowAccessKind::WriteOnly
+                        crate::checked_trees::BorrowAccessKind::WriteOnly
                     }
                 },
             });
@@ -546,7 +548,10 @@ fn collect_borrow_carrying_owner_paths(
             element_type,
             length,
         } => {
-            let typed_trees::types::FixedArrayLength::Literal(length) = length else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
+                length,
+            ) = length
+            else {
                 return false;
             };
             for index in 0..*length {
@@ -629,7 +634,7 @@ fn collect_borrow_carrying_owner_paths(
 
 fn collect_data_borrow_carrying_owner_paths(
     program: &TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
+    definition: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     owner_path: &[BorrowOwnerSegment],
     visiting: &mut Vec<SymbolHandle>,
@@ -641,7 +646,7 @@ fn collect_data_borrow_carrying_owner_paths(
     visiting.push(definition.symbol);
     for member in program.data_members(definition) {
         match member {
-            typed_trees::data::DataMember::Field(field) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
                 let mut field_path = owner_path.to_vec();
                 field_path.push(BorrowOwnerSegment::Field(field.symbol));
                 if !collect_borrow_carrying_owner_paths(
@@ -656,7 +661,9 @@ fn collect_data_borrow_carrying_owner_paths(
                     return false;
                 }
             }
-            typed_trees::data::DataMember::Variant(variant) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) => {
                 for field in program.data_payload_fields(variant) {
                     let mut field_path = owner_path.to_vec();
                     field_path.push(BorrowOwnerSegment::Case(variant.symbol));
@@ -788,7 +795,7 @@ fn type_structurally_carries_borrow(
 fn data_definition(
     program: &TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
     program
         .data_definitions()
         .iter()
@@ -797,7 +804,7 @@ fn data_definition(
 
 fn data_definition_carries_borrow(
     program: &TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
+    definition: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     visiting: &mut Vec<SymbolHandle>,
     require_mutable: bool,
@@ -810,24 +817,26 @@ fn data_definition_carries_borrow(
         .data_members(definition)
         .iter()
         .any(|member| match member {
-            typed_trees::data::DataMember::Field(field) => type_structurally_carries_borrow(
-                program,
-                field.type_reference,
-                substitutions,
-                visiting,
-                require_mutable,
-            ),
-            typed_trees::data::DataMember::Variant(variant) => {
-                program.data_payload_fields(variant).iter().any(|field| {
-                    type_structurally_carries_borrow(
-                        program,
-                        field.type_reference,
-                        substitutions,
-                        visiting,
-                        require_mutable,
-                    )
-                })
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
+                type_structurally_carries_borrow(
+                    program,
+                    field.type_reference,
+                    substitutions,
+                    visiting,
+                    require_mutable,
+                )
             }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) => program.data_payload_fields(variant).iter().any(|field| {
+                type_structurally_carries_borrow(
+                    program,
+                    field.type_reference,
+                    substitutions,
+                    visiting,
+                    require_mutable,
+                )
+            }),
         });
     visiting.pop();
     carries

@@ -73,8 +73,8 @@ fn admitted_clamped_ranking_preserves_authored_entry_requirements() {
     assert_eq!(requirements.len(), 1);
     assert!(matches!(
         &requirements[0],
-        checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
+        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: crate::checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
             ..
         }
     ));

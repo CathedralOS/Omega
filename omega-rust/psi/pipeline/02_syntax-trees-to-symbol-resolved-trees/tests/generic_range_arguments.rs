@@ -9,9 +9,11 @@
 //! straight into an open span interleaved those children with the span and
 //! tripped the arena's contiguity assertion.
 
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::data::DataMember;
-use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::{
+    TypeConstraint, TypeReference,
+};
 
 use source_files_to_tokens::Lexer;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};

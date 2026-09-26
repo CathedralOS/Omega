@@ -1,6 +1,6 @@
 //! Atomic events: one `CheckedAtomicAccessPlan` per source atomic operation.
 //!
-//! The parser's carrier (`validation::atomic_assignment_carrier`) spells a
+//! The parser's carrier (`crate::validation::atomic_assignment_carrier`) spells a
 //! fetch, swap, or compare-exchange as two statements — a result placeholder
 //! `let prior: T = 0;` and the carrier assignment `place = Atomic { model }` —
 //! and a store as the carrier assignment alone. A load is the value
@@ -31,20 +31,20 @@ use super::{
     CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, PrimitiveType, StatementNode,
     TypedTrees,
 };
-use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite,
     CheckedCallScalarArgument,
 };
-use validation::AtomicAccessOperation;
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use crate::validation::AtomicAccessOperation;
 
 /// The reserved result of a writing event whose carrier is the next
 /// statement: `local` is the placeholder when that carrier's result names it.
 pub(super) fn result_placeholder(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    local: &typed_trees::statement::TableLocalData,
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
 ) -> bool {
     if local.is_mutable {
         return false;
@@ -56,7 +56,7 @@ pub(super) fn result_placeholder(
     else {
         return false;
     };
-    validation::atomic_assignment_carrier(program, assignment)
+    crate::validation::atomic_assignment_carrier(program, assignment)
         .is_some_and(|carrier| names_local(program, carrier.result, local))
 }
 
@@ -65,7 +65,7 @@ pub(super) fn result_placeholder(
 /// the sequence rather than evaluated as a pure prefix initializer.
 pub(super) fn owns_local(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
 ) -> bool {
     let Some(StatementNode::LocalData(local)) = program
@@ -75,7 +75,7 @@ pub(super) fn owns_local(
     else {
         return false;
     };
-    validation::atomic_load_carrier(program, local.initial_value).is_some()
+    crate::validation::atomic_load_carrier(program, local.initial_value).is_some()
         || result_placeholder(program, state, statement_index, local)
 }
 
@@ -83,8 +83,8 @@ pub(super) fn owns_local(
 /// symbol when the desugar left one, otherwise its spelling.
 fn names_local(
     program: &TypedTrees,
-    result: typed_trees::expression::ExpressionHandle,
-    local: &typed_trees::statement::TableLocalData,
+    result: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
 ) -> bool {
     if !program.expression_table.expression_is_valid(result) {
         return false;
@@ -106,15 +106,15 @@ fn names_local(
 pub(super) fn load_event(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
-    local: &typed_trees::statement::TableLocalData,
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
     binding_ordinal: u32,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedAtomicAccessPlan> {
-    let carrier = validation::atomic_load_carrier(program, local.initial_value)?;
+    let carrier = crate::validation::atomic_load_carrier(program, local.initial_value)?;
     let AtomicAccessOperation::Load(ordering) = carrier.operation else {
         return None;
     };
@@ -158,15 +158,15 @@ pub(super) fn load_event(
 pub(super) fn writing_event(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
+    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
     reserved: Option<CheckedUnitScalarResultBindingPlan>,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedAtomicAccessPlan> {
-    let carrier = validation::atomic_assignment_carrier(program, assignment)?;
+    let carrier = crate::validation::atomic_assignment_carrier(program, assignment)?;
     trace.phase("atomic access: writing place");
     let place = place(
         program,
@@ -270,10 +270,10 @@ pub(super) fn writing_event(
 fn operand_row(
     program: &TypedTrees,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: u32,
     operand_ordinal: u32,
-    operand: typed_trees::expression::ExpressionHandle,
+    operand: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedCallScalarArgument> {
     let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
@@ -309,20 +309,20 @@ struct AtomicPlace {
 fn place(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     modifies: bool,
     trace: &LocalConstructionTrace,
 ) -> Option<AtomicPlace> {
     trace.phase("atomic access: place: atomic storage");
-    if !validation::place_is_atomic_storage(program, machine, Some(state), expression) {
+    if !crate::validation::place_is_atomic_storage(program, machine, Some(state), expression) {
         return None;
     }
     let primitive_type =
-        validation::declared_place_type_raw(program, machine, Some(state), expression)
+        crate::validation::declared_place_type_raw(program, machine, Some(state), expression)
             .and_then(|declared| program.primitive_type_reference(declared))?;
     let ordinal = usize::try_from(statement_index).ok()?;
     let canonical = crate::flow::canonical_place_from_expression_in_state(
@@ -331,7 +331,7 @@ fn place(
         ordinal,
         expression,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = canonical.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = canonical.root else {
         return None;
     };
     // An erased borrow carrier names its captured referent's storage.
@@ -351,11 +351,12 @@ fn place(
     // literal element within its declared extent, ending at the atomic field.
     // A runtime element names no single location.
     trace.phase("atomic access: place: static field path");
-    if !validation::place_has_builtin_coordinates(program, machine, Some(state), expression)
+    if !crate::validation::place_has_builtin_coordinates(program, machine, Some(state), expression)
         || !segments.iter().all(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                crate::fact_plan::PlaceSegment::Field { .. }
+                    | crate::fact_plan::PlaceSegment::FixedIndex { .. }
             )
         })
     {

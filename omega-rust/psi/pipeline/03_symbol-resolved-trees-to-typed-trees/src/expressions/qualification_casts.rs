@@ -1,20 +1,20 @@
+use crate::typed_trees::TypedTrees;
+use crate::typed_trees::expression::ExpressionNode;
+use crate::typed_trees::types::{
+    DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
     AuthoredDeclarationSelectionTarget,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::types::{
-    DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
 
 /// Bind semantic `as ... in Domain` sites to declaration identity. Validation
 /// owns the diagnostic policy; this pass only publishes deterministic
 /// identities so no checked consumer re-resolves a user spelling.
 pub(crate) fn normalize_qualification_casts(
-    source: &symbol_resolved_trees::SymbolResolvedTrees,
+    source: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees,
     program: &mut TypedTrees,
 ) -> Result<(), Diagnostic> {
     normalize_qualification_casts_from(source, program, 0)
@@ -22,7 +22,7 @@ pub(crate) fn normalize_qualification_casts(
 
 /// Bind only semantic casts appended after a retained checkpoint.
 pub(crate) fn normalize_qualification_casts_from(
-    source: &symbol_resolved_trees::SymbolResolvedTrees,
+    source: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees,
     program: &mut TypedTrees,
     expression_frontier: usize,
 ) -> Result<(), Diagnostic> {
@@ -131,7 +131,7 @@ pub(crate) fn normalize_qualification_casts_from(
             ));
             continue;
         };
-        let index_parameters = typed_trees::domain::index_parameters(program, domain);
+        let index_parameters = crate::typed_trees::domain::index_parameters(program, domain);
         if arguments.len() != index_parameters.len() {
             return Err(Diagnostic::error(format!(
                 "domain family `{}` requires {} closed index argument(s), but {} were supplied by `as ... in {name}`",
@@ -140,7 +140,7 @@ pub(crate) fn normalize_qualification_casts_from(
                 arguments.len(),
             )));
         }
-        let instance_name = typed_trees::domain::indexed_domain_instance_name(
+        let instance_name = crate::typed_trees::domain::indexed_domain_instance_name(
             program,
             domain,
             index_parameters,

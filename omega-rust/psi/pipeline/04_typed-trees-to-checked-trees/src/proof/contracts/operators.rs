@@ -1,12 +1,12 @@
-use crate::proof::proposition_vocabulary::{contract_fact_kind, fact_handles};
-use arena::HandleSpan;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedOperatorContractUse, CheckedOperatorFacts, ContractOperatorUseFact, ContractProofFact,
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef,
 };
+use crate::proof::proposition_vocabulary::{contract_fact_kind, fact_handles};
+use arena::HandleSpan;
 
 pub(crate) fn build_contract_operator_use_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     operators: &CheckedOperatorFacts,
     contract_facts: &mut arena::Arena<ContractProofFact>,
     fact_refs: &mut arena::Arena<ContractProofFactRef>,
@@ -18,7 +18,7 @@ pub(crate) fn build_contract_operator_use_facts(
         // comparison needs arm-local invocation custody before its ensures
         // can become flow evidence; its requires are checked separately.
         if operator_use.operator_use.occurrence
-            != checked_trees::CheckedOperatorOccurrence::Expression
+            != crate::checked_trees::CheckedOperatorOccurrence::Expression
         {
             continue;
         }
@@ -35,7 +35,7 @@ pub(crate) fn build_contract_operator_use_facts(
 }
 
 fn append_contract_operator_use(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     contract_facts: &mut arena::Arena<ContractProofFact>,
     fact_refs: &mut arena::Arena<ContractProofFactRef>,
     operator_uses: &mut arena::Arena<ContractOperatorUseFact>,
@@ -94,17 +94,19 @@ fn append_contract_operator_use(
 #[cfg(test)]
 mod tests {
     use super::{CheckedOperatorFacts, ContractProofFactKind, ContractProofFactOwner, HandleSpan};
-    use crate::proof::build_contract_operator_use_facts;
-    use checked_trees::expression::ExpressionHandle;
-    use checked_trees::{
+    use crate::checked_trees::expression::ExpressionHandle;
+    use crate::checked_trees::{
         CheckedOperatorCandidateFact, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
         CheckedValueOrigin,
     };
+    use crate::proof::build_contract_operator_use_facts;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::signature::{
+        SignatureContract, SignatureContractKind,
+    };
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
     use symbols::SymbolHandle;
-    use typed_trees::domain::ProofFact;
-    use typed_trees::operator::OperatorDefinition;
-    use typed_trees::signature::{SignatureContract, SignatureContractKind};
-    use typed_trees::types::TypeReferenceHandle;
 
     #[test]
     fn builds_contract_operator_use_facts_from_resolved_operator_contracts() {
@@ -119,7 +121,7 @@ mod tests {
             role: Default::default(),
         };
 
-        let mut program = typed_trees::TypedTrees::default();
+        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
         let mut requires_facts = HandleSpan::empty();
         program
             .proof_facts

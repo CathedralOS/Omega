@@ -1,21 +1,21 @@
 //! Producer derivation of exact literal-fold actions.
 
-use register_model::RegisterOperandAccess;
-use selected_instructions::{SelectedFunction, SelectedInstructionKind};
 use semantic_vocabulary::IntegerValue;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{SelectedFunction, SelectedInstructionKind};
 
+use crate::register_homes::{RecoveryClassification, RecoveryVictimRole};
 use crate::{
     LiteralFoldAction, LiteralFoldError, PairLiteralPosition, PairOperandShape,
     PairResultDisposition,
 };
-use register_homes::{RecoveryClassification, RecoveryVictimRole};
 
 use super::constraints::{AdmittedPairs, effect_declaration};
 
 pub(super) fn derive_action(
     function_index: usize,
     function: &SelectedFunction,
-    candidate: &register_homes::PressureRecoveryClassification,
+    candidate: &crate::register_homes::PressureRecoveryClassification,
     rows: &AdmittedPairs<'_>,
 ) -> Result<LiteralFoldAction, LiteralFoldError> {
     if candidate.role != RecoveryVictimRole::Incoming {
@@ -644,7 +644,7 @@ pub(super) fn derive_action(
 /// folded form silently stopped observing.
 fn auxiliary_zero_defined(
     function: &SelectedFunction,
-    register: selected_instructions::VirtualRegisterId,
+    register: target_operations_to_selected_instructions::VirtualRegisterId,
 ) -> bool {
     let mut definitions = function
         .blocks
@@ -677,26 +677,26 @@ fn auxiliary_zero_defined(
 /// same sites the rewrite's densification walks.
 fn dropped_def_is_dead(
     function: &SelectedFunction,
-    register: selected_instructions::VirtualRegisterId,
+    register: target_operations_to_selected_instructions::VirtualRegisterId,
 ) -> bool {
     let mut occurrences = 0_usize;
     for block in &function.blocks {
         for instruction in block.instructions.iter().chain(match &block.terminator {
-            selected_instructions::SelectedTerminator::ConditionalBranch {
+            target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranch {
                 instruction, ..
             }
-            | selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
+            | target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
                 instruction,
                 ..
             }
-            | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
+            | target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
                 instruction,
                 ..
             }
-            | selected_instructions::SelectedTerminator::Jump { instruction, .. }
-            | selected_instructions::SelectedTerminator::Return { instruction, .. }
-            | selected_instructions::SelectedTerminator::Crash { instruction, .. }
-            | selected_instructions::SelectedTerminator::HostedExitProcess {
+            | target_operations_to_selected_instructions::SelectedTerminator::Jump { instruction, .. }
+            | target_operations_to_selected_instructions::SelectedTerminator::Return { instruction, .. }
+            | target_operations_to_selected_instructions::SelectedTerminator::Crash { instruction, .. }
+            | target_operations_to_selected_instructions::SelectedTerminator::HostedExitProcess {
                 instruction, ..
             } => std::iter::once(instruction),
         }) {
@@ -707,27 +707,27 @@ fn dropped_def_is_dead(
                 .count();
         }
         let successors = match &block.terminator {
-            selected_instructions::SelectedTerminator::Jump { successor, .. } => {
+            target_operations_to_selected_instructions::SelectedTerminator::Jump { successor, .. } => {
                 vec![successor]
             }
-            selected_instructions::SelectedTerminator::ConditionalBranch {
+            target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranch {
                 when_nonzero,
                 when_zero,
                 ..
             } => vec![when_nonzero, when_zero],
-            selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
+            target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
                 when_less,
                 when_not_less,
                 ..
             }
-            | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
+            | target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
                 when_less,
                 when_not_less,
                 ..
             } => vec![when_less, when_not_less],
-            selected_instructions::SelectedTerminator::Return { .. }
-            | selected_instructions::SelectedTerminator::Crash { .. }
-            | selected_instructions::SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
+            target_operations_to_selected_instructions::SelectedTerminator::Return { .. }
+            | target_operations_to_selected_instructions::SelectedTerminator::Crash { .. }
+            | target_operations_to_selected_instructions::SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
         };
         for successor in successors {
             occurrences += successor
@@ -736,16 +736,16 @@ fn dropped_def_is_dead(
                 .filter(|binding| {
                     matches!(
                         binding.transport,
-                        selected_instructions::SelectedStructuralTransport::WholeValue {
+                        target_operations_to_selected_instructions::SelectedStructuralTransport::WholeValue {
                             argument,
                             ..
                         }
-                        | selected_instructions::SelectedStructuralTransport::Descriptor {
+                        | target_operations_to_selected_instructions::SelectedStructuralTransport::Descriptor {
                             argument,
                             ..
                         }
-                        | selected_instructions::SelectedStructuralTransport::Address {
-                            base: selected_instructions::SelectedAddressBase::Register(argument),
+                        | target_operations_to_selected_instructions::SelectedStructuralTransport::Address {
+                            base: target_operations_to_selected_instructions::SelectedAddressBase::Register(argument),
                             ..
                         } if argument == register
                     )
@@ -756,11 +756,11 @@ fn dropped_def_is_dead(
                     .payloads
                     .iter()
                     .filter(|payload| match &payload.transport {
-                        selected_instructions::SelectedCasePayloadTransport::Unused => false,
-                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unused => false,
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
                             parameter,
                         } => *parameter == register,
-                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Registers {
                             argument,
                             parameter,
                         } => *argument == register || *parameter == register,
@@ -771,8 +771,8 @@ fn dropped_def_is_dead(
                 .bindings
                 .iter()
                 .filter(|binding| match &binding.transport {
-                    selected_instructions::SelectedValueTransport::Unused => false,
-                    selected_instructions::SelectedValueTransport::Registers {
+                    target_operations_to_selected_instructions::SelectedValueTransport::Unused => false,
+                    target_operations_to_selected_instructions::SelectedValueTransport::Registers {
                         argument,
                         parameter,
                     } => *argument == register || *parameter == register,

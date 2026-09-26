@@ -1,9 +1,9 @@
+use omega::terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use proof_admission::{AdmissionProfile, EvidenceRoute, ProofRule};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
 };
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
-use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_interpreter::{
     AcceptTerminalEffects, TerminalArtifactInterpretError, TerminalExecutionResult,

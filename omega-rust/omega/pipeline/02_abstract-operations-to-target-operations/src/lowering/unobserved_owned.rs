@@ -4,12 +4,14 @@
 //! longer consults it — each action admits by its root's own home or arrival
 //! declaration where the edge commits the discard.
 
-use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
 };
 pub(super) fn parameter(parameter: &terminal_psi::StructuralParameterDeclaration) -> bool {
     parameter.access == StructuralAccess::Owned
@@ -144,7 +146,7 @@ fn local(function: &AbstractFunction, place: PlaceId) -> bool {
 
 fn bindings(
     declarations: &[&terminal_psi::StructuralParameterDeclaration],
-    bindings: &[abstract_operations::AbstractStructuralBinding],
+    bindings: &[terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding],
 ) -> bool {
     bindings.iter().all(|binding| {
         let source = declarations.iter().find(|parameter| parameter.place == binding.argument.place);
@@ -174,7 +176,7 @@ fn discardable_root(
 /// neither an earlier discard nor a transferred structural argument.
 fn edge_discards(
     declarations: &[&terminal_psi::StructuralParameterDeclaration],
-    structural_bindings: &[abstract_operations::AbstractStructuralBinding],
+    structural_bindings: &[terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding],
     trivial_discards: &[PlaceId],
     residual_discards: &[terminal_psi::StructuralAffineDiscard],
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

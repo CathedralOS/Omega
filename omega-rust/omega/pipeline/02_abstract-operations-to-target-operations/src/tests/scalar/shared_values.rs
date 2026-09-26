@@ -4,7 +4,7 @@ use super::{
     TargetIntegerExpression, TargetLoweringRequest, ValueId, constant_conditional_plan,
     direct_call_plan, lower_to_target_operations, parameter_return_plan,
 };
-use target_operations::TargetScalarExpression;
+use crate::target_operations::TargetScalarExpression;
 
 #[test]
 fn scalar_graph_retains_distinct_branch_definitions_and_arrivals() {
@@ -26,7 +26,7 @@ fn scalar_graph_retains_distinct_branch_definitions_and_arrivals() {
         assert_eq!(graph.blocks.len(), 3);
         for block in graph.blocks.iter().skip(1) {
             let [
-                target_operations::TargetUnitOperation::ScalarDefinition {
+                crate::target_operations::TargetUnitOperation::ScalarDefinition {
                     expression: TargetScalarExpression::Integer { expression, .. },
                     ..
                 },
@@ -56,12 +56,14 @@ fn scalar_graph_retains_repeated_value_definitions_once() {
             parameter_return_plan(1)
         };
         for function in &mut plan.functions {
-            function.block_entries = vec![abstract_operations::AbstractBlockEntry {
-                block: function.entry,
-                parameters: Vec::new(),
-                structural_parameters: Vec::new(),
-                operation_offset: 0,
-            }];
+            function.block_entries = vec![
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractBlockEntry {
+                    block: function.entry,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    operation_offset: 0,
+                },
+            ];
         }
         let function = &mut plan.functions[0];
         let mut returned = function.operations.pop().unwrap();
@@ -134,13 +136,13 @@ fn scalar_graph_retains_repeated_value_definitions_once() {
                 .iter()
                 .filter(|operation| matches!(
                     operation,
-                    target_operations::TargetUnitOperation::Call { .. }
+                    crate::target_operations::TargetUnitOperation::Call { .. }
                 ))
                 .count(),
             usize::from(with_call)
         );
         for operation in definitions.into_iter().skip(usize::from(with_call)) {
-            let target_operations::TargetUnitOperation::ScalarDefinition {
+            let crate::target_operations::TargetUnitOperation::ScalarDefinition {
                 expression:
                     TargetScalarExpression::Integer {
                         expression:

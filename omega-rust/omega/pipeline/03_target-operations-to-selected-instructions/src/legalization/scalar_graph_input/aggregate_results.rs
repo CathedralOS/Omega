@@ -56,7 +56,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::StoreStructuralField { .. }
                         | AbstractOperation::EstablishTrivialAffineLocal { .. }
                         | AbstractOperation::CallStructural { .. }
-                        | AbstractOperation::BoundaryCall { result: abstract_operations::AbstractBoundaryResult::Structural(_), .. }
+                        | AbstractOperation::BoundaryCall { result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(_), .. }
                 ) || matches!(&node.operation,
                     AbstractOperation::CallStructuralScalar { structural_arguments, .. }
                         | AbstractOperation::CallUnit { structural_arguments, .. }
@@ -73,7 +73,10 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
 pub(in crate::legalization) fn sum_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
-) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
+) -> Result<
+    abstract_operations_to_target_operations::calling_conventions::ConventionalSumLayout,
+    LegalizationError,
+> {
     if result.multiplicity == StructuralMultiplicity::Linear
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
@@ -87,7 +90,10 @@ pub(in crate::legalization) fn sum_layout(
 pub(in crate::legalization) fn sum_type_layout(
     structural_type: semantic_vocabulary::StructuralTypeId,
     plan: &AbstractOperationPlan,
-) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
+) -> Result<
+    abstract_operations_to_target_operations::calling_conventions::ConventionalSumLayout,
+    LegalizationError,
+> {
     let mut declarations = plan
         .structural_types
         .iter()
@@ -124,8 +130,10 @@ pub(in crate::legalization) fn sum_type_layout(
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
-    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
-        .map_err(|_| LegalizationError::custody())
+    abstract_operations_to_target_operations::calling_conventions::evaluate_conventional_sum_layout(
+        &common, &payloads,
+    )
+    .map_err(|_| LegalizationError::custody())
 }
 
 pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
@@ -248,15 +256,16 @@ pub(super) fn cleanup(
         // discard owes the same whole affine cleanup as a direct producer;
         // requiring an operation result here would reject the completed join.
         super::structural_case::source_owner(function, place).is_ok_and(|owner| match owner {
-            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
-                result, ..
+            crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                result,
+                ..
             } => {
                 result.multiplicity == StructuralMultiplicity::Affine
                     && result.claims.is_empty()
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
             }
-            legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+            crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                 declaration,
                 ..
             } => {
@@ -265,6 +274,7 @@ pub(super) fn cleanup(
                     && declaration.qualifications.is_empty()
                     && declaration.projected_qualifications.is_empty()
             }
+            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => false,
             legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
             | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
                 false
@@ -488,7 +498,10 @@ pub(super) fn header(
 pub(in crate::legalization) fn block_home_layout(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     plan: &AbstractOperationPlan,
-) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
+) -> Result<
+    abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout,
+    LegalizationError,
+> {
     if !(!parameter.is_self
         && parameter.access == terminal_psi::StructuralAccess::Owned
         && parameter.multiplicity != StructuralMultiplicity::Linear
@@ -554,7 +567,10 @@ pub(in crate::legalization) fn call_argument(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
-) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
+) -> Result<
+    abstract_operations_to_target_operations::target_operations::TargetStructuralArgument,
+    LegalizationError,
+> {
     let destination = callee
         .structural_parameters
         .get(position)
@@ -704,7 +720,7 @@ pub(in crate::legalization) fn call_argument(
             .ok_or(LegalizationError::custody())?;
         (
             source,
-            target_operations::TargetStructuralArgumentSource::BlockParameter {
+            abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::BlockParameter {
                 block,
                 place: source.place,
             },
@@ -726,47 +742,52 @@ pub(in crate::legalization) fn call_argument(
     if placement.shape != ValueShape::borrowed_reference(16, 8) {
         return Err(LegalizationError::custody());
     }
-    Ok(target_operations::TargetStructuralArgument {
-        place: argument.place,
-        access: argument.access,
-        path: Vec::new(),
-        root_structural_type: source.structural_type,
-        structural_type: source.structural_type,
-        shape: placement.shape,
-        source_byte_offset: 0,
-        fixed_array_length: None,
-        element_stride: None,
-        source: binding,
-        destination: placement.clone(),
-    })
+    Ok(
+        abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
+            place: argument.place,
+            access: argument.access,
+            path: Vec::new(),
+            root_structural_type: source.structural_type,
+            structural_type: source.structural_type,
+            shape: placement.shape,
+            source_byte_offset: 0,
+            fixed_array_length: None,
+            element_stride: None,
+            source: binding,
+            destination: placement.clone(),
+        },
+    )
 }
 
 pub(super) fn result_home(
     function: &PsiOptimizationFunction,
     place: PlaceId,
     plan: &AbstractOperationPlan,
-) -> Result<target_operations::TargetStructuralHomeRequirement, LegalizationError> {
+) -> Result<
+    abstract_operations_to_target_operations::target_operations::TargetStructuralHomeRequirement,
+    LegalizationError,
+> {
     let (origin, layout) = match super::structural_case::source_owner(function, place)? {
-        legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+        crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
             result,
         } => {
             let layout = home_layout(&result, plan)?;
             (
-                target_operations::TargetStructuralHomeOrigin::OperationResult {
+                abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult {
                     operation,
                     result,
                 },
                 layout,
             )
         }
-        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+        crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
             block,
             declaration,
         } => {
             let layout = block_home_layout(&declaration, plan)?;
             (
-                target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::BlockParameter {
                     block,
                     declaration,
                 },
@@ -774,18 +795,22 @@ pub(super) fn result_home(
             )
         }
         // A function parameter is an arrival, not an activation-local home.
+        crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
         legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
         | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
             return Err(LegalizationError::custody());
         }
     };
-    Ok(target_operations::TargetStructuralHomeRequirement { origin, layout })
+    Ok(abstract_operations_to_target_operations::target_operations::TargetStructuralHomeRequirement { origin, layout })
 }
 
 pub(in crate::legalization) fn home_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
-) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
+) -> Result<
+    abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout,
+    LegalizationError,
+> {
     if plan.structural_types.iter().any(|declaration| {
         declaration.id == result.structural_type
             && matches!(
@@ -803,7 +828,7 @@ pub(in crate::legalization) fn home_layout(
         if result.multiplicity == StructuralMultiplicity::Linear || !result.claims.is_empty() {
             return Err(LegalizationError::custody());
         }
-        return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
+        return Ok(abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Aggregate(
             crate::structural_inputs::structural_reference_input::primitive_array_shape(
                 result.structural_type,
                 &plan.structural_types,
@@ -817,7 +842,7 @@ pub(in crate::legalization) fn home_layout(
             .ok_or(LegalizationError::custody())?,
         ));
     }
-    Ok(target_operations::TargetStructuralHomeLayout::Sum(
+    Ok(abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Sum(
         sum_layout(result, plan)?,
     ))
 }

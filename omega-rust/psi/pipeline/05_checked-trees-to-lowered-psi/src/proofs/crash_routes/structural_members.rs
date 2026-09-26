@@ -10,7 +10,7 @@ use crate::proofs::{
 
 pub(crate) fn lower_structural_member_path(
     parameter_position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<
@@ -40,7 +40,7 @@ pub(crate) fn lower_structural_member_path(
             .ok_or(LoweringError::Unsupported(
                 "structural scalar contract path type is absent",
             ))?;
-        if let checked_trees::CheckedStructuralPredicatePathSegment::Case(identity) = segment {
+        if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Case(identity) = segment {
             if selected_case_fields.is_some() || index + 1 == path.len() {
                 return unsupported("structural scalar contract has a malformed case path");
             }
@@ -62,7 +62,7 @@ pub(crate) fn lower_structural_member_path(
             selected_case_fields = Some(&case.fields);
             continue;
         }
-        if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
+        if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
             segment
         {
             // A literal fixed-array index selects an inline element; it can
@@ -83,7 +83,7 @@ pub(crate) fn lower_structural_member_path(
             structural_type = *element;
             continue;
         }
-        let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
+        let typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
             unreachable!("case and index paths handled above")
         };
         let fields = if let Some(fields) = selected_case_fields.take() {
@@ -123,7 +123,7 @@ pub(crate) fn lower_structural_member_path(
 
 pub(crate) fn lower_structural_member_term(
     parameter_position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
     expected: ScalarType,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
@@ -149,7 +149,7 @@ pub(crate) fn lower_structural_member_term(
 }
 
 pub(crate) fn lower_ieee_float_field(
-    field: &checked_trees::CheckedStructuralParameterField,
+    field: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField,
     format: IeeeFloatFormat,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
@@ -167,7 +167,7 @@ pub(crate) fn lower_ieee_float_field(
 }
 
 pub(crate) fn lower_byte_sequence_field(
-    field: &checked_trees::CheckedStructuralParameterField,
+    field: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<ByteSequenceStructuralField, LoweringError> {
@@ -184,7 +184,7 @@ pub(crate) fn lower_byte_sequence_field(
 }
 
 pub(crate) fn lower_structural_sum_subject(
-    subject: &checked_trees::CheckedStructuralParameterField,
+    subject: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<(StructuralCaseSubject, StructuralTypeId), LoweringError> {
@@ -204,7 +204,7 @@ pub(crate) fn lower_structural_sum_subject(
             .ok_or(LoweringError::Unsupported(
                 "structural sum predicate path type is absent",
             ))?;
-        if let checked_trees::CheckedStructuralPredicatePathSegment::Case(identity) = segment {
+        if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Case(identity) = segment {
             if selected_case_fields.is_some() {
                 return unsupported("structural sum predicate has adjacent case selections");
             }
@@ -224,7 +224,7 @@ pub(crate) fn lower_structural_sum_subject(
             selected_case_fields = Some(&case.fields);
             continue;
         }
-        if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
+        if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
             segment
         {
             // The subject path may end at an inline element: `options[0]`
@@ -242,7 +242,7 @@ pub(crate) fn lower_structural_sum_subject(
             structural_type = *element;
             continue;
         }
-        let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
+        let typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
             unreachable!("case and index paths handled above")
         };
         let fields = if let Some(fields) = selected_case_fields.take() {

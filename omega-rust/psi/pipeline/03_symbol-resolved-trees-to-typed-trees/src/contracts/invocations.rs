@@ -1,7 +1,7 @@
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
 use symbols::SymbolKind;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(crate) fn lower_authored_invocations(
     program: &resolved::SymbolResolvedTrees,

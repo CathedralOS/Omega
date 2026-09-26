@@ -25,7 +25,7 @@ fn borrowed_unit_calls_preserve_fixed_integer_and_boolean_parameter_types() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         for scalar_type in
             [ScalarType::Boolean]
                 .into_iter()
@@ -142,7 +142,7 @@ fn outgoing_projected_pointer_stack_slot_replays_exact_bits_and_call_registers()
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -335,7 +335,7 @@ fn outgoing_projected_pointer_stack_slot_replays_exact_bits_and_call_registers()
                 2 => changed.outgoing_arguments[0].id.argument_index = 0,
                 3 => {
                     changed.memory_accesses[0].role =
-                        selected_instructions::SelectedMemoryAccessRole::ReadPlace
+                        crate::selected_instructions::SelectedMemoryAccessRole::ReadPlace
                 }
                 4 => {
                     changed.blocks[0].instructions[store_index].operands[0].virtual_register =
@@ -433,7 +433,7 @@ fn projected_write_only_call_replays_original_pointer_offset_and_contract() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

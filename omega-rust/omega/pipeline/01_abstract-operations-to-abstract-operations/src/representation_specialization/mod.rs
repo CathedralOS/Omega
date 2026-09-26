@@ -41,19 +41,19 @@
 //! and `accounting::provenance_rows` derives the node custody that plan
 //! carries. `rules::case_membership_specialization` publishes the plan as a
 //! `PsiRewriteCandidate`, and
-//! `optimization_unit_semantics::validate_case_membership_specialization_candidate`
+//! `terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_case_membership_specialization_candidate`
 //! re-admits every row, rebuilds the output, and reconstructs the custody
 //! independently, so a forged or stale row fails by recomputation rather
 //! than trust. There is no second proposal or application route.
 
-use optimization_unit::{
+use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralPlaceKind};
+use terminal_psi_to_abstract_operations::optimization_unit::{
     CaseMembershipSpecializationRewrite, FoldedCaseMembershipRow, NodeLocation,
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiRealizationSite,
 };
-use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralPlaceKind};
 
-use abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
 
 pub(crate) mod accounting;
 pub(crate) mod admission;

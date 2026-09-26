@@ -1,13 +1,13 @@
 //! Declared Requires and crash ceilings describe invocation-entry operands.
 //! Body reads continue to use the independent current-storage namespace.
+use crate::checked_trees::CheckedBooleanExpression;
+use crate::checked_trees::CheckedOperatorFacts;
+use crate::checked_trees::CheckedScalarExpression;
 use crate::values::lower_machine_parameter_boolean_expression;
-use checked_trees::CheckedBooleanExpression;
-use checked_trees::CheckedOperatorFacts;
-use checked_trees::CheckedScalarExpression;
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::signature::StateParameter;
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 mod crash_entry;
 pub(crate) use crash_entry::lower_machine_entry_crash_contract_expression;
@@ -19,7 +19,7 @@ pub(crate) use crash_entry::lower_signature_crash_contract_expression;
 /// on a generic declaration awaiting application.
 pub(super) fn entry_parameters<'program>(
     program: &'program TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<&'program [StateParameter]> {
     let parameters = authored_entry_parameters(program, machine)?;
     if !program.machine_type_parameters(machine).is_empty()
@@ -41,7 +41,7 @@ pub(super) fn entry_parameters<'program>(
 /// or eligibility policy. Unread type parameters do not erase concrete clauses.
 pub(super) fn authored_entry_parameters<'program>(
     program: &'program TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<&'program [StateParameter]> {
     if !machine.symbol.is_valid()
         || program.symbols.get(machine.symbol).kind != symbols::SymbolKind::Machine
@@ -96,9 +96,9 @@ pub(super) fn authored_entry_parameters<'program>(
 pub(crate) fn lower_machine_entry_boolean_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     expression: ExpressionHandle,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     let mut predicate = lower_machine_parameter_boolean_expression(
         program,

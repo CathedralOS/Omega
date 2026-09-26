@@ -1,7 +1,7 @@
 //! Closed analysis-product catalog, dependency graph, and computation dispatch.
 
 use optimization_core::{AnalysisKind, AnalysisSet};
-use optimization_unit::PsiOptimizationUnit;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 use super::{
     control_flow::{

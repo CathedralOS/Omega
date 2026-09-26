@@ -1,11 +1,11 @@
 use super::TypedTrees;
-use crate::facts::canonical_encoding::encode_contract_fact_canonical;
-use crate::facts::contract_plan_facts::build_closed_scalar_value_contract_plan;
-use crate::tests::front_end::typed_program;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
     ClosedScalarContractValue,
 };
+use crate::facts::canonical_encoding::encode_contract_fact_canonical;
+use crate::facts::contract_plan_facts::build_closed_scalar_value_contract_plan;
+use crate::tests::front_end::typed_program;
 
 mod parameter_predicates;
 
@@ -19,7 +19,7 @@ fn canonical_membership_contract_bytes_retain_normalized_indices() {
             .proof_facts
             .iter()
             .find_map(|(_, fact)| {
-                matches!(fact, typed_trees::domain::ProofFact::Membership(_)).then_some(fact)
+                matches!(fact, symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(_)).then_some(fact)
             })
             .expect("membership");
         let mut bytes = Vec::new();
@@ -94,19 +94,21 @@ fn nested_literal_comparisons_retain_exact_carriers_and_operator_meaning() {
             );
             if expected {
                 let Some(ClosedScalarContractValue::Predicate(
-                    checked_trees::CheckedBooleanExpression::Equal { right, .. },
+                    crate::checked_trees::CheckedBooleanExpression::Equal { right, .. },
                 )) = &plan.ensures()[0]
                 else {
                     panic!("retained Boolean equality");
                 };
-                let checked_trees::CheckedBooleanExpression::IntegerComparison {
-                    left, right, ..
+                let crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
+                    left,
+                    right,
+                    ..
                 } = right.as_ref()
                 else {
                     panic!("literal comparison must not be folded out of source custody");
                 };
                 for operand in [left, right] {
-                    let checked_trees::CheckedScalarExpression::IntegerLiteral { literal } =
+                    let crate::checked_trees::CheckedScalarExpression::IntegerLiteral { literal } =
                         operand.as_ref()
                     else {
                         panic!("literal operand");
@@ -221,8 +223,11 @@ fn retained_nonbuiltin_operator_status_cannot_be_replaced_by_literal_shape() {
     ] {
         let mut operators = CheckedOperatorFacts::default();
         for contract in program.machine_contracts(machine) {
-            let [typed_trees::domain::ProofFact::Expression(expression)] =
-                program.proof_facts.span_or_empty(contract.facts)
+            let [
+                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                    expression,
+                ),
+            ] = program.proof_facts.span_or_empty(contract.facts)
             else {
                 panic!("one contract expression");
             };

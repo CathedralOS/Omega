@@ -17,7 +17,7 @@ pub(crate) fn build_structural_return_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<CheckedStructuralReturnMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -84,7 +84,7 @@ pub(crate) fn build_structural_return_machine(
                 .filter(|(_, event)| {
                     event.machine_symbol == machine.symbol
                         && event.state_symbol == state.symbol
-                        && event.root == facts::PlaceRoot::Symbol(local.symbol)
+                        && event.root == crate::fact_plan::PlaceRoot::Symbol(local.symbol)
                 })
                 .map(|(_, event)| event)
                 .collect::<Vec<_>>();
@@ -246,7 +246,7 @@ pub(crate) fn build_structural_return_machine(
     else {
         return None;
     };
-    let checked_trees::FlowClaimOutcomeSource::Input {
+    let crate::checked_trees::FlowClaimOutcomeSource::Input {
         parameter_symbol,
         segments: input_segments,
     } = outcome.source
@@ -327,7 +327,7 @@ pub(crate) fn build_structural_return_machine(
 
 pub(crate) fn state_contracts_are_exact_parameter_qualifications(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameter: &StateParameter,
     expected_domains: &[SemanticDomainId],
 ) -> bool {

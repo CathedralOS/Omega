@@ -43,7 +43,7 @@ fn shared_record_field_load_replays_field_type_access_and_offset() {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             };
-            source.structural = Some(legalized_operations::LegalizedStructuralContract {
+            source.structural = Some(crate::legalized_operations::LegalizedStructuralContract {
                 result: None,
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
@@ -79,9 +79,9 @@ fn shared_record_field_load_replays_field_type_access_and_offset() {
                         is_self: true,
                     },
                 }],
-                parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+                parameters: vec![crate::legalized_operations::LegalizedCallUnitParameter {
                     semantic: parameter,
-                    target: target_operations::TargetStructuralParameter {
+                    target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                         place,
                         structural_type: identity,
                         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -117,7 +117,7 @@ fn shared_record_field_load_replays_field_type_access_and_offset() {
                 scalar_type: scalar,
             };
             let environment =
-                register_environment::baseline_target_register_environment(native).unwrap();
+                crate::register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
                 fixed_inputs: Vec::new(),
@@ -152,7 +152,7 @@ fn shared_record_field_load_replays_field_type_access_and_offset() {
                     .any(|access| access.place == place
                         && access.byte_offset == 8
                         && access.role
-                            == selected_instructions::SelectedMemoryAccessRole::ReadPlace)
+                            == crate::selected_instructions::SelectedMemoryAccessRole::ReadPlace)
             );
             for mutation in 0..4 {
                 let mut changed = source.clone();
@@ -257,13 +257,13 @@ fn shared_record_call_replays_original_home_and_consumed_scalar_result() {
         };
         semantic.access = StructuralAccess::SharedBorrow;
         target.access = StructuralAccess::SharedBorrow;
-        target.source = target_operations::TargetStructuralArgumentSource::StructuralHome {
+        target.source = abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
             psi_operation: OperationId::new(2).unwrap(),
         };
         // The following scalar call consumes the getter result, not its input field.
         source.blocks[0].instructions[3] = fixture(native, 0).blocks[0].instructions[3].clone();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -321,7 +321,7 @@ fn shared_record_call_replays_original_home_and_consumed_scalar_result() {
             match mutation {
                 0 => {
                     target.source =
-                        target_operations::TargetStructuralArgumentSource::StructuralHome {
+                        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
                             psi_operation: OperationId::new(99).unwrap(),
                         }
                 }

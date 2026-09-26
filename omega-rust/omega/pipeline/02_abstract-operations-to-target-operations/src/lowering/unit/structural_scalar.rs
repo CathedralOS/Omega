@@ -2,18 +2,20 @@
 //! attached Unit body.
 
 use crate::LoweringError;
+use crate::calling_conventions::ValueShape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
-use calling_conventions::ValueShape;
+use crate::target_operations::{
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TerminalPsiProvenance,
+};
 use semantic_vocabulary::{
     IeeeFloatFormat, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
-use target_operations::{
-    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TerminalPsiProvenance,
-};
 use terminal_psi::StructuralAccess;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
+};
 mod dynamic_arguments;
 
 use super::super::scalar::scalar_shape;

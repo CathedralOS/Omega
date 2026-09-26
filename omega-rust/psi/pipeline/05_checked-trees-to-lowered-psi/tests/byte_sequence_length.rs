@@ -24,7 +24,7 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn lower(source: &str) -> lowered_psi::LoweredPsi {
+fn lower(source: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -150,10 +150,10 @@ fn a_nominal_field_named_len_is_not_a_byte_view_observation() {
     let expressions = &checked.facts.values.scalar_expressions.expressions;
     assert!(expressions.iter().any(|located| matches!(
         located.expression,
-        checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
+        typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
     )));
     assert!(expressions.iter().all(|located| !matches!(
         located.expression,
-        checked_trees::CheckedScalarExpression::StructuralParameterByteLength { .. }
+        typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StructuralParameterByteLength { .. }
     )));
 }

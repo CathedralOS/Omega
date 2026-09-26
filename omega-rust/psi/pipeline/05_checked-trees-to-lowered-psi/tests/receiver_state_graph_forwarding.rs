@@ -5,7 +5,9 @@
 //! `SnapshotRegionFilter::get_element_count` shape: an Alignment formal rides
 //! the jump into the divide state, which also reads the receiver.
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::OperationKind;
 
 const SOURCE: &str = r#"
@@ -63,15 +65,16 @@ fn receiver_reading_state_graph_forwards_structural_formals_on_edges() {
                 .is_some(),
         "the Unit state graph owns the receiver-reading machine"
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Filter::count"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("the receiver-reading state graph lowers its forwarded structural formals")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Filter::count"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("the receiver-reading state graph lowers its forwarded structural formals")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(

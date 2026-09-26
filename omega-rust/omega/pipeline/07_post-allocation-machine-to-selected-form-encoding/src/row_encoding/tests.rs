@@ -1,21 +1,21 @@
-use isa_x86_64::x86_64_physical_register_model;
-use physical_instructions::{
+use register_homes_to_post_allocation_machine::{
     PhysicalAddressOperation, PhysicalOperandFootprint, PostAllocationMachineInstruction,
 };
-use register_model::{
+use semantic_vocabulary::IntegerValue;
+use target_operations_to_selected_instructions::isa_x86_64::x86_64_physical_register_model;
+use target_operations_to_selected_instructions::register_model::{
     RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineEncodedEffects, MachineLatencyKnowledge, MachineSizeKnowledge,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedOperand, VirtualRegisterId,
 };
-use semantic_vocabulary::IntegerValue;
 
 use super::{SelectedFormEncodingState, encode_row};
-use machine_code::SelectedFormMachineDisposition;
+use crate::machine_code::SelectedFormMachineDisposition;
 
 pub(super) fn fixture() -> (
     ValidatedPhysicalRegisterModel,
@@ -117,7 +117,7 @@ fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_disposi
 fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
     let (physical, selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
-    let unrouted = Some(machine_code::ResolvedPhysicalAddress {
+    let unrouted = Some(crate::machine_code::ResolvedPhysicalAddress {
         symbolic: PhysicalAddressOperation::Load64 {
             base_operand: 0,
             byte_offset: 0,
@@ -143,7 +143,7 @@ fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
     let (physical, mut selected, machine) = fixture();
     selected.kind = SelectedInstructionKind::Jump;
     let target = target::NativeTarget::linux_x64();
-    let unrouted = Some(machine_code::ResolvedPhysicalAddress {
+    let unrouted = Some(crate::machine_code::ResolvedPhysicalAddress {
         symbolic: PhysicalAddressOperation::Load64 {
             base_operand: 0,
             byte_offset: 0,

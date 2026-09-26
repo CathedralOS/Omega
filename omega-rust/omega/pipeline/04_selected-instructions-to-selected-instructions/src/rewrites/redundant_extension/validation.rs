@@ -14,14 +14,14 @@
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::IntegerValue;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::IntegerValue;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{RedundantExtensionError, RedundantExtensionReceipt, ValidatedRedundantExtension};
 use crate::ValidatedSelectedAnalysis;
@@ -312,8 +312,8 @@ fn reconstruct<'source>(
             .operands
             .iter()
             .zip([value, output])
-            .map(
-                |(operand, register)| selected_instructions::SelectedOperand {
+            .map(|(operand, register)| {
+                target_operations_to_selected_instructions::SelectedOperand {
                     operand: operand.operand,
                     virtual_register: register,
                     access: operand.access,
@@ -321,8 +321,8 @@ fn reconstruct<'source>(
                     fixed_view: operand.fixed_view,
                     tied_to: operand.tied_to,
                     early_clobber: operand.early_clobber,
-                },
-            )
+                }
+            })
             .collect(),
         implicit_uses: copy_row.implicit_uses.clone(),
         implicit_defs: copy_row.implicit_defs.clone(),
@@ -442,21 +442,21 @@ mod independence_tests {
     use std::sync::Arc;
 
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-    use optimization_unit::ValueDefinitionSite;
-    use register_environment::baseline_target_register_environment;
-    use register_model::RegisterInstructionConstraint;
-    use selected_instructions::{
-        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-        SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-        SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-    };
     use semantic_vocabulary::{
         BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ScalarType,
         ValueId,
     };
     use target::NativeTarget;
+    use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+    use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
     use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+    use target_operations_to_selected_instructions::{
+        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+        SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
+        SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    };
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+    use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
     use super::{
         RedundantExtensionError, RedundantExtensionReceipt, ValidatedRedundantExtension,
@@ -514,12 +514,12 @@ mod independence_tests {
     fn fixture(
         producer_kind: SelectedInstructionKind,
         producer_row_key: fn(
-            &selected_instructions::SelectedConstraintKeys,
-        ) -> register_model::RegisterConstraintKey,
+            &target_operations_to_selected_instructions::SelectedConstraintKeys,
+        ) -> target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
     ) -> (
-        register_environment::ValidatedTargetRegisterEnvironment,
+        target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
         ValidatedRedundantExtension,
-    ) {
+    ){
         let target = NativeTarget::linux_x64();
         let environment = baseline_target_register_environment(target).unwrap();
         let keys = environment.selected_keys();

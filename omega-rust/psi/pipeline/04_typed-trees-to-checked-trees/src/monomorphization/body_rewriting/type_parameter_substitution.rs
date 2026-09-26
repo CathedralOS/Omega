@@ -100,7 +100,7 @@ pub(crate) fn substitute_cloned_type_parameters(
 pub(crate) fn reject_runtime_bound_static_occurrences(
     program: &TypedTrees,
     candidate: &Candidate,
-    cloned: &typed_trees::machine::Machine,
+    cloned: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Result<(), Diagnostic> {
     if candidate.runtime_value_bindings.iter().all(Option::is_none) {
         return Ok(());
@@ -170,7 +170,7 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
 /// left alone for `reject_runtime_bound_static_occurrences` to reject.
 pub(crate) fn rebind_state_scoped_range_endpoints(
     program: &mut TypedTrees,
-    cloned: &typed_trees::machine::Machine,
+    cloned: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state_realized_parameters: &[Vec<(SymbolHandle, SymbolHandle)>],
 ) {
     for (state, realized) in program
@@ -275,7 +275,7 @@ fn rebind_range_endpoint_names(
 /// expressions keep their authored binder spelling.
 pub(crate) fn cloned_expression_roots(
     program: &TypedTrees,
-    cloned: &typed_trees::machine::Machine,
+    cloned: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
     let mut roots = Vec::new();
     for item in program.machine_owned_data(cloned) {
@@ -309,7 +309,7 @@ pub(crate) fn cloned_expression_roots(
 
 pub(crate) fn collect_contract_type_roots(
     program: &TypedTrees,
-    contract: &typed_trees::signature::SignatureContract,
+    contract: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract,
     roots: &mut Vec<TypeReferenceHandle>,
 ) {
     for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -425,7 +425,7 @@ pub(crate) fn runtime_bound_occurrence_in(
                 element_type,
                 length,
             } => {
-                if let typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } = length
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } = length
                     && *symbol == parameter_symbol
                 {
                     return true;
@@ -452,7 +452,7 @@ pub(crate) fn runtime_bound_occurrence_in(
 }
 
 fn collect_static_argument_type_roots(
-    arguments: &[typed_trees::expression::StaticMachineArgument],
+    arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
     roots: &mut Vec<TypeReferenceHandle>,
 ) {
     for argument in arguments {

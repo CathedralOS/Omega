@@ -1,14 +1,16 @@
 //! Exact indexed mutation of the supplied mutable byte view.
 
 use super::lower_machine;
-use crate::TerminalMachineSelection;
-use checked_trees::{
-    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+};
 pub(super) const PUT: &str = r#"
     machine put(out: &mut [u8], byte: u8) {
         transition out.len > 0 {
@@ -37,15 +39,16 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
         }
     "#,
     );
-    let _artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("put"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("lawful two-write source publishes first")
-    .into_artifact();
+    let _artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("put"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("lawful two-write source publishes first")
+        .into_artifact();
     let plan_index = checked
         .facts
         .flow
@@ -96,10 +99,8 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
                     ),
                 };
             }
-            2 => {
-                state.structural_parameters[0].access =
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
-            }
+            2 => state.structural_parameters[0].access =
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow,
             3 => state.operations.push(state.operations[0].clone()),
             4 => {
                 state.operations.remove(0);
@@ -111,7 +112,7 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
                 else {
                     panic!("write")
                 };
-                write.value = checked_trees::CheckedByteSequenceStoreValue::Pure(
+                write.value = typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::Pure(
                     CheckedScalarExpression::IntegerLiteral {
                         literal: numerics::literals::IntegerLiteral::from_value(0).with_landing(
                             numerics::literals::IntegerLanding {
@@ -155,15 +156,18 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
         }}
     "#
         ));
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name("Record::run"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("checked caller retains original borrowed field backing")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                    "Record::run",
+                ),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("checked caller retains original borrowed field backing")
+            .into_artifact();
         let mut redirected = checked.clone();
         let caller = redirected
             .facts

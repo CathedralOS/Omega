@@ -12,12 +12,16 @@
 //! entry identity. Facts project before canonicalizing names, so an opaque
 //! sibling call cannot erase a safe conjunct or impersonate a parameter.
 
-use checked_trees::{CrashPredicateIdentity, CrashSiteLocation};
+use crate::checked_trees::{CrashPredicateIdentity, CrashSiteLocation};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use typed_trees::machine::Machine;
-use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
 pub(super) struct SiteFallthrough {
     pub location: CrashSiteLocation,
@@ -28,7 +32,7 @@ pub(super) fn collect(
     program: &TypedTrees,
     machine: &Machine,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
 ) -> Vec<SiteFallthrough> {
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
@@ -103,7 +107,7 @@ fn collect_stable_consequences(
     expression: ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
     output: &mut Vec<(ExpressionHandle, bool)>,
 ) {
     if holds_entry_meaning(
@@ -215,7 +219,7 @@ fn holds_entry_meaning(
     evaluated_at: usize,
     expression: ExpressionHandle,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
 ) -> bool {
     if !program.expression_table.expression_is_valid(expression) {
         return false;

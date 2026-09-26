@@ -1,12 +1,18 @@
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{SelectedFunction, SelectedInstructionId, VirtualRegisterId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess,
+};
+use target_operations_to_selected_instructions::{
+    SelectedFunction, SelectedInstructionId, VirtualRegisterId,
+};
 
+use crate::register_homes::{
+    PressureRecoveryClassification, RecoveryClassification, RecoveryVictimRole,
+};
 use crate::{
     PressureRematerializationAction, PressureRematerializationError,
     PressureRematerializationPolicy, PressureRematerializationRewrite,
 };
-use register_homes::{PressureRecoveryClassification, RecoveryClassification, RecoveryVictimRole};
-use selected_instructions::FunctionLiveRanges;
+use target_operations_to_selected_instructions::FunctionLiveRanges;
 
 use super::selected_structure;
 
@@ -86,7 +92,9 @@ pub(super) fn derive(
             function: function_index,
         })?;
     if original.kind
-        != (selected_instructions::SelectedInstructionKind::MaterializeI64 { value: *value })
+        != (target_operations_to_selected_instructions::SelectedInstructionKind::MaterializeI64 {
+            value: *value,
+        })
         || original.constraint != row.key
         || original.provenance != *provenance
         || original.operands.as_slice()
@@ -108,7 +116,7 @@ pub(super) fn derive(
         })?;
     if !range.occurrences.iter().any(|occurrence| {
         occurrence.instruction == *defining_instruction
-            && occurrence.access == register_model::RegisterOperandAccess::Def
+            && occurrence.access == target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def
             && occurrence.point < candidate.point
     }) {
         return Err(PressureRematerializationError::MaterializeMismatch {

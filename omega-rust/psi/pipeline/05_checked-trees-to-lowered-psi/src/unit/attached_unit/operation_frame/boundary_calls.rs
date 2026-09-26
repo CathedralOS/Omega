@@ -326,7 +326,7 @@ impl OperationFrame<'_, '_> {
     /// with one receipt per claim in a moved result's completed frontier.
     fn expected_claim_arguments(
         &self,
-        structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+        structural_arguments: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan],
     ) -> Result<Vec<u32>, LoweringError> {
         structural_arguments
             .iter()
@@ -367,13 +367,15 @@ impl OperationFrame<'_, '_> {
     /// onto this body's claim namespace.
     fn boundary_result_claims(
         &mut self,
-        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan,
     ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
         let checked = self.checked;
         let machine = self.machine;
         let (_, state) =
             crate::expression_preparation::source_custody::authored_state(checked, self.state)?;
-        let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
+        let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+            local,
+        )) = checked
             .statement_table
             .statements(state.statement_nodes)
             .get(result.statement_index as usize)
@@ -398,11 +400,12 @@ impl OperationFrame<'_, '_> {
                     && event.access == language_semantics::PermissionAccess::Owned
                     && event.multiplicity == Multiplicity::Linear
                     && event.obligation_live
-                    && event.root == facts::PlaceRoot::Symbol(local.symbol)
+                    && event.root
+                        == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(local.symbol)
             })
             .map(|event| {
                 let path = lower_structural_path(
-                    &validation::structural_claim_path(
+                    &typed_trees_to_checked_trees::validation::structural_claim_path(
                         &checked.typed,
                         local.type_reference,
                         checked
@@ -435,8 +438,8 @@ impl OperationFrame<'_, '_> {
     fn boundary_result_claim(
         &mut self,
         state: symbols::SymbolHandle,
-        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-        event: &checked_trees::FlowPermissionEventFact,
+        result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan,
+        event: &typed_trees_to_checked_trees::checked_trees::FlowPermissionEventFact,
     ) -> Result<ClaimId, LoweringError> {
         let machine = self.machine;
         let bound = lookup_claim_id(self.caller.claims.bindings(), event.claim_identity);

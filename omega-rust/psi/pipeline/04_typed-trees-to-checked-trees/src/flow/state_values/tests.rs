@@ -2,15 +2,16 @@ use crate::tests::front_end::{checked_program, typed_program};
 
 #[test]
 fn absent_and_stale_expression_handles_are_not_literal_evidence() {
-    let mut program = typed_trees::TypedTrees::default();
-    let zero = program
-        .expression_table
-        .insert(typed_trees::expression::ExpressionNode::default());
-    let stale = typed_trees::expression::ExpressionHandle::from_parts(
-        zero.arena_index(),
-        zero.generation() + 1,
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let zero = program.expression_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::default(),
     );
-    let missing = typed_trees::expression::ExpressionHandle::from_arena_index(u32::MAX);
+    let stale =
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::from_parts(
+            zero.arena_index(),
+            zero.generation() + 1,
+        );
+    let missing = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::from_arena_index(u32::MAX);
     for unknown in [Default::default(), stale, missing] {
         assert!(super::literal(&program, unknown).is_none());
     }
@@ -41,7 +42,7 @@ fn cross_owner_named_dispatch_is_an_unknown_incoming_edge() {
         .expression_table
         .iter_expressions()
         .find_map(|(handle, node)| {
-            matches!(node, typed_trees::expression::ExpressionNode::Integer(_)).then_some(handle)
+            matches!(node, symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Integer(_)).then_some(handle)
         })
         .unwrap();
     let caller = program
@@ -92,7 +93,7 @@ fn cross_owner_named_dispatch_is_an_unknown_incoming_edge() {
     assert_eq!(context.state_value_inputs.len(), 1);
     assert_eq!(
         context.state_value_inputs[0].values[0].1,
-        facts::ScalarValue::Unknown
+        crate::fact_plan::ScalarValue::Unknown
     );
 }
 
@@ -179,8 +180,10 @@ fn state_argument_values_are_saved_before_later_argument_writes() {
 
 #[test]
 fn computed_argument_capture_requires_unique_exact_source_and_destination() {
-    use checked_trees::CheckedScalarExpressionRole;
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+    use crate::checked_trees::CheckedScalarExpressionRole;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+        StatementNode, TransitionTargetNode,
+    };
     let source = "machine produce() -> u8 { transition { _ -> finish(3u8 + 4u8) } state finish(value: u8) -> u8 { value } }";
     let checked = checked_program(source);
     let program = &checked.typed;
@@ -262,9 +265,9 @@ fn computed_argument_capture_requires_unique_exact_source_and_destination() {
         assert_eq!(
             value,
             if mutation == 0 {
-                facts::ScalarValue::Integer(numerics::bignum::BigInt::from_u64(7))
+                crate::fact_plan::ScalarValue::Integer(numerics::bignum::BigInt::from_u64(7))
             } else {
-                facts::ScalarValue::Unknown
+                crate::fact_plan::ScalarValue::Unknown
             },
             "mutation {mutation}"
         );
@@ -273,7 +276,7 @@ fn computed_argument_capture_requires_unique_exact_source_and_destination() {
 
 #[test]
 fn sibling_continuation_values_have_independent_capture() {
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
     for (other, accepted) in [(4, true), (5, false)] {
         let source = format!(
             "machine produce(flag: bool) -> u8 ensures result == 7 {{ transition flag {{ true -> first(3u8 + 4u8) false -> second(3u8 + {other}u8) }} state first(value: u8) -> u8 {{ value }} state second(value: u8) -> u8 {{ value }} }}"

@@ -73,7 +73,7 @@ committing may fail. A valid owner-attached hook is nevertheless a legitimate
 exact-once terminal disposition for a linear type.
 
 Current executable support is narrower than these rules; see
-[Terminal production](../../omega-rust/psi/compiler/terminal-production/README.md#partial-ownership-and-cleanup)
+[Terminal production](../../omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/terminal_production.md#partial-ownership-and-cleanup)
 and [native cleanup](../../omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/README.md#structural-results-and-residual-cleanup).
 
 ## Explicit Early Disposal
@@ -327,7 +327,7 @@ if elements 0, 1, and 2 were established before an ordinary return, cleanup
 visits 2, 1, then 0. Unestablished elements have no value to dispose. A crash
 cleans none of them.
 
-The [producer note](../../omega-rust/psi/compiler/terminal-production/README.md#partial-ownership-and-cleanup)
+The [producer note](../../omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/terminal_production.md#partial-ownership-and-cleanup)
 records current bounded admission; each new array length is not a new language
 rule.
 

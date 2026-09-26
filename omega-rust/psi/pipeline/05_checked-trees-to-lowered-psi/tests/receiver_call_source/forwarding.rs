@@ -6,11 +6,11 @@ use super::{
     StructuralAccess, StructuralMultiplicity, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalMachineResult, TerminalStructuralValue, Terminator, unit_plan,
 };
-use terminal_interpreter::AcceptTerminalEffects;
-use terminal_interpreter::TerminalStructuralInputs;
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 #[test]
 fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order() {
     let declarations = [
@@ -79,15 +79,16 @@ fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order(
             );
         }
 
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Record::outer"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("transitive receiver chain reaches canonical Terminal production")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Record::outer"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("transitive receiver chain reaches canonical Terminal production")
+            .into_artifact();
         drop(checked);
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -98,8 +99,9 @@ fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order(
         let profile = proof_admission::AdmissionProfile::default();
         let verified = terminal_verifier::verify_module(&module, &proof, &profile)
             .expect("decoded transitive receiver chain independently verifies");
-        let certificate = terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry)
-            .expect("transitive receiver chain has fixed fuel");
+        let certificate =
+            omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry)
+                .expect("transitive receiver chain has fixed fuel");
         assert_eq!(module.machines.len(), 3);
         let entry = module
             .machines
@@ -254,15 +256,16 @@ fn empty_shared_receiver_callee_keeps_provisional_self_erased() {
         assert_eq!(*target_machine, callee.machine);
         assert!(structural_arguments.is_empty());
 
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("invoke"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("erased shared noop receiver reaches Terminal production")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("invoke"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("erased shared noop receiver reaches Terminal production")
+            .into_artifact();
         drop(checked);
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

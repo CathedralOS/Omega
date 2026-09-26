@@ -3,29 +3,29 @@ use crate::{
     legalize_target_operations, select_instructions, validate_legalized_operations,
     validate_selected_instructions,
 };
-use abstract_operations::{
-    AbstractBlockEntry, AbstractOperation, AbstractParameter, AbstractResult, AbstractSuccessor,
+use abstract_operations_to_target_operations::target_operations::{
+    TargetBooleanExpression, TargetControlTerminator, TargetIntegerExpression,
+    TargetScalarExpression, TargetUnitOperation,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
     PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{
-    TargetBooleanExpression, TargetControlTerminator, TargetIntegerExpression,
-    TargetScalarExpression, TargetUnitOperation,
-};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractOperation, AbstractParameter, AbstractResult, AbstractSuccessor,
 };
 
 fn fixture(
     native: NativeTarget,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
@@ -130,7 +130,7 @@ fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -144,7 +144,7 @@ fn fixture(
 /// stays exclusive, so a shared root must not satisfy it.
 fn block_parameter_source(
     block_access: StructuralAccess,
-) -> abstract_operations::AbstractOperationPlan {
+) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let scalar_type = ScalarType::Integer(integer);
@@ -217,7 +217,7 @@ fn block_parameter_source(
     ];
     let successor = |identity, target, lend| AbstractSuccessor {
         structural_bindings: if lend {
-            vec![abstract_operations::AbstractStructuralBinding {
+            vec![terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                 parameter: lent,
                 argument: StructuralArgument {
                     place,
@@ -294,7 +294,7 @@ fn an_exclusive_view_lends_through_a_block_parameter_and_a_shared_root_rejects()
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
@@ -313,7 +313,7 @@ fn an_exclusive_view_lends_through_a_block_parameter_and_a_shared_root_rejects()
             .expect("lent call argument");
         assert_eq!(
             argument.source,
-            target_operations::TargetStructuralArgumentSource::BlockParameter {
+            abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::BlockParameter {
                 block: BlockId::new(2).unwrap(),
                 place: PlaceId::new(11).unwrap(),
             },
@@ -348,7 +348,7 @@ fn shared_unit_graph_observations_and_boolean_homes_replay_on_all_hosted_targets
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -373,7 +373,7 @@ fn shared_unit_graph_observations_and_boolean_homes_replay_on_all_hosted_targets
                 0 => graph.parameters[0].access = StructuralAccess::Owned,
                 1 => {
                     graph.parameters[0].placement.shape =
-                        calling_conventions::ValueShape::integer(16, 8)
+                        abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(16, 8)
                 }
                 2 => {
                     let TargetUnitOperation::ScalarDefinition { result_home, .. } =
@@ -423,7 +423,7 @@ fn shared_unit_graph_observations_and_boolean_homes_replay_on_all_hosted_targets
                     else {
                         panic!("Boolean home");
                     };
-                    home.shape = calling_conventions::ValueShape::integer(8, 8);
+                    home.shape = abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(8, 8);
                 }
                 6 => graph.blocks[0].operations.swap(0, 1),
                 7 => {
@@ -438,7 +438,7 @@ fn shared_unit_graph_observations_and_boolean_homes_replay_on_all_hosted_targets
                     if mutation == 8 {
                         result_home.scalar_type = ScalarType::Boolean;
                     } else {
-                        result_home.shape = calling_conventions::ValueShape::integer(1, 1);
+                        result_home.shape = abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(1, 1);
                     }
                 }
                 _ => {

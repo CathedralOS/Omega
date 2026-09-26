@@ -105,7 +105,7 @@ fn boundary_result_moves_reject_same_type_substitution_and_conflicting_cleanup()
                         unreachable!()
                     };
                     argument.source =
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal: 1,
                         };
                 }

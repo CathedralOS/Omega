@@ -1,12 +1,12 @@
 //! Validation of retained disposition events, certificates and call uses
 //! against independent replay.
 
+use crate::checked_trees::{BorrowFacts, CheckedDirectBorrowLoanResource};
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowContainmentCertificateDraft, CheckedReborrowDispositionEventDraft,
     CheckedReborrowLoanResourceDraft, CheckedReborrowRestoredCallUseCertificateDraft,
     ResourceHandles,
 };
-use checked_trees::{BorrowFacts, CheckedDirectBorrowLoanResource};
 use diagnostics::Diagnostic;
 
 pub(crate) fn validate_retained_disposition_events(
@@ -163,8 +163,8 @@ pub(crate) fn reborrow_resource_drift() -> Vec<Diagnostic> {
 }
 
 pub(crate) fn invalid_reborrow_attenuation_diagnostic(
-    parent: &checked_trees::BorrowAccessKind,
-    child: &checked_trees::BorrowAccessKind,
+    parent: &crate::checked_trees::BorrowAccessKind,
+    child: &crate::checked_trees::BorrowAccessKind,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot derive {} reborrow authority from an exact {} parent loan; allowed direct reborrow access pairs are Read->Read, Mutable->Read, Mutable->Mutable, Mutable->WriteOnly, and WriteOnly->WriteOnly",
@@ -173,10 +173,10 @@ pub(crate) fn invalid_reborrow_attenuation_diagnostic(
     ))
 }
 
-fn borrow_access_name(access: &checked_trees::BorrowAccessKind) -> &'static str {
+fn borrow_access_name(access: &crate::checked_trees::BorrowAccessKind) -> &'static str {
     match access {
-        checked_trees::BorrowAccessKind::Read => "Read",
-        checked_trees::BorrowAccessKind::Mutable => "Mutable",
-        checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
+        crate::checked_trees::BorrowAccessKind::Read => "Read",
+        crate::checked_trees::BorrowAccessKind::Mutable => "Mutable",
+        crate::checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
     }
 }

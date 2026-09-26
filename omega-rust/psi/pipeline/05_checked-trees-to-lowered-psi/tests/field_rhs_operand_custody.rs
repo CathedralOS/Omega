@@ -1,9 +1,9 @@
 //! Computed field assignments retain their authored scalar call operands.
 
-use checked_trees::CheckedScalarComputationKind;
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
+use typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind;
 
 #[test]
 fn computed_field_rhs_rejects_same_typed_call_operand_substitution() {
@@ -16,7 +16,7 @@ fn computed_field_rhs_rejects_same_typed_call_operand_substitution() {
         }
     "#;
     let mut checked = crate::front_end::checked_program(source);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
     )
@@ -60,7 +60,7 @@ fn computed_field_rhs_rejects_same_typed_call_operand_substitution() {
         unreachable!()
     };
     *arguments = *second_arguments;
-    let result = terminal_production::TerminalProductionRequest::new(
+    let result = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
     )

@@ -10,7 +10,7 @@ use super::{
 
 pub(super) fn plan(
     planner: StatementPlanner<'_, '_>,
-    assignment: &typed_trees::statement::TableAssignment,
+    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
 ) {
     let StatementPlanner {
         program,
@@ -58,7 +58,7 @@ pub(super) fn plan(
     }
     // Every indexed step of the target keeps its own
     // selector row, keyed by its depth from the target.
-    for (depth, index) in validation::assignment_target_selectors(program, assignment.target)
+    for (depth, index) in crate::validation::assignment_target_selectors(program, assignment.target)
         .into_iter()
         .enumerate()
     {

@@ -6,12 +6,12 @@ use crate::lowering::name::lower_name;
 use crate::lowering::operator::lower_operator_definition;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
-use diagnostics::Diagnostic;
-use symbol_resolved_trees::domain::{
+use crate::symbol_resolved_trees::domain::{
     DomainAliasConstituent, DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact,
 };
+use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_domain_definition(
     lowerer: &mut Lowerer,
@@ -178,7 +178,8 @@ fn lower_domain_operators(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     operators: arena::HandleSpan<syntax::item::OperatorDefinition>,
-) -> Result<arena::HandleSpan<symbol_resolved_trees::operator::OperatorDefinition>, Diagnostic> {
+) -> Result<arena::HandleSpan<crate::symbol_resolved_trees::operator::OperatorDefinition>, Diagnostic>
+{
     let mut span = arena::HandleSpan::empty();
 
     for operator in syntax_trees.items.operators(operators) {
@@ -201,7 +202,7 @@ fn lower_membership_domain_arguments(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     arguments: arena::HandleSpan<syntax::types::TypeReferenceHandle>,
-) -> Result<arena::HandleSpan<symbol_resolved_trees::types::TypeReference>, Diagnostic> {
+) -> Result<arena::HandleSpan<crate::symbol_resolved_trees::types::TypeReference>, Diagnostic> {
     if arguments.is_empty() {
         return Ok(arena::HandleSpan::empty());
     }

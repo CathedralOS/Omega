@@ -71,14 +71,16 @@ fn lowers(source: &str) {
 /// `CheckedScalarExpression` satisfying `predicate`, descending through
 /// operand positions so nested casts still count.
 fn scalar_expressions_contain(
-    checked: &checked_trees::CheckedTrees,
-    predicate: impl Fn(&checked_trees::CheckedScalarExpression) -> bool,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    predicate: impl Fn(&typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression) -> bool,
 ) -> bool {
     fn contains(
-        expression: &checked_trees::CheckedScalarExpression,
-        predicate: &dyn Fn(&checked_trees::CheckedScalarExpression) -> bool,
+        expression: &typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression,
+        predicate: &dyn Fn(
+            &typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression,
+        ) -> bool,
     ) -> bool {
-        use checked_trees::CheckedScalarExpression as Expression;
+        use typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression as Expression;
         if predicate(expression) {
             return true;
         }
@@ -97,10 +99,12 @@ fn scalar_expressions_contain(
             }
             Expression::Boolean(boolean) => {
                 fn boolean_contains(
-                    expression: &checked_trees::CheckedBooleanExpression,
-                    predicate: &dyn Fn(&checked_trees::CheckedScalarExpression) -> bool,
+                    expression: &typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression,
+                    predicate: &dyn Fn(
+                        &typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression,
+                    ) -> bool,
                 ) -> bool {
-                    use checked_trees::CheckedBooleanExpression as Boolean;
+                    use typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression as Boolean;
                     match expression {
                         Boolean::Not(operand) => boolean_contains(operand, predicate),
                         Boolean::Equal { left, right }
@@ -133,8 +137,8 @@ fn scalar_expressions_contain(
             .nodes
             .iter()
             .any(|(_, node)| match &node.kind {
-                checked_trees::CheckedScalarComputationKind::Apply { expression, .. }
-                | checked_trees::CheckedScalarComputationKind::Value(expression) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Apply { expression, .. }
+                | typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Value(expression) => {
                     contains(expression, &predicate)
                 }
                 _ => false,
@@ -221,19 +225,22 @@ fn a_boolean_integer_conversion_lands_through_its_own_computation() {
         .find(|root| {
             matches!(
                 plans.nodes.get(root.root).kind,
-                checked_trees::CheckedScalarComputationKind::BooleanToInteger { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::BooleanToInteger { .. }
             )
         })
         .expect("the Boolean-to-integer initializer is a computation root");
     let node = plans.nodes.get(root.root);
-    assert_eq!(node.primitive_type, typed_trees::types::PrimitiveType::U32);
-    let checked_trees::CheckedScalarComputationKind::BooleanToInteger { operand, .. } = node.kind
+    assert_eq!(
+        node.primitive_type,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32
+    );
+    let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::BooleanToInteger { operand, .. } = node.kind
     else {
         unreachable!()
     };
     assert_eq!(
         plans.nodes.get(operand).primitive_type,
-        typed_trees::types::PrimitiveType::Bool
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
     );
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -270,7 +277,7 @@ fn a_boolean_integer_conversion_keeps_its_operands_evaluation() {
                 .map(|(_, root)| root)
                 .any(|root| matches!(
                     plans.nodes.get(root.root).kind,
-                    checked_trees::CheckedScalarComputationKind::BooleanToInteger { .. }
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::BooleanToInteger { .. }
                 )),
             "{operand} as {target}: the conversion is a computation root"
         );
@@ -315,10 +322,12 @@ fn a_trapping_conversion_keeps_its_checked_cast_occurrence() {
     "#,
     );
     assert!(
-        scalar_expressions_contain(&checked, |expression| matches!(
+        scalar_expressions_contain(&checked, |expression| {
+            matches!(
             expression,
-            checked_trees::CheckedScalarExpression::IntegerTrappingCast { .. }
-        )),
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerTrappingCast { .. }
+        )
+        }),
         "the narrowing Trapping cast survives checking as IntegerTrappingCast"
     );
 }
@@ -361,15 +370,17 @@ fn a_never_trapping_conversion_composes_without_a_trap_operation() {
     assert!(
         scalar_expressions_contain(&checked, |expression| matches!(
             expression,
-            checked_trees::CheckedScalarExpression::IntegerWiden { .. }
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerWiden { .. }
         )),
         "the total Trapping conversion folds to IntegerWiden at checked stage"
     );
     assert!(
-        !scalar_expressions_contain(&checked, |expression| matches!(
+        !scalar_expressions_contain(&checked, |expression| {
+            matches!(
             expression,
-            checked_trees::CheckedScalarExpression::IntegerTrappingCast { .. }
-        )),
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerTrappingCast { .. }
+        )
+        }),
         "no Trapping conversion node remains once the trap is unreachable"
     );
 }
@@ -440,10 +451,12 @@ fn a_saturating_conversion_composes_on_signed_narrowing() {
     "#,
     );
     assert!(
-        scalar_expressions_contain(&checked, |expression| matches!(
+        scalar_expressions_contain(&checked, |expression| {
+            matches!(
             expression,
-            checked_trees::CheckedScalarExpression::IntegerSaturatingCast { .. }
-        )),
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerSaturatingCast { .. }
+        )
+        }),
         "the signed narrowing keeps its checked IntegerSaturatingCast occurrence"
     );
     checked_trees_to_lowered_psi::lower_machine(

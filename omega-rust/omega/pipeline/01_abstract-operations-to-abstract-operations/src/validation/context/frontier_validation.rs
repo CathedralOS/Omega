@@ -4,11 +4,13 @@ use super::super::{BTreeMap, O};
 use super::{OptimizationUnitValidationError, PsiOptimizationUnit};
 use crate::validation::member_blocks::invariant_member_parameters;
 use crate::validation::place_observations::invariant_member_place_parameters;
-use optimization_unit::{OptimizationFact, PsiOptimizationFunction, PsiProvenance};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    OptimizationFact, PsiOptimizationFunction, PsiProvenance,
+};
 pub(super) fn validate_surviving_frontiers(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
-    components: &[optimization_unit::OptimizerCycleComponent],
+    components: &[terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent],
 ) -> Result<(), OptimizationUnitValidationError> {
     let context = input.context();
     let reconstructed = context
@@ -90,7 +92,7 @@ pub(super) fn validate_surviving_frontiers(
 fn validate_surviving_byte_operations(
     module: &terminal_psi::TerminalModule,
     function: &PsiOptimizationFunction,
-    components: &[optimization_unit::OptimizerCycleComponent],
+    components: &[terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent],
 ) -> Result<(), OptimizationUnitValidationError> {
     // Member structural parameters whose reaching edges agree on one
     // representative root — reconstructed here from the transformed unit's own
@@ -457,7 +459,7 @@ fn validate_surviving_byte_operations(
 fn runtime_read_matches(
     original: &terminal_psi::Operation,
     (result, source, path): (
-        &abstract_operations::AbstractResult,
+        &terminal_psi_to_abstract_operations::abstract_operations::AbstractResult,
         semantic_vocabulary::PlaceId,
         &[terminal_psi::StructuralPathSegment],
     ),

@@ -11,10 +11,12 @@
 //! call this one join.
 
 use crate::LegalizationError;
+use crate::legalized_operations::LegalizedRuntimeIndexOperand;
 use crate::structural_inputs::structural_reference_input::RuntimeElement;
-use legalized_operations::LegalizedRuntimeIndexOperand;
-use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::{OperationId, ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationFunction, PsiOptimizationUnit,
+};
 
 /// Join each runtime element of `operation`'s projection, in path order, to
 /// its selector's exact definition and to the accepted certificate for the
@@ -45,7 +47,7 @@ pub(crate) fn operands(
                 .map(|fact| fact.identity)
                 .ok_or(LegalizationError::custody())?;
             Ok(LegalizedRuntimeIndexOperand {
-                operand: abstract_operations::AbstractResult {
+                operand: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                     value: element.index,
                     scalar_type,
                 },

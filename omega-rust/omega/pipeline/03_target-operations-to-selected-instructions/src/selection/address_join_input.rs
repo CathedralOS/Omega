@@ -1,6 +1,6 @@
 //! Shared address joins in legalized input, rejoined for selection.
 //!
-//! An address join (`abstract_operations::control_flow::address_joins`) owns
+//! An address join (`terminal_psi_to_abstract_operations::abstract_operations::control_flow::address_joins`) owns
 //! one 8-byte block slot holding its referent's address. Its block entry
 //! loads that address once, so every later consumer sees the same pointer an
 //! incoming borrowed parameter would supply. Each edge into the join lends a
@@ -9,12 +9,12 @@
 //! both derive the edge transport here from the legalized function and their
 //! own transport state; neither trusts the other's choice.
 
-use calling_conventions::ValueShape;
-use legalized_operations::LegalizedScalarFunction;
-use selected_instructions::{
+use crate::legalized_operations::LegalizedScalarFunction;
+use crate::selected_instructions::{
     LocalStorageSlotId, SelectedAddressBase, SelectedLocalStorageSlot, SelectedStructuralTransport,
     VirtualRegisterId,
 };
+use abstract_operations_to_target_operations::calling_conventions::ValueShape;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralParameterDeclaration};
 
@@ -34,7 +34,7 @@ pub(crate) fn join(
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != source.entry_block
-        && abstract_operations::control_flow::address_joins::is_address_join_in(
+        && terminal_psi_to_abstract_operations::abstract_operations::control_flow::address_joins::is_address_join_in(
             parameter,
             &signature.structural_types,
         )
@@ -83,7 +83,7 @@ pub(crate) fn transport(
 ) -> Option<SelectedStructuralTransport> {
     let signature = source.structural.as_ref()?;
     if argument.access != StructuralAccess::SharedBorrow
-        || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+        || !terminal_psi_to_abstract_operations::abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
         || join(source, parameter.place)?.0 != target
     {
         return None;

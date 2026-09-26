@@ -1,22 +1,24 @@
 //! Element observation and view operations for common graph lowering.
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
+use crate::calling_conventions::ValueShape;
 use crate::lowering::scalar::expressions::insert_value;
 use crate::lowering::structural_layout::resolve_structural_field_path;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
-use calling_conventions::ValueShape;
+use crate::target_operations::{
+    TargetElementView, TargetIntegerExpression, TargetStructuralArgumentSource,
+    TargetStructuralParameter,
+};
 use semantic_vocabulary::{
     IntegerSign, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
-use target_operations::{
-    TargetElementView, TargetIntegerExpression, TargetStructuralArgumentSource,
-    TargetStructuralParameter,
-};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
 };
 
 pub(in crate::lowering) fn is_immutable_element_view_parameter(

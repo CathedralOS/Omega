@@ -3,8 +3,8 @@
 //! register or condition-state hazard, and whether a boundary settlement
 //! sits inside a window. Each rewrite locates its own window; the audit of
 //! that window is one owner.
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, VirtualRegisterId,
 };
@@ -412,19 +412,19 @@ pub(in crate::rewrites) fn admit_run_relocation(
 
 #[cfg(test)]
 mod tests {
-    use register_model::{
+    use semantic_vocabulary::{
+        BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ValueId,
+    };
+    use target_operations_to_selected_instructions::register_model::{
         RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     };
-    use selected_instructions::{
+    use target_operations_to_selected_instructions::{
         SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
         SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
         SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
         SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
         SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
         VirtualRegisterId,
-    };
-    use semantic_vocabulary::{
-        BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ValueId,
     };
 
     use super::{RunRelocationRejection, admit_run_relocation};
@@ -465,8 +465,11 @@ mod tests {
         }
     }
 
-    fn successor(block: SelectedBlockId, edge: u64) -> selected_instructions::SelectedSuccessor {
-        selected_instructions::SelectedSuccessor {
+    fn successor(
+        block: SelectedBlockId,
+        edge: u64,
+    ) -> target_operations_to_selected_instructions::SelectedSuccessor {
+        target_operations_to_selected_instructions::SelectedSuccessor {
             role: SelectedSuccessorRole::Semantic,
             structural_case: None,
             structural_bindings: Vec::new(),
@@ -600,7 +603,7 @@ mod tests {
             panic!()
         };
         successor.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(20).unwrap(),
                 argument: ValueId::new(21).unwrap(),
                 scalar_type: semantic_vocabulary::ScalarType::Integer(

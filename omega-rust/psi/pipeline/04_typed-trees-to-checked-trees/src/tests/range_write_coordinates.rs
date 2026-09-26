@@ -357,15 +357,13 @@ fn transitive_write_selectors_require_builtin_arithmetic_meaning() {
                 &borrows,
                 call,
                 &crate::flow::StateMutationSummaryCache::default(),
-                ::validation::CallFrameResolver::new(&program).as_ref(),
+                crate::validation::CallFrameResolver::new(&program).as_ref(),
             );
             if precise {
                 let writes = writes.expect("complete builtin writes");
                 assert!(
-                    writes
-                        .iter()
-                        .any(|place| place.segments
-                            == [facts::PlaceSegment::FixedIndex { index: 1 }]),
+                    writes.iter().any(|place| place.segments
+                        == [crate::fact_plan::PlaceSegment::FixedIndex { index: 1 }]),
                     "{source}\n{writes:?}"
                 );
             } else if let Some(writes) = writes {
@@ -374,10 +372,12 @@ fn transitive_write_selectors_require_builtin_arithmetic_meaning() {
                     "custom selector cannot erase writes: {source}"
                 );
                 assert!(
-                    writes.iter().all(|place| !place
-                        .segments
+                    writes
                         .iter()
-                        .any(|segment| matches!(segment, facts::PlaceSegment::FixedIndex { .. }))),
+                        .all(|place| !place.segments.iter().any(|segment| matches!(
+                            segment,
+                            crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                        ))),
                     "custom selector cannot invent fixed coordinates: {source}\n{writes:?}"
                 );
             }

@@ -1,6 +1,6 @@
+use crate::checked_trees::ProofFacts;
+use crate::fact_plan::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, QualificationEvidence};
 use crate::labels::semantic_proof_obligation_kind;
-use checked_trees::ProofFacts;
-use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, QualificationEvidence};
 mod contracts;
 mod field_domains;
 mod points;
@@ -13,10 +13,10 @@ use field_domains::{
 use points::proof_obligation_point;
 
 pub(crate) fn build_semantic_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     proof: &ProofFacts,
 ) -> FactPlan {
-    let mut facts = validation::build_definition_fact_plan(program);
+    let mut facts = crate::validation::build_definition_fact_plan(program);
     append_proof_obligation_semantic_facts(proof, &mut facts);
     append_contract_semantic_facts(program, proof, &mut facts);
     // #66 read-narrowing: surface declared field domains as machine entry facts

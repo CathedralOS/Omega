@@ -1,7 +1,8 @@
 pub(in crate::semantic::calls) struct CallSiteTraversal<'program, 'ordinal> {
-    pub(super) program: &'program typed_trees::TypedTrees,
-    pub(super) machine: &'program typed_trees::machine::Machine,
-    pub(super) state: &'program typed_trees::state::State,
+    pub(super) program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    pub(super) machine:
+        &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    pub(super) state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     pub(super) current_statement_index: usize,
     pub(super) target_statement_index: usize,
     pub(super) target_call_ordinal: usize,
@@ -14,9 +15,9 @@ pub(in crate::semantic::calls) struct CallSiteTraversal<'program, 'ordinal> {
 
 impl<'program> CallSiteTraversal<'program, '_> {
     pub(in crate::semantic::calls) fn new<'ordinal>(
-        program: &'program typed_trees::TypedTrees,
-        machine: &'program typed_trees::machine::Machine,
-        state: &'program typed_trees::state::State,
+        program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         current_statement_index: usize,
         target_statement_index: usize,
         target_call_ordinal: usize,
@@ -37,9 +38,9 @@ impl<'program> CallSiteTraversal<'program, '_> {
     /// Traversal that records every call site of one statement in ordinal
     /// order instead of stopping at the first ordinal match.
     pub(in crate::semantic::calls) fn collecting<'ordinal>(
-        program: &'program typed_trees::TypedTrees,
-        machine: &'program typed_trees::machine::Machine,
-        state: &'program typed_trees::state::State,
+        program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statement_index: usize,
         current_ordinal: &'ordinal mut usize,
         collected: &'ordinal mut Vec<super::super::CallSite<'program>>,

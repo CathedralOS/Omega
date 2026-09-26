@@ -27,8 +27,10 @@ use crate::rewrites::runtime_spill::admission;
 use crate::rewrites::runtime_spill::tests::budget;
 use crate::spill_selected_runtime_value;
 use crate::validate_runtime_spill;
-use register_model::{RegisterClassId, RegisterOperandAccess};
-use selected_instructions::SelectedOperand;
+use target_operations_to_selected_instructions::SelectedOperand;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterOperandAccess,
+};
 
 /// The base fixture's copy chain — register 1 defined by instruction 1 and
 /// used by instructions 2, 3, and 4 — gains a read-modify-write between the
@@ -106,7 +108,10 @@ fn operand(
     }
 }
 
-fn reload_named_by(block: &selected_instructions::SelectedBlock, id: u32) -> VirtualRegisterId {
+fn reload_named_by(
+    block: &target_operations_to_selected_instructions::SelectedBlock,
+    id: u32,
+) -> VirtualRegisterId {
     block
         .instructions
         .iter()
@@ -186,15 +191,16 @@ fn read_modify_writes_store_the_post_write_value_and_close_the_span() {
                         assert_ne!(rewriting.operands[0].virtual_register, VirtualRegisterId(1));
                     }
                 }
-                let count_loads = |block: &selected_instructions::SelectedBlock| {
-                    block
-                        .instructions
-                        .iter()
-                        .filter(|instruction| {
-                            matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
-                        })
-                        .count()
-                };
+                let count_loads =
+                    |block: &target_operations_to_selected_instructions::SelectedBlock| {
+                        block
+                            .instructions
+                            .iter()
+                            .filter(|instruction| {
+                                matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+                            })
+                            .count()
+                    };
                 // The rewrite closes the still-open span: the use at 4 reads
                 // the new value through a fresh pair even under the crossing
                 // policy, which crossed the call between the uses at 2 and 3.
@@ -557,15 +563,16 @@ fn early_clobber_tied_write_with_a_shared_coreader_takes_a_dedicated_reload() {
             let identity = selected_instruction_plan_identity(source.transformed());
             source.receipt.source_selected = identity;
             source.receipt.transformed_selected = identity;
-            let count_loads = |block: &selected_instructions::SelectedBlock| {
-                block
-                    .instructions
-                    .iter()
-                    .filter(|instruction| {
-                        matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
-                    })
-                    .count()
-            };
+            let count_loads =
+                |block: &target_operations_to_selected_instructions::SelectedBlock| {
+                    block
+                        .instructions
+                        .iter()
+                        .filter(|instruction| {
+                            matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+                        })
+                        .count()
+                };
             for policy in [
                 crate::RuntimeSpillSpanPolicy::UnitWriteBounded,
                 crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
@@ -803,17 +810,18 @@ fn read_modify_write_forms_still_rejected() {
         .constraint(environment.selected_keys().copy_i64)
         .unwrap();
     let victim_class = copy.operands[0].class;
-    let rewriting = |function: &mut selected_instructions::SelectedFunction,
-                     operands: Vec<SelectedOperand>| {
-        let mut instruction = admission::instruction(
-            SelectedInstructionId(6),
-            SelectedInstructionKind::CopyI64,
-            copy,
-            &[],
-        );
-        instruction.operands = operands;
-        function.blocks[0].instructions.insert(3, instruction);
-    };
+    let rewriting =
+        |function: &mut target_operations_to_selected_instructions::SelectedFunction,
+         operands: Vec<SelectedOperand>| {
+            let mut instruction = admission::instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[],
+            );
+            instruction.operands = operands;
+            function.blocks[0].instructions.insert(3, instruction);
+        };
     for mutation in 0..10 {
         let mut source = fixture(target);
         {

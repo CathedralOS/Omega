@@ -26,7 +26,7 @@ pub(super) fn producer(
 ) -> Option<(
     OperationId,
     &StructuralOperationResult,
-    abstract_operations::AbstractResult,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractResult,
 )> {
     let mut matches = function
         .blocks

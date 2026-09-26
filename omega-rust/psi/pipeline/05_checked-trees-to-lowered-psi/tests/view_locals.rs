@@ -34,7 +34,7 @@ impl TerminalEffectHandler for Observed {
     }
 }
 
-fn lower(source: &str) -> Result<lowered_psi::LoweredPsi, String> {
+fn lower(source: &str) -> Result<checked_trees_to_lowered_psi::lowered_psi::LoweredPsi, String> {
     let checked = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -62,7 +62,9 @@ fn execute(source: &str) -> Vec<i128> {
 /// Count every view subslice in the lowered module whose source is itself an
 /// operation result rather than a machine parameter: a narrowed view local,
 /// not a narrowed formal.
-fn subslices_of_established_views(lowered: &lowered_psi::LoweredPsi) -> usize {
+fn subslices_of_established_views(
+    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+) -> usize {
     lowered
         .semantic_module
         .machines

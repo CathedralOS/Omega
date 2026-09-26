@@ -140,13 +140,13 @@ impl StateGraphEmission<'_, '_> {
         // Established payloads are parameters of a guard dispatch block,
         // so the edge's arguments must be evaluated after selection.
         let stage = case_edge || !established.is_empty() || edge.scalar_arguments.iter().any(|argument| matches!(
-            argument.source, checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+            argument.source, typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
         )) || edge.transfers.iter().any(|transfer| matches!(
-            transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. }
+            transfer.source, typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. }
         )) || guarded
                 && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
-                    transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
-                        | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. }
+                    transfer.source, typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
+                        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. }
                 )));
         let operation_start = operations.len();
         let staged = if stage {
@@ -172,7 +172,7 @@ impl StateGraphEmission<'_, '_> {
             for transfer in &edge.scalar_arguments {
                 if !matches!(
                     transfer.source,
-                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
                 ) {
                     continue;
                 }
@@ -289,7 +289,7 @@ impl StateGraphEmission<'_, '_> {
                 .find(|(_, (parameter, _))| parameter.position as usize == argument_position)
             {
                 if target_parameter.is_self {
-                    let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                         index,
                     } = transfer.source
                     else {
@@ -319,7 +319,7 @@ impl StateGraphEmission<'_, '_> {
                     // parameter's place; the block does not rebind it, so
                     // the transfer row must still name that exact
                     // parameter and no edge argument is emitted.
-                    let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                         index,
                     } = transfer.source
                     else {
@@ -341,14 +341,14 @@ impl StateGraphEmission<'_, '_> {
                     continue;
                 }
                 let place = match transfer.source {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => edge_evaluation.current_structural_place(case_emission::result(state, binding_ordinal, operations)?.place),
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => edge_evaluation.current_structural_place(case_emission::result(state, binding_ordinal, operations)?.place),
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
                             edge_evaluation.current_structural_place(state_parameters.get(index as usize).ok_or(
                                 LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
                             )?.place)
                         }
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
-                        | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. } => {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
+                        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. } => {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
                             self.structural_places.push(subslices::emit(
                                 checked, state, edge.statement_ordinal, target_parameter.position, &transfer.source,
@@ -357,17 +357,17 @@ impl StateGraphEmission<'_, '_> {
                             )?);
                             destination
                         }
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                             ref subject, ref case_identity, ref field_identity, ref path,
                         } => {
                             let (source, root_type) = match subject.source {
-                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                                     let parameter = state_parameters.get(parameter_index as usize).ok_or(
                                         LoweringError::Unsupported("Unit graph case-payload subject descriptor disappeared"),
                                     )?;
                                     (edge_evaluation.current_structural_place(parameter.place), parameter.structural_type)
                                 }
-                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                                     let produced = case_emission::result(state, binding_ordinal, operations)?;
                                     (edge_evaluation.current_structural_place(produced.place), produced.structural_type)
                                 }
@@ -377,7 +377,7 @@ impl StateGraphEmission<'_, '_> {
                                     );
                                 }
                             };
-                            if matches!(subject.access, checked_trees::CheckedStructuralAccess::WriteOnlyBorrow) {
+                            if matches!(subject.access, typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow) {
                                 return unsupported(
                                     "Unit graph case-payload subject is write-only",
                                 );
@@ -395,8 +395,8 @@ impl StateGraphEmission<'_, '_> {
                     place,
                     path: Vec::new(),
                     access: match target_parameter.access {
-                        checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
-                        checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => {
                             StructuralAccess::MutableBorrow
                         }
                         _ => StructuralAccess::SharedBorrow,
@@ -424,13 +424,13 @@ impl StateGraphEmission<'_, '_> {
                     "Unit graph successor argument position missing",
                 ))?;
             let expression = match transfer.source {
-                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => {
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => {
                     bindings.expression(&CheckedScalarExpression::Parameter {
                         position: index as usize,
                         primitive_type: transfer.primitive_type,
                     })?
                 }
-                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
                     let value = scalars::successor_value(checked, state, edge, transfer)?;
                     let mut calls = self.catalogs.scalar_calls.emission_context();
                     let value = edge_evaluation.source_value(

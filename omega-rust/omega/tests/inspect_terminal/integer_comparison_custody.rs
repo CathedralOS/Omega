@@ -2,7 +2,7 @@
 
 use super::{inspect, lower_source, remove_fixture, temporary_source};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use compiler::CheckedCompileRequest;
+use omega::compiler::CheckedCompileRequest;
 
 /// `inspect-terminal` runs the same integer-comparison custody join the
 /// retained and direct native routes check: a selected `==` use must rejoin
@@ -68,7 +68,7 @@ fn integer_comparison_custody_rejects_a_negated_recorded_triple() {
         "#,
     );
 
-    let checked = compiler::compile_to_checked(CheckedCompileRequest::new(&source, None))
+    let checked = omega::compiler::compile_to_checked(CheckedCompileRequest::new(&source, None))
         .expect("check integer-comparison fixture");
     let mut lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -83,7 +83,7 @@ fn integer_comparison_custody_rejects_a_negated_recorded_triple() {
     assert!(!occurrence.negated);
     lowered.selected_integer_comparison_occurrences[0].negated = true;
     assert!(
-        compiler::validate_lowered_integer_comparison_custody(&checked, &lowered).is_err(),
+        omega::compiler::validate_lowered_integer_comparison_custody(&checked, &lowered).is_err(),
         "a negation-drifting occurrence must fail the custody join"
     );
 }

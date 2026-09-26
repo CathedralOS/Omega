@@ -1,16 +1,16 @@
 //! Direct reconstruction of both logical reload specifications.
 
-use register_model::RegisterViewId;
-use selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::RegisterViewId;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeError, GeneralizedSpillActionSource, GeneralizedSpillEvent,
     ValidatedSpillRecoveryActions,
 };
-use selected_instructions::LiveRangePoint;
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 use super::{ReloadSpec, homes};
-use register_homes::FunctionAllocationLegality;
+use selected_instructions_to_selected_instructions::register_homes::FunctionAllocationLegality;
 
 pub(super) fn reconstruct(
     function: usize,

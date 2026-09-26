@@ -1,17 +1,17 @@
-use crate::lookup::machine_state_count;
-use arena::HandleSpan;
-use checked_trees::statement::StatementNode;
-use checked_trees::{
+use crate::checked_trees::statement::StatementNode;
+use crate::checked_trees::{
     BorrowFacts, ContractCallFact, ContractExitFact, ContractProofFact, ContractProofFactKind,
     ContractProofFactOwner, ContractProofFactRef,
 };
+use crate::lookup::machine_state_count;
+use arena::HandleSpan;
 use symbols::SymbolHandle;
 
 #[cfg(test)]
 mod tests;
 
 pub(crate) fn build_contract_call_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     contract_facts: &arena::Arena<ContractProofFact>,
 ) -> (
@@ -144,7 +144,7 @@ fn append_contract_call(
 }
 
 pub(crate) fn build_contract_exit_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     contract_facts: &arena::Arena<ContractProofFact>,
     fact_refs: &mut arena::Arena<ContractProofFactRef>,
 ) -> arena::Arena<ContractExitFact> {
@@ -287,13 +287,13 @@ pub(crate) fn build_contract_exit_facts(
                     continue;
                 };
                 has_transition = true;
-                if transition.exit == typed_trees::statement::TransitionExit::Ordinary {
+                if transition.exit == symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionExit::Ordinary {
                     for target in [transition.target, transition.continuation] {
                         if target.is_valid()
                             && matches!(
                                 program.statement_table.transition_target(target),
-                                typed_trees::statement::TransitionTargetNode::Terminal
-                                    | typed_trees::statement::TransitionTargetNode::Value(_)
+                                symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Terminal
+                                    | symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(_)
                             )
                         {
                             exits.append(ContractExitFact {
@@ -385,7 +385,7 @@ fn append_contract_fact_refs(
 }
 
 pub(crate) fn contract_target_from_state_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     if !target_state_symbol.is_valid() {
@@ -417,7 +417,11 @@ pub(crate) fn contract_target_from_state_symbol(
 
     for machine in program.machines() {
         if let Ok(Some((owner, requirement))) =
-            validation::named_conformance_target_requirement(program, machine, target_state_symbol)
+            crate::validation::named_conformance_target_requirement(
+                program,
+                machine,
+                target_state_symbol,
+            )
         {
             return Some((owner, requirement.symbol));
         }

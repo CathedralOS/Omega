@@ -1,11 +1,13 @@
 //! Shared address joins lend their referent's address to borrowed calls.
 use super::structural_borrows::source_plan;
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
-use calling_conventions::ValueShape;
+use crate::calling_conventions::ValueShape;
+use crate::target_operations::{TargetStructuralArgumentSource, TargetUnitOperation};
 use semantic_vocabulary::PlaceId;
 use target::NativeTarget;
-use target_operations::{TargetStructuralArgumentSource, TargetUnitOperation};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractOperationPlan,
+};
 
 /// `borrowed_results::PRIMITIVE_CALL_SOURCE` behind an entry that stores it.
 const PRIMITIVE_CALL_SOURCE: &str = "data Payload { left: u64; right: u64; }
@@ -49,7 +51,9 @@ fn join(plan: &AbstractOperationPlan) -> (usize, PlaceId) {
 
 fn edit_join_bindings(
     plan: &mut AbstractOperationPlan,
-    edit: impl Fn(&mut abstract_operations::AbstractStructuralBinding),
+    edit: impl Fn(
+        &mut terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding,
+    ),
 ) {
     let (function, place) = join(plan);
     for operation in &mut plan.functions[function].operations {
@@ -129,7 +133,9 @@ fn projected_and_whole_joins_lend_the_block_carrier_to_borrowed_calls() {
 fn address_join_edges_reject_substituted_referents_widened_access_and_forged_roots() {
     let edits: [(
         &str,
-        fn(&mut abstract_operations::AbstractStructuralBinding),
+        fn(
+            &mut terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding,
+        ),
     ); 4] = [
         ("whole record for a leaf", |binding| {
             binding.argument.path.clear()

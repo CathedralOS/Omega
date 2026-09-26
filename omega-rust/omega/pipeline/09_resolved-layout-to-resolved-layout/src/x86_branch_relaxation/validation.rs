@@ -1,5 +1,5 @@
-use register_model::ValidatedPhysicalRegisterModel;
 use target::{Architecture, NativeTarget};
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
 use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 

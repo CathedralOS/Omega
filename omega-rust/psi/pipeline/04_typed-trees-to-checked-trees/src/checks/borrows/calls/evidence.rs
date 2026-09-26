@@ -2,13 +2,13 @@
 //! reconstruct subjects at the original call boundary and run the same bound
 //! judgment; retained rows are outputs to compare, never hints to that judgment.
 
-use arena::Handle;
-use checked_trees::{
+use crate::checked_trees::{
     BorrowArgumentAccessFact, BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubject,
     BorrowCallFact, BorrowCompatibilityConclusion, BorrowCompatibilityDerivation,
     BorrowCompatibilityFormation, BorrowFacts, BorrowLoanFact, CapturedPlace,
     CheckedBorrowCallCompatibilityCertificate, FlowStateFact,
 };
+use arena::Handle;
 
 pub(super) fn argument_operand(
     borrow: &BorrowFacts,
@@ -54,11 +54,11 @@ pub(super) struct CallCompatibility<'call> {
 impl CallCompatibility<'_> {
     pub(super) fn non_interfering<'p>(
         &mut self,
-        program: &'p typed_trees::TypedTrees,
+        program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         left: BorrowCallCompatibilityOperand,
         right: BorrowCallCompatibilityOperand,
         premises: &[StatedOrderingPremise],
-        bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+        bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
     ) -> bool {
         let evidence = captured_place_compatibility_with_selector_snapshot(
             program,

@@ -1,6 +1,6 @@
 use crate::lowerer::name::lower_name;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use crate::typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(super) fn lower_name_path_members_into_table(
     source: &resolved::expression::ExpressionTable,

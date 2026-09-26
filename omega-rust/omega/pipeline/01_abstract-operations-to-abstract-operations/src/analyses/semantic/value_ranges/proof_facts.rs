@@ -1,10 +1,10 @@
 //! Dominated ranges reconstructed from exact accepted operation proofs.
 
-use optimization_unit::{
+use semantic_vocabulary::ScalarType;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationFact, ProofQuestionOwner, PsiOptimizationUnit, ValueRangeFact, ValueRangeRegion,
     ValueRangeScope, ValueRangeSupport,
 };
-use semantic_vocabulary::ScalarType;
 
 use crate::analyses::control_flow::DominatorAnalysis;
 

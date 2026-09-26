@@ -2,14 +2,14 @@
 //! checking. It is a tag observation, never equality against a fabricated
 //! payload value. The current scalar namespace names parameter referents;
 //! constructor and local referents must arrive through ordinary value sequencing.
+use crate::checked_trees::CheckedBooleanExpression;
+use crate::checked_trees::CheckedStructuralParameterField;
 use crate::values::scalar::structural_fields::structural_parameter_field_path;
-use checked_trees::CheckedBooleanExpression;
-use checked_trees::CheckedStructuralParameterField;
-use typed_trees::TypedTrees;
-use typed_trees::expression::BinaryOperator;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
 
 pub(super) fn lower(
     program: &TypedTrees,
@@ -46,7 +46,7 @@ pub(super) fn lower(
                 .then_some((machine, state))
         })
     })?;
-    if !validation::has_exact_case_membership_meaning(
+    if !crate::validation::has_exact_case_membership_meaning(
         program,
         machine,
         Some(state),
@@ -74,13 +74,16 @@ pub(super) fn structural_case_name(
     program: &TypedTrees,
     selected: symbols::SymbolHandle,
 ) -> Option<String> {
-    let case = program
-        .data_definitions()
-        .iter()
-        .flat_map(|data| program.data_members(data))
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Variant(case) if case.symbol == selected => Some(case),
-            _ => None,
-        })?;
+    let case =
+        program
+            .data_definitions()
+            .iter()
+            .flat_map(|data| program.data_members(data))
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    case,
+                ) if case.symbol == selected => Some(case),
+                _ => None,
+            })?;
     Some(case.path_identity())
 }

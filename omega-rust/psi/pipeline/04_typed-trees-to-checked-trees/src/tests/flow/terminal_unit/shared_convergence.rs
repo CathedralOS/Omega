@@ -1,8 +1,8 @@
 use super::PrimitiveType;
+use crate::checked_trees::{CheckedIntegerBinaryKind, CheckedScalarExpression};
 use crate::execution::terminal_unit::shared_convergence::shared_integer_runtime_parameter_positions_for_test;
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{CheckedIntegerBinaryKind, CheckedScalarExpression};
 
 fn parameter(position: usize) -> CheckedScalarExpression {
     CheckedScalarExpression::Parameter {
@@ -68,7 +68,7 @@ fn shared_integer_inputs_compose_operations_without_association_or_shell_catalog
     let narrowed = CheckedScalarExpression::IntegerExactCast {
         primitive_type: PrimitiveType::U8,
         operand: Box::new(widened),
-        range: checked_trees::CheckedIntegerRange {
+        range: crate::checked_trees::CheckedIntegerRange {
             minimum: numerics::bignum::BigInt::from_i64(0),
             maximum: numerics::bignum::BigInt::from_i64(255),
         },
@@ -137,7 +137,7 @@ fn shared_exact_cast_custody_distinguishes_operations_from_partial_conversion_wo
     let cast = |operand| CheckedScalarExpression::IntegerExactCast {
         primitive_type: PrimitiveType::U8,
         operand: Box::new(operand),
-        range: checked_trees::CheckedIntegerRange {
+        range: crate::checked_trees::CheckedIntegerRange {
             minimum: numerics::bignum::BigInt::from_i64(0),
             maximum: numerics::bignum::BigInt::from_i64(255),
         },

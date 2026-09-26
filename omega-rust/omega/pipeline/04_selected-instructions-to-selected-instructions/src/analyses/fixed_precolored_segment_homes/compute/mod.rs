@@ -8,18 +8,18 @@ mod roots;
 mod work;
 
 use optimization_core::OptimizationWorkBudget;
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
 
+use crate::register_homes::{FixedPrecoloredSegmentHomePlan, FixedPrecoloredSegmentHomePolicy};
 use crate::{
     FixedPrecoloredSegmentHomeError, ValidatedAllocationLegality,
     ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSplitRequirements,
     ValidatedLiveRanges,
 };
-use register_homes::{FixedPrecoloredSegmentHomePlan, FixedPrecoloredSegmentHomePolicy};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute(

@@ -3,9 +3,9 @@ mod member_binding;
 mod structural_equality;
 
 use crate::expressions::equatable::EqualityScope;
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(super) fn lower_expression_handle_from_table_with_self_substitution(
     program: Option<&resolved::SymbolResolvedTrees>,

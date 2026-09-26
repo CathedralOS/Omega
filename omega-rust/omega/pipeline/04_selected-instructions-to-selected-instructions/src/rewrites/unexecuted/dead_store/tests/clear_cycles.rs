@@ -14,21 +14,21 @@ use crate::rewrites::unexecuted::dead_store::{
     DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
 };
 use optimization_core::OptimizationWorkBudget;
-use register_environment::baseline_target_register_environment;
-use selected_instructions::{
+use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::{
     LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedInstructionId,
     SelectedInstructionKind, SelectedMemoryAccessRole, SelectedStructuralBinding,
     SelectedStructuralTransport, SelectedTerminator,
 };
-use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId};
-use target::NativeTarget;
 
 /// Replace the chained fixture's successor block body and terminator with a
 /// clear self-loop: `block1` holds one pure-register copy and jumps to
 /// itself forever. The killer's roster row is dropped with its store.
 fn clear_self_loop(
-    function: &mut selected_instructions::SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    function: &mut target_operations_to_selected_instructions::SelectedFunction,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) {
     let jump = environment
         .constraint(environment.selected_keys().jump)
@@ -285,7 +285,7 @@ fn clear_cycles_still_reject_every_observation_route() {
         successor
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),

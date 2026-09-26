@@ -89,7 +89,7 @@ fn carrier_match_moves_the_whole_claim_frontier_and_reconsumes_each_child() {
             let fields = claims
                 .iter()
                 .map(|claim| match ownership.segments.span_or_empty(claim.path) {
-                    [facts::PlaceSegment::Field { symbol }] => {
+                    [typed_trees_to_checked_trees::fact_plan::PlaceSegment::Field { symbol }] => {
                         checked.typed.symbols.name(*symbol).to_string()
                     }
                     path => panic!("{name}: each edge discharges the exact field claims: {path:?}"),

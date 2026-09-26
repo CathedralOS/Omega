@@ -17,7 +17,7 @@ mod tests;
 impl Expansion<'_> {
     pub(super) fn comparison_binding(
         &self,
-        operator_use: checked_trees::CheckedOperatorUseHandle,
+        operator_use: typed_trees_to_checked_trees::checked_trees::CheckedOperatorUseHandle,
         left: LoweredDirectExpression,
         right: LoweredDirectExpression,
         site: &Site<'_>,

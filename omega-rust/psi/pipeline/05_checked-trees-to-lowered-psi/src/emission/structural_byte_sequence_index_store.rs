@@ -8,14 +8,14 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan;
-use checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
 
 pub(crate) fn validate_assignment(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
-    assignment: &checked_trees::statement::TableAssignment,
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
     store: &CheckedStructuralByteSequenceFieldByteStorePlan,
 ) -> Result<(), LoweringError> {
     let (owner, state) =
@@ -25,7 +25,7 @@ pub(crate) fn validate_assignment(
         return unsupported("byte replacement lost its authored index");
     };
     if owner.symbol != machine
-        || !validation::place_has_builtin_coordinates(
+        || !typed_trees_to_checked_trees::validation::place_has_builtin_coordinates(
             &checked.typed,
             owner,
             Some(state),
@@ -45,8 +45,8 @@ pub(crate) fn validate_assignment(
                 || selected.candidate_count != 0
                 || !matches!(
                     selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::Missing
+                        | typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                 ))
     }) {
         return unsupported("byte replacement changed its selected index meaning");
@@ -117,7 +117,7 @@ pub(crate) fn validate_assignment(
         // producing call is rejoined where the operation order and the value
         // are lowered; a selected expression here would mean the checked
         // stage chose a different source.
-        checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. } => {
             if !value_expressions.is_empty() {
                 return unsupported("byte replacement replaced a selected RHS with a result");
             }
@@ -128,7 +128,7 @@ pub(crate) fn validate_assignment(
                 return unsupported("byte replacement call result has no authored call");
             }
         }
-        checked_trees::CheckedByteSequenceStoreValue::Pure(retained) => {
+        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::Pure(retained) => {
             let (binding, expression) = checked
                 .facts
                 .values

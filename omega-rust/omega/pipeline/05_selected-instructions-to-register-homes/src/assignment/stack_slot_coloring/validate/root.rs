@@ -1,5 +1,7 @@
 use crate::{StackSlotColoringError, ValidatedLogicalSpillOperations};
-use register_homes::{StackSlotColoringPlan, logical_spill_operation_identity};
+use selected_instructions_to_selected_instructions::register_homes::{
+    StackSlotColoringPlan, logical_spill_operation_identity,
+};
 
 pub(super) fn validate_roots(
     source: &ValidatedLogicalSpillOperations,

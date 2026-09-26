@@ -1,0 +1,452 @@
+use crate::fact_plan::{FactHandle, FactPlace, PlaceHandle, ProgramPoint};
+use arena::{Handle, HandleSpan};
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode;
+use symbols::SymbolHandle;
+
+/// Exact checked ownership retained for one fact authored by a domain
+/// definition. The ordinary semantic fact remains the flow-facing row; this
+/// record binds that row back to its typed fact and retains every structural
+/// expression place used to interpret the public predicate.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DomainDefinitionFactRecord {
+    pub domain_symbol: SymbolHandle,
+    pub fact: Handle<ProofFact>,
+    pub semantic_fact: FactHandle,
+    pub dependencies: Vec<DomainDefinitionFactDependency>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DomainDefinitionFactDependency {
+    pub expression: ExpressionHandle,
+    pub place: PlaceHandle,
+}
+
+/// Exact checked ownership retained for one invariant authored by a data
+/// definition. The semantic fact remains the flow-facing row; this record
+/// binds it to the exact data declaration and typed proof fact while retaining
+/// every structural field place needed to interpret the invariant.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DataDefinitionFactRecord {
+    pub data_symbol: SymbolHandle,
+    pub fact: Handle<ProofFact>,
+    pub semantic_fact: FactHandle,
+    pub dependencies: Vec<DataDefinitionFactDependency>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DataDefinitionFactDependency {
+    pub expression: ExpressionHandle,
+    pub place: PlaceHandle,
+}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FactOrigin {
+    #[default]
+    Unknown,
+    DomainDefinition {
+        domain_symbol: SymbolHandle,
+    },
+    DataDefinition {
+        data_symbol: SymbolHandle,
+    },
+    TypeReference,
+    ProofObligation,
+    MachineContract {
+        machine_symbol: SymbolHandle,
+    },
+    StateContract {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
+    /// A declared encoding-domain refinement on a machine-attached-data field
+    /// (`out: &[u8] in Utf8`), surfaced as an always-holding entry fact for the
+    /// machine (#66 read-narrowing). NOT a contract: it imposes no caller
+    /// obligation -- write-enforcement guarantees the invariant.
+    MachineFieldDomain {
+        machine_symbol: SymbolHandle,
+    },
+    /// A declared domain qualification on a state PARAMETER, surfaced as an
+    /// entry assumption for the machine (#66/P1a). Sound: the param's implicit
+    /// `requires param in Domain` is a CALLER obligation, so predicate proof or
+    /// bodyless establishment evidence already exists at entry.
+    StateParameterDomain {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
+    /// The declared encoding domain on a sum-CASE PAYLOAD field, surfaced for a
+    /// local constructed as that case (`let cmd = Command::Say { text: "ok" }`):
+    /// construction enforcement (#60-1c) proved the payload in-domain, so any
+    /// later read of `cmd.<payload>` (e.g. a destructured `Command::Say { text }`
+    /// forwarded as a call argument) carries the domain. Invalidation-aware via
+    /// the flow (a reassignment of `cmd` drops it).
+    LocalCasePayloadDomain {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
+    StateSignatureContract {
+        owner_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
+    CallRequires,
+    CallEnsures,
+    TransitionGuard,
+    ExitEnsures,
+    OperatorRequires {
+        operator_symbol: SymbolHandle,
+    },
+    OperatorEnsures {
+        operator_symbol: SymbolHandle,
+    },
+    StatementTransfer,
+}
+
+/// Establishment evidence carried beside a qualification fact.
+///
+/// `source_symbol` names the checked machine, boundary requirement, operator,
+/// or declaration that supplied the evidence when one exists.
+/// `requirement_symbol` names the exact boundary state signature for admitted
+/// qualification evidence; it is invalid for non-admitted evidence.
+/// `receipt_identity == 0` means no admitted receipt was retained for this
+/// compilation; admitted provider selection fills the normalized receipt
+/// identity after the checked program retains its selected provider plans.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct QualificationEvidence {
+    pub origin: language_semantics::QualificationEvidenceOrigin,
+    pub source_symbol: SymbolHandle,
+    pub requirement_symbol: SymbolHandle,
+    pub receipt_identity: u64,
+}
+
+impl QualificationEvidence {
+    pub const fn from_origin(
+        origin: language_semantics::QualificationEvidenceOrigin,
+        source_symbol: SymbolHandle,
+    ) -> Self {
+        Self {
+            origin,
+            source_symbol,
+            requirement_symbol: SymbolHandle::invalid(),
+            receipt_identity: 0,
+        }
+    }
+
+    pub const fn from_admitted_requirement(
+        source_symbol: SymbolHandle,
+        requirement_symbol: SymbolHandle,
+    ) -> Self {
+        Self {
+            origin: language_semantics::QualificationEvidenceOrigin::AdmittedReceipt,
+            source_symbol,
+            requirement_symbol,
+            receipt_identity: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ContractFactKind {
+    #[default]
+    Requires,
+    Ensures,
+}
+
+/// A contract expression after positional call/operator substitution. Typed
+/// expression handles remain owned by the immutable checked program, so flow
+/// elaboration records the canonical caller-term label in this fact-owned
+/// arena instead of pretending the callee expression handle changed meaning.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct InstantiatedExpression {
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ProofObligationKind {
+    #[default]
+    BoundedAssignment,
+    BoundedCallArgument,
+    BoundedInitializer,
+    BoundedStateReturn,
+    BoundedValue,
+    BoundedTransitionArgument,
+    GuardedTransition,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FactPayload {
+    /// The nominal tag installed at this place by a completed construction.
+    /// Payload expressions are not retained or reevaluated. Ordinary storage
+    /// invalidation retires the observation when the sum is replaced.
+    AssignedCase {
+        variant: SymbolHandle,
+    },
+    /// Inclusive bounds on the value captured at this program point, not a
+    /// deferred expression or a claim that any particular value was produced.
+    AssignedIntegerBounds {
+        bounds: Handle<IntegerRange>,
+    },
+    /// A completed scalar value captured at this fact's program point. The
+    /// value contains no source expression or storage to evaluate again.
+    AssignedScalarValue {
+        value: Handle<ScalarValue>,
+    },
+    /// Exact immutable value installed at `Fact.place` by a checked statement.
+    /// The statement coordinate lives on the enclosing fact. Only literals
+    /// are retained; this is not a deferred read of the source expression.
+    AssignedValue {
+        value: ExpressionHandle,
+    },
+    /// A per-byte character class proved to hold for EVERY byte currently
+    /// stored at `Fact.place`. This is whole-carrier evidence with no declared
+    /// domain behind it: an indexed write retires the exact `AssignedValue`
+    /// snapshot, but a per-byte class survives replacing one byte by another
+    /// byte of the same class, which is what keeps a text carrier provable
+    /// across `buffer[i] = byte`. Mutation invalidation owns its lifetime
+    /// exactly as it owns `AssignedValue`; it is matched by place overlap, so
+    /// any write reaching the carrier retires it.
+    BytePredicate {
+        predicate: language_semantics::byte_predicates::ByteSequencePredicate,
+    },
+    BooleanExpression(ExpressionHandle),
+    /// Storage lifetime metadata for another fact in the same context. This
+    /// row asserts no proposition about its place; a write there retires the
+    /// dependent context through the ordinary mutation filter.
+    StorageDependency {
+        dependent: FactHandle,
+    },
+    /// A branch-local truth value, invalidated when any expression input changes.
+    BooleanValue {
+        expression: ExpressionHandle,
+        value: bool,
+    },
+    /// The selected result of one exact source match comparison. This is a
+    /// branch-local observation, not a synthesized expression in the immutable
+    /// typed tree; its storage dependencies determine how long it stays live.
+    MatchPattern {
+        expression: ExpressionHandle,
+        arm: Handle<symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMatchArm>,
+        matched: bool,
+    },
+    DomainMembership {
+        value: ExpressionHandle,
+        domain: HandleSpan<Identifier>,
+        domain_symbol: SymbolHandle,
+        /// Exact normalized application; zero never identifies an indexed instance.
+        semantic_domain: language_semantics::SemanticDomainId,
+    },
+    PropositionApplication {
+        fact: Handle<ProofFact>,
+        proposition: SymbolHandle,
+    },
+    CarryPermission {
+        value: ExpressionHandle,
+        permission: language_semantics::CarryPermission,
+    },
+    /// An undischarged resource provenance with a born-strict carry policy.
+    /// This is independent of the current qualification fact set so
+    /// qualification weakening cannot silently recover structural mobility.
+    CarryOrigin {
+        value: ExpressionHandle,
+    },
+    TypeConstraint {
+        constraint: Handle<TypeConstraintNode>,
+    },
+    ProofObligation {
+        kind: ProofObligationKind,
+    },
+    Contract {
+        kind: ContractFactKind,
+        fact: Handle<ProofFact>,
+    },
+    ContractBooleanExpression {
+        kind: ContractFactKind,
+        fact: Handle<ProofFact>,
+        expression: ExpressionHandle,
+        /// Invalid for declaration-shaped facts. Valid when a flow pass has
+        /// substituted formal parameters onto concrete caller operands.
+        instantiated: Handle<InstantiatedExpression>,
+    },
+    ContractDomainMembership {
+        kind: ContractFactKind,
+        fact: Handle<ProofFact>,
+        value: ExpressionHandle,
+        domain: HandleSpan<Identifier>,
+        domain_symbol: SymbolHandle,
+        semantic_domain: language_semantics::SemanticDomainId,
+    },
+    ContractPropositionApplication {
+        kind: ContractFactKind,
+        fact: Handle<ProofFact>,
+        proposition: SymbolHandle,
+        /// Canonical caller-term identity after call/operator substitution.
+        /// Invalid on declaration-shaped facts.
+        instantiated: Handle<InstantiatedExpression>,
+    },
+    ContractCarryPermission {
+        kind: ContractFactKind,
+        fact: Handle<ProofFact>,
+        value: ExpressionHandle,
+        permission: language_semantics::CarryPermission,
+    },
+}
+
+impl FactPayload {
+    /// Resolve a comparison only when its arm belongs to the named dispatch.
+    /// Handles from another dispatch (or arena generation) confer no evidence.
+    pub fn match_pattern_comparison(
+        self,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ) -> Option<(ExpressionHandle, ExpressionHandle, bool)> {
+        let Self::MatchPattern {
+            expression,
+            arm,
+            matched,
+        } = self
+        else {
+            return None;
+        };
+        if !program.expression_table.expression_is_valid(expression) {
+            return None;
+        }
+        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Match(
+            dispatch,
+        ) = program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if arm.generation() != dispatch.arms.start().generation() {
+            return None;
+        }
+        let ordinal = arm
+            .arena_index()
+            .checked_sub(dispatch.arms.start().arena_index())?;
+        let source = program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .get(ordinal as usize)?;
+        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(
+            pattern,
+        ) = source.pattern
+        else {
+            return None;
+        };
+        (program
+            .expression_table
+            .expression_is_valid(dispatch.subject)
+            && program.expression_table.expression_is_valid(pattern))
+        .then_some((dispatch.subject, pattern, matched))
+    }
+}
+
+impl Default for FactPayload {
+    fn default() -> Self {
+        Self::BooleanExpression(ExpressionHandle::invalid())
+    }
+}
+
+/// Closed identity of a qualification payload conserved by a checked
+/// statement transfer. Expression operands and contract wrappers identify the
+/// source occurrence, not the carried qualification, so they do not enter
+/// correspondence identity.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum QualificationPayloadIdentity {
+    DomainMembership {
+        domain: HandleSpan<Identifier>,
+        domain_symbol: SymbolHandle,
+        semantic_domain: language_semantics::SemanticDomainId,
+    },
+    CarryPermission {
+        permission: language_semantics::CarryPermission,
+    },
+    #[default]
+    CarryOrigin,
+}
+
+impl QualificationPayloadIdentity {
+    pub const fn from_fact_payload(payload: FactPayload) -> Option<Self> {
+        match payload {
+            FactPayload::DomainMembership {
+                domain,
+                domain_symbol,
+                semantic_domain,
+                ..
+            }
+            | FactPayload::ContractDomainMembership {
+                domain,
+                domain_symbol,
+                semantic_domain,
+                ..
+            } => Some(Self::DomainMembership {
+                domain,
+                domain_symbol,
+                semantic_domain,
+            }),
+            FactPayload::CarryPermission { permission, .. }
+            | FactPayload::ContractCarryPermission { permission, .. } => {
+                Some(Self::CarryPermission { permission })
+            }
+            FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
+            FactPayload::AssignedCase { .. }
+            | FactPayload::AssignedValue { .. }
+            | FactPayload::AssignedIntegerBounds { .. }
+            | FactPayload::AssignedScalarValue { .. }
+            | FactPayload::StorageDependency { .. }
+            | FactPayload::BytePredicate { .. }
+            | FactPayload::BooleanValue { .. }
+            | FactPayload::MatchPattern { .. }
+            | FactPayload::BooleanExpression(_)
+            | FactPayload::PropositionApplication { .. }
+            | FactPayload::TypeConstraint { .. }
+            | FactPayload::ProofObligation { .. }
+            | FactPayload::Contract { .. }
+            | FactPayload::ContractBooleanExpression { .. }
+            | FactPayload::ContractPropositionApplication { .. } => None,
+        }
+    }
+}
+
+/// Target-neutral mathematical value of an already-rendered scalar. Unknown
+/// is the zero arena entry and never supplies a proof premise.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ScalarValue {
+    #[default]
+    Unknown,
+    Integer(numerics::bignum::BigInt),
+    Boolean(bool),
+}
+
+/// Inclusive mathematical integer bounds. The consumer must establish both
+/// endpoint ordering and the source of the bounds before using this vocabulary.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct IntegerRange {
+    pub minimum: numerics::bignum::BigInt,
+    pub maximum: numerics::bignum::BigInt,
+}
+
+/// Checked-only proof ledger row for one qualification-preserving statement
+/// transfer. This is separate from ordinary flow facts and grants no
+/// qualification by itself.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct QualificationCorrespondence {
+    pub source_fact: FactHandle,
+    pub destination_fact: FactHandle,
+    /// The exact contextual source occurrence selected by the statement. It
+    /// is retained separately from `source_place`, which is the source fact's
+    /// own place, so replay can prove their structural correspondence.
+    pub source_occurrence_place: PlaceHandle,
+    pub source_place: PlaceHandle,
+    pub destination_place: PlaceHandle,
+    pub formation: ProgramPoint,
+    pub payload: QualificationPayloadIdentity,
+    pub evidence: QualificationEvidence,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Fact {
+    pub place: FactPlace,
+    pub point: ProgramPoint,
+    pub origin: FactOrigin,
+    pub evidence: QualificationEvidence,
+    pub payload: FactPayload,
+}

@@ -1,6 +1,6 @@
 use crate::lowering_error::LoweringError;
-use checked_trees::CheckedUnitStructuralPathSegment;
 use terminal_psi::StructuralPathSegment;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment;
 
 /// Lower a checked static projection. A `RuntimeIndex` has no context-free
 /// lowering: its Terminal segment names the evaluated index value and an

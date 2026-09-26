@@ -7,18 +7,18 @@
 //! opening or a portable proof of source inference. Exact source owners and
 //! call occurrences nevertheless let the consumer check every retained join.
 
-use checked_trees::CheckedTrees;
-use checked_trees::data::{
-    MachineParameterContract, MachineParameterContractView, TypeParameterKind,
-};
+use crate::lowered_psi::LoweredSourceCallOccurrence;
 use language_semantics::ServiceReachId;
-use lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{MachineId, ServiceId};
 use symbols::SymbolHandle;
 use terminal_psi::{
     ClosedReachApplication, ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication,
     ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema, OperationKind,
     ServiceDeclaration, TerminalModule,
+};
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::data::{
+    MachineParameterContract, MachineParameterContractView, TypeParameterKind,
 };
 
 use crate::lowering_error::LoweringError;
@@ -39,8 +39,12 @@ pub(crate) fn retain_closed_reach_applications(
     }
     // One prepared graph serves the complete selected batch. The commitment
     // replay immediately preceding this phase checks retained template custody.
-    let operational = validation::infer_operational_may(&checked.typed);
-    let inferred = validation::infer_service_reaches(&checked.typed, &operational);
+    let operational =
+        typed_trees_to_checked_trees::validation::infer_operational_may(&checked.typed);
+    let inferred = typed_trees_to_checked_trees::validation::infer_service_reaches(
+        &checked.typed,
+        &operational,
+    );
     for specialization in &checked.machine_specializations {
         let Some(owner) = exact_machine(source_machines, specialization.instance)? else {
             continue;

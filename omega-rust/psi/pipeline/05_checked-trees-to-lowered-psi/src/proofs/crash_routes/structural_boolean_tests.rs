@@ -16,10 +16,14 @@ fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
     Identity::new(raw).unwrap()
 }
 
-fn path(name: &str) -> Vec<checked_trees::CheckedStructuralPredicatePathSegment> {
-    vec![checked_trees::CheckedStructuralPredicatePathSegment::Field(
-        name.into(),
-    )]
+fn path(
+    name: &str,
+) -> Vec<typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment> {
+    vec![
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(
+            name.into(),
+        ),
+    ]
 }
 
 fn field(name: &str) -> CheckedBooleanExpression {
@@ -109,13 +113,13 @@ impl Fixture {
     fn lower(&self, expression: CheckedBooleanExpression) -> Result<Proposition, LoweringError> {
         // This unit owns checked-to-terminal conversion only. The opaque
         // authored identity does not claim compilation or admission authority.
-        let identity = checked_trees::CrashPredicateIdentity::from_expression_and_scalar(
-            checked_trees::CrashPredicateExpression::Parameter(0),
+        let identity = typed_trees_to_checked_trees::checked_trees::CrashPredicateIdentity::from_expression_and_scalar(
+            typed_trees_to_checked_trees::checked_trees::CrashPredicateExpression::Parameter(0),
             expression,
         );
-        let bucket = checked_trees::CrashRouteBucket::new(
-            checked_trees::CrashCause::Trap,
-            vec![checked_trees::CrashRouteGuard::Predicate(identity)],
+        let bucket = typed_trees_to_checked_trees::checked_trees::CrashRouteBucket::new(
+            typed_trees_to_checked_trees::checked_trees::CrashCause::Trap,
+            vec![typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Predicate(identity)],
         )
         .unwrap();
         let lowered = lower_structural_crash_route_buckets(
@@ -252,13 +256,13 @@ fn compound_field_equality_retains_exact_scalar_and_structural_namespaces() {
 fn special_atomic_negation_keeps_implication_to_falsehood() {
     let fixture = Fixture::new();
     let atom = CheckedBooleanExpression::IeeeFloatComparison {
-        kind: checked_trees::CheckedIeeeFloatComparisonKind::Equal,
+        kind: typed_trees_to_checked_trees::checked_trees::CheckedIeeeFloatComparisonKind::Equal,
         primitive_type: PrimitiveType::F32,
-        left: checked_trees::CheckedStructuralParameterField {
+        left: typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField {
             parameter_position: 2,
             path: path("first"),
         },
-        right: checked_trees::CheckedStructuralParameterField {
+        right: typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField {
             parameter_position: 2,
             path: path("second"),
         },

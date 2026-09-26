@@ -1,26 +1,26 @@
 //! Independently check incoming fragments or home loads and exact return registers.
 use super::{LegalizedScalarFunction, SelectedInstructionKind, SelectedInstructionProvenance};
 use crate::SelectedInstructionError;
+use crate::register_model::ValidatedRegisterConstraintCatalog;
+use crate::selected_instructions::SelectedTerminator;
+use crate::selected_instructions::{FrameStorageSlotId, SelectedMemoryAccessRole};
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::row;
-use calling_conventions::ValueLocation;
-use register_model::ValidatedRegisterConstraintCatalog;
-use selected_instructions::SelectedTerminator;
-use selected_instructions::{FrameStorageSlotId, SelectedMemoryAccessRole};
+use abstract_operations_to_target_operations::calling_conventions::ValueLocation;
 
 pub(super) fn validate(
     source: &LegalizedScalarFunction,
-    block: &legalized_operations::LegalizedScalarBlock,
-    returned: &legalized_operations::LegalizedScalarReturn,
+    block: &crate::legalized_operations::LegalizedScalarBlock,
+    returned: &crate::legalized_operations::LegalizedScalarReturn,
     replay: &mut Replay<'_>,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     let (place, placement, slot) = if let Some((parameter, placement)) =
         crate::selection::aggregate_result_input::returned_parameter(source, &returned.value)
     {
         let place = parameter.semantic.place;
-        let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+        let slot = crate::selected_instructions::LocalStorageSlotId::StructuralParameter { place };
         let slot = replay
             .transport
             .local_slots
@@ -114,7 +114,10 @@ pub(super) fn validate(
                 ..
             }]
         )
-        && placement.shape == calling_conventions::ValueShape::integer(8, 8);
+        && placement.shape
+            == abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
+                8, 8,
+            );
     let keys = if empty_return {
         std::slice::from_ref(&replay.constraints.keys.return_unit)
     } else if scalar_return {

@@ -1,7 +1,6 @@
 use super::super::{PsiOptimizationUnit, TargetOperationPlan, ValueId};
 use super::{AbstractOperation, AbstractOperationPlan, ScalarType, validate};
 use crate::legalization::scalar_graph_input::i32_type;
-use abstract_operations::{AbstractBoundaryResult, AbstractSuccessor};
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
@@ -12,6 +11,9 @@ use semantic_vocabulary::{
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBoundaryResult, AbstractSuccessor,
 };
 
 fn mixed_case_fixture() -> (
@@ -69,13 +71,13 @@ fn mixed_case_fixture() -> (
     let settlements = [
         (
             1,
-            target_operations::CompilerBuiltinExecution::HostedReadByte,
-            target_operations::HostedReadByteRealization.into(),
+            abstract_operations_to_target_operations::target_operations::CompilerBuiltinExecution::HostedReadByte,
+            abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
         ),
         (
             2,
-            target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
-            target_operations::HostedWriteByteI32Realization.into(),
+            abstract_operations_to_target_operations::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+            abstract_operations_to_target_operations::target_operations::HostedWriteByteI32Realization.into(),
         ),
     ]
     .map(
@@ -96,12 +98,12 @@ fn mixed_case_fixture() -> (
         },
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     (plan, target, unit)
 }
 

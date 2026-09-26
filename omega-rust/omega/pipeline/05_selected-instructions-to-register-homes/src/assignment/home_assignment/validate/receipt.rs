@@ -2,11 +2,11 @@
 
 use std::collections::BTreeSet;
 
-use selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
 
 use crate::{RegisterHomePlan, RegisterHomeValidationReceipt, register_home_identity};
-use selected_instructions::DistinctUseDefTie;
 use selected_instructions_to_selected_instructions::ValidatedLiveRanges;
+use target_operations_to_selected_instructions::DistinctUseDefTie;
 
 pub(super) fn build(
     plan: &RegisterHomePlan,

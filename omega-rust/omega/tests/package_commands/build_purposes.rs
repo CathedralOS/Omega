@@ -4,18 +4,18 @@
 //! serve both purposes under two aliases, an import in either scope selects
 //! only that scope's edges, and dropping an edge after publication rejects
 //! only the imports that edge authorized. Fixture packages live in
-//! `tests/omega/packages/build-purposes`.
+//! `tests/fixtures/packages/build-purposes`.
 
 use super::fixture::{Fixture, assert_status};
 
 const ALPHA_BUILD: &str =
-    include_str!("../../../../tests/omega/packages/build-purposes/alpha/build.omg");
+    include_str!("../../../../tests/fixtures/packages/build-purposes/alpha/build.omg");
 const ALPHA_MAIN: &str =
-    include_str!("../../../../tests/omega/packages/build-purposes/alpha/main.omg");
+    include_str!("../../../../tests/fixtures/packages/build-purposes/alpha/main.omg");
 const BETA_BUILD: &str =
-    include_str!("../../../../tests/omega/packages/build-purposes/beta/build.omg");
+    include_str!("../../../../tests/fixtures/packages/build-purposes/beta/build.omg");
 const BETA_MAIN: &str =
-    include_str!("../../../../tests/omega/packages/build-purposes/beta/main.omg");
+    include_str!("../../../../tests/fixtures/packages/build-purposes/beta/main.omg");
 
 const PRODUCT_IMPORT_REJECTION: &str = "a product import may only select product dependencies";
 const BUILD_IMPORT_REJECTION: &str = "a build import may only select build dependencies";
@@ -84,7 +84,7 @@ fn a_build_helper_runs_its_own_build_dependency_before_the_consumer() {
     };
     let fixture = nested_build_fixture();
     let before = fixture.accepted_files();
-    let output = publish_generated_update(&fixture, profile);
+    let output = accept_generated_update(&fixture, profile);
     assert_lock_published(&fixture, &before);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let generator = stdout
@@ -133,7 +133,7 @@ fn nested_build_cross_profile_and_dual_purpose_inputs_publish_exact_occurrences(
         }
         let target = if dual_purpose { profile } else { foreign };
         let before = fixture.accepted_files();
-        let output = publish_generated_update(&fixture, target);
+        let output = accept_generated_update(&fixture, target);
         let text = combined(&output);
         assert!(text.contains("generator activation"), "{text}");
         assert!(text.contains("helper activation"), "{text}");
@@ -226,35 +226,43 @@ fn non_nested_build_instances_retain_exact_purpose_and_profile_acceptance() {
     }
 }
 
-/// The Build carries no target (wiki/spec/build/configuration.md), so one
-/// dependency serving a build helper and the product generates one API for
-/// both occurrences, each reviewed under its own target and execution profile.
 #[test]
-fn generated_dependency_api_has_one_shape_across_build_and_product_profiles() {
-    use package_manager::declarations::DependencyPurpose;
+fn generated_dependency_apis_stay_distinct_across_build_and_product_profiles() {
+    use omega::package_manager::declarations::DependencyPurpose;
     let Some(execution) = nested_build_target() else {
         return;
     };
-    let product = if execution == target::TargetProfile::WindowsX64 {
-        target::TargetProfile::LinuxX64
+    let (product, product_spelling) = if execution == target::TargetProfile::WindowsX64 {
+        (target::TargetProfile::LinuxX64, "LinuxX86_64")
     } else {
-        target::TargetProfile::WindowsX64
+        (target::TargetProfile::WindowsX64, "WindowsX86_64")
     };
     let fixture = Fixture::new();
     fixture.write("dependency/main.omg", "// Generated API only.\n");
-    fixture.write(
-        "dependency/build.omg",
-        r#"machine build(builder: &mut Build) {
+    fixture.write("dependency/build.omg", &r#"machine build(builder: &mut Build) {
     builder.package("arithmetic_kernels");
-    let generated: BuildPath = builder.output.resolve("generated_api.omg");
-    let descriptor: i32 = builder.output.create(generated, 438);
-    let count: i64 = builder.output.write(descriptor, "pub machine generated_value() -> u64 { 17 }\n");
-    let closed: i32 = builder.output.close(descriptor);
-    builder.output.include_source(generated);
-    builder.log.write_line("dependency generated u64");
+    transition builder.target {
+        TargetProfile::PRODUCT_PROFILE -> product(builder)
+        _ -> helper(builder)
+    }
+    state product(builder: &mut Build) {
+        let generated: BuildPath = builder.output.resolve("generated_api.omg");
+        let descriptor: i32 = builder.output.create(generated, 438);
+        let count: i64 = builder.output.write(descriptor, "pub machine generated_value() -> u64 { 17 }\n");
+        let closed: i32 = builder.output.close(descriptor);
+        builder.output.include_source(generated);
+        builder.log.write_line("product generated u64");
+    }
+    state helper(builder: &mut Build) {
+        let generated: BuildPath = builder.output.resolve("generated_api.omg");
+        let descriptor: i32 = builder.output.create(generated, 438);
+        let count: i64 = builder.output.write(descriptor, "pub machine generated_value() -> bool { true }\n");
+        let closed: i32 = builder.output.close(descriptor);
+        builder.output.include_source(generated);
+        builder.log.write_line("helper generated bool");
+    }
 }
-"#,
-    );
+"#.replace("PRODUCT_PROFILE", product_spelling));
     fixture.write("root/build.omg", r#"use helper::generated_api;
 machine build(builder: &mut Build) {
     builder.package("cli_project");
@@ -262,15 +270,15 @@ machine build(builder: &mut Build) {
     builder.depend_as("library", Source::Path { location: "../dependency" });
     let generated: BuildPath = builder.output.resolve("consumer_generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
-    transition generated_value() == 17 {
+    transition generated_value() {
         true -> correct(builder, generated, descriptor)
-        _ -> incorrect(builder, generated, descriptor)
+        false -> incorrect(builder, generated, descriptor)
     }
     state correct(builder: &mut Build, generated: BuildPath, descriptor: i32) {
         let count: i64 = builder.output.write(descriptor, "pub machine generated_by_helper() -> u64 { 29 }");
         let closed: i32 = builder.output.close(descriptor);
         builder.output.include_source(generated);
-        builder.log.write_line("consumer received helper u64");
+        builder.log.write_line("consumer received helper bool");
     }
     state incorrect(builder: &mut Build, generated: BuildPath, descriptor: i32) {
         let count: i64 = builder.output.write(descriptor, "pub machine generated_by_helper() -> u64 { 0 }");
@@ -284,9 +292,13 @@ machine build(builder: &mut Build) {
         "use library::generated_api;\npub machine consume() -> u64 { generated_value() }\n",
     );
     let before = fixture.accepted_files();
-    let output = publish_generated_update(&fixture, product);
+    let output = accept_generated_update(&fixture, product);
     let text = combined(&output);
-    for message in ["dependency generated u64", "consumer received helper u64"] {
+    for message in [
+        "product generated u64",
+        "helper generated bool",
+        "consumer received helper bool",
+    ] {
         assert!(text.contains(message), "{text}");
     }
     assert_lock_published(&fixture, &before);
@@ -325,20 +337,19 @@ machine build(builder: &mut Build) {
     let product_bundle = product_review.generated_source_bundle();
     assert_eq!(build_bundle.sources().len(), 1);
     assert_eq!(product_bundle.sources().len(), 1);
-    for bundle in [&build_bundle, &product_bundle] {
-        assert_eq!(
-            bundle.sources()[0].bytes(),
-            b"pub machine generated_value() -> u64 { 17 }\n"
-        );
-    }
+    assert_eq!(
+        build_bundle.sources()[0].bytes(),
+        b"pub machine generated_value() -> bool { true }\n"
+    );
+    assert_eq!(
+        product_bundle.sources()[0].bytes(),
+        b"pub machine generated_value() -> u64 { 17 }\n"
+    );
     assert_eq!(build_bundle.target(), execution);
     assert_eq!(product_bundle.target(), product);
     assert_eq!(build_bundle.build_execution_profile(), Some(execution));
     assert_eq!(product_bundle.build_execution_profile(), Some(execution));
-    // The consumption commitment covers the packages, edges and consumed
-    // source bytes, not the occurrence's purpose or target, so one generated
-    // shape commits identically in both occurrences.
-    assert_eq!(
+    assert_ne!(
         build_review.source_consumption_commitment(),
         product_review.source_consumption_commitment()
     );
@@ -439,16 +450,30 @@ fn package_risk_acceptance_does_not_transfer_between_build_and_product_purposes(
     assert_eq!(fixture.accepted_files(), changed_again);
 }
 
-/// Captured-input snapshots and private output staging are benign build work
-/// that needs no restricted-action decision (wiki/spec/packages/acceptance.md),
-/// so a generator-only update publishes without pausing for review.
-fn publish_generated_update(
+fn accept_generated_update(
     fixture: &Fixture,
     target: target::TargetProfile,
 ) -> std::process::Output {
-    let output = fixture.omega(&["update", "--target", target.target_name(), "--offline"]);
-    assert_status(&output, 0);
-    output
+    let before = fixture.accepted_files();
+    let mut output = fixture.omega(&["update", "--target", target.target_name(), "--offline"]);
+    assert_status(&output, 3);
+    // Restricted build consent can precede the complete generated-source review.
+    // Every pause preserves the previously accepted declaration/lock pair.
+    for _ in 0..3 {
+        assert_eq!(fixture.accepted_files(), before);
+        let documents = review_documents(fixture, &output);
+        assert!(!documents.is_empty(), "{}", combined(&output));
+        write_decisions(&documents, "accept");
+        output = fixture.omega(&["update", "--resume", "--offline"]);
+        if output.status.code() == Some(0) {
+            return output;
+        }
+        assert_status(&output, 3);
+    }
+    panic!(
+        "generated-source review did not settle: {}",
+        combined(&output)
+    );
 }
 
 fn assert_helper_occurrences(
@@ -457,7 +482,7 @@ fn assert_helper_occurrences(
     execution: target::TargetProfile,
     dual: bool,
 ) {
-    use package_manager::declarations::DependencyPurpose;
+    use omega::package_manager::declarations::DependencyPurpose;
     let lock = fixture.lock();
     let accepted = lock.target(target).unwrap();
     let helper = accepted
@@ -634,7 +659,7 @@ fn nested_build_sample_refresh_produces_a_runnable_native_product() {
     assert_status(&unreviewed, 1);
     assert!(combined(&unreviewed).contains("package acceptance is missing"));
     assert_eq!(fixture.accepted_files(), before);
-    publish_generated_update(&fixture, profile);
+    accept_generated_update(&fixture, profile);
     let before = fixture.accepted_files();
     let output =
         fixture.omega_with_env(&["refresh-samples", "."], &[("RUST_MIN_STACK", "2097152")]);

@@ -22,12 +22,16 @@
 //! change this source substitution; ordinary lifetime/escape checks still
 //! establish whether the returned access and source relation are legal.
 
+use crate::fact_plan::{PlaceRoot, PlaceSegment};
 use crate::flow::CanonicalPlace;
-use facts::{PlaceRoot, PlaceSegment};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCallExpression,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionExit, TransitionTargetNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
-use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 
 /// The candidate storage places a reference-typed local names at
 /// `statement_index`, when it was bound from a checked reference result and
@@ -37,7 +41,7 @@ pub(crate) fn reference_result_candidates_before_statement(
     state_symbol: SymbolHandle,
     statement_index: usize,
     local_symbol: SymbolHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let state = crate::semantic::calls::find_state(program, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -80,7 +84,7 @@ fn call_result_candidates(
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call: &TableCallExpression,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let mut candidates = Vec::new();
     for source in call_result_sources(program, call, call_frames)? {
@@ -108,7 +112,7 @@ pub(crate) fn reference_expression_storage_places(
     state: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
-    frames: Option<&validation::CallFrameResolver<'_>>,
+    frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => {
@@ -167,7 +171,7 @@ pub(crate) struct ReferenceResultSource {
 pub(crate) fn call_result_sources(
     program: &TypedTrees,
     call: &TableCallExpression,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ReferenceResultSource>> {
     let (callee, callee_state) =
         crate::semantic::calls::find_state_with_machine(program, call.target_symbol)?;
@@ -254,7 +258,7 @@ pub(crate) fn call_result_sources(
 /// cannot be enumerated here.
 fn callee_returned_expressions(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Option<Vec<(usize, ExpressionHandle)>> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut returned = Vec::new();

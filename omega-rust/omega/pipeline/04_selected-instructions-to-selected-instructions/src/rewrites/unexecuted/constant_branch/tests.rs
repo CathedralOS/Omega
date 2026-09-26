@@ -6,22 +6,26 @@ use crate::rewrites::unexecuted::ValidatedConstantBranch;
 use crate::rewrites::unexecuted::fold_selected_constant_branch;
 use crate::rewrites::unexecuted::validate_constant_branch_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
-use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
-    SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess,
+};
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
+    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
+    SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    FuelSettlement, PsiProvenance, ValueDefinitionSite,
+};
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 100_000, 100, 100).unwrap()
@@ -49,7 +53,7 @@ enum BranchShape {
 fn register(
     id: VirtualRegisterId,
     scalar_type: ScalarType,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -195,7 +199,7 @@ fn fixture(
     // The decided arm's record carries cargo the fold must move verbatim.
     let mut taken = arm(SelectedBlockId(1), 2, 2);
     taken.bindings.push(SelectedValueBinding {
-        semantic: abstract_operations::ValueBinding {
+        semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
             parameter: ValueId::new(8).unwrap(),
             argument: ValueId::new(4).unwrap(),
             scalar_type,
@@ -284,8 +288,8 @@ fn fixture(
 }
 
 fn keys(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
-) -> selected_instructions::SelectedConstraintKeys {
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+) -> target_operations_to_selected_instructions::SelectedConstraintKeys {
     environment.selected_keys()
 }
 
@@ -293,7 +297,7 @@ fn keys(
 /// the mutated plan is a well-formed analysis source.
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedConstantBranch {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(
@@ -314,7 +318,7 @@ fn mutated(
 
 fn fold(
     source: &ValidatedConstantBranch,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedConstantBranch, ConstantBranchError> {
     fold_selected_constant_branch(source, 0, BRANCH, environment, budget())
 }
@@ -322,7 +326,7 @@ fn fold(
 /// A jump terminator on `block_index` targeting `arm`, rebuilt from the
 /// fixture's own jump row.
 fn jump_terminator(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     instruction_id: u32,
     arm_block: u32,
     edge: u64,
@@ -917,7 +921,7 @@ fn non_flag_use_outside_jump_surface_refuses() {
     let foreign = mutated(target, |function, _| {
         // Unit 998 is neither a compare-published flag unit nor in the
         // jump row's program-counter-only surface.
-        let spare = register_model::RegisterUnitId(998);
+        let spare = target_operations_to_selected_instructions::register_model::RegisterUnitId(998);
         let instruction = match &mut function.blocks[0].terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. } => instruction,
             _ => unreachable!(),
@@ -945,7 +949,7 @@ fn unpublishable_unit_traffic_refuses() {
         };
         instruction
             .implicit_defs
-            .push(register_model::RegisterUnitId(997));
+            .push(target_operations_to_selected_instructions::register_model::RegisterUnitId(997));
     });
     assert_eq!(
         fold(&extra_def, &environment).unwrap_err(),
@@ -957,7 +961,8 @@ fn unpublishable_unit_traffic_refuses() {
             SelectedTerminator::ConditionalBranch { instruction, .. } => instruction,
             _ => unreachable!(),
         };
-        instruction.clobbers = vec![register_model::RegisterUnitId(996)];
+        instruction.clobbers =
+            vec![target_operations_to_selected_instructions::register_model::RegisterUnitId(996)];
     });
     assert_eq!(
         fold(&clobbering, &environment).unwrap_err(),
@@ -1482,9 +1487,9 @@ fn replay_rejects_anything_but_the_exact_form() {
                 else {
                     unreachable!()
                 };
-                instruction
-                    .implicit_uses
-                    .push(register_model::RegisterUnitId(0));
+                instruction.implicit_uses.push(
+                    target_operations_to_selected_instructions::register_model::RegisterUnitId(0),
+                );
             }
             // An unrelated register must stay identical.
             8 => function.virtual_registers[3].scalar_type = ScalarType::Boolean,
@@ -1492,15 +1497,15 @@ fn replay_rejects_anything_but_the_exact_form() {
             9 => {
                 function
                     .memory_accesses
-                    .push(selected_instructions::SelectedMemoryAccess {
+                    .push(target_operations_to_selected_instructions::SelectedMemoryAccess {
                         instruction: BRANCH,
-                        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                        origin: target_operations_to_selected_instructions::SelectedMemoryAccessOrigin::Operation(
                             OperationId::new(4).unwrap(),
                         ),
                         place: semantic_vocabulary::PlaceId::new(1).unwrap(),
                         byte_offset: 0,
                         byte_count: 8,
-                        role: selected_instructions::SelectedMemoryAccessRole::ReadPlace,
+                        role: target_operations_to_selected_instructions::SelectedMemoryAccessRole::ReadPlace,
                     });
             }
             _ => unreachable!(),

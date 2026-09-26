@@ -8,9 +8,9 @@ use super::{
     SelectedSelectionConstraints, StructuralTypeId, ValueDefinitionSite, ValueId,
     VirtualRegisterId, build, returned,
 };
+use crate::selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 use crate::selection::construction::scalar_graph::tests::borrowed_calls;
 use crate::selection::construction::scalar_graph::tests::subslices;
-use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 
 fn derived_call(target: target::NativeTarget, empty: bool) -> LegalizedScalarFunction {
@@ -40,7 +40,7 @@ fn derived_call(target: target::NativeTarget, empty: bool) -> LegalizedScalarFun
     };
     semantic.place = PlaceId::new(2).unwrap();
     target.place = semantic.place;
-    target.source = target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+    target.source = abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedByteView {
         psi_operation: OperationId::new(3).unwrap(),
     };
     source.blocks[0].instructions[3] = call;
@@ -107,7 +107,7 @@ fn branched_call(target: target::NativeTarget, sibling: bool) -> LegalizedScalar
                 },
             }),
             kind: LegalizedScalarInstructionKind::Compare {
-                predicate: legalized_operations::LegalizedScalarComparison::LessOrEqual,
+                predicate: crate::legalized_operations::LegalizedScalarComparison::LessOrEqual,
                 operand_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                 ),
@@ -121,7 +121,7 @@ fn branched_call(target: target::NativeTarget, sibling: bool) -> LegalizedScalar
             effect,
             ownership: Vec::new(),
         });
-    let successor = |edge, target| legalized_operations::LegalizedScalarSuccessor {
+    let successor = |edge, target| crate::legalized_operations::LegalizedScalarSuccessor {
         structural_bindings: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(target).unwrap(),
@@ -150,7 +150,7 @@ fn derived_call_requires_actual_descriptor_definition_to_dominate_call_block() {
         target::NativeTarget::windows_x64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -199,7 +199,7 @@ fn derived_call_descriptor_replay_rejects_storage_address_and_fuel_substitution(
         target::NativeTarget::windows_x64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -252,7 +252,7 @@ fn derived_call_descriptor_replay_rejects_storage_address_and_fuel_substitution(
                     }
                     3 => {
                         changed.local_storage_slots[0].id =
-                            selected_instructions::LocalStorageSlotId::Structural {
+                            crate::selected_instructions::LocalStorageSlotId::Structural {
                                 operation: OperationId::new(99).unwrap(),
                                 place: changed.local_storage_slots[0]
                                     .id
@@ -262,7 +262,7 @@ fn derived_call_descriptor_replay_rejects_storage_address_and_fuel_substitution(
                     }
                     4 => {
                         changed.local_storage_slots[0].id =
-                            selected_instructions::LocalStorageSlotId::Structural {
+                            crate::selected_instructions::LocalStorageSlotId::Structural {
                                 operation: changed.local_storage_slots[0]
                                     .id
                                     .operation()

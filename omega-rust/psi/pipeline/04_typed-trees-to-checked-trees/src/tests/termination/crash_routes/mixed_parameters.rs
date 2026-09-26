@@ -1,12 +1,14 @@
-use crate::tests::front_end::checked_program;
-use crate::tests::termination::symbol_of_checked;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
-use typed_trees::types::PrimitiveType;
+use crate::tests::front_end::checked_program;
+use crate::tests::termination::symbol_of_checked;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
-fn predicate(checked: &checked_trees::CheckedTrees) -> &checked_trees::CrashPredicateIdentity {
+fn predicate(
+    checked: &crate::checked_trees::CheckedTrees,
+) -> &crate::checked_trees::CrashPredicateIdentity {
     let contract = checked
         .facts
         .contract_plans
@@ -15,7 +17,8 @@ fn predicate(checked: &checked_trees::CheckedTrees) -> &checked_trees::CrashPred
     let [bucket] = contract.crash.published() else {
         panic!("one crash bucket")
     };
-    let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards() else {
+    let [crate::checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
+    else {
         panic!("one guarded crash route")
     };
     predicate

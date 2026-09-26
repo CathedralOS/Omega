@@ -8,15 +8,15 @@ use super::{
     SelectedInstructionProvenance, SelectedMemoryAccess, SelectedMemoryAccessRole,
 };
 use crate::SelectedInstructionError;
-use crate::selection::validation::scalar_graph::Replay;
-use crate::selection::validation::scalar_graph::structural::result;
-use selected_instructions::{
+use crate::selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
 };
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::result;
 
 pub(in crate::selection::validation) fn block_entry(
     source: &LegalizedScalarFunction,
-    block: &legalized_operations::LegalizedScalarBlock,
+    block: &crate::legalized_operations::LegalizedScalarBlock,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     for parameter in &block.structural_parameters {
@@ -27,7 +27,9 @@ pub(in crate::selection::validation) fn block_entry(
             crate::selection::aggregate_result_input::block_parameter_shape(source, parameter)
                 .ok_or(SelectedInstructionError::custody())?
         } else {
-            calling_conventions::ValueShape::integer(16, 8)
+            abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
+                16, 8,
+            )
         };
         let slot = LocalStorageSlotId::StructuralBlockParameter {
             block: block.id,

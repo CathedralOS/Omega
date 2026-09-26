@@ -1,7 +1,7 @@
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::UseItem;
-use tokens::PunctuationKind;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::UseItem;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 pub(super) fn parse_use_item<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

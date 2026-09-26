@@ -1,9 +1,9 @@
 use super::StatementNode;
 use crate::CheckingRequest;
+use crate::checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 use crate::lower_typed_trees;
 use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
 use crate::values::build_value_facts;
-use checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
 mod bitwise_integer_bounds;
 mod byte_subslice_arguments;
@@ -27,10 +27,10 @@ mod unit_initializers;
 
 #[test]
 fn scalar_transition_argument_custody_keeps_exact_targets_and_source_bindings() {
-    use checked_trees::{
+    use crate::checked_trees::{
         CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
     };
-    use typed_trees::statement::TransitionTargetNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode;
 
     for (declarations, signature, arguments, target_parameters) in [
         (
@@ -130,8 +130,8 @@ fn scalar_transition_argument_custody_keeps_exact_targets_and_source_bindings() 
 
 #[test]
 fn scalar_transition_continuation_has_independent_argument_custody() {
-    use checked_trees::CheckedScalarExpressionRole;
-    use typed_trees::statement::TransitionTargetNode;
+    use crate::checked_trees::CheckedScalarExpressionRole;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode;
 
     let mut program = typed_program(
         r#"
@@ -238,12 +238,14 @@ fn scalar_transition_continuation_has_independent_argument_custody() {
 
 #[test]
 fn mutable_scalar_reads_require_consistent_exact_resolved_name_handles() {
-    use checked_trees::{
+    use crate::checked_trees::{
         CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
         CheckedScalarExpressionRole,
     };
+    use symbol_resolved_trees_to_typed_trees::typed_trees::{
+        expression::ExpressionNode, types::PrimitiveType,
+    };
     use symbols::SymbolHandle;
-    use typed_trees::{expression::ExpressionNode, types::PrimitiveType};
 
     for (scalar_type, initial_value, primitive_type) in [
         ("u8", "7", PrimitiveType::U8),
@@ -321,10 +323,10 @@ fn mutable_scalar_reads_require_consistent_exact_resolved_name_handles() {
 
 #[test]
 fn scalar_return_custody_retains_filtered_parameters_and_dense_prior_locals() {
-    use checked_trees::{
+    use crate::checked_trees::{
         CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
     };
-    use typed_trees::types::PrimitiveType;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
     for (result_type, returned, expected) in [
         (
@@ -455,8 +457,10 @@ fn scalar_return_custody_retains_filtered_parameters_and_dense_prior_locals() {
 
 #[test]
 fn scalar_return_custody_keeps_same_spelling_state_bindings_and_source_occurrences_distinct() {
-    use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
-    use typed_trees::{statement::TransitionTargetNode, types::PrimitiveType};
+    use crate::checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::{
+        statement::TransitionTargetNode, types::PrimitiveType,
+    };
 
     let checked = lower_typed_trees(
         typed_program(
@@ -586,20 +590,20 @@ fn transition_scalar_facts_skip_implicit_self_but_retain_target_position() {
         checked.facts.values.scalar_expressions.expression_at(
             entry.symbol,
             0,
-            checked_trees::CheckedScalarExpressionRole::TransitionArgument {
+            crate::checked_trees::CheckedScalarExpressionRole::TransitionArgument {
                 argument_ordinal: 1,
             },
         ),
-        Some(&checked_trees::CheckedScalarExpression::Boolean(Box::new(
-            checked_trees::CheckedBooleanExpression::Parameter { position: 1 }
-        ))),
+        Some(&crate::checked_trees::CheckedScalarExpression::Boolean(
+            Box::new(crate::checked_trees::CheckedBooleanExpression::Parameter { position: 1 })
+        )),
         "the dense scalar expression must retain the target parameter's raw position",
     );
     assert_eq!(
         checked.facts.values.scalar_expressions.expression_at(
             entry.symbol,
             0,
-            checked_trees::CheckedScalarExpressionRole::TransitionArgument {
+            crate::checked_trees::CheckedScalarExpressionRole::TransitionArgument {
                 argument_ordinal: 0,
             },
         ),
@@ -669,12 +673,12 @@ fn borrowed_self_scalar_loop_keeps_ambient_receiver_and_authored_positions() {
     );
     assert!(state.structural_parameters.is_empty());
     assert!(state.erased_scalar_parameters.is_empty());
-    let checked_trees::CheckedScalarStateTerminator::Conditional { when_true, .. } =
+    let crate::checked_trees::CheckedScalarStateTerminator::Conditional { when_true, .. } =
         &state.terminator
     else {
         panic!("the countdown guard selects the rotating edge")
     };
-    let checked_trees::CheckedScalarBranchDestination::Jump(successor) = when_true else {
+    let crate::checked_trees::CheckedScalarBranchDestination::Jump(successor) = when_true else {
         panic!("the true arm re-enters rot")
     };
     assert_eq!(successor.argument_count, 4);
@@ -703,7 +707,7 @@ fn borrowed_self_scalar_loop_keeps_ambient_receiver_and_authored_positions() {
             .find(|entry| {
                 entry.operations.iter().any(|operation| matches!(
                 operation,
-                checked_trees::CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. }
+                crate::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. }
                     if *target_machine == rot
             ))
             })
@@ -805,11 +809,13 @@ fn checked_scalar_graph_retains_call_computation_bindings_and_arguments() {
         .root_at(
             state.state,
             binding.statement_ordinal,
-            checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+            crate::checked_trees::CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: 0,
+            },
         )
         .expect("call initializer computation");
     assert_eq!(root.machine, caller.machine);
-    let checked_trees::CheckedScalarComputationKind::Call {
+    let crate::checked_trees::CheckedScalarComputationKind::Call {
         target_machine,
         target_state,
         call_ordinal,
@@ -830,9 +836,9 @@ fn checked_scalar_graph_retains_call_computation_bindings_and_arguments() {
     };
     assert!(matches!(
         &computations.nodes.get(*argument).kind,
-        checked_trees::CheckedScalarComputationKind::Value(
-            checked_trees::CheckedScalarExpression::Boolean(value)
-        ) if **value == checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+        crate::checked_trees::CheckedScalarComputationKind::Value(
+            crate::checked_trees::CheckedScalarExpression::Boolean(value)
+        ) if **value == crate::checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
     ));
     let occurrence = checked.facts.flow.control.calls.get(source_call);
     assert_eq!(
@@ -860,14 +866,14 @@ fn checked_scalar_graph_retains_call_computation_bindings_and_arguments() {
         checked.facts.values.scalar_expressions.expression_at(
             state.state,
             binding.statement_ordinal,
-            checked_trees::CheckedScalarExpressionRole::CallArgument {
+            crate::checked_trees::CheckedScalarExpressionRole::CallArgument {
                 binding_ordinal: 0,
                 argument_ordinal: 0,
             },
         ),
-        Some(&checked_trees::CheckedScalarExpression::Boolean(Box::new(
-            checked_trees::CheckedBooleanExpression::Parameter { position: 0 },
-        ))),
+        Some(&crate::checked_trees::CheckedScalarExpression::Boolean(
+            Box::new(crate::checked_trees::CheckedBooleanExpression::Parameter { position: 0 },)
+        )),
         "the argument must be expressed in the caller's checked scalar namespace",
     );
 }
@@ -894,13 +900,13 @@ fn materializes_checked_value_facts_for_statement_expressions() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
     let values = build_value_facts(&typed, &proof_plan);
 
     assert!(
         values.values.iter().any(|(_, value)| matches!(
             value.origin,
-            checked_trees::CheckedValueOrigin::StateStatement {
+            crate::checked_trees::CheckedValueOrigin::StateStatement {
                 role: CheckedValueStatementRole::LocalInitializer,
                 ..
             }
@@ -910,7 +916,7 @@ fn materializes_checked_value_facts_for_statement_expressions() {
     assert!(
         values.values.iter().any(|(_, value)| matches!(
             value.origin,
-            checked_trees::CheckedValueOrigin::StateStatement {
+            crate::checked_trees::CheckedValueOrigin::StateStatement {
                 role: CheckedValueStatementRole::AssignmentValue,
                 ..
             }
@@ -924,7 +930,7 @@ fn materializes_checked_value_facts_for_statement_expressions() {
         .find(|value| {
             matches!(
                 value.origin,
-                checked_trees::CheckedValueOrigin::StateStatement {
+                crate::checked_trees::CheckedValueOrigin::StateStatement {
                     role: CheckedValueStatementRole::AssignmentValue,
                     ..
                 }
@@ -933,13 +939,13 @@ fn materializes_checked_value_facts_for_statement_expressions() {
         .expect("assignment value fact");
     assert_eq!(
         typed.primitive_type_reference(assignment_value.type_reference),
-        Some(typed_trees::types::PrimitiveType::I32),
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32),
         "checked assignment values should retain their use-site declared type"
     );
     assert!(
         values.values.iter().any(|(_, value)| matches!(
             value.origin,
-            checked_trees::CheckedValueOrigin::StateStatement {
+            crate::checked_trees::CheckedValueOrigin::StateStatement {
                 role: CheckedValueStatementRole::CallArgument,
                 ..
             }
@@ -949,7 +955,7 @@ fn materializes_checked_value_facts_for_statement_expressions() {
     assert!(
         values.values.iter().any(|(_, value)| matches!(
             value.origin,
-            checked_trees::CheckedValueOrigin::StateStatement {
+            crate::checked_trees::CheckedValueOrigin::StateStatement {
                 role: CheckedValueStatementRole::TransitionGuard,
                 ..
             }
@@ -959,7 +965,7 @@ fn materializes_checked_value_facts_for_statement_expressions() {
     assert!(
         values.values.iter().any(|(_, value)| matches!(
             value.origin,
-            checked_trees::CheckedValueOrigin::StateStatement {
+            crate::checked_trees::CheckedValueOrigin::StateStatement {
                 role: CheckedValueStatementRole::TransitionTargetValue
                     | CheckedValueStatementRole::TransitionTargetArgument,
                 ..
@@ -970,7 +976,7 @@ fn materializes_checked_value_facts_for_statement_expressions() {
     assert!(
         values.values.iter().any(|(_, value)| matches!(
             value.origin,
-            checked_trees::CheckedValueOrigin::NestedExpression { .. }
+            crate::checked_trees::CheckedValueOrigin::NestedExpression { .. }
         )),
         "nested expression values should preserve their parent relationship"
     );
@@ -992,7 +998,7 @@ fn materializes_checked_value_facts_for_machine_decreases() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
     let values = build_value_facts(&typed, &proof_plan);
     let countdown = typed
         .machines()
@@ -1003,7 +1009,7 @@ fn materializes_checked_value_facts_for_machine_decreases() {
     assert!(
         values.values.iter().any(|(_, value)| matches!(
             value.origin,
-            checked_trees::CheckedValueOrigin::MachineDecrease {
+            crate::checked_trees::CheckedValueOrigin::MachineDecrease {
                 machine_symbol,
                 ordinal: 0,
             } if machine_symbol == countdown.symbol
@@ -1035,8 +1041,9 @@ fn assignment_value_fact_retains_stable_guard_range() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    proof::checker::check_proof_plan(&proof_plan).expect("guarded assignment should prove");
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    crate::proof_engine::checker::check_proof_plan(&proof_plan)
+        .expect("guarded assignment should prove");
     let values = build_value_facts(&typed, &proof_plan);
     let guarded = values
         .values
@@ -1045,7 +1052,7 @@ fn assignment_value_fact_retains_stable_guard_range() {
         .find(|value| {
             matches!(
                 value.origin,
-                checked_trees::CheckedValueOrigin::StateStatement {
+                crate::checked_trees::CheckedValueOrigin::StateStatement {
                     role: CheckedValueStatementRole::AssignmentValue,
                     ..
                 }
@@ -1078,7 +1085,9 @@ fn checked_scalar_plan_retains_guard_proved_exact_integer_cast_range() {
         .expressions
         .iter()
         .find_map(|located| match &located.expression {
-            checked_trees::CheckedScalarExpression::IntegerExactCast { range, .. } => Some(range),
+            crate::checked_trees::CheckedScalarExpression::IntegerExactCast { range, .. } => {
+                Some(range)
+            }
             _ => None,
         })
         .expect("checked scalar facts should retain the exact cast");
@@ -1120,8 +1129,8 @@ fn checked_scalar_plan_retains_guard_proved_exact_right_shift() {
             .iter()
             .any(|located| matches!(
                 located.expression,
-                checked_trees::CheckedScalarExpression::IntegerBinary {
-                    kind: checked_trees::CheckedIntegerBinaryKind::ExactShiftRight,
+                crate::checked_trees::CheckedScalarExpression::IntegerBinary {
+                    kind: crate::checked_trees::CheckedIntegerBinaryKind::ExactShiftRight,
                     ..
                 }
             ))
@@ -1158,8 +1167,8 @@ fn checked_scalar_plan_retains_guard_proved_exact_left_shift() {
             .iter()
             .any(|located| matches!(
                 located.expression,
-                checked_trees::CheckedScalarExpression::IntegerBinary {
-                    kind: checked_trees::CheckedIntegerBinaryKind::ExactShiftLeft,
+                crate::checked_trees::CheckedScalarExpression::IntegerBinary {
+                    kind: crate::checked_trees::CheckedIntegerBinaryKind::ExactShiftLeft,
                     ..
                 }
             ))
@@ -1170,10 +1179,10 @@ fn checked_scalar_plan_retains_guard_proved_exact_left_shift() {
 /// semantic contexts appended for that state point.
 #[cfg(test)]
 fn entry_scalar_values(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     state_name: &str,
     parameter_name: &str,
-) -> Vec<facts::ScalarValue> {
+) -> Vec<crate::fact_plan::ScalarValue> {
     let machine = &checked.machines()[0];
     let state = checked
         .machine_states(machine)
@@ -1191,21 +1200,23 @@ fn entry_scalar_values(
         .iter()
         .filter(|(_, context)| {
             context.point
-                == facts::ProgramPoint::State {
+                == crate::fact_plan::ProgramPoint::State {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
                 }
         })
         .flat_map(|(_, context)| {
             semantic.context_view(context).facts().filter_map(|fact| {
-                let facts::FactPayload::AssignedScalarValue { value } = fact.payload else {
+                let crate::fact_plan::FactPayload::AssignedScalarValue { value } = fact.payload
+                else {
                     return None;
                 };
-                let facts::FactPlace::Place(place) = fact.place else {
+                let crate::fact_plan::FactPlace::Place(place) = fact.place else {
                     return None;
                 };
-                (semantic.places.get(place).root == facts::PlaceRoot::Symbol(parameter.symbol))
-                    .then(|| semantic.scalar_values.get(value).clone())
+                (semantic.places.get(place).root
+                    == crate::fact_plan::PlaceRoot::Symbol(parameter.symbol))
+                .then(|| semantic.scalar_values.get(value).clone())
             })
         })
         .collect()
@@ -1233,9 +1244,9 @@ fn saved_argument_reads_a_bounds_precision_snapshot() {
     )
     .expect("indexed read checks");
     assert!(
-        entry_scalar_values(&checked, "done", "observed").contains(&facts::ScalarValue::Integer(
-            numerics::bignum::BigInt::from_u64(88)
-        )),
+        entry_scalar_values(&checked, "done", "observed").contains(
+            &crate::fact_plan::ScalarValue::Integer(numerics::bignum::BigInt::from_u64(88))
+        ),
         "a singleton bounds snapshot is the completed entry observation"
     );
 }
@@ -1262,9 +1273,9 @@ fn byte_carrier_live_length_reaches_the_saved_state_argument() {
     )
     .expect("live length checks");
     assert!(
-        entry_scalar_values(&checked, "done", "count").contains(&facts::ScalarValue::Integer(
-            numerics::bignum::BigInt::from_u64(3)
-        )),
+        entry_scalar_values(&checked, "done", "count").contains(
+            &crate::fact_plan::ScalarValue::Integer(numerics::bignum::BigInt::from_u64(3))
+        ),
         "the literal byte carrier's live length must reach the saved argument"
     );
 }
@@ -1294,7 +1305,7 @@ fn retired_byte_carrier_literal_supplies_no_live_length() {
     assert!(
         entry_scalar_values(&checked, "done", "count")
             .iter()
-            .all(|value| !matches!(value, facts::ScalarValue::Integer(_))),
+            .all(|value| !matches!(value, crate::fact_plan::ScalarValue::Integer(_))),
         "a retired byte-carrier snapshot must not supply a live length"
     );
 }
@@ -1372,7 +1383,7 @@ fn assignment_target_index_call_retains_call_ordinal_and_flow_call() {
         program
             .expression_table
             .expression(pick_call.authored_expression),
-        typed_trees::expression::ExpressionNode::Call(_)
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)
     ));
     let seven_call = calls
         .iter()

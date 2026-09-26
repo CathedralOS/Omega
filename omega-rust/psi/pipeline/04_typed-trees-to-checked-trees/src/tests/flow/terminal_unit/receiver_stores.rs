@@ -35,10 +35,10 @@ fn projected_mutable_receiver_call_retains_its_exact_field_path() {
     assert_eq!(argument.source_parameter_index(), Some(0));
     assert_eq!(
         argument.access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
+        crate::checked_trees::CheckedStructuralAccess::MutableBorrow
     );
     assert!(matches!(argument.path.as_slice(),
-        [checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
+        [crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
             if identity == "record"));
 }
 
@@ -83,7 +83,7 @@ fn retains_mutable_receiver_field_stores() {
         assert_eq!(receiver.position, 0);
         assert_eq!(
             receiver.access,
-            checked_trees::CheckedStructuralAccess::MutableBorrow
+            crate::checked_trees::CheckedStructuralAccess::MutableBorrow
         );
         assert_eq!(
             plan.attachment_type_identity.as_ref(),
@@ -153,24 +153,20 @@ fn indexed_policy_array_element_store_keeps_its_canonical_path() {
         (
             "seed",
             0,
-            vec![checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                0,
-            )],
+            vec![crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0)],
         ),
         (
             "Root::enter",
             0,
             vec![
-                checked_trees::CheckedUnitStructuralPathSegment::Field("values".into()),
-                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0),
+                crate::checked_trees::CheckedUnitStructuralPathSegment::Field("values".into()),
+                crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0),
             ],
         ),
         (
             "fill",
             0,
-            vec![checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                1,
-            )],
+            vec![crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)],
         ),
     ] {
         let plan = checked
@@ -183,7 +179,9 @@ fn indexed_policy_array_element_store_keeps_its_canonical_path() {
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: store_statement_index,
                 destination:
-                    checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                    crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                        parameter_index: 0,
+                    },
                 path,
                 ..
             },
@@ -224,16 +222,16 @@ fn composed_state_keeps_its_indexed_policy_element_store() {
         (
             1,
             vec![
-                checked_trees::CheckedUnitStructuralPathSegment::Field("values".into()),
-                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
+                crate::checked_trees::CheckedUnitStructuralPathSegment::Field("values".into()),
+                crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
             ],
         ),
         (
             2,
             vec![
-                checked_trees::CheckedUnitStructuralPathSegment::Field("frame".into()),
-                checked_trees::CheckedUnitStructuralPathSegment::Field("bytes".into()),
-                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0),
+                crate::checked_trees::CheckedUnitStructuralPathSegment::Field("frame".into()),
+                crate::checked_trees::CheckedUnitStructuralPathSegment::Field("bytes".into()),
+                crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0),
             ],
         ),
     ] {
@@ -243,7 +241,7 @@ fn composed_state_keeps_its_indexed_policy_element_store() {
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: store_statement_index,
                     destination:
-                        checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                        crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                             parameter_index: 0,
                         },
                     path,
@@ -293,11 +291,14 @@ fn receiver_store_requires_its_exact_receiver_write_frame() {
             .is_some()
     );
     for frame in [
-        facts::NormalizedWriteFrame::complete(vec!["$P0.left".into()]),
-        facts::NormalizedWriteFrame::complete(vec!["self.right".into()]),
-        facts::NormalizedWriteFrame::complete(vec!["self.left".into(), "self.right".into()]),
-        facts::NormalizedWriteFrame::complete(Vec::new()),
-        facts::NormalizedWriteFrame::opaque(),
+        crate::fact_plan::NormalizedWriteFrame::complete(vec!["$P0.left".into()]),
+        crate::fact_plan::NormalizedWriteFrame::complete(vec!["self.right".into()]),
+        crate::fact_plan::NormalizedWriteFrame::complete(vec![
+            "self.left".into(),
+            "self.right".into(),
+        ]),
+        crate::fact_plan::NormalizedWriteFrame::complete(Vec::new()),
+        crate::fact_plan::NormalizedWriteFrame::opaque(),
     ] {
         let mut changed = checked.facts.clone();
         changed
@@ -338,14 +339,17 @@ fn receiver_store_sequence_requires_the_complete_assignment_frame() {
             .is_some()
     );
     for frame in [
-        facts::NormalizedWriteFrame::complete(vec!["self.left".into()]),
-        facts::NormalizedWriteFrame::complete(vec![
+        crate::fact_plan::NormalizedWriteFrame::complete(vec!["self.left".into()]),
+        crate::fact_plan::NormalizedWriteFrame::complete(vec![
             "self.left".into(),
             "self.right".into(),
             "self.extra".into(),
         ]),
-        facts::NormalizedWriteFrame::complete(vec!["$P0.left".into(), "$P0.right".into()]),
-        facts::NormalizedWriteFrame::opaque(),
+        crate::fact_plan::NormalizedWriteFrame::complete(vec![
+            "$P0.left".into(),
+            "$P0.right".into(),
+        ]),
+        crate::fact_plan::NormalizedWriteFrame::opaque(),
     ] {
         let mut changed = checked.facts.clone();
         changed

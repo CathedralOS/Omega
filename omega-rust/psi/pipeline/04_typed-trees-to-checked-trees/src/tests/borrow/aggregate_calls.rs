@@ -134,12 +134,12 @@ fn nested_aggregate_call_cast_preserves_field_paths_and_borrow_polarity() {
     assert!(
         nested
             .iter()
-            .any(|loan| { loan.kind == checked_trees::BorrowAccessKind::Read })
+            .any(|loan| { loan.kind == crate::checked_trees::BorrowAccessKind::Read })
     );
     assert!(
         nested
             .iter()
-            .any(|loan| { loan.kind == checked_trees::BorrowAccessKind::Mutable })
+            .any(|loan| { loan.kind == crate::checked_trees::BorrowAccessKind::Mutable })
     );
 }
 

@@ -1,9 +1,9 @@
+use crate::symbol_resolved_trees::expression::ExpressionNode;
+use crate::symbol_resolved_trees::{AuthoredDeclarationSelectionTarget, SymbolResolvedTrees};
 use source::{SourceId, SourceSpan, Span};
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::expression::ExpressionNode;
-use symbol_resolved_trees::{AuthoredDeclarationSelectionTarget, SymbolResolvedTrees};
 use symbols::SymbolKind;
-use syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 
 fn resolve_indices(module: bool, body: &str) -> (SymbolResolvedTrees, Vec<SourceSpan>) {
     let source = format!(
@@ -202,7 +202,7 @@ fn qualified_index_leaf_failure_retains_lexical_head_and_prior_local_frontier() 
         );
         assert!(suffix_selections.iter().all(|selection| {
             selection.target() == AuthoredDeclarationSelectionTarget::LateBound(
-                symbol_resolved_trees::AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,
+                crate::symbol_resolved_trees::AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,
             )
         }), "runtime root cannot acquire resolved constant custody through its unresolved suffix");
     }

@@ -341,7 +341,7 @@ fn direct_boundary_result_custody_rejects_substitution_and_cleanup_after_transfe
                 ..
             } if !structural_arguments.is_empty() => {
                 structural_arguments[0].source =
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: 1,
                     };
             }

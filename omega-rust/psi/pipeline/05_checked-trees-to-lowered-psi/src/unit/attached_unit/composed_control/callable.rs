@@ -25,7 +25,7 @@ impl<'a> CallableBody<'a> {
 
 pub(in crate::unit::attached_unit) fn admit<'a>(
     checked: &'a CheckedTrees,
-    plan: &'a checked_trees::CheckedComposedUnitControlMachinePlan,
+    plan: &'a typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<CallableBody<'a>, LoweringError> {
     if !state_graph::has_shared_graph_custody(checked, plan) {
         return super::super::unsupported("composed callee has unsupported graph custody");
@@ -63,7 +63,7 @@ pub(in crate::unit::attached_unit) struct EmissionCounters<'a> {
 
 pub(in crate::unit::attached_unit) fn emit(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
+    plan: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: CallableBody<'_>,
     parameters: Vec<StructuralParameterDeclaration>,
     scalar_parameters: Vec<ValueDeclaration>,
@@ -170,7 +170,7 @@ pub(in crate::unit::attached_unit) fn emit(
 /// nor its guarantees.
 fn scalar_guarantees(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
+    plan: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlMachinePlan,
     machine: &TerminalMachine,
     erased: &[ValueDeclaration],
     views: &crate::scalar_graph::scalar_contracts::ContractViewNamespace<'_>,

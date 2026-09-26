@@ -200,22 +200,24 @@ impl<'field> RangeFacts<'field> {
 /// typed identities for a dependency-preservation grant.
 pub(super) fn integer_value_identity(
     program: &TypedTrees,
-    bound_lookup: &validation::ImmutableBoundLookup<'_>,
+    bound_lookup: &crate::validation::ImmutableBoundLookup<'_>,
     state: &State,
     mut expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let value = validation::immutable_integer_bound_value_symbol(program, bound_lookup, expression)
-        .or_else(|| {
-            let normalized = validation::normalize_immutable_integer_bound_expression(
-                program,
-                bound_lookup,
-                expression,
-            )?;
-            let ExpressionNode::Name(path) = program.expression_table.expression(normalized) else {
-                return None;
-            };
-            Some(path.symbol)
-        })?;
+    let value =
+        crate::validation::immutable_integer_bound_value_symbol(program, bound_lookup, expression)
+            .or_else(|| {
+                let normalized = crate::validation::normalize_immutable_integer_bound_expression(
+                    program,
+                    bound_lookup,
+                    expression,
+                )?;
+                let ExpressionNode::Name(path) = program.expression_table.expression(normalized)
+                else {
+                    return None;
+                };
+                Some(path.symbol)
+            })?;
     for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {
         let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
             return None;
@@ -235,7 +237,7 @@ pub(super) fn integer_value_identity(
             .statements(state.statement_nodes)
             .iter()
             .filter_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local)
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                     if local.symbol == path.symbol =>
                 {
                     Some(local)
@@ -270,8 +272,8 @@ pub(super) fn is_integer_value(
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
     use symbols::BuiltinTypeAtom;
-    use typed_trees::types::TypeReferenceNode;
     let Some(mut reference) = crate::checks::ranges::types::expression_type_reference(
         program, machine, state, expression,
     ) else {

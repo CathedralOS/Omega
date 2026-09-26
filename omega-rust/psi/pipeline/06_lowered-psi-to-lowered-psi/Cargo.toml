@@ -6,13 +6,12 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+checked-trees-to-lowered-psi = { path = "../05_checked-trees-to-lowered-psi" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
-terminal-semantics = { path = "../../semantics/terminal-semantics" }
-lowered-psi = { path = "../../representations/lowered-psi" }
-optimization = { path = "../../representations/optimization" }
-terminal-psi = { path = "../../representations/terminal-psi" }
-terminal-codec = { path = "../../semantics/terminal-codec" }
-terminal-verifier = { path = "../../semantics/terminal-verifier" }
+terminal-semantics = { path = "../../terminal-semantics" }
+terminal-psi = { path = "../../terminal-psi" }
+terminal-codec = { path = "../../terminal-codec" }
+terminal-verifier = { path = "../../terminal-verifier" }
 
 [dev-dependencies]
 language-core = { path = "../../foundation/language-core" }

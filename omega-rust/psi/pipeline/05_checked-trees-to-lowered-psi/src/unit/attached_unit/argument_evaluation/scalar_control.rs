@@ -12,7 +12,9 @@ use crate::expression_preparation::bindings::structural_fields::EstablishedCaseP
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     CaseDispatchArm, LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
-use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarBranchDestination, CheckedScalarStateTerminator,
+};
 
 /// A guarded-exit arm that dispatches on its case's scalar payloads: the
 /// selected case's payload fields bind as the arm continuation's block
@@ -458,7 +460,7 @@ impl Evaluation {
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
-        control: &checked_trees::CheckedUnitScalarControlPlan,
+        control: &typed_trees_to_checked_trees::checked_trees::CheckedUnitScalarControlPlan,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,

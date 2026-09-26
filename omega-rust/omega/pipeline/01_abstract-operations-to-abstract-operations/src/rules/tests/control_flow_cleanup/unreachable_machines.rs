@@ -5,25 +5,25 @@ use super::super::super::UnreachablePrivateMachinePruneRule;
 use crate::rules::control_flow_cleanup::rule_unreachable_private_machine_complement;
 use crate::rules::tests::fixtures::control_flow_cleanup::linear_empty_block_unit;
 use crate::{AnalysisProduct, RuleAnalysisView, compute_analysis};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::AnalysisKind;
-use optimization_unit::{
+use semantic_vocabulary::{
+    BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     ProvenanceDisposition, PrunedMachineCustody, PsiRewriteCandidate, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_psi_optimization_unit,
     validate_unreachable_private_machines_candidate,
-};
-use semantic_vocabulary::{
-    BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId,
 };
 
 fn stored_dynamic_dispatch(
     owner: MachineId,
     operation: OperationId,
     realization: MachineId,
-) -> abstract_operations::AbstractStoredDynamicDispatch {
+) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractStoredDynamicDispatch {
     let application = terminal_psi::ClosedConformanceApplication {
         owner,
         declaration_identity: "test::CarrierImplementsScanner".into(),
@@ -37,8 +37,8 @@ fn stored_dynamic_dispatch(
         report_fingerprint: 0,
         commitment: Default::default(),
     };
-    abstract_operations::AbstractStoredDynamicDispatch {
-        stored: abstract_operations::AbstractStoredDynamicDescriptor {
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractStoredDynamicDispatch {
+        stored: terminal_psi_to_abstract_operations::abstract_operations::AbstractStoredDynamicDescriptor {
             selection: terminal_psi::TerminalDynamicConformanceSelection {
                 owner,
                 ordinal: 0,
@@ -234,7 +234,7 @@ fn private_machine_roots_include_stored_dynamic_dispatch_targets() {
     let mut call = unit.functions[0].blocks[0].nodes[0].clone();
     call.operation = O::CallStoredDynamicScalar {
         psi_operation: operation,
-        result: abstract_operations::AbstractResult {
+        result: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
             value: semantic_vocabulary::ValueId::new(9_102).unwrap(),
             scalar_type: semantic_vocabulary::ScalarType::Boolean,
         },

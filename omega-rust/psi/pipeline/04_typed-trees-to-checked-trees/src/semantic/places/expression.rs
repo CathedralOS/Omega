@@ -1,27 +1,27 @@
+use crate::checked_trees::ContractCallFact;
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::fact_plan::FactPlan;
 use crate::flow::effective_member_symbol;
-use checked_trees::ContractCallFact;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use facts::FactPlan;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 pub(crate) fn instantiate_call_contract_expression_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     expression: ExpressionHandle,
-) -> Option<facts::PlaceHandle> {
+) -> Option<crate::fact_plan::PlaceHandle> {
     instantiate_contract_expression_place(program, facts, call, None, expression)
 }
 
 pub(crate) fn instantiate_outcome_contract_expression_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     result_statement_index: usize,
     result_expression: ExpressionHandle,
     expression: ExpressionHandle,
-) -> Option<facts::PlaceHandle> {
+) -> Option<crate::fact_plan::PlaceHandle> {
     instantiate_contract_expression_place(
         program,
         facts,
@@ -32,12 +32,12 @@ pub(crate) fn instantiate_outcome_contract_expression_place(
 }
 
 fn instantiate_contract_expression_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     result: Option<(usize, ExpressionHandle)>,
     expression: ExpressionHandle,
-) -> Option<facts::PlaceHandle> {
+) -> Option<crate::fact_plan::PlaceHandle> {
     if !expression.is_valid() {
         return None;
     }
@@ -104,16 +104,21 @@ fn instantiate_contract_expression_place(
                     .unwrap_or_else(SymbolHandle::invalid)
                 }
             };
-            let receiver = if let Some(variant) = facts::payload_variant_for_field(program, symbol)
+            let receiver = if let Some(variant) =
+                crate::fact_plan::payload_variant_for_field(program, symbol)
             {
-                super::append_place_segment(facts, receiver, facts::PlaceSegment::Case { variant })
+                super::append_place_segment(
+                    facts,
+                    receiver,
+                    crate::fact_plan::PlaceSegment::Case { variant },
+                )
             } else {
                 receiver
             };
             Some(super::append_place_segment(
                 facts,
                 receiver,
-                facts::PlaceSegment::Field { symbol },
+                crate::fact_plan::PlaceSegment::Field { symbol },
             ))
         }
         ExpressionNode::Indexed(indexed) => {
@@ -134,13 +139,13 @@ fn instantiate_contract_expression_place(
 /// Select the captured value of an explicit formal projection using exact
 /// nominal fields. Non-constructed actuals retain their remaining field path.
 pub(crate) fn call_contract_argument_projection(
-    program: &typed_trees::TypedTrees,
-    parameters: &[typed_trees::signature::StateParameter],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
-) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
+) -> Option<(ExpressionHandle, Vec<crate::fact_plan::PlaceSegment>)> {
     let formal = crate::flow::canonical_place_from_expression(program, expression)?;
-    let facts::PlaceRoot::Symbol(symbol) = formal.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = formal.root else {
         return None;
     };
     let (position, parameter) = parameters
@@ -170,12 +175,12 @@ pub(crate) fn call_contract_argument_projection(
 }
 
 fn instantiate_call_contract_name_path_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     result: Option<(usize, ExpressionHandle)>,
-    path: &typed_trees::expression::TableNamePath,
-) -> Option<facts::PlaceHandle> {
+    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
+) -> Option<crate::fact_plan::PlaceHandle> {
     let members = program.expression_table.name_path_members(path.members);
     let call_site = super::find_call_site(
         program,
@@ -253,22 +258,29 @@ fn instantiate_call_contract_name_path_place(
                 super::resolve_place_member_symbol(program, facts, place, member_name.as_str())
             })
             .unwrap_or_else(SymbolHandle::invalid);
-        if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
-            place =
-                super::append_place_segment(facts, place, facts::PlaceSegment::Case { variant });
+        if let Some(variant) = crate::fact_plan::payload_variant_for_field(program, symbol) {
+            place = super::append_place_segment(
+                facts,
+                place,
+                crate::fact_plan::PlaceSegment::Case { variant },
+            );
         }
-        place = super::append_place_segment(facts, place, facts::PlaceSegment::Field { symbol });
+        place = super::append_place_segment(
+            facts,
+            place,
+            crate::fact_plan::PlaceSegment::Field { symbol },
+        );
     }
 
     Some(place)
 }
 
 fn call_argument_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     expression: ExpressionHandle,
-) -> Option<facts::PlaceHandle> {
+) -> Option<crate::fact_plan::PlaceHandle> {
     super::canonical_place_to_fact_place_in_state(
         program,
         facts,

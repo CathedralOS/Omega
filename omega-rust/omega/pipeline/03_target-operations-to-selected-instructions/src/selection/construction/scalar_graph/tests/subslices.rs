@@ -39,7 +39,7 @@ pub(super) fn view_fixture(target: target::NativeTarget, empty: bool) -> Legaliz
         },
     )
     .unwrap();
-    source.structural = Some(legalized_operations::LegalizedStructuralContract {
+    source.structural = Some(crate::legalized_operations::LegalizedStructuralContract {
         result: None,
         structural_types: vec![terminal_psi::StructuralTypeDeclaration {
             id: structural_type,
@@ -51,7 +51,7 @@ pub(super) fn view_fixture(target: target::NativeTarget, empty: bool) -> Legaliz
             ),
         }]
         .into(),
-        parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+        parameters: vec![crate::legalized_operations::LegalizedCallUnitParameter {
             semantic: terminal_psi::StructuralParameterDeclaration {
                 place: original,
                 position: 0,
@@ -62,7 +62,7 @@ pub(super) fn view_fixture(target: target::NativeTarget, empty: bool) -> Legaliz
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             },
-            target: target_operations::TargetStructuralParameter {
+            target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                 place: original,
                 structural_type,
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -192,7 +192,7 @@ fn subslice_value_homes_replay_original_empty_and_nested_views() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -233,7 +233,7 @@ fn subslice_value_homes_replay_original_empty_and_nested_views() {
                 reads
                     .iter()
                     .filter(|read| read.role
-                        == selected_instructions::SelectedMemoryAccessRole::ReadPlace)
+                        == crate::selected_instructions::SelectedMemoryAccessRole::ReadPlace)
                     .count(),
                 2
             );
@@ -241,7 +241,7 @@ fn subslice_value_homes_replay_original_empty_and_nested_views() {
                 reads
                     .iter()
                     .filter(|read| read.role
-                        == selected_instructions::SelectedMemoryAccessRole::ReadPlace)
+                        == crate::selected_instructions::SelectedMemoryAccessRole::ReadPlace)
                     .all(|read| read.place == PlaceId::new(1).unwrap() && read.byte_count == 8)
             );
             // The payload read names the retained storage root, not the view
@@ -252,7 +252,7 @@ fn subslice_value_homes_replay_original_empty_and_nested_views() {
                     .iter()
                     .filter(|read| matches!(
                         read.role,
-                        selected_instructions::SelectedMemoryAccessRole::ReadByteSequence { .. }
+                        crate::selected_instructions::SelectedMemoryAccessRole::ReadByteSequence { .. }
                     ))
                     .count(),
                 0
@@ -262,14 +262,15 @@ fn subslice_value_homes_replay_original_empty_and_nested_views() {
                 .filter(|read| {
                     matches!(
                         read.role,
-                        selected_instructions::SelectedMemoryAccessRole::ReadByteSpan { .. }
+                        crate::selected_instructions::SelectedMemoryAccessRole::ReadByteSpan { .. }
                     )
                 })
                 .collect::<Vec<_>>();
             assert_eq!(payload.len(), usize::from(!empty));
             for read in payload {
-                let selected_instructions::SelectedMemoryAccessRole::ReadByteSpan {
-                    length, ..
+                let crate::selected_instructions::SelectedMemoryAccessRole::ReadByteSpan {
+                    length,
+                    ..
                 } = read.role
                 else {
                     unreachable!()
@@ -576,8 +577,9 @@ fn assert_offset_replay(
                     .iter_mut()
                     .find(|access| access.instruction == read.id)
                     .unwrap();
-                let selected_instructions::SelectedMemoryAccessRole::ReadByteSpan {
-                    length, ..
+                let crate::selected_instructions::SelectedMemoryAccessRole::ReadByteSpan {
+                    length,
+                    ..
                 } = &mut access.role
                 else {
                     panic!("logical read footprint")
@@ -613,7 +615,7 @@ fn bound_view_fixture(target: target::NativeTarget) -> LegalizedScalarFunction {
         },
     )
     .unwrap();
-    source.structural = Some(legalized_operations::LegalizedStructuralContract {
+    source.structural = Some(crate::legalized_operations::LegalizedStructuralContract {
         result: None,
         structural_types: vec![terminal_psi::StructuralTypeDeclaration {
             id: structural_type,
@@ -625,7 +627,7 @@ fn bound_view_fixture(target: target::NativeTarget) -> LegalizedScalarFunction {
             ),
         }]
         .into(),
-        parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+        parameters: vec![crate::legalized_operations::LegalizedCallUnitParameter {
             semantic: terminal_psi::StructuralParameterDeclaration {
                 place: original,
                 position: 0,
@@ -636,7 +638,7 @@ fn bound_view_fixture(target: target::NativeTarget) -> LegalizedScalarFunction {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             },
-            target: target_operations::TargetStructuralParameter {
+            target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                 place: original,
                 structural_type,
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -691,11 +693,11 @@ fn bound_view_fixture(target: target::NativeTarget) -> LegalizedScalarFunction {
         ownership: Vec::new(),
     }];
     entry.terminator = LegalizedScalarTerminator::Jump {
-        successor: legalized_operations::LegalizedScalarSuccessor {
+        successor: crate::legalized_operations::LegalizedScalarSuccessor {
             edge: EdgeId::new(2).unwrap(),
             target: join,
             bindings: Vec::new(),
-            structural_bindings: vec![abstract_operations::AbstractStructuralBinding {
+            structural_bindings: vec![terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                 parameter: bound,
                 argument: terminal_psi::StructuralArgument {
                     place: original,
@@ -810,7 +812,7 @@ fn block_parameter_view_payloads_charge_the_bound_storage_roots() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -866,11 +868,11 @@ fn block_parameter_view_payloads_charge_the_bound_storage_roots() {
                 .collect::<Vec<_>>();
             assert_eq!(rows.len(), 1, "{role} rows for {target:?}");
             let span = match rows[0].role {
-                selected_instructions::SelectedMemoryAccessRole::ReadByteSpan {
+                crate::selected_instructions::SelectedMemoryAccessRole::ReadByteSpan {
                     length: extent,
                     ..
                 } if role == "ReadByteSpan" => extent,
-                selected_instructions::SelectedMemoryAccessRole::WriteByteSpan {
+                crate::selected_instructions::SelectedMemoryAccessRole::WriteByteSpan {
                     length: extent,
                     ..
                 } if role == "WriteByteSpan" => extent,
@@ -884,8 +886,8 @@ fn block_parameter_view_payloads_charge_the_bound_storage_roots() {
         // No row keeps charging the view's own identity.
         assert!(!selected.memory_accesses.iter().any(|access| matches!(
             access.role,
-            selected_instructions::SelectedMemoryAccessRole::ReadByteSequence { .. }
-                | selected_instructions::SelectedMemoryAccessRole::WriteByteSequence { .. }
+            crate::selected_instructions::SelectedMemoryAccessRole::ReadByteSequence { .. }
+                | crate::selected_instructions::SelectedMemoryAccessRole::WriteByteSequence { .. }
         )));
         for mutation in 0..6 {
             let mut changed = selected.clone();
@@ -907,7 +909,7 @@ fn block_parameter_view_payloads_charge_the_bound_storage_roots() {
                     // A forged extent bound must fail replay.
                     let span = if write_side {
                         match &mut access.role {
-                            selected_instructions::SelectedMemoryAccessRole::WriteByteSpan {
+                            crate::selected_instructions::SelectedMemoryAccessRole::WriteByteSpan {
                                 length,
                                 ..
                             } => length,
@@ -915,7 +917,7 @@ fn block_parameter_view_payloads_charge_the_bound_storage_roots() {
                         }
                     } else {
                         match &mut access.role {
-                            selected_instructions::SelectedMemoryAccessRole::ReadByteSpan {
+                            crate::selected_instructions::SelectedMemoryAccessRole::ReadByteSpan {
                                 length,
                                 ..
                             } => length,

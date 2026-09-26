@@ -4,12 +4,12 @@ use super::{
     SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
-use crate::selection::validation::scalar_graph::Replay;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarReturnValue, LegalizedScalarTerminator,
 };
-use selected_instructions::SelectedTerminator;
-use selected_instructions::{SelectedBoundarySettlement, SelectedBoundarySettlementPayload};
+use crate::selected_instructions::SelectedTerminator;
+use crate::selected_instructions::{SelectedBoundarySettlement, SelectedBoundarySettlementPayload};
+use crate::selection::validation::scalar_graph::Replay;
 
 pub(super) fn validate(
     block: &LegalizedScalarBlock,
@@ -39,9 +39,9 @@ pub(super) fn validate(
         ..Default::default()
     });
     if returned.value != LegalizedScalarReturnValue::Unit
-        || !matches!(returned.ownership.as_slice(), [optimization_unit::OwnershipEvent::Cleanup(actions)] if actions.is_empty())
+        || !matches!(returned.ownership.as_slice(), [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(actions)] if actions.is_empty())
         || row.result.is_some()
-        || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+        || !matches!(row.ownership.as_slice(), [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
         || !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
         || *nominal_return_edge != returned.edge
         || instruction.id.0 as usize != replay.instruction_cursor

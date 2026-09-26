@@ -3,16 +3,16 @@ use super::{
     SelectedBlockOrigin, SelectedFunction, SelectedSuccessor, SelectedSuccessorRole,
     SelectedTerminator, SelectedValueTransport, VirtualRegisterId, project,
 };
-use crate::selection::edge_transfers::prepare;
-use crate::selection::edge_transfers::successors_mut;
-use optimization_unit::ValueDefinitionSite;
-use selected_instructions::{
+use crate::selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
     VirtualRegisterOrigin,
 };
+use crate::selection::edge_transfers::prepare;
+use crate::selection::edge_transfers::successors_mut;
 use semantic_vocabulary::{BlockId, EdgeId, IntegerType, MachineId};
 use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 #[test]
 fn shared_conditional_fallthrough_bridges_project_to_exact_original_edges() {
@@ -23,7 +23,7 @@ fn shared_conditional_fallthrough_bridges_project_to_exact_original_edges() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -105,7 +105,7 @@ fn shared_conditional_fallthrough_bridges_project_to_exact_original_edges() {
             let original = SelectedFunction {
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
-                provenance: target_operations::TerminalPsiProvenance {
+                provenance: abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance {
                     operations: Vec::new(),
                     edges: (1..=6).map(|edge| EdgeId::new(edge).unwrap()).collect(),
                 },
@@ -183,7 +183,7 @@ fn cyclic_swap_snapshots_both_inputs_before_destination_copies() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -211,17 +211,20 @@ fn cyclic_swap_snapshots_both_inputs_before_destination_copies() {
             })
             .collect();
         let bindings = (0..2)
-            .map(|position| selected_instructions::SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
-                    parameter: ValueId::new(u64::from(position) + 1).unwrap(),
-                    argument: ValueId::new(u64::from(1 - position) + 1).unwrap(),
-                    scalar_type,
+            .map(
+                |position| crate::selected_instructions::SelectedValueBinding {
+                    semantic:
+                        terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+                            parameter: ValueId::new(u64::from(position) + 1).unwrap(),
+                            argument: ValueId::new(u64::from(1 - position) + 1).unwrap(),
+                            scalar_type,
+                        },
+                    transport: SelectedValueTransport::Registers {
+                        argument: VirtualRegisterId(1 - position),
+                        parameter: VirtualRegisterId(position),
+                    },
                 },
-                transport: SelectedValueTransport::Registers {
-                    argument: VirtualRegisterId(1 - position),
-                    parameter: VirtualRegisterId(position),
-                },
-            })
+            )
             .collect();
         let jump = super::super::constraints::instruction(
             SelectedInstructionId(0),
@@ -235,10 +238,11 @@ fn cyclic_swap_snapshots_both_inputs_before_destination_copies() {
         let original = SelectedFunction {
             machine: MachineId::new(1).unwrap(),
             attachment: None,
-            provenance: target_operations::TerminalPsiProvenance {
-                operations: Vec::new(),
-                edges: vec![edge],
-            },
+            provenance:
+                abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance {
+                    operations: Vec::new(),
+                    edges: vec![edge],
+                },
             structural: None,
             local_storage_slots: Vec::new(),
             outgoing_arguments: Vec::new(),

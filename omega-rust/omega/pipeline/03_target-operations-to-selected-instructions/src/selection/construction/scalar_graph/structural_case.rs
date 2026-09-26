@@ -5,15 +5,15 @@ use super::{
     VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarTerminator, LegalizedStructuralCaseSuccessor,
 };
-use selected_instructions::{
+use crate::selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedCasePayloadBinding,
     SelectedCasePayloadTransport, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
     SelectedMemoryAccessRole, SelectedStructuralCaseEdge,
 };
-use selected_instructions::{SelectedSuccessor, SelectedTerminator};
+use crate::selected_instructions::{SelectedSuccessor, SelectedTerminator};
 use semantic_vocabulary::{IntegerType, PlaceId};
 
 #[track_caller]
@@ -42,10 +42,15 @@ pub(super) fn build(
             .enumerate()
             .any(|(ordinal, case)| usize::try_from(case.case_tag) != Ok(ordinal))
         || layout.tag_byte_offset != 0
-        || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
+        || layout.tag_shape
+            != abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
+                4, 4,
+            )
     {
         return Err(invalid());
     }
+    let slot = match subject {
+        crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
     let dispatch_source = match subject {
         legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
@@ -56,7 +61,7 @@ pub(super) fn build(
                 place: result.place,
             },
         },
-        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+        crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
             block,
             declaration,
         } => selected_instructions::SelectedCaseDispatchSource::Local {
@@ -66,6 +71,8 @@ pub(super) fn build(
             },
         },
         // The entry retains an owned parameter's value copy in its own slot.
+        crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
+            LocalStorageSlotId::StructuralParameter {
         legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
             selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::StructuralParameter {
@@ -194,7 +201,7 @@ pub(super) fn build(
             successor(source, order, builder, dispatch_source, &cases[ordinal + 1])?
         } else {
             SelectedSuccessor {
-                role: selected_instructions::SelectedSuccessorRole::CaseDispatchContinuation,
+                role: crate::selected_instructions::SelectedSuccessorRole::CaseDispatchContinuation,
                 psi_edge: cases[ordinal + 1].edge,
                 source_target: block.id,
                 block: SelectedBlockId((extra_base + ordinal).try_into().map_err(|_| invalid())?),
@@ -229,7 +236,7 @@ pub(super) fn build(
                         .try_into()
                         .map_err(|_| invalid())?,
                 ),
-                origin: selected_instructions::SelectedBlockOrigin::CaseDispatch {
+                origin: crate::selected_instructions::SelectedBlockOrigin::CaseDispatch {
                     source: block.id,
                     case_ordinal: ordinal.try_into().map_err(|_| invalid())?,
                 },
@@ -338,7 +345,7 @@ fn successor(
         });
     }
     Ok(SelectedSuccessor {
-        role: selected_instructions::SelectedSuccessorRole::Semantic,
+        role: crate::selected_instructions::SelectedSuccessorRole::Semantic,
         psi_edge: case.edge,
         block: SelectedBlockId(block.try_into().map_err(|_| invalid())?),
         source_target: case.target,

@@ -6,7 +6,7 @@ use super::{
 use crate::monomorphization::conformance_symbol_identity;
 use crate::monomorphization::normalized_machine_identity;
 use sha2::Digest;
-use typed_trees::type_identity::TypeIdentityRequest;
+use symbol_resolved_trees_to_typed_trees::typed_trees::type_identity::TypeIdentityRequest;
 
 pub(super) fn encode_bound_static_argument(
     program: &TypedTrees,
@@ -84,7 +84,7 @@ pub(super) fn encode_bound_static_argument(
 pub(super) fn canonical_template_contract_bytes(
     program: &TypedTrees,
     machine_index: usize,
-    reach_inference: &flow_effects::ServiceReachInferencePlan,
+    reach_inference: &crate::flow_effects::ServiceReachInferencePlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     let machine = &program.machines()[machine_index];
     let parameters = program.machine_type_parameters(machine);
@@ -157,11 +157,11 @@ pub(super) fn canonical_template_contract_bytes(
                 .machine_parameter_contract_view(contract)
                 .expect("typed machine-parameter contract must retain a valid requirement identity")
             {
-                typed_trees::data::MachineParameterContractView::Structural(signature) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContractView::Structural(signature) => {
                     bytes.push(1);
                     encode_state_signature(program, signature, &binders, &type_binders, &mut bytes);
                 }
-                typed_trees::data::MachineParameterContractView::Nominal {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContractView::Nominal {
                     trait_definition,
                     requirement,
                 } => {
@@ -337,11 +337,13 @@ pub(super) fn canonical_template_contract_bytes(
             encode_progress_premises(premises, &parameter_symbols, &mut bytes);
         }
     }
-    bytes.extend(validation::static_machine_template_reach_contract_bytes(
-        program,
-        reach_inference,
-        machine,
-    )?);
+    bytes.extend(
+        crate::validation::static_machine_template_reach_contract_bytes(
+            program,
+            reach_inference,
+            machine,
+        )?,
+    );
     Ok(bytes)
 }
 
@@ -355,11 +357,11 @@ pub(super) fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
 
 pub(super) fn machine_template_commitment(
     canonical_template_contract_bytes: &[u8],
-) -> typed_trees::typed_trees::MachineTemplateCommitment {
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineTemplateCommitment {
     let mut strong = Sha256::new();
     strong.update(b"omega.machine-template.v1\0");
     strong.update(canonical_template_contract_bytes);
-    typed_trees::typed_trees::MachineTemplateCommitment::from_digest(strong.finalize().into())
+    symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineTemplateCommitment::from_digest(strong.finalize().into())
 }
 
 /// Deterministic identity of an authored generic machine declaration before
@@ -380,8 +382,8 @@ pub fn generic_machine_template_report_fingerprint(
     {
         return None;
     }
-    let operational = validation::infer_operational_may(program);
-    let service_reaches = validation::infer_service_reaches(program, &operational);
+    let operational = crate::validation::infer_operational_may(program);
+    let service_reaches = crate::validation::infer_service_reaches(program, &operational);
     let bytes = canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()?;
     Some(fnv1a_report_fingerprint(&bytes))
 }
@@ -391,7 +393,8 @@ pub fn generic_machine_template_report_fingerprint(
 pub fn generic_machine_template_commitment(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
-) -> Option<typed_trees::typed_trees::MachineTemplateCommitment> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineTemplateCommitment>
+{
     let machine_index = program
         .machines()
         .iter()
@@ -402,8 +405,8 @@ pub fn generic_machine_template_commitment(
     {
         return None;
     }
-    let operational = validation::infer_operational_may(program);
-    let service_reaches = validation::infer_service_reaches(program, &operational);
+    let operational = crate::validation::infer_operational_may(program);
+    let service_reaches = crate::validation::infer_service_reaches(program, &operational);
     let bytes = canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()?;
     Some(machine_template_commitment(&bytes))
 }
@@ -419,10 +422,10 @@ pub(super) fn accepted_template_commitment(
 
 pub(crate) fn bind_specialization_contract_identities(
     program: &mut TypedTrees,
-    contracts: &checked_trees::MachineContractPlans,
+    contracts: &crate::checked_trees::MachineContractPlans,
 ) -> Result<(), Vec<Diagnostic>> {
-    let operational = validation::infer_operational_may(program);
-    validation::validate_static_machine_call_contracts(program, &operational)
+    let operational = crate::validation::infer_operational_may(program);
+    crate::validation::validate_static_machine_call_contracts(program, &operational)
         .map_err(|diagnostic| vec![diagnostic])?;
     let updates: Result<Vec<_>, _> = program
         .machine_specializations
@@ -491,7 +494,7 @@ struct ReplayedMachineSpecializationIdentity {
     machine_contract_commitments: Vec<[u8; 32]>,
     conformance_report_fingerprints: Vec<u64>,
     report_fingerprint: u64,
-    commitment: typed_trees::typed_trees::MachineSpecializationCommitment,
+    commitment: symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecializationCommitment,
 }
 
 /// Independently replay the authoritative commitment of one retained machine
@@ -500,20 +503,23 @@ struct ReplayedMachineSpecializationIdentity {
 #[cfg(test)]
 pub(crate) fn recompute_machine_specialization_commitment(
     program: &TypedTrees,
-    contracts: &checked_trees::MachineContractPlans,
-    specialization: &typed_trees::typed_trees::MachineSpecialization,
-) -> Result<typed_trees::typed_trees::MachineSpecializationCommitment, Diagnostic> {
-    let operational = validation::infer_operational_may(program);
-    validation::validate_static_machine_call_contracts(program, &operational)?;
+    contracts: &crate::checked_trees::MachineContractPlans,
+    specialization: &symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecialization,
+) -> Result<
+    symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecializationCommitment,
+    Diagnostic,
+> {
+    let operational = crate::validation::infer_operational_may(program);
+    crate::validation::validate_static_machine_call_contracts(program, &operational)?;
     replay_machine_specialization_identity(program, contracts, specialization, &operational)
         .map(|replay| replay.commitment)
 }
 
 fn replay_machine_specialization_identity(
     program: &TypedTrees,
-    contracts: &checked_trees::MachineContractPlans,
-    specialization: &typed_trees::typed_trees::MachineSpecialization,
-    operational: &flow_effects::OperationalPlan,
+    contracts: &crate::checked_trees::MachineContractPlans,
+    specialization: &symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecialization,
+    operational: &crate::flow_effects::OperationalPlan,
 ) -> Result<ReplayedMachineSpecializationIdentity, Diagnostic> {
     let template = crate::lookup::machine_by_symbol(program, specialization.template)
         .ok_or_else(|| Diagnostic::error("generic specialization lost its template machine"))?;
@@ -665,15 +671,16 @@ fn replay_machine_specialization_identity(
     for commitment in &conformance_commitments {
         bytes.extend(commitment);
     }
-    let operator_realization_bytes = validation::canonical_closed_operator_realization_bytes(
-        program,
-        specialization.instance,
-        &specialization.operator_realizations,
-    )
-    .map_err(Diagnostic::error)?;
+    let operator_realization_bytes =
+        crate::validation::canonical_closed_operator_realization_bytes(
+            program,
+            specialization.instance,
+            &specialization.operator_realizations,
+        )
+        .map_err(Diagnostic::error)?;
     encode_identity_bytes(&operator_realization_bytes, &mut bytes);
     let static_call_bindings =
-        validation::static_machine_call_binding_bytes(program, operational, specialization)?;
+        crate::validation::static_machine_call_binding_bytes(program, operational, specialization)?;
     encode_identity_bytes(&static_call_bindings, &mut bytes);
     match &specialization.accepted_template_commitment {
         Some(commitment) => {
@@ -691,7 +698,7 @@ fn replay_machine_specialization_identity(
         machine_contract_commitments,
         conformance_report_fingerprints,
         report_fingerprint,
-        commitment: typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
+        commitment: symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
             strong.finalize().into(),
         ),
     })
@@ -720,7 +727,7 @@ pub(super) fn machine_specialization_report_fingerprint(bytes: &[u8]) -> u64 {
 }
 
 pub(super) fn encode_data_properties(
-    properties: typed_trees::data::DataProperties,
+    properties: symbol_resolved_trees_to_typed_trees::typed_trees::data::DataProperties,
     output: &mut Vec<u8>,
 ) {
     output.push(match properties.multiplicity {
@@ -736,7 +743,7 @@ pub(super) fn encode_data_properties(
 
 pub(super) fn encode_state_signature(
     program: &TypedTrees,
-    signature: &typed_trees::signature::StateSignature,
+    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
     binders: &[(String, String)],
     type_binders: &[(SymbolHandle, String)],
     output: &mut Vec<u8>,
@@ -834,7 +841,7 @@ pub(super) fn encode_progress_premises(
 
 pub(crate) fn canonical_state_signature_bytes(
     program: &TypedTrees,
-    signature: &typed_trees::signature::StateSignature,
+    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
     encode_state_signature(program, signature, &[], &[], &mut bytes);
@@ -843,7 +850,7 @@ pub(crate) fn canonical_state_signature_bytes(
 
 pub(super) fn encode_state_shape(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(String, String)],
     type_binders: &[(SymbolHandle, String)],
     output: &mut Vec<u8>,
@@ -878,7 +885,7 @@ pub(super) fn encode_state_shape(
 
 pub(super) fn encode_parameter(
     program: &TypedTrees,
-    parameter: &typed_trees::signature::StateParameter,
+    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
     binders: &[(String, String)],
     type_binders: &[(SymbolHandle, String)],
     output: &mut Vec<u8>,
@@ -900,7 +907,7 @@ pub(super) fn encode_parameter(
 
 pub(super) fn encode_contract(
     program: &TypedTrees,
-    contract: &typed_trees::signature::SignatureContract,
+    contract: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract,
     binders: &[(String, String)],
     output: &mut Vec<u8>,
 ) {
@@ -918,17 +925,17 @@ pub(super) fn encode_contract(
 }
 
 pub(super) fn encode_contract_kind(
-    kind: &typed_trees::signature::SignatureContractKind,
+    kind: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind,
     _binders: &[(String, String)],
     output: &mut Vec<u8>,
 ) {
     output.push(match kind {
-        typed_trees::signature::SignatureContractKind::Requires => 1,
-        typed_trees::signature::SignatureContractKind::Ensures => 2,
-        typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. } => 3,
-        typed_trees::signature::SignatureContractKind::Crashes { .. } => 4,
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires => 1,
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures => 2,
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. } => 3,
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { .. } => 4,
     });
-    if let typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
         result_data,
         result_case,
     } = kind
@@ -936,23 +943,25 @@ pub(super) fn encode_contract_kind(
         output.extend_from_slice(&result_data.arena_index().to_le_bytes());
         output.extend_from_slice(&result_case.arena_index().to_le_bytes());
     }
-    if let typed_trees::signature::SignatureContractKind::Crashes { cause } = kind {
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { cause } = kind {
         output.push(match cause {
-            typed_trees::signature::CrashCause::Trap => 1,
-            typed_trees::signature::CrashCause::Abort => 2,
+            symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Trap => 1,
+            symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Abort => 2,
         });
     }
 }
 
 pub(super) fn contract_fact_text(
     program: &TypedTrees,
-    fact: &typed_trees::domain::ProofFact,
+    fact: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact,
 ) -> String {
     match fact {
-        typed_trees::domain::ProofFact::Expression(expression) => {
-            program.expression_table.display_name(*expression)
-        }
-        typed_trees::domain::ProofFact::Membership(membership) => format!(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            expression,
+        ) => program.expression_table.display_name(*expression),
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) => format!(
             "{} in {}{}",
             program.expression_table.display_name(membership.value),
             program
@@ -978,7 +987,9 @@ pub(super) fn contract_fact_text(
                 )
             }
         ),
-        typed_trees::domain::ProofFact::Proposition(application) => format!(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+            application,
+        ) => format!(
             "{}({})",
             application.name.as_str(),
             program
@@ -997,7 +1008,7 @@ pub(super) fn contract_fact_text(
 /// and an unconditional route subsumes guarded alternatives.
 pub(super) fn encode_contract_set(
     program: &TypedTrees,
-    contracts: &[typed_trees::signature::SignatureContract],
+    contracts: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
     binders: &[(String, String)],
 ) -> Vec<Vec<u8>> {
     use std::collections::BTreeMap;
@@ -1013,7 +1024,7 @@ pub(super) fn encode_contract_set(
     for contract in contracts {
         if matches!(
             contract.kind,
-            typed_trees::signature::SignatureContractKind::Crashes { .. }
+            symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { .. }
         ) {
             let mut header = Vec::new();
             encode_contract_kind(&contract.kind, binders, &mut header);
@@ -1023,10 +1034,10 @@ pub(super) fn encode_contract_set(
                 || facts.iter().any(|fact| {
                     matches!(
                         fact,
-                        typed_trees::domain::ProofFact::Expression(expression)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression)
                             if matches!(
                                 program.expression_table.expression(*expression),
-                                typed_trees::expression::ExpressionNode::Boolean(true)
+                                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(true)
                             )
                     )
                 })

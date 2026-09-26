@@ -11,8 +11,8 @@ pub use validation::validate_optimized_post_allocation_machine_plan_custody;
 
 use crate::PostAllocationMachineError;
 use crate::ValidatedPostAllocationMachinePlan;
+use crate::physical_instructions::PostAllocationMachineIdentity;
 use crate::plan::analyze_post_allocation_machine_plan;
-use physical_instructions::PostAllocationMachineIdentity;
 use selected_instructions_to_register_homes::AllocationReplayError;
 use selected_instructions_to_register_homes::MachineEffectStageError;
 use selected_instructions_to_register_homes::{
@@ -104,7 +104,7 @@ impl StagedOptimizedPostAllocationMachinePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
     source: AllocationEvidence,
-    effects: selected_instructions::PreAllocationMachineEffectIdentity,
+    effects: target_operations_to_selected_instructions::PreAllocationMachineEffectIdentity,
     machine: PostAllocationMachineIdentity,
     function_count: usize,
     instruction_count: usize,
@@ -116,7 +116,9 @@ impl StagedOptimizedPostAllocationMachineCustodyReceipt {
     pub const fn source(&self) -> &AllocationEvidence {
         &self.source
     }
-    pub const fn effects(&self) -> selected_instructions::PreAllocationMachineEffectIdentity {
+    pub const fn effects(
+        &self,
+    ) -> target_operations_to_selected_instructions::PreAllocationMachineEffectIdentity {
         self.effects
     }
     pub const fn machine(&self) -> PostAllocationMachineIdentity {

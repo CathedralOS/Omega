@@ -4,12 +4,14 @@ use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 
 mod identities;
+use crate::checked_trees::CheckedTrees;
 use arena::HandleSpan;
-use checked_trees::CheckedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
 
 #[derive(Clone, Copy, Debug)]
 enum CallForm {
@@ -55,7 +57,9 @@ fn field_symbol(program: &TypedTrees, owner: &str, name: &str) -> SymbolHandle {
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == name =>
+            {
                 Some(field.symbol)
             }
             _ => None,
@@ -85,7 +89,9 @@ fn method_symbol(program: &TypedTrees, owner: &str) -> SymbolHandle {
     *target
 }
 
-fn statement_call_mut(program: &mut TypedTrees) -> &mut typed_trees::statement::TableCall {
+fn statement_call_mut(
+    program: &mut TypedTrees,
+) -> &mut symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall {
     let machine = program
         .machines()
         .iter()

@@ -41,7 +41,7 @@ pub(crate) fn validate_store_and_initializer_calls(
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
-    use checked_trees::statement::StatementNode;
+    use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
@@ -56,7 +56,7 @@ pub(crate) fn validate_store_and_initializer_calls(
                     .expression_is_valid(local.initial_value)
                     && matches!(
                         checked.expression_table.expression(local.initial_value),
-                        checked_trees::expression::ExpressionNode::Call(_)
+                        typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Call(_)
                     ) =>
             {
                 Some(local.initial_value)
@@ -67,7 +67,7 @@ pub(crate) fn validate_store_and_initializer_calls(
             StatementNode::Expression(expression)
                 if !matches!(
                     checked.expression_table.expression(*expression),
-                    checked_trees::expression::ExpressionNode::Call(_)
+                    typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Call(_)
                 ) =>
             {
                 continue;
@@ -86,7 +86,7 @@ pub(crate) fn validate_store_and_initializer_calls(
         };
         let statement_index = u32::try_from(statement_index)
             .map_err(|_| LoweringError::Unsupported("call statement ordinal exceeds u32"))?;
-        let coordinate = checked_trees::CheckedUnitCallCoordinate {
+        let coordinate = typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
             statement_index,
             call_ordinal: 0,
         };
@@ -117,7 +117,7 @@ pub(crate) fn validate_store_and_initializer_calls(
                     } => *actual == coordinate,
                     CheckedUnitEffectOperationPlan::EstablishScalarLocal {
                         result,
-                        value: checked_trees::CheckedCallScalarArgument::Computation(_),
+                        value: typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(_),
                     } => result.statement_index == statement_index,
                     // A structural local whose initializer vocabulary produces
                     // a value (a view, aggregate, or alias) rather than a call
@@ -148,7 +148,10 @@ pub(crate) fn validate_store_and_initializer_calls(
             return unsupported("Unit body omits or duplicates an authored call");
         }
         if let CheckedUnitEffectOperationPlan::EstablishScalarLocal {
-            value: checked_trees::CheckedCallScalarArgument::Computation(computation),
+            value:
+                typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
+                    computation,
+                ),
             ..
         } = owner
         {
@@ -221,7 +224,7 @@ pub(crate) fn validate_operation(
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
-    caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    caller_parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
     if let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
         coordinate, result, ..
@@ -263,8 +266,11 @@ pub(crate) fn validate_operation(
                 .typed
                 .statement_table
                 .statements(state.statement_nodes);
-            if let Some(checked_trees::statement::StatementNode::Assignment(_)) =
-                statements.get(result.statement_index as usize)
+            if let Some(
+                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Assignment(
+                    _,
+                ),
+            ) = statements.get(result.statement_index as usize)
             {
                 // A store consuming its own statement's call product has no
                 // authored local binding; the consuming store's ScalarResult
@@ -286,7 +292,7 @@ pub(crate) fn validate_operation(
                 let role = if result.statement_index as usize + 1 == statements.len()
                     && matches!(
                         statements.last(),
-                        Some(checked_trees::statement::StatementNode::Expression(_))
+                        Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Expression(_))
                     ) {
                     CheckedScalarExpressionRole::Return
                 } else {
@@ -405,7 +411,9 @@ pub(crate) fn validate_operation(
         && arguments.iter().any(|argument| {
             matches!(
                 argument,
-                checked_trees::CheckedCallScalarArgument::Computation(_)
+                typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
+                    _
+                )
             )
         })
     {
@@ -452,7 +460,10 @@ pub(crate) fn validate_operation(
                 })?,
             };
             erased_ordinal += 1;
-            let checked_trees::CheckedCallScalarArgument::Pure(argument) = argument else {
+            let typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+                argument,
+            ) = argument
+            else {
                 return unsupported("call erased operand requires a pure checked term");
             };
             let (binding, selected) = checked
@@ -496,7 +507,9 @@ pub(crate) fn validate_operation(
             }
         };
         match argument {
-            checked_trees::CheckedCallScalarArgument::Pure(argument) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+                argument,
+            ) => {
                 let (binding, selected) = checked
                     .facts
                     .values
@@ -518,7 +531,9 @@ pub(crate) fn validate_operation(
                     terminal_scalar_type(*primitive_type)?,
                 )?;
             }
-            checked_trees::CheckedCallScalarArgument::Computation(computation) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
+                computation,
+            ) => {
                 let plans = &checked.facts.values.scalar_computations;
                 let root = plans
                     .root_at(caller_state, coordinate.statement_index, role)
@@ -555,7 +570,7 @@ pub(crate) fn validate_operation(
 fn validate_owned_parameter_arguments(
     checked: &CheckedTrees,
     caller_state: symbols::SymbolHandle,
-    caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    caller_parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan],
     call: &authored::AuthoredCall,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
@@ -588,7 +603,8 @@ fn validate_owned_parameter_arguments(
     };
     if !structural_arguments.iter().any(|argument| {
         argument.source_parameter_index().is_some()
-            && argument.access == checked_trees::CheckedStructuralAccess::Owned
+            && argument.access
+                == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
             && argument.path.is_empty()
     }) {
         return Ok(());
@@ -602,7 +618,8 @@ fn validate_owned_parameter_arguments(
         let Some(parameter_index) = argument.source_parameter_index() else {
             continue;
         };
-        if argument.access != checked_trees::CheckedStructuralAccess::Owned
+        if argument.access
+            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
             || !argument.path.is_empty()
         {
             continue;
@@ -630,7 +647,7 @@ fn validate_owned_parameter_arguments(
         }
         if !expression.is_some_and(|expression| {
             matches!(checked.expression_table.expression(expression),
-            checked_trees::expression::ExpressionNode::Name(name)
+            typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Name(name)
                 if name.symbol == parameter.symbol && name.head_symbol == parameter.symbol
                     && checked.expression_table.name_path_members(name.members).len() == 1)
         }) {

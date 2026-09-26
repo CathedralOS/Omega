@@ -1,12 +1,12 @@
 //! Operation meaning required before call operands supply fixed storage coordinates.
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::semantic::calls::CallSite;
 use crate::semantic::calls::call_site_argument_expressions;
 use crate::semantic::calls::find_state;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 pub(super) fn call_operands_have_builtin_coordinates(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     site: &CallSite<'_>,
@@ -34,9 +34,9 @@ pub(super) fn call_operands_have_builtin_coordinates(
 }
 
 fn place_operands_are_builtin(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
@@ -60,9 +60,12 @@ fn place_operands_are_builtin(
             // checks newly retained scalar element geometry beneath it.
             place_operands_are_builtin(program, machine, state, indexed.collection, depth + 1)
         }
-        ExpressionNode::Indexed(_) => {
-            validation::place_has_builtin_coordinates(program, machine, Some(state), expression)
-        }
+        ExpressionNode::Indexed(_) => crate::validation::place_has_builtin_coordinates(
+            program,
+            machine,
+            Some(state),
+            expression,
+        ),
         // Nested non-place evaluation contributes its own call effects; its
         // syntax supplies no independently guessed storage geometry here.
         _ => true,

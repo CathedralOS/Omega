@@ -11,25 +11,25 @@ use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
     SelfRemainderPolicy, live_proof_binary_identity_unit, live_self_remainder_unit,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     OptimizationFactReference, OptimizationPassIdentity, OptimizationRuleContract,
     OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationValidatorIdentity,
     ScalarConstantFactIdentity,
 };
-use optimization_unit::{
+use semantic_vocabulary::{
+    BlockId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
+    ScalarType, ValueId,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationFact,
     ProvenanceDisposition, ProvenanceRewrite, PsiProvenance, PsiRealizationSite,
     PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_proof_certified_integer_self_remainder_candidate,
     validate_psi_optimization_unit,
-};
-use semantic_vocabulary::{
-    BlockId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
-    ScalarType, ValueId,
 };
 
 #[test]

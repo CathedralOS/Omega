@@ -11,17 +11,17 @@ use super::{
     lower_float_meaning_projection, rejoin_float_semantic_applications,
     resolve_direct_float_source_binding,
 };
-use crate::TerminalMachineSelection;
-use checked_trees::{
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use numerics::float_projection::FloatProjectionOperation;
+use source::{SourceMap, SourceOrigin};
+use std::path::PathBuf;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
     CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
     CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatSemanticApplication,
     CheckedFloatSemanticApplicationOperand, CheckedFloatUseSite, CheckedProofValueDeclaration,
     CheckedProofValueId,
 };
-use numerics::float_projection::FloatProjectionOperation;
-use source::{SourceMap, SourceOrigin};
-use std::path::PathBuf;
 
 fn checked_projection() -> CheckedFloatMeaningProjection {
     CheckedFloatMeaningProjection {
@@ -291,8 +291,8 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     // The scalar graph is the checked state-order and scalar-signature
     // evidence the resolver consumes; stage the rows admission produces
     // for this machine once the state-contract boundary widens.
-    let graph_state =
-        |state: &checked_trees::state::State| checked_trees::CheckedScalarStateGraph {
+    let graph_state = |state: &typed_trees_to_checked_trees::checked_trees::state::State| {
+        typed_trees_to_checked_trees::checked_trees::CheckedScalarStateGraph {
             erased_scalar_parameters: Vec::new(),
             erased_proof_parameters: Vec::new(),
             state: state.symbol,
@@ -303,7 +303,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
                 .iter()
                 .enumerate()
                 .map(
-                    |(position, parameter)| checked_trees::CheckedStructuralScalarParameterPlan {
+                    |(position, parameter)| typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
                         source_position: u32::try_from(position).unwrap(),
                         primitive_type: checked
                             .typed
@@ -318,12 +318,13 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
             bindings: Vec::new(),
             unit_operations: Vec::new(),
             result_type: PrimitiveType::Bool,
-            terminator: checked_trees::CheckedScalarStateTerminator::Return {
+            terminator: typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Return {
                 statement_ordinal: 0,
             },
-        };
+        }
+    };
     checked.facts.flow.terminal_scalar_graphs.machines.push(
-        checked_trees::CheckedScalarMachineGraph {
+        typed_trees_to_checked_trees::checked_trees::CheckedScalarMachineGraph {
             machine: machine.symbol,
             states: states.iter().map(graph_state).collect(),
             ranked_scc: None,
@@ -585,7 +586,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
             outcome_specific_ensures: Vec::new(),
         },
     };
-    let occurrence = lowered_psi::LoweredSourceCallOccurrence {
+    let occurrence = crate::lowered_psi::LoweredSourceCallOccurrence {
         source_site: None,
         source_state: checked_result.use_site.owner_state,
         statement_index: checked_result.use_site.statement_index,
@@ -972,7 +973,9 @@ const CORE_SEMANTIC_PROJECTIONS: &str = r#"
         pub machine FloatSemantics::multiply(format: FloatFormat, left: FloatMeaning, right: FloatMeaning) -> FloatMeaning;
     "#;
 
-fn checked_semantic_fixture(source: &str) -> checked_trees::CheckedTrees {
+fn checked_semantic_fixture(
+    source: &str,
+) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let mut sources = SourceMap::default();
     let meaning_source_id = sources
         .add_with_metadata(
@@ -1040,8 +1043,11 @@ fn semantic_application_lowers_to_the_terminal_carrier_end_to_end() {
         "#,
     );
     assert_eq!(checked.facts.proof.float_semantic_applications.len(), 1);
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("terminal_root"))
-        .expect("lower semantic fixture");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_root"),
+    )
+    .expect("lower semantic fixture");
     let projections = &lowered.semantic_module.float_meaning_projections;
     let application_index = projections
         .iter()
@@ -1080,7 +1086,9 @@ fn semantic_application_lowers_to_the_terminal_carrier_end_to_end() {
     }
 }
 
-fn checked_float_fixture(source: &str) -> checked_trees::CheckedTrees {
+fn checked_float_fixture(
+    source: &str,
+) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let mut sources = SourceMap::default();
     let meaning_source_id = sources
         .add_with_metadata(

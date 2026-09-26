@@ -76,11 +76,11 @@ use statements::check_statement;
 pub(in crate::checks) use types::expression_enforced_declared_range;
 
 pub(crate) fn check_indexed_accesses(
-    program: &typed_trees::TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
-    borrows: &checked_trees::BorrowFacts,
-    flow: &checked_trees::FlowFacts,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
+    borrows: &crate::checked_trees::BorrowFacts,
+    flow: &crate::checked_trees::FlowFacts,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {

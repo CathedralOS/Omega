@@ -1,14 +1,15 @@
 //! Canonical proof production for a measured source-produced literal.
 
-use super::{LoweringError, lower_machine};
+use super::LoweringError;
 use crate::TerminalMachineSelection;
 use crate::emission::scalar_types::terminal_scalar_type;
+use crate::lower_machine;
+use crate::lowered_psi::LoweredPsi;
 use crate::terminal_identities::{obligation_id, operation_id, value_id};
-use checked_trees::types::PrimitiveType;
-use lowered_psi::LoweredPsi;
 use semantic_vocabulary::IntegerValue;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
 /// The literal and call are source-produced. The added Terminal read exercises
 /// proof closure, not source correspondence for literal indexing.
 fn fixture(literal: &str, byte_index: u128) -> LoweredPsi {

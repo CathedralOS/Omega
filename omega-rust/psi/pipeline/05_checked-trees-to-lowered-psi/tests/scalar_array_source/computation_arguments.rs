@@ -8,10 +8,12 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 #[path = "operation_body_callees.rs"]
 mod operation_body_callees;
-use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionStatus, interpret_terminal_artifact_measured,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
 };
 
 fn byte(value: u8) -> TerminalScalarValue {
@@ -450,10 +452,10 @@ fn computation_array_constant_projection_keeps_builtin_operator_custody() {
             .facts
             .operators
             .uses
-            .append(checked_trees::CheckedOperatorUseFact {
+            .append(typed_trees_to_checked_trees::checked_trees::CheckedOperatorUseFact {
                 expression,
                 spelling: language_core::OperatorSpelling::Index,
-                status: checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
+                status: typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
                 ..Default::default()
             })
     });

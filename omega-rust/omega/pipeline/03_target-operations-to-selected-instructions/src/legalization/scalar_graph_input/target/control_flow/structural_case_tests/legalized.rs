@@ -4,8 +4,8 @@ use super::{
     ValueId, fixture,
 };
 use crate::legalization::scalar_graph_input::u32_type;
-use legalized_operations::LegalizedScalarTerminator;
-use optimization_unit::ValueDefinitionSite;
+use crate::legalized_operations::LegalizedScalarTerminator;
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 #[test]
 fn structural_case_legalization_rejects_changed_payload_home_edge_and_custody() {
@@ -15,7 +15,7 @@ fn structural_case_legalization_rejects_changed_payload_home_edge_and_custody() 
     ] {
         let (source, target, unit) = fixture(native);
         let legal = crate::legalize_target_operations(&target, &source, &unit).unwrap();
-        let identity = legalized_operations::legalized_operation_plan_identity(legal.plan());
+        let identity = crate::legalized_operations::legalized_operation_plan_identity(legal.plan());
         for mutation in [
             "producer",
             "place",
@@ -52,7 +52,7 @@ fn structural_case_legalization_rejects_changed_payload_home_edge_and_custody() 
             else {
                 panic!("case")
             };
-            let legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+            let crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 operation: defining_operation,
                 result,
             } = subject
@@ -105,9 +105,11 @@ fn structural_case_legalization_rejects_changed_payload_home_edge_and_custody() 
                 "cleanup" => cases[0].trivial_affine_discards.clear(),
                 "fuel" => cases[0].fuel.clear(),
                 "effect" => effect.output += 1,
-                "ownership" => {
-                    ownership.push(optimization_unit::OwnershipEvent::Cleanup(Vec::new()))
-                }
+                "ownership" => ownership.push(
+                    terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
+                        Vec::new(),
+                    ),
+                ),
                 "missing payload" => cases[1].payloads.clear(),
                 "missing case" => {
                     cases.pop();
@@ -115,7 +117,7 @@ fn structural_case_legalization_rejects_changed_payload_home_edge_and_custody() 
                 _ => unreachable!(),
             }
             assert_ne!(
-                legalized_operations::legalized_operation_plan_identity(&changed),
+                crate::legalized_operations::legalized_operation_plan_identity(&changed),
                 identity,
                 "identity omitted {mutation}"
             );

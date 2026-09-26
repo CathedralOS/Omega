@@ -31,7 +31,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<CheckedPartialAffineUnitCleanupMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -146,7 +146,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
         {
             return None;
         }
-        Some((result, facts::PlaceRoot::Symbol(symbol)))
+        Some((result, crate::fact_plan::PlaceRoot::Symbol(symbol)))
     } else {
         anonymous_binding
     };
@@ -161,7 +161,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
     } else {
         (
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 },
-            facts::PlaceRoot::Symbol(parameter_root_symbol(
+            crate::fact_plan::PlaceRoot::Symbol(parameter_root_symbol(
                 machine.symbol,
                 &program.state_parameters(state)[0],
             )),
@@ -190,7 +190,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
 
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
-    let anonymous_result = matches!(root, facts::PlaceRoot::Expression(_));
+    let anonymous_result = matches!(root, crate::fact_plan::PlaceRoot::Expression(_));
     if !anonymous_result
         && (calls.len() != statements.len()
             || calls.iter().enumerate().any(|(statement_index, call)| {
@@ -220,7 +220,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
             let (result, _) = result_binding.as_ref()?;
             let expression = match (&statements[0], root) {
                 (StatementNode::LocalData(local), _) => local.initial_value,
-                (_, facts::PlaceRoot::Expression(expression)) => expression,
+                (_, crate::fact_plan::PlaceRoot::Expression(expression)) => expression,
                 _ => return None,
             };
             if call.authored_expression != expression {
@@ -416,12 +416,12 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
         language_semantics::PermissionProvenance::Unknown
     };
     match root {
-        facts::PlaceRoot::Symbol(symbol) => {
+        crate::fact_plan::PlaceRoot::Symbol(symbol) => {
             if !has_exact_symbol_affine_discard(facts, machine, state, symbol, provenance) {
                 return None;
             }
         }
-        facts::PlaceRoot::Expression(_) => {
+        crate::fact_plan::PlaceRoot::Expression(_) => {
             anonymous::validate_permissions(
                 program,
                 facts,
@@ -431,7 +431,9 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
                 &residual_affine_discards,
             )?;
         }
-        facts::PlaceRoot::Unknown | facts::PlaceRoot::TypeReference(_) => return None,
+        crate::fact_plan::PlaceRoot::Unknown | crate::fact_plan::PlaceRoot::TypeReference(_) => {
+            return None;
+        }
     }
     if !result_root
         && !service_reach_plan_is_empty(
@@ -510,7 +512,7 @@ pub(crate) fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFie
         CheckedUnitStructuralFieldType::Structural { .. }
             | CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                crate::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             )
             | CheckedUnitStructuralFieldType::Scalar(
                 PrimitiveType::Bool

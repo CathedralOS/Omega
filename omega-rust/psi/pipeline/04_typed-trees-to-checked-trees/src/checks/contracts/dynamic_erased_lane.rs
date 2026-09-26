@@ -6,12 +6,12 @@
 //! actuals through the descriptor. Refusing here names the missing lane
 //! instead of surfacing later as an unadmitted call plan.
 
+use crate::checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use crate::labels::call_target_label;
-use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
 
 pub(super) fn check_dynamic_erased_formal_lane(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,

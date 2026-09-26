@@ -1,17 +1,17 @@
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
-};
-use optimization_unit::{
-    OptimizationNode, PsiOptimizationUnit, PsiProvenance, recompute_psi_optimization_unit_identity,
-    reconstruct_psi_optimization_unit_seed,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ServiceId, ValueId,
 };
 use terminal_psi::{
     SemanticFingerprint, ServiceDeclaration, TerminalPsiIdentity, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    OptimizationNode, PsiOptimizationUnit, PsiProvenance, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_optimization_unit_seed,
 };
 
 use super::super::id;
@@ -183,11 +183,13 @@ pub(crate) fn constant_conditional_dead_service_unit() -> PsiOptimizationUnit {
                 value: 0x41,
             },
             provenance: vec![PsiProvenance::Operation(operation)],
-            fuel: vec![optimization_unit::FuelSettlement {
-                site: PsiProvenance::Operation(operation),
-                units: 1,
-            }],
-            effect: optimization_unit::EffectLink {
+            fuel: vec![
+                terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+                    site: PsiProvenance::Operation(operation),
+                    units: 1,
+                },
+            ],
+            effect: terminal_psi_to_abstract_operations::optimization_unit::EffectLink {
                 input: 0,
                 output: 0,
             },
@@ -202,7 +204,7 @@ pub(crate) fn constant_conditional_dead_service_unit() -> PsiOptimizationUnit {
         for (node_index, node) in block.nodes.iter_mut().enumerate() {
             let node_index = u32::try_from(node_index).expect("fixture node index fits u32");
             for definition in &mut node.definitions {
-                if let optimization_unit::ValueDefinitionSite::Node {
+                if let terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
                     block: site_block,
                     node: site_node,
                 } = &mut definition.site
@@ -215,7 +217,7 @@ pub(crate) fn constant_conditional_dead_service_unit() -> PsiOptimizationUnit {
                 value_use.block = block.id;
                 value_use.node = node_index;
             }
-            node.effect = optimization_unit::EffectLink {
+            node.effect = terminal_psi_to_abstract_operations::optimization_unit::EffectLink {
                 input: effect,
                 output: effect + 1,
             };

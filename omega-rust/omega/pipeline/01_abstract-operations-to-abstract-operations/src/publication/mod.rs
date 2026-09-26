@@ -23,7 +23,6 @@ use crate::validation::{
     ValidatedOptimizedAbstractPlanProjection, ValidatedPrePhysicalOptimizationManifest,
 };
 use crate::{OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration};
-use abstract_operations::AbstractOperationPlan;
 #[cfg(any(test, feature = "test-support"))]
 pub use error::AppliedDecisionCustodyAxis;
 pub use error::OptimizedAbstractProjectionError;
@@ -31,11 +30,12 @@ use optimization_core::{
     BaselineDecisionLog, ExternalDecisionLog, OptimizationIdentityBundle,
     OptimizationPassManifestRecord, OptimizationSelections,
 };
-use optimization_unit::{
-    AbstractOptimizationEvidence, PsiOptimizationUnit, PsiTransformationLedger,
-};
 use std::sync::Arc;
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    AbstractOptimizationEvidence, PsiOptimizationUnit, PsiTransformationLedger,
+};
 
 pub fn publish_optimization_run(
     run: OptimizationRun,

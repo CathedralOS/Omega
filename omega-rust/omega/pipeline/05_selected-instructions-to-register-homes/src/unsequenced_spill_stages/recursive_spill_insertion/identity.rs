@@ -7,7 +7,7 @@ use crate::unsequenced_spill_stages::{
     RecursiveSpillInsertionIdentity, RecursiveSpillInsertionPlan, RecursiveSpillInsertionPolicy,
     RecursiveSpillStoredValue,
 };
-use register_homes::LogicalSpillStorageClass;
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
 
 pub fn recursive_spill_insertion_identity(
     plan: &RecursiveSpillInsertionPlan,

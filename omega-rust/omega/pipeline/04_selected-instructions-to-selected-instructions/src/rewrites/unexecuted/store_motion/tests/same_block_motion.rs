@@ -9,15 +9,15 @@ use crate::rewrites::unexecuted::store_motion::{
     StoreMutationMotionError, sink_selected_store_mutation, validate_store_mutation_motion,
 };
 use optimization_core::OptimizationWorkBudget;
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, ValueId};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     LocalStorageSlotId, SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
     SelectedMemoryAccessRole, VirtualRegisterId,
 };
-use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, ValueId};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 #[test]
 fn same_block_store_sinks_to_the_next_place_access() {
@@ -375,7 +375,7 @@ fn observing_accesses_land_the_store_just_before_them() {
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -404,17 +404,17 @@ fn observing_accesses_land_the_store_just_before_them() {
             .constraint(environment.selected_keys().store64.unwrap())
             .unwrap();
         let slot = LocalStorageSlotId::StructuralParameter { place: place() };
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
+        function.local_storage_slots.push(
+            target_operations_to_selected_instructions::SelectedLocalStorageSlot {
                 id: slot,
                 byte_size: 16,
                 alignment: 8,
-            });
+            },
+        );
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -442,17 +442,17 @@ fn observing_accesses_land_the_store_just_before_them() {
             .constraint(environment.selected_keys().store64.unwrap())
             .unwrap();
         let slot = LocalStorageSlotId::StructuralParameter { place: place() };
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
+        function.local_storage_slots.push(
+            target_operations_to_selected_instructions::SelectedLocalStorageSlot {
                 id: slot,
                 byte_size: 16,
                 alignment: 8,
-            });
+            },
+        );
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 8,
             },
             store64,
@@ -490,17 +490,19 @@ fn observing_accesses_land_the_store_just_before_them() {
             } else {
                 LocalStorageSlotId::StructuralParameter { place: place() }
             };
-            function
-                .local_storage_slots
-                .push(selected_instructions::SelectedLocalStorageSlot {
+            function.local_storage_slots.push(
+                target_operations_to_selected_instructions::SelectedLocalStorageSlot {
                     id: slot,
                     byte_size: 16,
                     alignment: 8,
-                });
+                },
+            );
             function.blocks[0].instructions[2] = instruction(
                 BETWEEN,
                 SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                    slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                        slot,
+                    ),
                     byte_offset: 0,
                 },
                 frame_address,
@@ -1012,8 +1014,9 @@ fn local_storage_stores_sink() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let parameter = LocalStorageSlotId::StructuralParameter { place: place() };
-    let declare = |function: &mut selected_instructions::SelectedFunction, operation| {
-        function.structural = Some(legalized_operations::LegalizedStructuralContract {
+    let declare = |function: &mut target_operations_to_selected_instructions::SelectedFunction,
+                   operation| {
+        function.structural = Some(target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralContract {
             result: None,
             structural_types: Vec::new().into(),
             parameters: Vec::new(),
@@ -1028,16 +1031,17 @@ fn local_storage_stores_sink() {
             published_service_ceiling: Vec::new(),
         });
     };
-    let push_slot = |function: &mut selected_instructions::SelectedFunction,
-                     slot: LocalStorageSlotId| {
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
-                id: slot,
-                byte_size: 16,
-                alignment: 8,
-            });
-    };
+    let push_slot =
+        |function: &mut target_operations_to_selected_instructions::SelectedFunction,
+         slot: LocalStorageSlotId| {
+            function.local_storage_slots.push(
+                target_operations_to_selected_instructions::SelectedLocalStorageSlot {
+                    id: slot,
+                    byte_size: 16,
+                    alignment: 8,
+                },
+            );
+        };
     // The direct route: a `Store64` into the place's parameter home slides
     // past the copy to the covering store.
     let direct = mutated(target, |function, environment| {
@@ -1048,7 +1052,9 @@ fn local_storage_stores_sink() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(parameter),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    parameter,
+                ),
                 byte_offset: 0,
             },
             store64,
@@ -1139,7 +1145,9 @@ fn local_storage_stores_sink() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(encoded),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    encoded,
+                ),
                 byte_offset: 0,
             },
             store64,
@@ -1162,7 +1170,9 @@ fn local_storage_stores_sink() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(parameter),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    parameter,
+                ),
                 byte_offset: 0,
             },
             store64,
@@ -1186,7 +1196,7 @@ fn local_storage_stores_sink() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1264,16 +1274,17 @@ fn staging_slot_stores_sink_on_the_slot() {
         operation: OperationId::new(9).unwrap(),
         place: place(),
     };
-    let push_slot = |function: &mut selected_instructions::SelectedFunction,
-                     slot: LocalStorageSlotId| {
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
-                id: slot,
-                byte_size: 16,
-                alignment: 8,
-            });
-    };
+    let push_slot =
+        |function: &mut target_operations_to_selected_instructions::SelectedFunction,
+         slot: LocalStorageSlotId| {
+            function.local_storage_slots.push(
+                target_operations_to_selected_instructions::SelectedLocalStorageSlot {
+                    id: slot,
+                    byte_size: 16,
+                    alignment: 8,
+                },
+            );
+        };
     // The direct `Store64` into the staging slot sinks to just before the
     // covering `Store64` into the same slot.
     let direct = mutated(target, |function, environment| {
@@ -1284,7 +1295,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1293,7 +1304,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[3] = instruction(
             KILLER,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1339,7 +1350,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[3] = instruction(
             KILLER,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1367,7 +1378,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1409,7 +1420,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1418,7 +1429,9 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(other_slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    other_slot,
+                ),
                 byte_offset: 0,
             },
             store64,
@@ -1427,7 +1440,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[3] = instruction(
             KILLER,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1461,7 +1474,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1470,7 +1483,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 8,
             },
             store64,
@@ -1479,7 +1492,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[3] = instruction(
             KILLER,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1516,7 +1529,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1525,7 +1538,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[3] = instruction(
             KILLER,
             SelectedInstructionKind::FrameAddress {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             frame_address,
@@ -1549,7 +1562,7 @@ fn staging_slot_stores_sink_on_the_slot() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -1747,17 +1760,19 @@ fn byte_sequence_stores_sink() {
         let store64 = environment
             .constraint(environment.selected_keys().store64.unwrap())
             .unwrap();
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
+        function.local_storage_slots.push(
+            target_operations_to_selected_instructions::SelectedLocalStorageSlot {
                 id: parameter,
                 byte_size: 16,
                 alignment: 8,
-            });
+            },
+        );
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(parameter),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    parameter,
+                ),
                 byte_offset: 0,
             },
             store64,
@@ -1784,17 +1799,19 @@ fn byte_sequence_stores_sink() {
         let store64 = environment
             .constraint(environment.selected_keys().store64.unwrap())
             .unwrap();
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
+        function.local_storage_slots.push(
+            target_operations_to_selected_instructions::SelectedLocalStorageSlot {
                 id: parameter,
                 byte_size: 16,
                 alignment: 8,
-            });
+            },
+        );
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(parameter),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    parameter,
+                ),
                 byte_offset: 8,
             },
             store64,
@@ -1822,17 +1839,19 @@ fn byte_sequence_stores_sink() {
         let frame_address = environment
             .constraint(environment.selected_keys().frame_address.unwrap())
             .unwrap();
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
+        function.local_storage_slots.push(
+            target_operations_to_selected_instructions::SelectedLocalStorageSlot {
                 id: parameter,
                 byte_size: 16,
                 alignment: 8,
-            });
+            },
+        );
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::FrameAddress {
-                slot: selected_instructions::FrameStorageSlotId::Local(parameter),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    parameter,
+                ),
                 byte_offset: 0,
             },
             frame_address,
@@ -1926,7 +1945,7 @@ fn byte_sequence_store_route_must_match() {
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
                     LocalStorageSlotId::StructuralParameter { place: place() },
                 ),
                 byte_offset: 0,
@@ -2407,7 +2426,7 @@ fn constant_index_sequence_rows_still_interfere_on_the_moved_extent() {
             .unwrap();
         function
             .virtual_registers
-            .push(selected_instructions::VirtualRegister {
+            .push(target_operations_to_selected_instructions::VirtualRegister {
                 id: MOVED_SEQUENCE_INDEX,
                 scalar_type: ScalarType::Integer(
                     semantic_vocabulary::IntegerType::new(
@@ -2417,7 +2436,7 @@ fn constant_index_sequence_rows_still_interfere_on_the_moved_extent() {
                     .unwrap(),
                 ),
                 class: copy.operands[0].class,
-                origin: selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                origin: target_operations_to_selected_instructions::VirtualRegisterOrigin::InstructionResult {
                     instruction: MATERIALIZE_MOVED_INDEX,
                     source_value: ValueId::new(5).unwrap(),
                 },

@@ -2,17 +2,19 @@
 
 use std::collections::BTreeSet;
 
-use abstract_operations::{AbstractOperation as O, AbstractSuccessor, ValueBinding};
-use optimization_unit::{
-    EffectLink, OptimizationBlock, OptimizationEdge, OptimizationFact, OptimizationNode,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
-    ValueDefinitionSite, recompute_psi_optimization_unit_identity,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, OperationId, ScalarType,
     ValueId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation as O, AbstractSuccessor, ValueBinding,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    EffectLink, OptimizationBlock, OptimizationEdge, OptimizationFact, OptimizationNode,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
+    ValueDefinitionSite, recompute_psi_optimization_unit_identity,
+};
 
 #[derive(Clone)]
 pub(super) enum Terminator {
@@ -92,7 +94,8 @@ pub(super) fn function(
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         structural_places: Vec::new(),
-        result: abstract_operations::AbstractFunctionResult::Unit,
+        result:
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractFunctionResult::Unit,
         declared_places: BTreeSet::new(),
         entry_claim_declarations: Vec::new(),
         content_entry_claims: Vec::new(),
@@ -190,10 +193,12 @@ pub(super) fn block_parameter_constant_unit(
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
             provenance: vec![PsiProvenance::Edge(true_edge)],
-            fuel: vec![optimization_unit::FuelSettlement {
-                site: PsiProvenance::Edge(true_edge),
-                units: 1,
-            }],
+            fuel: vec![
+                terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+                    site: PsiProvenance::Edge(true_edge),
+                    units: 1,
+                },
+            ],
         },
         OptimizationEdge {
             structural_bindings: Vec::new(),
@@ -203,10 +208,12 @@ pub(super) fn block_parameter_constant_unit(
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
             provenance: vec![PsiProvenance::Edge(false_edge)],
-            fuel: vec![optimization_unit::FuelSettlement {
-                site: PsiProvenance::Edge(false_edge),
-                units: 1,
-            }],
+            fuel: vec![
+                terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+                    site: PsiProvenance::Edge(false_edge),
+                    units: 1,
+                },
+            ],
         },
     ];
     let left_edge = id(21, EdgeId::new);
@@ -229,10 +236,12 @@ pub(super) fn block_parameter_constant_unit(
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
             provenance: vec![PsiProvenance::Edge(edge)],
-            fuel: vec![optimization_unit::FuelSettlement {
-                site: PsiProvenance::Edge(edge),
-                units: 1,
-            }],
+            fuel: vec![
+                terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+                    site: PsiProvenance::Edge(edge),
+                    units: 1,
+                },
+            ],
         }];
     }
     let condition_support = id(600, OperationId::new);

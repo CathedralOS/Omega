@@ -1,14 +1,18 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionTargetNode,
+};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -78,15 +82,16 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
         "#,
         BranchForm::Separate,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("stored ordinary case results remain exact borrowed getter receivers")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("stored ordinary case results remain exact borrowed getter receivers")
+        .into_artifact();
     let receivers = checked
         .facts
         .values
@@ -97,7 +102,7 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
             let argument = argument.as_place()?;
             matches!(
                 argument.source,
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             )
             .then_some((handle, argument.source.clone()))
         })
@@ -121,10 +126,11 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
         if mutation == 0 {
             argument.source = receivers[1].1.clone();
         } else {
-            argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow;
+            argument.access =
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow;
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("Main::main")
             )
@@ -250,15 +256,16 @@ fn borrowed_case_getter_executes_every_refined_return_from_encoded_evidence() {
              }}"
         );
         let checked = checked_source(&source, BranchForm::Separate);
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("value"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("borrowed case getter retains its refined result into caller division")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("value"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("borrowed case getter retains its refined result into caller division")
+            .into_artifact();
         let artifact =
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
         drop(checked);
@@ -300,15 +307,16 @@ fn ordered_scalar_returns_execute_the_authored_fallback() {
         "machine value(input: u64) -> u64 { transition input { 0 -> (1) 1 -> (2) _ -> (3) } }",
         BranchForm::Separate,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("value"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("ordered scalar guards with explicit fallback")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("ordered scalar guards with explicit fallback")
+        .into_artifact();
     drop(checked);
     for (input, expected) in [(0, 1), (1, 2), (2, 3), (u64::MAX, 3)] {
         assert_eq!(
@@ -327,15 +335,16 @@ fn ordered_scalar_returns_execute_the_authored_fallback() {
 #[test]
 fn guarded_case_replay_rejects_changed_order_guards_and_final_destination() {
     let checked = checked_source(ALIGNMENT_GETTER, BranchForm::Separate);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Alignment::width"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("complete borrowed case getter before hostile plan edits")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Alignment::width"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("complete borrowed case getter before hostile plan edits")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     for (original, outside) in [(1, 0), (8, 9)] {
@@ -368,8 +377,10 @@ fn guarded_case_replay_rejects_changed_order_guards_and_final_destination() {
         .scalar_control
         .as_ref()
         .unwrap();
-    let checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } =
-        &control.terminator
+    let typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Guarded {
+        arms,
+        fallback,
+    } = &control.terminator
     else {
         panic!("all authored guards remain explicit");
     };
@@ -391,7 +402,7 @@ fn guarded_case_replay_rejects_changed_order_guards_and_final_destination() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &invalid,
                 TerminalMachineSelection::Name("Alignment::width")
             )
@@ -404,7 +415,10 @@ fn guarded_case_replay_rejects_changed_order_guards_and_final_destination() {
     }
 }
 
-fn checked_source(source: &str, form: BranchForm) -> checked_trees::CheckedTrees {
+fn checked_source(
+    source: &str,
+    form: BranchForm,
+) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let mut typed = crate::front_end::typed_program(source);
     if !matches!(form, BranchForm::Separate) {
         let machine = typed.machines()[0].clone();
@@ -679,7 +693,9 @@ fn a_nonzero_guard_does_not_license_signed_division_overflow() {
 
 #[test]
 fn branch_return_coordinates_cannot_select_a_siblings_valid_value() {
-    use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedScalarBranchDestination, CheckedScalarStateTerminator,
+    };
     let source = "machine value(flag: bool) -> u8\nrequires 7u8 == 7u8\nensures 7u8 == 7u8\n{ transition flag { true -> 7 false -> 7 } }";
     for form in [BranchForm::Separate, BranchForm::Combined] {
         let checked = checked_source(source, form);
@@ -768,8 +784,10 @@ fn ordered_guard_roster_rejects_tampering_and_reconstructs_result_range() {
             .find(|plan| plan.scalar_control.is_some())
             .expect("ordinary scalar control");
         let machine = plan.machine;
-        let checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } =
-            &mut plan.scalar_control.as_mut().unwrap().terminator
+        let typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Guarded {
+            arms,
+            fallback,
+        } = &mut plan.scalar_control.as_mut().unwrap().terminator
         else {
             panic!("guarded return control")
         };
@@ -833,7 +851,7 @@ fn ordered_guard_roster_rejects_tampering_and_reconstructs_result_range() {
                     .find(|contract| contract.machine == machine)
                     .unwrap();
                 contract.closed_scalar_values =
-                    checked_trees::ClosedScalarValueContractPlan::default();
+                    typed_trees_to_checked_trees::checked_trees::ClosedScalarValueContractPlan::default();
                 // Incoming lowering reconstructs result refinements from the
                 // authored return type, not this optional retained predicate
                 // roster. Clearing it must not erase the Terminal guarantee.
@@ -934,7 +952,7 @@ fn exact_complement_guard_pairs_lower_as_one_scalar_conditional() {
         .expect("the two-case pair composes as a scalar graph");
     assert!(matches!(
         graph.states.first().map(|state| &state.terminator),
-        Some(checked_trees::CheckedScalarStateTerminator::Conditional { .. })
+        Some(typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Conditional { .. })
     ));
     for (case, expected) in [("Even", 1), ("Odd", 2)] {
         let source = format!(

@@ -1,10 +1,12 @@
 use super::{artifact, execute, integer, source};
 use crate::unit_scalar_result_source::CheckedUnitEffectOperationPlan;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn scalar_wrapper_explicit_entry_predicate_survives_call_proofs() {
@@ -75,7 +77,10 @@ fn scalar_wrapper_signature_and_parameter_range_custody_reject_mutations() {
         match mutation {
             0 => plan.scalar_parameters.clear(),
             1 => plan.scalar_parameters[0].source_position = 1,
-            2 => plan.scalar_parameters[0].primitive_type = typed_trees::types::PrimitiveType::Bool,
+            2 => {
+                plan.scalar_parameters[0].primitive_type =
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
+            }
             3 => {
                 let machine = plan.machine;
                 let contract = checked
@@ -85,12 +90,13 @@ fn scalar_wrapper_signature_and_parameter_range_custody_reject_mutations() {
                     .iter_mut()
                     .find(|contract| contract.machine == machine)
                     .unwrap();
-                contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
-                    Vec::new(),
-                    contract.closed_scalar_values.ensures().to_vec(),
-                    contract.closed_scalar_values.has_crash_clauses(),
-                    contract.closed_scalar_values.has_outcome_specific_clauses(),
-                );
+                contract.closed_scalar_values =
+                    typed_trees_to_checked_trees::checked_trees::ClosedScalarValueContractPlan::new(
+                        Vec::new(),
+                        contract.closed_scalar_values.ensures().to_vec(),
+                        contract.closed_scalar_values.has_crash_clauses(),
+                        contract.closed_scalar_values.has_outcome_specific_clauses(),
+                    );
             }
             _ => unreachable!(),
         }
@@ -166,7 +172,10 @@ fn scalar_wrapper_registration_and_result_drift_reject() {
         let plans = &mut checked.facts.flow.terminal_boundary_scalar_returns;
         match mutation {
             0 => plans.machines.push(plans.machines[0].clone()),
-            1 => plans.machines[0].result_type = typed_trees::types::PrimitiveType::Bool,
+            1 => {
+                plans.machines[0].result_type =
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
+            }
             2 => plans.boundary_machines.clear(),
             3 => plans.machines[0].attachment_type_identity = "named(name(Main))".into(),
             _ => unreachable!(),
@@ -235,8 +244,8 @@ fn selected_wrapper_type_duplicates_and_cross_owner_conflicts_reject() {
                 .push(declaration);
         } else {
             let mut conflicting = declaration;
-            conflicting.shape = checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
-                typed_trees::types::PrimitiveType::Bool,
+            conflicting.shape = typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool,
             );
             checked
                 .facts
@@ -548,7 +557,7 @@ fn ordinary_boundary_wrapper_replays_actual_body_and_call_custody() {
                 "call direct" | "call transitive" | "missing state" | "duplicate state" => {}
                 "contract" => {
                     plan.contract_commitment =
-                        checked_trees::MachineContractCommitment::from_digest([0; 32])
+                        typed_trees_to_checked_trees::checked_trees::MachineContractCommitment::from_digest([0; 32])
                 }
                 _ => unreachable!(),
             }
@@ -556,7 +565,7 @@ fn ordinary_boundary_wrapper_replays_actual_body_and_call_custody() {
         // Do not rebuild source plans here: the receiving stage must reject
         // corrupted retained evidence despite an otherwise valid typed source.
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("Main::main")
             )

@@ -1,10 +1,14 @@
-use checked_trees::CheckedValueOrigin;
+use crate::checked_trees::CheckedValueOrigin;
 use numerics::literals::FloatFormat;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::type_identity::TypeIdentityRequest;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::{BuiltinFunction, SymbolHandle};
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::type_identity::TypeIdentityRequest;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn expression_type_reference_for_origin(
     program: &TypedTrees,
@@ -88,12 +92,12 @@ fn expression_type_reference_in_state(
         ExpressionNode::Call(call) => {
             crate::semantic::calls::find_state_with_machine(program, state_symbol)
                 .and_then(|(machine, state)| {
-                    validation::expression_result_type_reference(
+                    crate::validation::expression_result_type_reference(
                         program, machine, state, expression,
                     )
                 })
                 .or_else(|| {
-                    typed_trees::operator::resolve_named_expression_call(program, call)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call)
                         .map(|operator| operator.return_type)
                 })
                 .or_else(|| {
@@ -143,7 +147,7 @@ fn expression_type_reference_in_state(
                 ),
             ];
             if let Some(spelling) = super::binary_operator_spelling(binary.operator) {
-                let candidates = typed_trees::operator::resolve_spelling_for_operands(
+                let candidates = symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_spelling_for_operands(
                     program,
                     spelling,
                     &operands,
@@ -154,13 +158,13 @@ fn expression_type_reference_in_state(
                         // Float arithmetic retains its selected operand policy for
                         // enclosing operations; comparisons retain the declaration's
                         // Boolean result instead of borrowing an operand carrier.
-                        if typed_trees::operator::primitive_float_binary_semantics(
+                        if symbol_resolved_trees_to_typed_trees::typed_trees::operator::primitive_float_binary_semantics(
                             program,
                             candidate.operator,
                         )
                         .is_some()
                         {
-                            use checked_trees::CheckedArithmeticPolicyAdapter;
+                            use crate::checked_trees::CheckedArithmeticPolicyAdapter;
                             use numerics::arithmetic::ArithmeticDomain;
                             let domain = match super::arithmetic_policy_adapter(
                                 program, spelling, &operands,
@@ -195,7 +199,7 @@ fn expression_type_reference_in_state(
             // A comparison's result is Boolean even when its operands select
             // Float semantics. Propagating the operand carrier here would
             // misclassify an enclosing Boolean case-pattern comparison.
-            use typed_trees::expression::BinaryOperator;
+            use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
             if matches!(
                 binary.operator,
                 BinaryOperator::Equal
@@ -227,7 +231,7 @@ fn expression_type_reference_in_state(
             }),
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         ExpressionNode::ArrayLiteral(_) => {
-            validation::declared_constant_array_type(program, expression)
+            crate::validation::declared_constant_array_type(program, expression)
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Integer(_)
@@ -253,27 +257,37 @@ fn contextual_type_reference_in_state(
         .statements(state.statement_nodes)
         .get(statement_index)?
     {
-        typed_trees::statement::StatementNode::Assignment(assignment) => {
-            expression_type_reference_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                assignment.target,
-            )
-        }
-        typed_trees::statement::StatementNode::LocalData(local) => Some(local.type_reference),
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Assignment(
+            assignment,
+        ) => expression_type_reference_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            assignment.target,
+        ),
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            local,
+        ) => Some(local.type_reference),
         _ => None,
     }
 }
 
 fn float_type_reference(program: &TypedTrees, format: FloatFormat) -> Option<TypeReferenceHandle> {
     let primitive = match format {
-        FloatFormat::F32 => typed_trees::types::PrimitiveType::F32,
-        FloatFormat::F64 => typed_trees::types::PrimitiveType::F64,
+        FloatFormat::F32 => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F32
+        }
+        FloatFormat::F64 => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F64
+        }
     };
     let atom = match primitive {
-        typed_trees::types::PrimitiveType::F32 => symbols::BuiltinTypeAtom::F32,
-        typed_trees::types::PrimitiveType::F64 => symbols::BuiltinTypeAtom::F64,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F32 => {
+            symbols::BuiltinTypeAtom::F32
+        }
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F64 => {
+            symbols::BuiltinTypeAtom::F64
+        }
         _ => return None,
     };
     builtin_type_reference(program, atom)
@@ -306,7 +320,7 @@ fn symbol_type_reference_in_state(
 
 fn local_type_reference_before_statement(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     symbol: SymbolHandle,
     name: Option<&str>,
@@ -317,7 +331,7 @@ fn local_type_reference_before_statement(
         .iter()
         .take(statement_index)
         .find_map(|statement| {
-            let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement else {
                 return None;
             };
             ((symbol.is_valid() && local.symbol == symbol)
@@ -332,7 +346,7 @@ fn local_type_reference_before_statement(
 fn self_field_type_reference(
     program: &TypedTrees,
     state_symbol: SymbolHandle,
-    member: &typed_trees::expression::TableMemberExpression,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
 ) -> Option<TypeReferenceHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
         return None;
@@ -359,7 +373,9 @@ fn self_field_type_reference(
         .iter()
         .find(|data| data.name == *attached_data)?;
     program.data_members(data).iter().find_map(|data_member| {
-        let typed_trees::data::DataMember::Field(field) = data_member else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+            data_member
+        else {
             return None;
         };
         ((member.member_symbol.is_valid() && field.symbol == member.member_symbol)
@@ -372,7 +388,7 @@ fn field_type_reference(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     field_symbol: SymbolHandle,
-    field_name: &typed_trees::name::Identifier,
+    field_name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. }
@@ -431,12 +447,14 @@ fn field_type_reference(
 
 fn data_field_type_reference(
     program: &TypedTrees,
-    data: &typed_trees::data::DataDefinition,
+    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
     field_symbol: SymbolHandle,
-    field_name: &typed_trees::name::Identifier,
+    field_name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
 ) -> Option<TypeReferenceHandle> {
     program.data_members(data).iter().find_map(|member| {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+            member
+        else {
             return None;
         };
         if field_symbol.is_valid() {

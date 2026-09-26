@@ -64,7 +64,7 @@ const INDEXED_SOURCE: &str = r#"
     }
 "#;
 
-fn lowered_source(source: &str) -> lowered_psi::LoweredPsi {
+fn lowered_source(source: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -73,7 +73,7 @@ fn lowered_source(source: &str) -> lowered_psi::LoweredPsi {
     .expect("lower program-local introduction schema")
 }
 
-fn lowered() -> lowered_psi::LoweredPsi {
+fn lowered() -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     lowered_source(SOURCE)
 }
 

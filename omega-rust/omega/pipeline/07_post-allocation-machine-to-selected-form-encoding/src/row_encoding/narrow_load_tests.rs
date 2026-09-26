@@ -4,14 +4,16 @@ use super::{
     PostAllocationMachineInstruction, SelectedFormEncodingState, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, encode_row,
 };
-use physical_instructions::{
+use register_homes_to_post_allocation_machine::{
     PhysicalAddressOperation, PhysicalOperandFootprint, PostAllocationMachineFunction,
 };
-use register_model::{RegisterOperandAccess, validate_physical_register_model};
-use selected_instructions::{
+use semantic_vocabulary::MachineId;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, validate_physical_register_model,
+};
+use target_operations_to_selected_instructions::{
     MachineSemanticKind, SelectedInstructionProvenance, SelectedOperand, VirtualRegisterId,
 };
-use semantic_vocabulary::MachineId;
 
 #[test]
 fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_targets() {
@@ -23,34 +25,42 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
     ] {
         let x86 = target.architecture == Architecture::X86_64;
         let physical = validate_physical_register_model(if x86 {
-            isa_x86_64::x86_64_physical_register_model()
+            target_operations_to_selected_instructions::isa_x86_64::x86_64_physical_register_model()
         } else {
-            isa_aarch64::aarch64_physical_register_model()
+            target_operations_to_selected_instructions::isa_aarch64::aarch64_physical_register_model()
         })
         .unwrap();
         let constraints = if x86 {
-            isa_x86_64::validate_x86_64_register_constraint_catalog(
-                isa_x86_64::x86_64_register_constraint_catalog(&physical),
+            target_operations_to_selected_instructions::isa_x86_64::validate_x86_64_register_constraint_catalog(
+                target_operations_to_selected_instructions::isa_x86_64::x86_64_register_constraint_catalog(&physical),
                 &physical,
             )
             .unwrap()
         } else {
-            isa_aarch64::validate_aarch64_register_constraint_catalog(
-                isa_aarch64::aarch64_register_constraint_catalog(&physical),
+            target_operations_to_selected_instructions::isa_aarch64::validate_aarch64_register_constraint_catalog(
+                target_operations_to_selected_instructions::isa_aarch64::aarch64_register_constraint_catalog(&physical),
                 &physical,
             )
             .unwrap()
         };
         let catalog = if x86 {
-            isa_x86_64::x86_64_machine_effect_catalog(target, &constraints).unwrap()
+            target_operations_to_selected_instructions::isa_x86_64::x86_64_machine_effect_catalog(
+                target,
+                &constraints,
+            )
+            .unwrap()
         } else {
-            isa_aarch64::aarch64_machine_effect_catalog(target, &constraints).unwrap()
+            target_operations_to_selected_instructions::isa_aarch64::aarch64_machine_effect_catalog(
+                target,
+                &constraints,
+            )
+            .unwrap()
         };
         let catalog = if x86 {
-            isa_x86_64::validate_x86_64_machine_effect_catalog(target, &constraints, catalog)
+            target_operations_to_selected_instructions::isa_x86_64::validate_x86_64_machine_effect_catalog(target, &constraints, catalog)
                 .unwrap()
         } else {
-            isa_aarch64::validate_aarch64_machine_effect_catalog(target, &constraints, catalog)
+            target_operations_to_selected_instructions::isa_aarch64::validate_aarch64_machine_effect_catalog(target, &constraints, catalog)
                 .unwrap()
         };
         for (semantic, kind, address, width) in [
@@ -162,7 +172,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
             crate::validation::row::validate(target, &selected, &machine, &physical, &row).unwrap();
             assert_eq!(
                 machine.alternative.encoded.memory,
-                selected_instructions::MachineEncodedMemoryEffect::ReadPointerV1 {
+                target_operations_to_selected_instructions::MachineEncodedMemoryEffect::ReadPointerV1 {
                     pointer_operand: 0,
                     byte_count: width,
                 }
@@ -173,7 +183,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                 match mutation {
                     0 => {
                         changed_machine.alternative.encoded.memory =
-                            selected_instructions::MachineEncodedMemoryEffect::ReadPointerV1 {
+                            target_operations_to_selected_instructions::MachineEncodedMemoryEffect::ReadPointerV1 {
                                 pointer_operand: 0,
                                 byte_count: 8,
                             }
@@ -190,7 +200,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                     }
                     _ => {
                         changed_machine.alternative.key.family =
-                            selected_instructions::MachineAlternativeFamily::Load64
+                            target_operations_to_selected_instructions::MachineAlternativeFamily::Load64
                     }
                 }
                 assert!(

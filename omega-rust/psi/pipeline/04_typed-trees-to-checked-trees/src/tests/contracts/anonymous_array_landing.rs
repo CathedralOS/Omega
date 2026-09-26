@@ -1,10 +1,12 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
 use crate::CheckingRequest;
-use checked_trees::CheckedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
-use typed_trees::types::PrimitiveType;
+use crate::checked_trees::CheckedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 #[derive(Clone, Copy, Debug)]
 enum Destination {
@@ -149,11 +151,11 @@ fn assert_exact_seven(checked: &CheckedTrees, destination: Destination, nested: 
         checked.expression_table.expression(element),
         ExpressionNode::Binary(_)
     ));
-    let landed = validation::land_anonymous_integer_expression(
+    let landed = crate::validation::land_anonymous_integer_expression(
         checked,
         element,
         PrimitiveType::I32,
-        |expression| validation::has_anonymous_operator_meaning(checked, expression),
+        |expression| crate::validation::has_anonymous_operator_meaning(checked, expression),
     );
     assert_eq!(landed.and_then(|literal| literal.value_i64()), Some(7));
 }
@@ -263,11 +265,11 @@ fn typed_integer_array_elements_keep_their_typed_division() {
                     ExpressionNode::Binary(_)
                 ));
                 assert!(
-                    validation::land_anonymous_integer_expression(
+                    crate::validation::land_anonymous_integer_expression(
                         &checked,
                         element,
                         PrimitiveType::I32,
-                        |expression| validation::has_anonymous_operator_meaning(
+                        |expression| crate::validation::has_anonymous_operator_meaning(
                             &checked, expression
                         ),
                     )

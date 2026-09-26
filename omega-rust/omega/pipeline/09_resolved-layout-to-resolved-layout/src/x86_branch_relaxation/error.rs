@@ -1,6 +1,6 @@
-use isa_x86_64::X86_64SelectedFormEncodingError;
-use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use target::NativeTarget;
+use target_operations_to_selected_instructions::isa_x86_64::X86_64SelectedFormEncodingError;
+use target_operations_to_selected_instructions::{SelectedBlockId, SelectedInstructionId};
 
 use selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError;
 

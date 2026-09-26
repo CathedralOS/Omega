@@ -19,7 +19,7 @@ impl StateGraphEmission<'_, '_> {
         position: usize,
         state_parameters: &[StructuralParameterDeclaration],
         arm_namespace: Vec<ValueDeclaration>,
-        return_arm: &checked_trees::CheckedConditionalReturnArm,
+        return_arm: &typed_trees_to_checked_trees::checked_trees::CheckedConditionalReturnArm,
         evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -36,7 +36,7 @@ impl StateGraphEmission<'_, '_> {
         operations.byte_lengths.clear();
         operations.field_byte_lengths.clear();
         let terminator = match return_arm {
-            checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
                 super::super::guarded::emit_return(
                     checked,
                     plan,
@@ -56,7 +56,7 @@ impl StateGraphEmission<'_, '_> {
             }
             // The arm alone evaluates the value checking retained under its
             // `Return` role, then disposes the roots a scalar return does.
-            checked_trees::CheckedConditionalReturnArm::Scalar {
+            typed_trees_to_checked_trees::checked_trees::CheckedConditionalReturnArm::Scalar {
                 statement_ordinal,
                 primitive_type,
             } => {
@@ -67,9 +67,9 @@ impl StateGraphEmission<'_, '_> {
                     role,
                 ) {
                     Some(expression) => {
-                        checked_trees::CheckedCallScalarArgument::Pure(expression.clone())
+                        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(expression.clone())
                     }
-                    None => checked_trees::CheckedCallScalarArgument::Computation(
+                    None => typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
                         checked
                             .facts
                             .values

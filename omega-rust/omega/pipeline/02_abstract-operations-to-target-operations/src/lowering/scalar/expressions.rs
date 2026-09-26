@@ -1,12 +1,12 @@
 use crate::LoweringError;
-use abstract_operations::AbstractParameter;
-use calling_conventions::{ValueLocation, ValuePlacement, ValueShape};
-use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
-use std::collections::BTreeMap;
-use target_operations::{
+use crate::calling_conventions::{ValueLocation, ValuePlacement, ValueShape};
+use crate::target_operations::{
     ScalarParameterLocation, TargetBooleanExpression, TargetIntegerExpression,
     TargetScalarExpression,
 };
+use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
+use std::collections::BTreeMap;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractParameter;
 
 pub(in crate::lowering) fn scalar_shape(
     value: ValueId,

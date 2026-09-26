@@ -1,10 +1,10 @@
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{FloatFormat, IntegerLanding, LandedIntegerType};
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::expression::ExpressionNode;
-use symbol_resolved_trees::statement::StatementNode;
 use syntax_trees_to_symbol_resolved_trees::ResolutionRequest;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::statement::StatementNode;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn resolve(source: &str) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {

@@ -6,15 +6,15 @@ use super::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
-use crate::selection::byte_view_homes::ByteViewHomes;
-use crate::selection::element_view_homes::ElementViewHomes;
-use calling_conventions::IndirectPointerLocation;
-use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use crate::legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
+use crate::register_model::RegisterOperandAccess;
+use crate::selected_instructions::{
     OutgoingArgumentSlotId, SelectedBoundarySettlement, SelectedCallContract, SelectedMemoryAccess,
     SelectedMemoryAccessRole, SelectedOutgoingArgumentSlot,
 };
+use crate::selection::byte_view_homes::ByteViewHomes;
+use crate::selection::element_view_homes::ElementViewHomes;
+use abstract_operations_to_target_operations::calling_conventions::IndirectPointerLocation;
 use semantic_vocabulary::{IntegerType, PlaceId};
 use terminal_psi::StructuralAccess;
 
@@ -56,9 +56,9 @@ pub(super) struct Transport {
     element_views: Vec<ElementViewHomes>,
     pub fragments: Vec<(PlaceId, u32, VirtualRegisterId)>,
     pub slots: Vec<SelectedOutgoingArgumentSlot>,
-    pub local_slots: Vec<selected_instructions::SelectedLocalStorageSlot>,
+    pub local_slots: Vec<crate::selected_instructions::SelectedLocalStorageSlot>,
     pub calls: Vec<SelectedCallContract>,
-    pub normalized_foreign_calls: Vec<selected_instructions::SelectedNormalizedForeignCall>,
+    pub normalized_foreign_calls: Vec<crate::selected_instructions::SelectedNormalizedForeignCall>,
     pub memory: Vec<SelectedMemoryAccess>,
     pub settlements: Vec<SelectedBoundarySettlement>,
 }
@@ -171,12 +171,12 @@ pub(super) fn call_pointer(
         || !call.claim_transfers.is_empty()
         // Authored structural calls retain an explicit transfer event even
         // when no claims move. Installed calls retain their completion event.
-        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
+        || matches!(call.source, abstract_operations_to_target_operations::target_operations::NativeCallOrigin::Authored)
             && !matches!(row.ownership.as_slice(),
-                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
+                [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
         || row.result.is_some_and(|result| {
             !crate::selection::scalar_call_abi::scalar_shape(result.scalar_type)
-                .is_some_and(|shape| shape.class == calling_conventions::ValueClass::Integer)
+                .is_some_and(|shape| shape.class == abstract_operations_to_target_operations::calling_conventions::ValueClass::Integer)
         })
     {
         return Err(invalid());
@@ -190,7 +190,7 @@ pub(super) fn operation(
     block: SelectedBlockId,
     block_start: usize,
     row: &LegalizedScalarInstruction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<bool, SelectedInstructionError> {
     if matches!(
@@ -329,7 +329,7 @@ pub(super) fn operation(
                 block,
                 instruction_index: instruction_index.try_into().map_err(|_| invalid())?,
                 settlement:
-                    selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
+                    crate::selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
                         settlement.clone(),
                     ),
             });
@@ -403,7 +403,7 @@ pub(super) fn operation(
             || !semantic.path.is_empty()
             || target.place != semantic.place
             || target.source
-                != target_operations::TargetStructuralArgumentSource::Placement(
+                != abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::Placement(
                     parameter.target.placement.clone(),
                 )
             || target.destination != call.call_plan.parameters[index]
@@ -423,7 +423,7 @@ pub(super) fn operation(
             return Err(invalid());
         };
         let slot = OutgoingArgumentSlotId {
-            role: selected_instructions::OutgoingArgumentSlotRole::Argument,
+            role: crate::selected_instructions::OutgoingArgumentSlotRole::Argument,
             operation: row.operation,
             argument_index: index.try_into().map_err(|_| invalid())?,
         };
@@ -466,7 +466,7 @@ pub(super) fn operation(
             )?;
             builder.emit(
                 SelectedInstructionKind::Store64 {
-                    slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
+                    slot: crate::selected_instructions::FrameStorageSlotId::Outgoing(slot),
                     byte_offset,
                 },
                 builder.constraints.keys.store64.ok_or_else(|| invalid())?,
@@ -493,7 +493,7 @@ pub(super) fn operation(
             )?;
             builder.emit(
                 SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
+                    slot: crate::selected_instructions::FrameStorageSlotId::Outgoing(slot),
                     byte_offset: 0,
                 },
                 builder
@@ -567,7 +567,7 @@ pub(super) fn operation(
 fn row_constraint<'a>(
     builder: &'a Builder<'_>,
     key: RegisterConstraintKey,
-) -> Result<&'a register_model::RegisterInstructionConstraint, SelectedInstructionError> {
+) -> Result<&'a crate::register_model::RegisterInstructionConstraint, SelectedInstructionError> {
     crate::selection::constraints::row(builder.catalog, key)
 }
 
@@ -594,7 +594,7 @@ fn memory(
                 .try_into()
                 .map_err(|_| invalid())?,
         ),
-        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
+        origin: crate::selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
         place,
         byte_offset,
         byte_count,

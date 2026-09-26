@@ -5,13 +5,13 @@ use crate::resolution::{
     ResolutionRequest, prepare_const_initializer_selection, resolve,
     resolve_const_argument_selection,
 };
+use crate::symbol_resolved_trees::expression::ExpressionNode;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
 };
 use source::SourceId;
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::expression::ExpressionNode;
-use syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 
 fn parse(sources: &[(SourceId, &str)]) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::default();

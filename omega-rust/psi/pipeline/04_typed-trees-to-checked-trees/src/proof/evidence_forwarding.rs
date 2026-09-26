@@ -1,6 +1,9 @@
 //! Forwarded and projected evidence facts with definite-assignment
 //! validation.
 
+use crate::checked_trees::{
+    CheckedEvidenceTerm, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
+};
 use crate::proof::outcome_arms::{
     exact_result_case, outcome_specific_assignment_matches_result, outcome_specific_fact_is_proved,
 };
@@ -10,13 +13,10 @@ use crate::proof::proof_output_calls::{
 use crate::proof::proposition_vocabulary::{
     contract_proposition_labels, lower_checked_proposition_application,
 };
-use checked_trees::{
-    CheckedEvidenceTerm, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
-};
 use symbols::SymbolHandle;
 
 pub(crate) fn bind_evidence_forwarding_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -72,7 +72,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
                 )));
                 continue;
             }
-            checked_trees::EvidenceAssignmentSource::Forwarded { term: source }
+            crate::checked_trees::EvidenceAssignmentSource::Forwarded { term: source }
         } else if let Some(conformance_symbol) = forwarding.source_conformance {
             let Some(source) = checked_evidence_producer(
                 program,
@@ -94,7 +94,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
             )));
             continue;
         };
-        forwardings.append(checked_trees::EvidenceForwardingFact {
+        forwardings.append(crate::checked_trees::EvidenceForwardingFact {
             machine_symbol: forwarding.machine_symbol,
             state_symbol: forwarding.state_symbol,
             statement_index: forwarding.statement_index,
@@ -112,11 +112,11 @@ pub(crate) fn bind_evidence_forwarding_facts(
 }
 
 pub(crate) fn bind_evidence_projection_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    use checked_trees::CheckedEvidenceProjection;
-    use typed_trees::domain::ProofFact;
+    use crate::checked_trees::CheckedEvidenceProjection;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
 
     let mut diagnostics = Vec::new();
     let mut applications = Vec::new();
@@ -251,12 +251,12 @@ fn evidence_term_in_scope(
 }
 
 fn checked_evidence_producer(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     output: &CheckedEvidenceTerm,
     conformance_symbol: SymbolHandle,
     source_name: &str,
-) -> Option<checked_trees::EvidenceAssignmentSource> {
-    use typed_trees::trait_definition::{
+) -> Option<crate::checked_trees::EvidenceAssignmentSource> {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::{
         ConformanceImplementation, ConformanceRowSource, ConformanceSubject,
     };
 
@@ -293,7 +293,7 @@ fn checked_evidence_producer(
         .map(|row| {
             let (requirement_identity, realization_identity) =
                 crate::facts::normalized_dynamic_row_identities(program, row).ok()?;
-            Some(checked_trees::DynamicConformanceRowFact {
+            Some(crate::checked_trees::DynamicConformanceRowFact {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
                 requirement_identity,
@@ -302,13 +302,13 @@ fn checked_evidence_producer(
                 realization_identity,
                 source: match row.source {
                     ConformanceRowSource::Inline => {
-                        checked_trees::DynamicConformanceRowSource::Inline
+                        crate::checked_trees::DynamicConformanceRowSource::Inline
                     }
                     ConformanceRowSource::Reference => {
-                        checked_trees::DynamicConformanceRowSource::Reference
+                        crate::checked_trees::DynamicConformanceRowSource::Reference
                     }
                     ConformanceRowSource::TraitDefault => {
-                        checked_trees::DynamicConformanceRowSource::TraitDefault
+                        crate::checked_trees::DynamicConformanceRowSource::TraitDefault
                     }
                 },
             })
@@ -316,7 +316,7 @@ fn checked_evidence_producer(
         .collect::<Option<Vec<_>>>()?;
 
     Some(
-        checked_trees::EvidenceAssignmentSource::ProducerConformance {
+        crate::checked_trees::EvidenceAssignmentSource::ProducerConformance {
             conformance: conformance.symbol,
             evidence_trait: evidence_trait.symbol,
             rows,
@@ -325,11 +325,13 @@ fn checked_evidence_producer(
 }
 
 fn validate_evidence_forwarding_definite_assignment(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     proof: &ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     use std::collections::{BTreeMap, BTreeSet, VecDeque};
-    use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+        StatementNode, TransitionExit, TransitionTargetNode,
+    };
 
     let mut diagnostic_messages = BTreeSet::new();
 
@@ -371,7 +373,7 @@ fn validate_evidence_forwarding_definite_assignment(
         let initial_known = contract_proposition_labels(
             program,
             program.machine_contracts(machine),
-            typed_trees::signature::SignatureContractKind::Requires,
+            symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires,
             &[],
         );
         let mut work = VecDeque::from([(
@@ -399,7 +401,7 @@ fn validate_evidence_forwarding_definite_assignment(
             known.extend(contract_proposition_labels(
                 program,
                 program.state_contracts(state),
-                typed_trees::signature::SignatureContractKind::Requires,
+                symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires,
                 &[],
             ));
 
@@ -438,8 +440,12 @@ fn validate_evidence_forwarding_definite_assignment(
                     .filter(|forwarding| forwarding.statement_index == statement_index)
                 {
                     let source = match &forwarding.source {
-                        checked_trees::EvidenceAssignmentSource::Forwarded { term } => Some(*term),
-                        checked_trees::EvidenceAssignmentSource::ProducerConformance { .. } => None,
+                        crate::checked_trees::EvidenceAssignmentSource::Forwarded { term } => {
+                            Some(*term)
+                        }
+                        crate::checked_trees::EvidenceAssignmentSource::ProducerConformance {
+                            ..
+                        } => None,
                     };
                     if assigned
                         .insert(forwarding.output.arena_index(), source)
@@ -565,13 +571,13 @@ fn validate_evidence_forwarding_definite_assignment(
 }
 
 fn append_missing_evidence_diagnostics(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     proof: &ProofFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     outputs: &[arena::Handle<CheckedEvidenceTerm>],
     assigned: &std::collections::BTreeMap<u32, Option<arena::Handle<CheckedEvidenceTerm>>>,
-    result: Option<typed_trees::expression::ExpressionHandle>,
+    result: Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>,
     known: &std::collections::BTreeSet<String>,
     messages: &mut std::collections::BTreeSet<String>,
 ) {

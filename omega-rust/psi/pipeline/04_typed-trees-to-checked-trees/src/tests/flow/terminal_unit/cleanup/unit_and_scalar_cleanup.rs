@@ -31,15 +31,15 @@ fn unit_body_retains_empty_affine_local_prefix_and_reverse_cleanup() {
     assert!(matches!(
         plan.operations.as_slice(),
         [
-            checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+            crate::checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
                 declaration_ordinal: 0,
                 ..
             },
-            checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+            crate::checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
                 declaration_ordinal: 1,
                 ..
             },
-            checked_trees::CheckedUnitEffectOperationPlan::Complete {
+            crate::checked_trees::CheckedUnitEffectOperationPlan::Complete {
                 trivial_affine_local_discard_ordinals,
                 trivial_affine_discards,
                 ..
@@ -89,8 +89,8 @@ fn unit_body_affine_local_slice_fences_every_wider_local_shape() {
         .for_machine(machine_named(&checked, "mutable_local"))
         .expect("mutable plain record local has one owned result");
     assert!(matches!(mutable.operations.as_slice(), [
-        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: true, .. },
-        checked_trees::CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
+        crate::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: true, .. },
+        crate::checked_trees::CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
     ] if result.multiplicity == Multiplicity::Affine && result.statement_index == 0 && result.binding_ordinal == 0
         && trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty()));
     // A plain affine record local is an ordinary structural value since
@@ -103,8 +103,8 @@ fn unit_body_affine_local_slice_fences_every_wider_local_shape() {
         .for_machine(machine_named(&checked, "nonempty_local"))
         .expect("plain affine record local establishes once and discards on return");
     assert!(matches!(nonempty.operations.as_slice(), [
-        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: true, .. },
-        checked_trees::CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
+        crate::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: true, .. },
+        crate::checked_trees::CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
     ] if result.multiplicity == Multiplicity::Affine && result.statement_index == 0 && result.binding_ordinal == 0
         && trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty()));
     // An affine local after an effect is the same ordinary statement sequence
@@ -117,9 +117,9 @@ fn unit_body_affine_local_slice_fences_every_wider_local_shape() {
         .for_machine(machine_named(&checked, "local_after_effect"))
         .expect("an affine local after an effect sequences behind that effect");
     assert!(matches!(after_effect.operations.as_slice(), [
-        checked_trees::CheckedUnitEffectOperationPlan::PortWrite { port: 32, value: 7, .. },
-        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: true, .. },
-        checked_trees::CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
+        crate::checked_trees::CheckedUnitEffectOperationPlan::PortWrite { port: 32, value: 7, .. },
+        crate::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: true, .. },
+        crate::checked_trees::CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
     ] if result.multiplicity == Multiplicity::Affine && result.statement_index == 1 && result.binding_ordinal == 0
         && trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty()));
     for machine in ["qualified_local", "nominal_cleanup_local"] {
@@ -198,7 +198,7 @@ fn scalar_return_retains_one_exact_nominal_cleanup_after_result_materialization(
         .terminal_structural_scalar_returns
         .for_machine(machine_named(&checked, "measure"))
         .expect("scalar return retains its nominal cleanup");
-    let [checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)] =
+    let [crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)] =
         plan.cleanup_actions.as_slice()
     else {
         panic!("scalar return cleanup is exactly one nominal action")
@@ -244,10 +244,12 @@ fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order(
         plan.cleanup_actions
             .iter()
             .map(|action| match action {
-                checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
                     cleanup,
                 ) => cleanup.source_parameter_index,
-                checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => {
+                crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(
+                    _,
+                ) => {
                     panic!("the all-nominal case must not publish a trivial discard")
                 }
             })
@@ -257,7 +259,7 @@ fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order(
     );
     assert!(plan.cleanup_actions.iter().all(|action| matches!(
         action,
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
             cleanup
         ) if cleanup.requirements.is_empty()
     )));
@@ -265,8 +267,9 @@ fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order(
         .cleanup_actions
         .iter()
         .map(|action| {
-            let checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) =
-                action
+            let crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                cleanup,
+            ) = action
             else {
                 unreachable!("all-nominal action list")
             };
@@ -303,9 +306,9 @@ fn scalar_return_retains_mixed_cleanup_actions_in_reverse_parameter_order() {
         .for_machine(machine_named(&checked, "measure"))
         .expect("the complete mixed scalar cleanup frontier is retained");
     let [
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
     ] = plan.cleanup_actions.as_slice()
     else {
         panic!("mixed cleanup actions preserve one reverse-authored stream")
@@ -363,8 +366,8 @@ fn scalar_return_retains_contextual_requirements_for_finite_all_nominal_roots() 
         "caller facts remain canonical and retain an unrelated supported premise",
     );
     let [
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
     ] = plan.cleanup_actions.as_slice()
     else {
         panic!("contextual scalar cleanups remain in reverse authored root order")
@@ -455,9 +458,9 @@ fn scalar_return_retains_mixed_contextual_facts_and_cleanup_order() {
         "supported trivial-root facts remain caller assumptions",
     );
     let [
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
     ] = plan.cleanup_actions.as_slice()
     else {
         panic!("mixed contextual actions preserve reverse authored root order")
@@ -545,8 +548,8 @@ fn nominal_scalar_cleanup_retains_finite_branch_free_primitive_locals() {
         vec![(0, "ready", true), (1, "observed", true)],
     );
     let [
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup),
     ] = plan.cleanup_actions.as_slice()
     else {
         panic!("mixed cleanup remains reverse-authored after the scalar binding prefix")
@@ -688,9 +691,9 @@ fn nominal_scalar_cleanup_retains_interleaved_scalar_inputs_before_locals() {
         ],
     );
     let [
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(2),
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(2),
+        crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
     ] = plan.cleanup_actions.as_slice()
     else {
         panic!("cleanup retains reverse authored structural-root order")
@@ -736,7 +739,7 @@ fn nominal_scalar_cleanup_accepts_one_final_short_circuit_boolean_decision() {
         );
         assert!(matches!(
             plan.cleanup_actions.as_slice(),
-            [checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+            [crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
                 cleanup
             )] if cleanup.source_parameter_index == 0
         ));
@@ -784,7 +787,7 @@ fn nominal_scalar_cleanup_retains_contextual_short_circuit_return() {
     assert_eq!(plan.caller_requirements.len(), 1);
     assert!(matches!(
         plan.cleanup_actions.as_slice(),
-        [checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)]
+        [crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)]
             if cleanup.requirements.len() == 1
     ));
 }

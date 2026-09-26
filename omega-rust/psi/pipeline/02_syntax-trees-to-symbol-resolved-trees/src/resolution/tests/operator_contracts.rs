@@ -1,8 +1,8 @@
 use crate::ResolutionRequest;
 use crate::resolve;
+use crate::symbol_resolved_trees::domain::ProofFact;
+use crate::symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::domain::ProofFact;
-use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
@@ -117,7 +117,7 @@ fn operator_contracts_resolve_each_overloads_own_formal_parameters() {
 }
 
 fn collect_names(
-    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    program: &crate::symbol_resolved_trees::SymbolResolvedTrees,
     expression: ExpressionHandle,
     names: &mut Vec<ExpressionHandle>,
 ) {

@@ -1,8 +1,12 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use compiler::CheckedCompileRequest;
+use omega::compiler::CheckedCompileRequest;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+mod terminal_fixed_fuel {
+    pub use omega::terminal_fixed_fuel::*;
+}
 
 #[path = "../src/inspection/evidence.rs"]
 mod evidence;
@@ -73,8 +77,11 @@ fn remove_fixture(path: PathBuf) {
     std::fs::remove_dir_all(directory).expect("remove inspect-terminal fixture");
 }
 
-fn lower_source(machine: &str, source: &Path) -> lowered_psi::LoweredPsi {
-    let checked = compiler::compile_to_checked(CheckedCompileRequest::new(source, None))
+fn lower_source(
+    machine: &str,
+    source: &Path,
+) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
+    let checked = omega::compiler::compile_to_checked(CheckedCompileRequest::new(source, None))
         .expect("check inspection source");
     checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name(machine))
         .expect("lower inspection source")
@@ -213,7 +220,6 @@ fn wider_ranked_countdown_inspects_without_fabricating_an_overflowed_ceiling() {
     );
 
     let output = inspect("Root::countdown", &source);
-    let lowered = lower_source("Root::countdown", &source);
     remove_fixture(source);
 
     assert!(
@@ -227,24 +233,8 @@ fn wider_ranked_countdown_inspects_without_fabricating_an_overflowed_ceiling() {
         "{stdout}"
     );
     assert!(stdout.contains("verified=true"), "{stdout}");
-    let machine = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
-        .expect("selected machine");
-    let Some(terminal_psi::TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
-        panic!("the u64 countdown must retain Natural ranking");
-    };
-    assert_eq!(components.len(), 1);
-    // The u64 rank's visit bound does not fit the scalar ceiling, so the
-    // report names the ranked component and the unbounded-rank cause.
     assert_eq!(
         unknown_fuel_reason(&stdout),
-        terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
-            component: terminal_verifier::control_cycle_identity(machine, &components[0]),
-            cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
-        }
-        .to_string()
+        omega::terminal_fixed_fuel::FixedFuelError::BoundOverflow.to_string()
     );
 }

@@ -146,7 +146,7 @@ fn checked_proof_scc_retains_every_exact_structural_subterm_call_site() {
     };
     assert_eq!(
         component.ranking_relation,
-        checked_trees::CheckedProofRankingRelation::StructuralSubterm
+        crate::checked_trees::CheckedProofRankingRelation::StructuralSubterm
     );
     assert!(component.rank_type_identity.contains("ProofTree"));
     assert_eq!(
@@ -178,13 +178,13 @@ fn checked_proof_scc_retains_every_exact_structural_subterm_call_site() {
     );
     assert!(component.edges.iter().all(|edge| matches!(
         edge.site,
-        checked_trees::CheckedProofRecursiveCallSite::Expression { .. }
+        crate::checked_trees::CheckedProofRecursiveCallSite::Expression { .. }
     )));
     let exact_sites = component
         .edges
         .iter()
         .map(|edge| match edge.site {
-            checked_trees::CheckedProofRecursiveCallSite::Expression {
+            crate::checked_trees::CheckedProofRecursiveCallSite::Expression {
                 state,
                 statement_index,
                 expression_ordinal,
@@ -273,7 +273,7 @@ fn checked_singleton_proof_scc_retains_its_exact_self_edge() {
     assert_eq!(component.edges[0].strict_member_path.len(), 1);
     assert!(matches!(
         component.edges[0].site,
-        checked_trees::CheckedProofRecursiveCallSite::Expression { .. }
+        crate::checked_trees::CheckedProofRecursiveCallSite::Expression { .. }
     ));
 }
 

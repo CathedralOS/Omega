@@ -5,13 +5,15 @@
 //! compare's operands compile-time constant so the observed predicate is
 //! decidable.
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
+use semantic_vocabulary::IntegerValue;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess,
+};
+use target_operations_to_selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, VirtualRegisterId,
 };
-use semantic_vocabulary::IntegerValue;
 
 use super::ConstantBooleanError;
 use crate::ValidatedSelectedAnalysis;
@@ -284,8 +286,8 @@ pub(super) fn rewritten(admitted: &Admission<'_>) -> SelectedInstruction {
             .operands
             .iter()
             .zip([admitted.result])
-            .map(
-                |(operand, register)| selected_instructions::SelectedOperand {
+            .map(|(operand, register)| {
+                target_operations_to_selected_instructions::SelectedOperand {
                     operand: operand.operand,
                     virtual_register: register,
                     access: operand.access,
@@ -293,8 +295,8 @@ pub(super) fn rewritten(admitted: &Admission<'_>) -> SelectedInstruction {
                     fixed_view: operand.fixed_view,
                     tied_to: operand.tied_to,
                     early_clobber: operand.early_clobber,
-                },
-            )
+                }
+            })
             .collect(),
         implicit_uses: admitted.row.implicit_uses.clone(),
         implicit_defs: admitted.row.implicit_defs.clone(),

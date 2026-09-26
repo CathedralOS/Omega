@@ -161,7 +161,7 @@ fn expression_embedded_cast_targets_keep_contract_exposure() {
         .expressions
         .iter_expressions()
         .filter_map(|(_, expression)| {
-            let symbol_resolved_trees::expression::ExpressionNode::Cast(cast) = expression else {
+            let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode::Cast(cast) = expression else {
                 return None;
             };
             Some(resolved.child_type_reference(cast.target_type).clone())
@@ -171,7 +171,7 @@ fn expression_embedded_cast_targets_keep_contract_exposure() {
     let cast_target_spans = cast_targets
         .iter()
         .filter_map(|target| {
-            let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = target else {
+            let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Named { symbol, name } = target else {
                 return None;
             };
             (*symbol == marker).then_some(name.source_span())
@@ -376,7 +376,7 @@ fn retains_ordinary_via_call_in_typed_conformance_without_bootstrap_identity() {
         panic!("one exact external conformance")
     };
     assert!(conformance.external_binding.is_none());
-    let typed_trees::expression::ExpressionNode::Call(call) = typed
+    let crate::typed_trees::expression::ExpressionNode::Call(call) = typed
         .expression_table
         .expression(conformance.via_expression)
     else {
@@ -416,7 +416,7 @@ fn settles_satisfied_operator_to_its_exact_overload_symbol() {
         panic!("one exact operator realization")
     };
     let operator =
-        typed_trees::operator::declaration_by_symbol(&typed, conformance.requirement_symbol)
+        crate::typed_trees::operator::declaration_by_symbol(&typed, conformance.requirement_symbol)
             .expect("settled exact operator");
     assert_eq!(typed.display_type_reference(operator.return_type), "f32");
     assert!(typed.authored_declaration_selections().iter().any(|selection| {
@@ -482,12 +482,12 @@ fn settles_satisfied_top_level_requirement_to_its_exact_machine_symbol() {
     assert_eq!(conformance.symbol, requirement_symbol);
     assert_eq!(conformance.requirement_symbol, requirement_symbol);
     assert!(matches!(
-        typed_trees::machine::resolve_satisfied_declaration(
+        crate::typed_trees::machine::resolve_satisfied_declaration(
             &typed,
             satisfier,
             conformance,
         ),
-        Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(selected))
+        Some(crate::typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(selected))
             if selected.symbol == requirement_symbol
     ));
     assert!(typed.authored_declaration_selections().iter().any(|selection| {
@@ -526,7 +526,7 @@ fn top_level_requirement_settlement_rejects_an_exact_wrong_supply_machine() {
     assert_eq!(conformance.symbol, ordinary_symbol);
     assert!(!conformance.requirement_symbol.is_valid());
     assert!(
-        typed_trees::machine::resolve_satisfied_declaration(&typed, satisfier, conformance,)
+        crate::typed_trees::machine::resolve_satisfied_declaration(&typed, satisfier, conformance,)
             .is_none()
     );
 }

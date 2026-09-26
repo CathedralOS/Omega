@@ -5,17 +5,17 @@ use super::{
     staged_wrapping_add_inputs, staged_xor_inputs, validate,
 };
 use crate::analyses::validated_machine_effect_catalog;
+use crate::register_homes::RecoveryClassification;
 use crate::{LiteralFoldError, LiteralFoldPolicy};
-use register_environment::baseline_target_register_environment;
-use register_homes::RecoveryClassification;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use std::sync::Arc;
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     MachineEffectCatalogIdentity, SaturatingCarrier, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlanIdentity, SelectedOperand, SelectedTerminator,
     VirtualRegisterId,
 };
-use std::sync::Arc;
-use target::NativeTarget;
 
 /// The targets and block-0 terminators the fold must hold under. x86-64
 /// admits either terminator — its consumer only *clobbers* `rflags`, so a
@@ -387,15 +387,15 @@ fn saturating_subtract_zero_fold_rejects_while_another_instruction_reads_the_def
                 VirtualRegisterId(u32::try_from(function.virtual_registers.len()).unwrap());
             function
                 .virtual_registers
-                .push(selected_instructions::VirtualRegister {
+                .push(target_operations_to_selected_instructions::VirtualRegister {
                     id: forged_register,
                     scalar_type: scalar,
                     class,
-                    origin: selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                    origin: target_operations_to_selected_instructions::VirtualRegisterOrigin::InstructionResult {
                         instruction: SelectedInstructionId(4),
                         source_value: semantic_vocabulary::ValueId::new(4).unwrap(),
                     },
-                    definition_site: Some(optimization_unit::ValueDefinitionSite::Node {
+                    definition_site: Some(terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
                         block: semantic_vocabulary::BlockId::new(2).unwrap(),
                         node: 0,
                     }),
@@ -662,7 +662,13 @@ fn saturating_subtract_zero_fold_rejects_tied_consumer_operands_but_keeps_the_ma
             let mut plan = inputs.selected.transformed().clone();
             let operand = &mut plan.functions[0].blocks[0].instructions[1].operands[0];
             match mutation {
-                0 => operand.fixed_view = Some(register_model::RegisterViewId(0)),
+                0 => {
+                    operand.fixed_view = Some(
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
+                    )
+                }
                 1 => operand.tied_to = Some(0),
                 _ => operand.early_clobber = true,
             }
@@ -920,15 +926,15 @@ fn saturating_subtract_zero_fold_rejects_a_clamped_consumer_whose_scratch_is_rea
     let class = function.virtual_registers[0].class;
     function
         .virtual_registers
-        .push(selected_instructions::VirtualRegister {
+        .push(target_operations_to_selected_instructions::VirtualRegister {
             id: VirtualRegisterId(4),
             scalar_type: scalar,
             class,
-            origin: selected_instructions::VirtualRegisterOrigin::InstructionResult {
+            origin: target_operations_to_selected_instructions::VirtualRegisterOrigin::InstructionResult {
                 instruction: SelectedInstructionId(4),
                 source_value: semantic_vocabulary::ValueId::new(4).unwrap(),
             },
-            definition_site: Some(optimization_unit::ValueDefinitionSite::Node {
+            definition_site: Some(terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
                 block: semantic_vocabulary::BlockId::new(2).unwrap(),
                 node: 0,
             }),

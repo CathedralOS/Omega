@@ -41,9 +41,9 @@ use crate::declarations::operator::lower_operator_definition;
 use crate::declarations::trait_definition::lower_trait_definition;
 use crate::expressions::qualification_casts::normalize_qualification_casts;
 use crate::type_reference::domain_constraints::normalize_domain_constraints;
+use crate::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use typed_trees::TypedTrees;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
 
 pub(crate) mod name;
 pub(crate) mod progress;
@@ -96,15 +96,17 @@ pub fn lower_symbol_resolved_trees(
     lowerer.typed_trees.evidence_forwardings = symbol_resolved_trees
         .evidence_forwardings
         .iter()
-        .map(|forwarding| typed_trees::typed_trees::EvidenceForwarding {
-            machine_symbol: forwarding.machine_symbol,
-            state_symbol: forwarding.state_symbol,
-            statement_index: forwarding.statement_index,
-            source_statement_index: forwarding.statement_index,
-            target: crate::lowerer::name::lower_name(&forwarding.target),
-            source: crate::lowerer::name::lower_name(&forwarding.source),
-            source_conformance: forwarding.source_conformance,
-        })
+        .map(
+            |forwarding| crate::typed_trees::typed_trees::EvidenceForwarding {
+                machine_symbol: forwarding.machine_symbol,
+                state_symbol: forwarding.state_symbol,
+                statement_index: forwarding.statement_index,
+                source_statement_index: forwarding.statement_index,
+                target: crate::lowerer::name::lower_name(&forwarding.target),
+                source: crate::lowerer::name::lower_name(&forwarding.source),
+                source_conformance: forwarding.source_conformance,
+            },
+        )
         .collect();
 
     for data_definition in &symbol_resolved_trees.data_definitions {
@@ -182,16 +184,16 @@ pub fn lower_symbol_resolved_trees(
 }
 
 fn lower_authored_service_reach_row(
-    row: &symbol_resolved_trees::signature::AuthoredServiceReachRow,
-) -> typed_trees::signature::AuthoredServiceReachRow {
-    typed_trees::signature::AuthoredServiceReachRow {
+    row: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::AuthoredServiceReachRow,
+) -> crate::typed_trees::signature::AuthoredServiceReachRow {
+    crate::typed_trees::signature::AuthoredServiceReachRow {
         owner: row.owner,
         keyword_source_spans: row.keyword_source_spans.clone(),
         targets: row
             .targets
             .iter()
             .map(
-                |target| typed_trees::signature::AuthoredServiceReachTarget {
+                |target| crate::typed_trees::signature::AuthoredServiceReachTarget {
                     service: target.service,
                     source_span: target.source_span,
                 },
@@ -203,7 +205,7 @@ fn lower_authored_service_reach_row(
 
 pub(crate) fn exact_top_level_data_symbol(
     source: &SymbolResolvedTrees,
-    definition: &symbol_resolved_trees::data::DataDefinition,
+    definition: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataDefinition,
 ) -> bool {
     definition.symbol.is_valid()
         && source.symbols.get(definition.symbol).kind == symbols::SymbolKind::Data
@@ -214,7 +216,7 @@ pub(crate) fn exact_top_level_data_symbol(
 pub(crate) fn exact_field_symbol(
     source: &SymbolResolvedTrees,
     owner: symbols::SymbolHandle,
-    field: &symbol_resolved_trees::data::DataField,
+    field: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataField,
 ) -> bool {
     field.symbol.is_valid()
         && source.symbols.get(field.symbol).kind == symbols::SymbolKind::Field
@@ -235,7 +237,7 @@ pub(crate) fn declaration_exposure(
 }
 
 fn machine_interface_exposure(
-    machine: &symbol_resolved_trees::machine::Machine,
+    machine: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::machine::Machine,
 ) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
     let is_exported_boundary = matches!(
         machine.supply_mode,
@@ -260,7 +262,7 @@ pub(crate) struct Lowerer<'source> {
 impl Lowerer<'_> {
     fn lower_const_declaration(
         &mut self,
-        declaration: &symbol_resolved_trees::constant::ConstDeclaration,
+        declaration: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::constant::ConstDeclaration,
     ) -> Result<(), Diagnostic> {
         let declared_type = self.with_type_reference_exposure(
             declaration_exposure(declaration.is_public),
@@ -272,21 +274,22 @@ impl Lowerer<'_> {
             },
         )?;
         self.typed_trees
-            .push_const_declaration(typed_trees::constant::ConstDeclaration {
+            .push_const_declaration(crate::typed_trees::constant::ConstDeclaration {
                 symbol: declaration.symbol,
                 is_public: declaration.is_public,
                 declared_type,
                 initializer_source_span: declaration.initializer_source_span,
                 canonical_value_encoding: declaration.canonical_value_encoding.clone(),
-                authored_initializer: typed_trees::expression::ExpressionHandle::invalid(),
-                materialized_initializer: typed_trees::expression::ExpressionHandle::invalid(),
+                authored_initializer: crate::typed_trees::expression::ExpressionHandle::invalid(),
+                materialized_initializer: crate::typed_trees::expression::ExpressionHandle::invalid(
+                ),
             });
         Ok(())
     }
 
     fn lower_data_declaration(
         &mut self,
-        data_definition: &symbol_resolved_trees::data::DataDefinition,
+        data_definition: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataDefinition,
     ) -> Result<(), Diagnostic> {
         let data_definition = self.with_type_reference_exposure(
             declaration_exposure(data_definition.is_public),
@@ -298,7 +301,7 @@ impl Lowerer<'_> {
 
     fn lower_machine_declaration(
         &mut self,
-        machine: &symbol_resolved_trees::machine::Machine,
+        machine: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::machine::Machine,
     ) -> Result<(), Diagnostic> {
         let typed_machine = self
             .with_type_reference_exposure(machine_interface_exposure(machine), |lowerer| {
@@ -313,7 +316,7 @@ impl Lowerer<'_> {
 
     fn lower_trait_declaration(
         &mut self,
-        trait_definition: &symbol_resolved_trees::trait_definition::TraitDefinition,
+        trait_definition: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::trait_definition::TraitDefinition,
     ) -> Result<(), Diagnostic> {
         let trait_definition = self.with_type_reference_exposure(
             declaration_exposure(trait_definition.is_public),

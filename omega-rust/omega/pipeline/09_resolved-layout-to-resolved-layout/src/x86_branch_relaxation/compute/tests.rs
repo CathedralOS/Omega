@@ -1,18 +1,20 @@
-use isa_x86_64::{
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use semantic_vocabulary::{EdgeId, MachineId};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::isa_x86_64::{
     encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_jump_form,
     encode_x86_64_selected_nonzero_branch_form, encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_u64_less_than_branch_form, x86_64_physical_register_model,
 };
-use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::{ValidatedPhysicalRegisterModel, validate_physical_register_model};
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_model::{
+    ValidatedPhysicalRegisterModel, validate_physical_register_model,
+};
+use target_operations_to_selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect, SelectedBlockId,
     SelectedInstructionId,
 };
-use semantic_vocabulary::{EdgeId, MachineId};
-use target::NativeTarget;
 
-use machine_code::{
+use post_allocation_machine_to_selected_form_encoding::machine_code::{
     ResolvedConditionalBranchPredicate, ResolvedSelectedBlockLayout,
     ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
 };
@@ -118,8 +120,8 @@ fn conditional_function(
                     alternative: branch_alternative,
                     offset: 0,
                     bytes: near.bytes().to_vec(),
-                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        machine_code::ResolvedConditionalBranchEvidence {
+                    branch: Some(Box::new(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Conditional(
+                        post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedConditionalBranchEvidence {
                             predicate,
                             source_block: entry,
                             when_taken_edge: EdgeId::new(1).unwrap(),
@@ -219,8 +221,8 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
                     alternative: alternative(),
                     offset: branch_offset,
                     bytes: near.bytes().to_vec(),
-                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        machine_code::ResolvedConditionalBranchEvidence {
+                    branch: Some(Box::new(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Conditional(
+                        post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedConditionalBranchEvidence {
                             predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
                             source_block: entry,
                             when_taken_edge: EdgeId::new(1).unwrap(),
@@ -295,8 +297,8 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     alternative: jump_alternative,
                     offset: 0,
                     bytes: jump.bytes().to_vec(),
-                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Jump(
-                        machine_code::ResolvedJumpEvidence {
+                    branch: Some(Box::new(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Jump(
+                        post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedJumpEvidence {
                             source_block: jump_block,
                             target_edge: EdgeId::new(3).unwrap(),
                             target_block: taken,
@@ -318,8 +320,8 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     alternative: alternative(),
                     offset: branch_offset,
                     bytes: near.bytes().to_vec(),
-                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        machine_code::ResolvedConditionalBranchEvidence {
+                    branch: Some(Box::new(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Conditional(
+                        post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedConditionalBranchEvidence {
                             predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
                             source_block: entry,
                             when_taken_edge: EdgeId::new(1).unwrap(),
@@ -379,7 +381,7 @@ fn conditional_branch_mut(
     function: &mut ResolvedSelectedFunctionLayout,
     block_index: usize,
     instruction_index: usize,
-) -> &mut machine_code::ResolvedConditionalBranchEvidence {
+) -> &mut post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedConditionalBranchEvidence{
     let Some(branch) = function.blocks[block_index].instructions[instruction_index]
         .branch
         .as_deref_mut()
@@ -387,8 +389,8 @@ fn conditional_branch_mut(
         panic!("the fixture row must carry branch evidence")
     };
     match branch {
-        machine_code::ResolvedBranchEvidence::Conditional(branch) => branch,
-        machine_code::ResolvedBranchEvidence::Jump(_) => {
+        post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Conditional(branch) => branch,
+        post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Jump(_) => {
             panic!("the fixture row must carry a conditional branch")
         }
     }
@@ -429,7 +431,7 @@ fn eligible_near_branch_shrinks_and_both_reflow_implementations_agree() {
         produced[0].blocks[0].instructions[0]
             .branch
             .as_deref()
-            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+            .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
             .unwrap()
             .byte_displacement,
         127
@@ -599,9 +601,15 @@ fn non_x86_target_is_rejected_before_any_relaxation_work() {
 fn corrupted_action_changes_identity_and_is_rejected_by_replay_comparison() {
     let roots = RevisionRoots {
         source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
-        selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
-        machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
-        pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
+        selected:
+            target_operations_to_selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
+                [2; 32],
+            ),
+        machine:
+            register_homes_to_post_allocation_machine::PostAllocationMachineIdentity::from_bytes(
+                [3; 32],
+            ),
+        pre_layout: post_allocation_machine_to_selected_form_encoding::machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
         target: NativeTarget::linux_x64(),
     };
     let functions = vec![function(1)];
@@ -710,7 +718,7 @@ fn backward_branch_at_the_i8_floor_relaxes_and_both_reflow_implementations_agree
         produced[0].blocks[1].instructions[0]
             .branch
             .as_deref()
-            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+            .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
             .unwrap()
             .byte_displacement,
         -128
@@ -757,13 +765,15 @@ fn jump_whose_target_crosses_the_relaxed_branch_is_reencoded_by_both_reflows() {
             Some(127),
         )
     );
-    let jump_evidence = |function: &ResolvedSelectedFunctionLayout| match function.blocks[0]
+    let jump_evidence = |function: &ResolvedSelectedFunctionLayout| {
+        match function.blocks[0]
         .instructions[0]
         .branch
         .as_deref()
     {
-        Some(machine_code::ResolvedBranchEvidence::Jump(jump)) => jump.clone(),
+        Some(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Jump(jump)) => jump.clone(),
         _ => panic!("the fixture row must carry jump evidence"),
+    }
     };
     assert_eq!(jump_evidence(&source).byte_displacement, 133);
 
@@ -845,9 +855,15 @@ fn drifted_recorded_branch_effects_are_rejected_by_both_reflows() {
 fn corrupted_attempt_outcome_changes_identity_and_is_rejected_by_replay_comparison() {
     let roots = RevisionRoots {
         source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
-        selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
-        machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
-        pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
+        selected:
+            target_operations_to_selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
+                [2; 32],
+            ),
+        machine:
+            register_homes_to_post_allocation_machine::PostAllocationMachineIdentity::from_bytes(
+                [3; 32],
+            ),
+        pre_layout: post_allocation_machine_to_selected_form_encoding::machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
         target: NativeTarget::linux_x64(),
     };
     let functions = vec![function(1)];

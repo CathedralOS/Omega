@@ -4,22 +4,22 @@ use super::{
     ValueLocation,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::SelectedTerminator;
+use crate::selected_instructions::{FrameStorageSlotId, SelectedMemoryAccessRole};
 use crate::selection::construction::scalar_graph::row;
-use selected_instructions::SelectedTerminator;
-use selected_instructions::{FrameStorageSlotId, SelectedMemoryAccessRole};
 
 pub(super) fn build(
     source: &LegalizedScalarFunction,
-    block: &legalized_operations::LegalizedScalarBlock,
-    returned: &legalized_operations::LegalizedScalarReturn,
+    block: &crate::legalized_operations::LegalizedScalarBlock,
+    returned: &crate::legalized_operations::LegalizedScalarReturn,
     builder: &mut Builder<'_>,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
     let (place, placement, slot) = if let Some((parameter, placement)) =
         crate::selection::aggregate_result_input::returned_parameter(source, &returned.value)
     {
         let place = parameter.semantic.place;
-        let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+        let slot = crate::selected_instructions::LocalStorageSlotId::StructuralParameter { place };
         let slot = builder
             .transport
             .local_slots
@@ -120,7 +120,10 @@ pub(super) fn build(
                 ..
             }]
         )
-        && placement.shape == calling_conventions::ValueShape::integer(8, 8);
+        && placement.shape
+            == abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
+                8, 8,
+            );
     let keys = if empty_return {
         std::slice::from_ref(&builder.constraints.keys.return_unit)
     } else if scalar_return {

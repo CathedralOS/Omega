@@ -47,7 +47,7 @@ carriers, not inject operations into the primitive's unqualified closed family.
 See [operator supply and ownership](../language/expressions.md#executable-supply).
 
 Current narrow roles and standalone compatibility limits live
-[beside package compilation](../../../omega-rust/omega/build/package-compilation/semantic_bindings.md).
+[beside package compilation](../../../omega-rust/omega/docs/package-compilation/semantic_bindings.md).
 Removing broad standalone library provenance is tracked by
 `OPTIONAL-STDLIB-SEMANTIC-BINDINGS`; package-aware compilation must not inherit
 that temporary compatibility behavior.

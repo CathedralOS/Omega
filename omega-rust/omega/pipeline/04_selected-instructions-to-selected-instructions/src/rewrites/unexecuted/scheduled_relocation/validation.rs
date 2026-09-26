@@ -2,13 +2,13 @@ use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
+use semantic_vocabulary::EdgeId;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionPlan, SelectedSuccessor,
 };
-use semantic_vocabulary::EdgeId;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{ScheduledRelocationError, ScheduledRelocationReceipt, ValidatedScheduledRelocation};
 use crate::ValidatedSelectedAnalysis;
@@ -38,7 +38,7 @@ struct Reconstructed<'source> {
 /// that cannot observe or abandon the execution it leaves behind — the
 /// validator's own sinkable bar, kept separate from the producer's.
 fn sinkable(instruction: &SelectedInstruction) -> bool {
-    use selected_instructions::SelectedInstructionKind::*;
+    use target_operations_to_selected_instructions::SelectedInstructionKind::*;
     !matches!(
         instruction.kind,
         CopyBytes

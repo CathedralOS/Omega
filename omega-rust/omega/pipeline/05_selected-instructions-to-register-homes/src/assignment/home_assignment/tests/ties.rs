@@ -1,13 +1,13 @@
-use register_model::RegisterViewId;
+use target_operations_to_selected_instructions::register_model::RegisterViewId;
 
 use super::fixtures::*;
 use super::{compute_function, validate};
 use crate::RegisterHomeError;
-use selected_instructions::{EdgeRegisterTransfer, VirtualInterference};
+use target_operations_to_selected_instructions::{EdgeRegisterTransfer, VirtualInterference};
 
 #[test]
 fn edge_transfers_bind_both_predecessors_and_reject_interfering_components() {
-    use selected_instructions::{SelectedBlockId, VirtualRegisterId};
+    use target_operations_to_selected_instructions::{SelectedBlockId, VirtualRegisterId};
     let physical = physical();
     let mut legality = legality(&[(0, 1), (2, 3), (4, 5)]);
     let mut ranges = ranges(3, &[]);
@@ -18,7 +18,7 @@ fn edge_transfers_bind_both_predecessors_and_reject_interfering_components() {
             psi_edge: semantic_vocabulary::EdgeId::new(u64::from(argument) + 1).unwrap(),
             argument: VirtualRegisterId(argument),
             parameter: VirtualRegisterId(2),
-            class: register_model::RegisterClassId(0),
+            class: target_operations_to_selected_instructions::register_model::RegisterClassId(0),
         })
         .collect();
     set_candidates(&mut legality, 2, &[1]);

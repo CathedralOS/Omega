@@ -6,21 +6,23 @@ use super::{
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeDeclaration, source_custody, terminal_scalar_type, unsupported,
 };
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
+use terminal_psi::StructuralTypeShape;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::statement::{
+    StatementNode, TransitionExit, TransitionTargetNode,
+};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
     CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
 };
-use terminal_psi::StructuralTypeShape;
 
 #[cfg(test)]
 mod tests;
 
 pub(crate) struct ScalarLoopPlan {
     pub parameters: Vec<StructuralParameterDeclaration>,
-    pub rank: Option<checked_trees::CheckedStructuralRankedSccPlan>,
+    pub rank: Option<typed_trees_to_checked_trees::checked_trees::CheckedStructuralRankedSccPlan>,
 }
 
 pub(super) fn prepare(
@@ -116,8 +118,8 @@ pub(super) fn prepare(
 /// and witness. A fused cycle ranks every member's own formal; the plan-level
 /// index names the header's scalar position.
 struct MemberRank<'a> {
-    machine: &'a checked_trees::machine::Machine,
-    source: &'a checked_trees::state::State,
+    machine: &'a typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    source: &'a typed_trees_to_checked_trees::checked_trees::state::State,
     scalar_position: u32,
     argument_ordinal: u32,
     primitive: PrimitiveType,
@@ -126,8 +128,8 @@ struct MemberRank<'a> {
 
 fn validate_rank<'a>(
     checked: &'a CheckedTrees,
-    machine: &'a checked_trees::machine::Machine,
-    source: &'a checked_trees::state::State,
+    machine: &'a typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    source: &'a typed_trees_to_checked_trees::checked_trees::state::State,
     graph: &'a CheckedScalarMachineGraph,
     rank: &CheckedStructuralRankedSccPlan,
 ) -> Result<(), LoweringError> {
@@ -135,8 +137,8 @@ fn validate_rank<'a>(
     // covered edge's endpoints — so the rejoined roster compares to the
     // checker's retained plan element for element.
     let mut member_sources: Vec<(
-        &'a checked_trees::machine::Machine,
-        &'a checked_trees::state::State,
+        &'a typed_trees_to_checked_trees::checked_trees::machine::Machine,
+        &'a typed_trees_to_checked_trees::checked_trees::state::State,
     )> = vec![(machine, source)];
     for edge in &rank.covered_cyclic_edges {
         for state_symbol in [edge.source_state, edge.target_state] {
@@ -315,9 +317,9 @@ fn validate_rank<'a>(
 /// and source parameters.
 fn resolve_member<'a>(
     checked: &'a CheckedTrees,
-    machine: &'a checked_trees::machine::Machine,
-    source: &'a checked_trees::state::State,
-    state: &checked_trees::CheckedScalarStateGraph,
+    machine: &'a typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    source: &'a typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &typed_trees_to_checked_trees::checked_trees::CheckedScalarStateGraph,
 ) -> Result<MemberRank<'a>, LoweringError> {
     source_custody::parameter_storage(checked, machine.symbol, state)?;
     let mut custodies = checked
@@ -361,7 +363,10 @@ fn resolve_member<'a>(
         || !witness.view_arguments.is_empty()
         || !custody.view_arguments.is_empty()
         || witness.subjects.len() != 1
-        || witness.subjects[0] != checked_trees::ranking::witness_expression_text(checked, *subject)
+        || witness.subjects[0]
+            != typed_trees_to_checked_trees::checked_trees::ranking::witness_expression_text(
+                checked, *subject,
+            )
     {
         return unsupported("scalar loop witness differs from its canonical natural source view");
     }
@@ -383,9 +388,14 @@ fn resolve_member<'a>(
             if !checked.expression_table.expression_is_valid(range.start)
                 || !checked.expression_table.expression_is_valid(range.end)
                 || recorded.floor
-                    != checked_trees::ranking::witness_expression_text(checked, range.start)
+                    != typed_trees_to_checked_trees::checked_trees::ranking::witness_expression_text(
+                        checked,
+                        range.start,
+                    )
                 || recorded.ceiling
-                    != checked_trees::ranking::witness_expression_text(checked, range.end)
+                    != typed_trees_to_checked_trees::checked_trees::ranking::witness_expression_text(
+                        checked, range.end,
+                    )
                 || recorded.ceiling_inclusive != range.end_inclusive
             {
                 return unsupported("scalar loop witness differs from its typed rank range");

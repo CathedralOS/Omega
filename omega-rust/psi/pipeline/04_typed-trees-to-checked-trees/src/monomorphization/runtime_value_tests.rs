@@ -3,8 +3,8 @@ use crate::monomorphization::collect_expression_tree;
 use crate::monomorphization::collect_statement_expression_trees;
 use crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections;
 use crate::tests::front_end::{checked_program_result, typed_program};
-use typed_trees::machine::Machine;
-use typed_trees::typed_trees::MachineSpecialization;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecialization;
 
 fn instance<'a>(program: &'a TypedTrees, receipt: &MachineSpecialization) -> &'a Machine {
     program
@@ -267,7 +267,7 @@ fn runtime_bound_result_range_uses_the_realized_parameter() {
         .expect("realized trailing parameter")
         .symbol;
     let scoped_maximum_symbol = |type_reference| {
-        let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
+        let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
             program.type_reference_table.type_reference(type_reference)
         else {
             return None;
@@ -277,8 +277,8 @@ fn runtime_bound_result_range_uses_the_realized_parameter() {
             .constraints(*constraints)
             .iter()
             .find_map(|constraint| match constraint {
-                typed_trees::types::TypeConstraintNode::Range { maximum, .. } => {
-                    typed_trees::dependent_ranges::scoped_name_bound(
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range { maximum, .. } => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::dependent_ranges::scoped_name_bound(
                         &program.expression_table,
                         *maximum,
                     )
@@ -703,7 +703,7 @@ fn runtime_value_subjects_reach_transition_targets_in_a_cloned_machine() {
     let mut named_targets = 0;
     for transition in transitions {
         for target in [transition.target, transition.continuation] {
-            let typed_trees::statement::TransitionTargetNode::Named {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named {
                 path, arguments, ..
             } = program.statement_table.transition_target(target)
             else {
@@ -743,7 +743,7 @@ fn runtime_value_subjects_reach_transition_targets_in_a_cloned_machine() {
         .composed_for_machine(clone_symbol)
         .expect("the cloned multi-state body keeps its composed unit plan");
     assert_eq!(plan.states.len(), 3, "entry plus both transition targets");
-    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
         when_true,
         when_false,
         ..

@@ -5,12 +5,12 @@ use super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::i32_type;
-use calling_conventions::ConventionalSumLayout;
-use semantic_vocabulary::StructuralPlaceKind;
-use target_operations::{
+use abstract_operations_to_target_operations::calling_conventions::ConventionalSumLayout;
+use abstract_operations_to_target_operations::target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetBoundaryResult,
     TargetUnitOperation,
 };
+use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
     StructuralMultiplicity, StructuralOperationResult, TerminalAffineCleanupAction,
 };
@@ -57,7 +57,7 @@ pub(in crate::legalization) fn layout(
     {
         return Err(LegalizationError::custody());
     }
-    calling_conventions::evaluate_conventional_sum_layout(
+    abstract_operations_to_target_operations::calling_conventions::evaluate_conventional_sum_layout(
         &[],
         &[vec![], vec![ValueShape::integer(4, 4)]],
     )
@@ -89,7 +89,7 @@ pub(in crate::legalization) fn validate(
         AbstractOperation::BoundaryCall {
             psi_operation: expected_operation,
             boundary: expected_boundary,
-            result: abstract_operations::AbstractBoundaryResult::Structural(result),
+            result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(result),
             arguments: expected_arguments,
             structural_arguments,
             completion_claim_sources: expected_claims,
@@ -159,7 +159,7 @@ pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
         .filter_map(|node| match &node.operation {
             AbstractOperation::BoundaryCall {
                 psi_operation,
-                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..
             } => Some((*psi_operation, result)),
             _ => None,
@@ -218,7 +218,7 @@ pub(super) fn cleanup(
         .filter_map(|node| match &node.operation {
             AbstractOperation::BoundaryCall {
                 psi_operation,
-                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..
             } if result.multiplicity == StructuralMultiplicity::Affine
                 && result.claims.is_empty() =>

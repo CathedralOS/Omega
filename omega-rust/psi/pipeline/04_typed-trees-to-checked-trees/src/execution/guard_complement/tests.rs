@@ -1,9 +1,9 @@
 use super::guard_pair;
-use crate::tests::front_end::checked_program;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionPlans,
     CheckedScalarExpressionRole, CheckedScalarStateTerminator, CheckedTrees,
 };
+use crate::tests::front_end::checked_program;
 
 fn plans(
     first: CheckedBooleanExpression,
@@ -15,7 +15,7 @@ fn plans(
             .into_iter()
             .enumerate()
             .map(
-                |(index, expression)| checked_trees::CheckedLocatedScalarExpression {
+                |(index, expression)| crate::checked_trees::CheckedLocatedScalarExpression {
                     state,
                     statement_ordinal: u32::try_from(index).unwrap(),
                     role: CheckedScalarExpressionRole::Guard,

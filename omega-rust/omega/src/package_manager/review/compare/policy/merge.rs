@@ -1,0 +1,125 @@
+use super::{
+    PackagePolicyChangeError as Error, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
+    PackagePolicyRowChange,
+    limits::{Budget, row_bytes},
+};
+use crate::package_manager::lock::{PackageAcceptanceRow, PackageCheckedContext};
+use std::cmp::Ordering;
+
+pub(super) fn append_rows(
+    baseline: Vec<PackageAcceptanceRow>,
+    candidate: Vec<PackageAcceptanceRow>,
+    existing_package: bool,
+    baseline_context: Option<PackageCheckedContext>,
+    candidate_context: Option<PackageCheckedContext>,
+    budget: &mut Budget,
+    result: &mut Vec<PackagePolicyRowChange>,
+) -> Result<(), Error> {
+    let occurrence_changed = baseline_context != candidate_context;
+    let mut count = 0usize;
+    let mut bytes = 0usize;
+    walk(&baseline, &candidate, |old, new| {
+        if old == new && !occurrence_changed {
+            return Ok(());
+        }
+        count = count.checked_add(1).ok_or(Error::AllocationFailed)?;
+        for row in [old, new].into_iter().flatten() {
+            bytes = bytes
+                .checked_add(row_bytes(row)?)
+                .ok_or(Error::AllocationFailed)?;
+        }
+        Ok(())
+    })?;
+    budget.changed(count, bytes)?;
+    result
+        .try_reserve_exact(count)
+        .map_err(|_| Error::AllocationFailed)?;
+    let mut old = baseline.into_iter().peekable();
+    let mut new = candidate.into_iter().peekable();
+    while old.peek().is_some() || new.peek().is_some() {
+        let order = compare(old.peek(), new.peek());
+        let previous = if order.is_gt() { None } else { old.next() };
+        let current = if order.is_lt() { None } else { new.next() };
+        // Row text describes permission/assumption meaning, not where that
+        // meaning was accepted. Keep both sides visible when a purpose change
+        // requires fresh consent even though their text is identical.
+        if previous == current && !occurrence_changed {
+            continue;
+        }
+        let change = match (&previous, &current) {
+            (None, Some(_)) => PackagePolicyChangeKind::Added,
+            (Some(_), None) => PackagePolicyChangeKind::Removed,
+            (Some(_), Some(_)) => PackagePolicyChangeKind::Changed,
+            (None, None) => unreachable!("row union contains one side"),
+        };
+        let requires_decision = if existing_package {
+            previous
+                .as_ref()
+                .is_some_and(PackageAcceptanceRow::update_requires_decision)
+                || current
+                    .as_ref()
+                    .is_some_and(PackageAcceptanceRow::update_requires_decision)
+        } else {
+            current
+                .as_ref()
+                .is_some_and(PackageAcceptanceRow::initial_requires_decision)
+        };
+        // Changed retained consent warrants audit; fresh non-consent findings
+        // are accounted for separately by the package comparison.
+        let audit_recommended = previous
+            .as_ref()
+            .is_some_and(PackageAcceptanceRow::audit_recommended_on_change)
+            || current
+                .as_ref()
+                .is_some_and(PackageAcceptanceRow::audit_recommended_on_change);
+        result.push(PackagePolicyRowChange {
+            baseline_context: previous.as_ref().and(baseline_context),
+            candidate_context: current.as_ref().and(candidate_context),
+            baseline: previous,
+            candidate: current,
+            change,
+            requires_decision,
+            audit_recommended,
+            fingerprint: PackagePolicyChangeFingerprint([0; 32]),
+        });
+    }
+    Ok(())
+}
+
+fn compare(old: Option<&PackageAcceptanceRow>, new: Option<&PackageAcceptanceRow>) -> Ordering {
+    match (old, new) {
+        (Some(old), Some(new)) => (old.kind(), old.key_bytes()).cmp(&(new.kind(), new.key_bytes())),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    }
+}
+fn walk(
+    old: &[PackageAcceptanceRow],
+    new: &[PackageAcceptanceRow],
+    mut visit: impl FnMut(
+        Option<&PackageAcceptanceRow>,
+        Option<&PackageAcceptanceRow>,
+    ) -> Result<(), Error>,
+) -> Result<(), Error> {
+    let (mut left, mut right) = (0, 0);
+    while left < old.len() || right < new.len() {
+        let order = compare(old.get(left), new.get(right));
+        let previous = if order.is_gt() {
+            None
+        } else {
+            let value = old.get(left);
+            left += 1;
+            value
+        };
+        let current = if order.is_lt() {
+            None
+        } else {
+            let value = new.get(right);
+            right += 1;
+            value
+        };
+        visit(previous, current)?;
+    }
+    Ok(())
+}

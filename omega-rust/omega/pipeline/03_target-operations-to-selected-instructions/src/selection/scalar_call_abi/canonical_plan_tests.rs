@@ -5,11 +5,11 @@ use super::{
     LegalizedScalarFunction, ScalarType, ValueId, ValueLocation, ValueShape, evaluate_call_plan,
     validate,
 };
+use crate::legalized_operations::LegalizedScalarParameter;
 use crate::selection::scalar_call_abi::unit_key;
-use calling_conventions::RegisterSet;
-use legalized_operations::LegalizedScalarParameter;
-use optimization_unit::ValueDefinitionSite;
+use abstract_operations_to_target_operations::calling_conventions::RegisterSet;
 use semantic_vocabulary::{BlockId, IntegerType, MachineId, OperationId};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 fn scalar_call(
     target: target::NativeTarget,
@@ -38,10 +38,11 @@ fn scalar_call(
     let source = LegalizedScalarFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
-        provenance: target_operations::TerminalPsiProvenance {
-            operations: Vec::new(),
-            edges: Vec::new(),
-        },
+        provenance:
+            abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance {
+                operations: Vec::new(),
+                edges: Vec::new(),
+            },
         call_plan: entry_plan.clone(),
         parameters: entry_plan
             .parameters
@@ -65,7 +66,7 @@ fn scalar_call(
     let result_placement = call_plan.result.clone();
     let call = LegalizedScalarCall {
         structural_result: None,
-        source: legalized_operations::NativeCallOrigin::Authored,
+        source: crate::legalized_operations::NativeCallOrigin::Authored,
         callee: MachineId::new(2).unwrap(),
         arguments: call_plan
             .parameters
@@ -104,7 +105,7 @@ fn admitted_scalar_calls_replay_the_declared_abi_plan() {
                 .any(|location| matches!(location, ValueLocation::Stack { .. }))
         }));
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let key = unit_key(&call, &environment).expect("ordinary call row");
         let row = environment.constraint(key).unwrap();
         validate(
@@ -130,7 +131,7 @@ fn self_consistent_but_noncanonical_plans_reject() {
     ] {
         let (source, call) = scalar_call(target, 9);
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let key = unit_key(&call, &environment).unwrap();
         let row = environment.constraint(key).unwrap();
         let operation = OperationId::new(1).unwrap();

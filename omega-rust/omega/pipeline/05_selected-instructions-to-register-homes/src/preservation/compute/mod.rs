@@ -9,8 +9,8 @@ use std::collections::BTreeSet;
 use optimization_core::OptimizationWorkBudget;
 
 use crate::AllocationOutput;
-use register_environment::selected_abi_preservation;
 use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;
+use target_operations_to_selected_instructions::register_environment::selected_abi_preservation;
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPlan,

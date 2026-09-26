@@ -1,5 +1,5 @@
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use arena::{Arena, Handle, HandleSpan};
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::lookup::{
@@ -27,7 +27,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     .map(|parameter| {
                         matches!(
                             parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+                            crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
                         )
                     })
                     .collect::<Vec<_>>(),
@@ -50,8 +50,8 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     .map(|parameter| {
                         matches!(
                             parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Machine {
-                                contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+                            crate::symbol_resolved_trees::data::TypeParameterKind::Machine {
+                                contract: crate::symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
                             }
                         )
                     })
@@ -198,7 +198,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             }
             for member in data_members.span_mut_or_empty(data_definition.members) {
                 match member {
-                    symbol_resolved_trees::data::DataMember::Field(field) => {
+                    crate::symbol_resolved_trees::data::DataMember::Field(field) => {
                         assign_type_reference_symbol_with_locals_and_constraints(
                             symbols,
                             child_type_references,
@@ -213,7 +213,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     // fails in the layout builder ("non-primitive type `Point` is
                     // missing a resolved symbol"). Primitive/array payloads resolved
                     // anyway (no named symbol needed); only NAMED payload types broke.
-                    symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                    crate::symbol_resolved_trees::data::DataMember::Variant(variant) => {
                         for field in data_payload_fields.span_mut_or_empty(variant.payload) {
                             assign_type_reference_symbol_with_locals_and_constraints(
                                 symbols,
@@ -240,7 +240,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         .declarations
         .wire_members
         .for_each_mut(|_, member| {
-            let symbol_resolved_trees::wire::WireMember::Field(field) = member else {
+            let crate::symbol_resolved_trees::wire::WireMember::Field(field) = member else {
                 return;
             };
             assign_type_reference_symbol_with_locals_and_constraints(
@@ -290,16 +290,16 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         let local_binders = proposition_binders
             .span_or_empty(proposition.binders)
             .iter()
-            .map(|binder| symbol_resolved_trees::data::TypeParameter {
+            .map(|binder| crate::symbol_resolved_trees::data::TypeParameter {
                 symbol: binder.symbol,
                 name: binder.name.clone(),
-                kind: symbol_resolved_trees::data::TypeParameterKind::Type,
+                kind: crate::symbol_resolved_trees::data::TypeParameterKind::Type,
                 bounds: binder.bounds,
             })
             .collect::<Vec<_>>();
 
         for binder in proposition_binders.span_mut_or_empty(proposition.binders) {
-            let symbol_resolved_trees::proposition::PropositionBinderKind::Const {
+            let crate::symbol_resolved_trees::proposition::PropositionBinderKind::Const {
                 type_reference,
             } = &mut binder.kind
             else {
@@ -322,7 +322,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                 &mut parameter.type_reference,
             );
         }
-        if let symbol_resolved_trees::proposition::PropositionBody::Witness { evidence } =
+        if let crate::symbol_resolved_trees::proposition::PropositionBody::Witness { evidence } =
             &mut proposition.body
         {
             assign_type_reference_symbol_with_locals_and_constraints(
@@ -340,7 +340,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             .span_or_empty(conformance.type_parameters)
             .to_vec();
         conformance.carrier_symbol = match &conformance.subject {
-            symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(name) => {
+            crate::symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(name) => {
                 local_type_parameters
                     .iter()
                     .find(|parameter| parameter.name == *name)
@@ -353,7 +353,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                         )
                     })
             }
-            symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
+            crate::symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
                 SymbolHandle::invalid()
             }
         };
@@ -410,9 +410,9 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
 /// leaf to the exact State symbol without pretending it is a runtime type.
 pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    arguments: HandleSpan<symbol_resolved_trees::types::TypeReference>,
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
+    arguments: HandleSpan<crate::symbol_resolved_trees::types::TypeReference>,
     machine_slots: &[bool],
 ) {
     for (argument, is_machine_identity) in child_type_references
@@ -423,7 +423,8 @@ pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
         if !is_machine_identity {
             continue;
         }
-        let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument else {
+        let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument
+        else {
             continue;
         };
         let local = local_type_parameters
@@ -432,7 +433,7 @@ pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
                 parameter.name.as_str() == name.as_str()
                     && matches!(
                         parameter.kind,
-                        symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+                        crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
                     )
             })
             .map(|parameter| parameter.symbol)
@@ -464,9 +465,9 @@ pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
 
 pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    arguments: HandleSpan<symbol_resolved_trees::types::TypeReference>,
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
+    arguments: HandleSpan<crate::symbol_resolved_trees::types::TypeReference>,
     proposition_slots: &[bool],
 ) {
     for (argument, is_proposition) in child_type_references
@@ -477,7 +478,8 @@ pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
         if !is_proposition {
             continue;
         }
-        let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument else {
+        let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument
+        else {
             continue;
         };
         let local = local_type_parameters
@@ -486,7 +488,7 @@ pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
                 parameter.name.as_str() == name.as_str()
                     && matches!(
                         parameter.kind,
-                        symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+                        crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
                     )
             })
             .map(|parameter| parameter.symbol)
@@ -505,11 +507,11 @@ pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
 
 pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
-    type_reference: &mut symbol_resolved_trees::types::TypeReference,
+    type_reference: &mut crate::symbol_resolved_trees::types::TypeReference,
 ) {
     assign_type_reference_symbol_with_context(
         symbols,
@@ -523,10 +525,10 @@ pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_self_type
 
 pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_constraints(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    type_reference: &mut symbol_resolved_trees::types::TypeReference,
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
+    type_reference: &mut crate::symbol_resolved_trees::types::TypeReference,
 ) {
     assign_type_reference_symbol_with_context(
         symbols,
@@ -540,14 +542,14 @@ pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_constrain
 
 fn assign_type_reference_symbol_with_context(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
-    type_reference: &mut symbol_resolved_trees::types::TypeReference,
+    type_reference: &mut crate::symbol_resolved_trees::types::TypeReference,
 ) {
     match type_reference {
-        symbol_resolved_trees::types::TypeReference::Reference(reference) => {
+        crate::symbol_resolved_trees::types::TypeReference::Reference(reference) => {
             assign_type_reference_handle_symbol_with_context(
                 symbols,
                 child_type_references,
@@ -557,7 +559,7 @@ fn assign_type_reference_symbol_with_context(
                 reference.referee,
             );
         }
-        symbol_resolved_trees::types::TypeReference::Constrained(constrained) => {
+        crate::symbol_resolved_trees::types::TypeReference::Constrained(constrained) => {
             assign_type_reference_handle_symbol_with_context(
                 symbols,
                 child_type_references,
@@ -567,7 +569,8 @@ fn assign_type_reference_symbol_with_context(
                 constrained.base_type,
             );
             for constraint in type_constraints.span_or_empty(constrained.constraints) {
-                let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint
+                let crate::symbol_resolved_trees::types::TypeConstraint::Domain(domain) =
+                    constraint
                 else {
                     continue;
                 };
@@ -581,7 +584,7 @@ fn assign_type_reference_symbol_with_context(
                 );
             }
         }
-        symbol_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
+        crate::symbol_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
             assign_type_reference_handle_symbol_with_context(
                 symbols,
                 child_type_references,
@@ -596,7 +599,7 @@ fn assign_type_reference_symbol_with_context(
                 &mut fixed_array.length,
             );
         }
-        symbol_resolved_trees::types::TypeReference::Slice(slice) => {
+        crate::symbol_resolved_trees::types::TypeReference::Slice(slice) => {
             assign_type_reference_handle_symbol_with_context(
                 symbols,
                 child_type_references,
@@ -606,7 +609,7 @@ fn assign_type_reference_symbol_with_context(
                 slice.element_type,
             );
         }
-        symbol_resolved_trees::types::TypeReference::Generic(generic) => {
+        crate::symbol_resolved_trees::types::TypeReference::Generic(generic) => {
             generic.base_symbol =
                 resolve_type_symbol(symbols, local_type_parameters, &generic.base_name);
 
@@ -622,8 +625,8 @@ fn assign_type_reference_symbol_with_context(
         // PDI3 index expressions retain their lexical binder spellings here;
         // typed index normalization resolves them against the enclosing const
         // telescope and records the exact selected operation separately.
-        symbol_resolved_trees::types::TypeReference::ConstExpression(_) => {}
-        symbol_resolved_trees::types::TypeReference::DynamicTrait {
+        crate::symbol_resolved_trees::types::TypeReference::ConstExpression(_) => {}
+        crate::symbol_resolved_trees::types::TypeReference::DynamicTrait {
             symbol,
             name,
             conformance,
@@ -655,22 +658,23 @@ fn assign_type_reference_symbol_with_context(
                 *conformance = selected.is_valid().then_some(selected);
             }
         }
-        symbol_resolved_trees::types::TypeReference::Named { symbol, name } => {
+        crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name } => {
             *symbol = resolve_type_symbol(symbols, local_type_parameters, name);
         }
-        symbol_resolved_trees::types::TypeReference::SelfType { symbol } => {
+        crate::symbol_resolved_trees::types::TypeReference::SelfType { symbol } => {
             *symbol = self_type_symbol;
         }
-        symbol_resolved_trees::types::TypeReference::Unit => {}
+        crate::symbol_resolved_trees::types::TypeReference::Unit => {}
     }
 }
 
 fn assign_fixed_array_length_symbol(
     symbols: &SymbolTable,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    length: &mut symbol_resolved_trees::types::FixedArrayLength,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
+    length: &mut crate::symbol_resolved_trees::types::FixedArrayLength,
 ) {
-    let symbol_resolved_trees::types::FixedArrayLength::ConstParameter { symbol, name } = length
+    let crate::symbol_resolved_trees::types::FixedArrayLength::ConstParameter { symbol, name } =
+        length
     else {
         return;
     };
@@ -679,14 +683,14 @@ fn assign_fixed_array_length_symbol(
 
 fn assign_type_parameter_constraint_symbols(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    type_parameters: &mut [symbol_resolved_trees::data::TypeParameter],
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
+    type_parameters: &mut [crate::symbol_resolved_trees::data::TypeParameter],
 ) {
     for parameter in type_parameters {
-        let (symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
-        | symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }) =
+        let (crate::symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+        | crate::symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }) =
             &mut parameter.kind
         else {
             continue;
@@ -703,11 +707,11 @@ fn assign_type_parameter_constraint_symbols(
 
 fn assign_type_reference_handle_symbol_with_context(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
-    handle: Handle<symbol_resolved_trees::types::TypeReference>,
+    handle: Handle<crate::symbol_resolved_trees::types::TypeReference>,
 ) {
     let mut type_reference = std::mem::take(child_type_references.get_mut(handle));
     assign_type_reference_symbol_with_context(
@@ -723,11 +727,11 @@ fn assign_type_reference_handle_symbol_with_context(
 
 pub(in crate::symbols) fn assign_type_reference_argument_symbols_with_constraints(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
-    arguments: HandleSpan<symbol_resolved_trees::types::TypeReference>,
+    arguments: HandleSpan<crate::symbol_resolved_trees::types::TypeReference>,
 ) {
     let start = arguments.start();
     let generation = start.generation();
@@ -759,10 +763,10 @@ pub(in crate::symbols) fn assign_type_reference_argument_symbols_with_constraint
 // lexical generic scope.
 pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_self_type(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
-    type_reference: &mut symbol_resolved_trees::types::TypeReference,
+    type_reference: &mut crate::symbol_resolved_trees::types::TypeReference,
 ) {
     let constraints = Arena::new();
     assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
@@ -777,8 +781,8 @@ pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_self_type
 
 fn resolve_type_symbol(
     symbols: &SymbolTable,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    name: &symbol_resolved_trees::name::DiagnosticName,
+    local_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
+    name: &crate::symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     local_type_parameters
         .iter()

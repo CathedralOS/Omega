@@ -2,7 +2,9 @@ use crate::{
     RegisterAllocationError, RetainedAllocation,
     stage_optimized_active_resident_rematerialization_pressure,
 };
-use register_homes::{RecoveryClassificationPolicy, SpillChoicePolicy};
+use selected_instructions_to_selected_instructions::register_homes::{
+    RecoveryClassificationPolicy, SpillChoicePolicy,
+};
 use selected_instructions_to_selected_instructions::{
     FixedViewCopyPolicy, PressureRematerializationPolicy, StagedOptimizedAllocationLegality,
     StagedOptimizedLiveRanges, StagedOptimizedSelectedReanalysis,

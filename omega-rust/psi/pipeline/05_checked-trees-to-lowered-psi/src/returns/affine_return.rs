@@ -89,7 +89,7 @@ pub(crate) fn lower_claim_free_affine_return_machines(
             || realization.structural_parameter.is_self
             || realization.structural_parameter.multiplicity != Multiplicity::Affine
             || realization.structural_parameter.access
-                != checked_trees::CheckedStructuralAccess::Owned
+                != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
             || !realization.structural_parameter.qualifications.is_empty()
             || realization
                 .structural_parameter
@@ -251,7 +251,7 @@ pub(crate) fn lower_claim_free_affine_return_machines(
 /// different spelling of the same signature.
 fn validate_parameter_partition(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedClaimFreeAffineStructuralReturnMachinePlan,
+    plan: &typed_trees_to_checked_trees::checked_trees::CheckedClaimFreeAffineStructuralReturnMachinePlan,
 ) -> Result<(), LoweringError> {
     let machine = checked
         .machines()
@@ -278,12 +278,15 @@ fn validate_parameter_partition(
         .ok_or(LoweringError::Unsupported(
             "affine identity source position is out of range",
         ))?;
-    let [checked_trees::statement::StatementNode::Expression(expression)] =
-        checked.statement_table.statements(state.statement_nodes)
+    let [
+        typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Expression(
+            expression,
+        ),
+    ] = checked.statement_table.statements(state.statement_nodes)
     else {
         return unsupported("affine identity source body is not one return expression");
     };
-    let checked_trees::expression::ExpressionNode::Name(path) =
+    let typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Name(path) =
         checked.expression_table.expression(*expression)
     else {
         return unsupported("affine identity source does not return its owned parameter");

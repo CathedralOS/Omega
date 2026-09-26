@@ -16,9 +16,11 @@ impl Emission<'_, '_, '_> {
     /// Lower one `Dispatch` node authored at `expression`.
     pub(super) fn dispatch(
         &mut self,
-        expression: checked_trees::expression::ExpressionHandle,
-        subject: checked_trees::CheckedScalarComputationHandle,
-        arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
+        expression: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
+        subject: typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationHandle,
+        arms: arena::HandleSpan<
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralDispatchArm,
+        >,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let arms = self
@@ -134,7 +136,7 @@ impl Emission<'_, '_, '_> {
         };
         for (position, arm) in arms.iter().enumerate() {
             let mut fallback = None;
-            if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
+            if let typed_trees_to_checked_trees::checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
                 let pattern = self.scalar(
                     CheckedScalarExpressionRole::StructuralValuePattern {
                         source_arm: arm.source_arm,

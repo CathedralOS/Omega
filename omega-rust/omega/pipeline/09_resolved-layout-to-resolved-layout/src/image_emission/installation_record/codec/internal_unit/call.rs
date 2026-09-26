@@ -1,0 +1,1056 @@
+//! Canonical codec for one installed internal Unit-call row.
+//!
+//! Call ordering, stack composition, and custody validation remain in the
+//! installation parent. This child owns only the exact call-row bytes.
+
+use abstract_operations_to_target_operations::target_operations::CallSiteOwner;
+use post_allocation_machine_to_selected_form_encoding::machine_code::{
+    InternalStructuralCallResult, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
+    InternalUnitScalarCallArgumentRecord, InternalUnitStructuralArgumentSourceRecord,
+};
+use semantic_vocabulary::{
+    BlockId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId,
+};
+use terminal_psi::{
+    ClaimTransfer, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+    StructuralResultClaimBinding, StructuralResultClaimTransfer, StructuralResultDeclaration,
+};
+
+use crate::image_emission::installation_record::codec::{
+    internal_unit::scalar_call::{decode_argument_source, encode_argument_source},
+    structural::argument::{decode_structural_argument, encode_structural_argument},
+    value_placement::{
+        decode_direct_placement, decode_shape, encode_direct_placement, encode_shape,
+    },
+};
+use crate::image_emission::installation_record::{
+    InstallationError, InstalledInternalUnitCall, Reader, decode_boolean, push_u16, push_u32,
+    push_u64,
+};
+
+pub(crate) fn encode_internal_unit_calls(
+    bytes: &mut Vec<u8>,
+    count: u32,
+    installed: &[InstalledInternalUnitCall],
+) -> Result<(), InstallationError> {
+    push_u32(bytes, count);
+    for call in installed {
+        encode_internal_unit_call(bytes, call)?;
+    }
+    Ok(())
+}
+
+fn encode_structural_source(
+    bytes: &mut Vec<u8>,
+    source: &InternalUnitStructuralArgumentSourceRecord,
+) -> Result<(), InstallationError> {
+    match source {
+        InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal { psi_operation } => {
+            bytes.push(3);
+            push_u64(bytes, psi_operation.get());
+        }
+        InternalUnitStructuralArgumentSourceRecord::Placement(placement) => {
+            bytes.push(0);
+            encode_direct_placement(bytes, placement)?;
+        }
+        InternalUnitStructuralArgumentSourceRecord::EstablishedByteView { psi_operation } => {
+            bytes.push(1);
+            push_u64(bytes, psi_operation.get());
+        }
+        InternalUnitStructuralArgumentSourceRecord::EstablishedElementView { psi_operation } => {
+            bytes.push(4);
+            push_u64(bytes, psi_operation.get());
+        }
+        InternalUnitStructuralArgumentSourceRecord::BlockParameter { block, place } => {
+            bytes.push(2);
+            push_u64(bytes, block.get());
+            push_u64(bytes, place.get());
+        }
+    }
+    Ok(())
+}
+
+fn decode_structural_source(
+    reader: &mut Reader<'_>,
+) -> Result<InternalUnitStructuralArgumentSourceRecord, InstallationError> {
+    match reader.u8()? {
+        3 => Ok(
+            InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
+                psi_operation: OperationId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+            },
+        ),
+        0 => Ok(InternalUnitStructuralArgumentSourceRecord::Placement(
+            decode_direct_placement(reader)?,
+        )),
+        1 => Ok(
+            InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
+                psi_operation: OperationId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+            },
+        ),
+        4 => Ok(
+            InternalUnitStructuralArgumentSourceRecord::EstablishedElementView {
+                psi_operation: OperationId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+            },
+        ),
+        2 => Ok(InternalUnitStructuralArgumentSourceRecord::BlockParameter {
+            block: BlockId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+            place: PlaceId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+        }),
+        tag => Err(InstallationError::InvalidInternalUnitStructuralSourceTag(
+            tag,
+        )),
+    }
+}
+
+fn encode_internal_unit_call(
+    bytes: &mut Vec<u8>,
+    installed: &InstalledInternalUnitCall,
+) -> Result<(), InstallationError> {
+    let custody = &installed.custody;
+    push_u64(bytes, installed.machine.get());
+    push_u64(
+        bytes,
+        u64::try_from(installed.text_offset)
+            .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+    );
+    match custody.owner {
+        CallSiteOwner::Operation(operation) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&[0; 3]);
+            push_u64(bytes, operation.get());
+        }
+        CallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&[0; 3]);
+            push_u64(bytes, edge.get());
+            push_u32(bytes, action_ordinal);
+            push_u32(bytes, 0);
+        }
+    }
+    crate::image_emission::installation_record::codec::internal_unit::call_source::encode(
+        bytes,
+        &custody.source,
+    )?;
+    push_u64(bytes, custody.target.get());
+    match custody.result {
+        None => bytes.extend_from_slice(&[0; 6]),
+        Some(semantic_vocabulary::ScalarType::Boolean) => {
+            bytes.extend_from_slice(&[1, 0, 0, 0, 0, 0]);
+        }
+        Some(semantic_vocabulary::ScalarType::Integer(integer)) => {
+            bytes.push(2);
+            bytes.push(u8::from(integer.is_address()));
+            bytes.push(u8::from(matches!(
+                integer.sign(),
+                semantic_vocabulary::IntegerSign::Signed
+            )));
+            bytes.push(0);
+            push_u16(bytes, integer.bits());
+        }
+        Some(semantic_vocabulary::ScalarType::IeeeFloat(format)) => {
+            bytes.extend_from_slice(&[3, 0, 0, 0]);
+            push_u16(
+                bytes,
+                match format {
+                    semantic_vocabulary::IeeeFloatFormat::Binary32 => 32,
+                    semantic_vocabulary::IeeeFloatFormat::Binary64 => 64,
+                },
+            );
+        }
+    }
+    match &custody.semantic_result {
+        Some(result) if Some(result.scalar_type) == custody.result => {
+            bytes.extend_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0]);
+            push_u64(bytes, result.value.get());
+        }
+        None => bytes.extend_from_slice(&[0; 16]),
+        Some(_) => {
+            return Err(InstallationError::InvalidInternalUnitCall(
+                installed.machine,
+            ));
+        }
+    }
+    push_u64(
+        bytes,
+        u64::try_from(custody.operation_ordinal)
+            .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+    );
+    push_u64(
+        bytes,
+        u64::try_from(custody.code_offset)
+            .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+    );
+    push_u64(
+        bytes,
+        u64::try_from(custody.byte_count)
+            .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+    );
+    push_u32(
+        bytes,
+        u32::try_from(custody.scalar_arguments.len())
+            .map_err(|_| InstallationError::TooManyInternalUnitScalarCallArguments)?,
+    );
+    for argument in &custody.scalar_arguments {
+        push_u32(bytes, argument.parameter_index);
+        encode_argument_source(bytes, argument.source)?;
+        encode_direct_placement(bytes, &argument.destination)?;
+        push_u64(
+            bytes,
+            u64::try_from(argument.code_offset)
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        );
+        push_u64(
+            bytes,
+            u64::try_from(argument.byte_count)
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        );
+    }
+    push_u32(
+        bytes,
+        u32::try_from(custody.arguments.len())
+            .map_err(|_| InstallationError::TooManyInternalUnitCallArguments)?,
+    );
+    for argument in &custody.arguments {
+        encode_structural_argument(
+            bytes,
+            &StructuralArgument {
+                place: argument.place,
+                access: argument.access,
+                path: argument.path.clone(),
+            },
+        )?;
+        push_u64(bytes, argument.root_structural_type.get());
+        push_u64(bytes, argument.structural_type.get());
+        encode_shape(bytes, argument.shape)?;
+        push_u32(bytes, argument.source_byte_offset);
+        crate::image_emission::installation_record::codec::structural::source::encode(
+            bytes,
+            argument.source_location,
+        )?;
+        push_u32(bytes, argument.call_stack_bytes);
+        match (argument.fixed_array_length, argument.element_stride) {
+            (Some(length), Some(stride)) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&[0; 3]);
+                push_u64(bytes, length);
+                push_u32(bytes, stride);
+            }
+            (None, None) => {
+                bytes.push(0);
+                bytes.extend_from_slice(&[0; 3]);
+            }
+            _ => {
+                return Err(InstallationError::InvalidInternalUnitCall(
+                    installed.machine,
+                ));
+            }
+        }
+        encode_structural_source(bytes, &argument.source)?;
+        encode_direct_placement(bytes, &argument.destination)?;
+        push_u64(
+            bytes,
+            u64::try_from(argument.code_offset)
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        );
+        push_u64(
+            bytes,
+            u64::try_from(argument.byte_count)
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        );
+        push_u32(
+            bytes,
+            u32::try_from(argument.bytes.len())
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        );
+        bytes.extend_from_slice(&argument.bytes);
+    }
+    push_u32(
+        bytes,
+        u32::try_from(custody.claim_transfers.len())
+            .map_err(|_| InstallationError::TooManyInternalUnitCallClaims)?,
+    );
+    for transfer in &custody.claim_transfers {
+        push_u64(bytes, transfer.claim.get());
+        push_u32(bytes, transfer.argument_index);
+    }
+    encode_structural_result(bytes, installed.machine, custody.structural_result.as_ref())?;
+    Ok(())
+}
+
+fn encode_structural_result(
+    bytes: &mut Vec<u8>,
+    machine: MachineId,
+    result: Option<&InternalStructuralCallResult>,
+) -> Result<(), InstallationError> {
+    let Some(result) = result else {
+        bytes.extend_from_slice(&[0; 4]);
+        return Ok(());
+    };
+    let claim_bearing_linear = result.operation_result.multiplicity
+        == StructuralMultiplicity::Linear
+        && result.function_result.multiplicity == StructuralMultiplicity::Linear
+        && result.operation_result.structural_type == result.function_result.structural_type
+        && result.operation_result.qualifications == result.function_result.qualifications
+        && result.operation_result.projected_qualifications.is_empty()
+        && result.function_result.projected_qualifications.is_empty()
+        && result.operation_result.claims.len() == 1
+        && result.operation_result.claims[0].path.is_empty()
+        && result.returned_claim_transfers.len() == 1
+        && result.returned_claims.len() == 1
+        && result.caller_result_placement == result.callee_result_placement;
+    let claim_free_affine = result.operation_result.multiplicity == StructuralMultiplicity::Affine
+        && result.function_result.multiplicity == StructuralMultiplicity::Affine
+        && result.operation_result.structural_type == result.function_result.structural_type
+        && result.operation_result.qualifications.is_empty()
+        && result.operation_result.projected_qualifications.is_empty()
+        && result.operation_result.claims.is_empty()
+        && result.function_result.qualifications.is_empty()
+        && result.function_result.projected_qualifications.is_empty()
+        && result.returned_claim_transfers.is_empty()
+        && result.returned_claims.is_empty()
+        && result.caller_result_placement == result.callee_result_placement;
+    if (!claim_bearing_linear && !claim_free_affine)
+        || (result.result_home.is_some() && !claim_free_affine)
+    {
+        return Err(InstallationError::InvalidInternalUnitCall(machine));
+    }
+    if claim_free_affine {
+        bytes.extend_from_slice(&[if result.result_home.is_some() { 3 } else { 2 }, 0, 0, 0]);
+        push_u64(bytes, result.operation_result.place.get());
+        push_u64(bytes, result.operation_result.structural_type.get());
+        push_u64(bytes, result.function_result.place.get());
+        push_u64(bytes, result.function_result.structural_type.get());
+        encode_direct_placement(bytes, &result.caller_result_placement)?;
+        encode_direct_placement(bytes, &result.callee_result_placement)?;
+        // Reference-bearing results preserve their declared source roster:
+        // each row binds a result-carrier path to the exact callee argument
+        // whose referent the caller inherits.
+        push_u32(
+            bytes,
+            u32::try_from(result.function_result.reference_sources.len())
+                .map_err(|_| InstallationError::TooManyStructuralReturnReferenceSources)?,
+        );
+        for source in &result.function_result.reference_sources {
+            crate::image_emission::installation_record::codec::structural::argument::encode_path(
+                bytes,
+                &source.path,
+            )?;
+            encode_structural_argument(bytes, &source.source)?;
+        }
+        if let Some(home) = &result.result_home {
+            let abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Aggregate(shape) =
+                home.requirement.layout
+            else {
+                return Err(InstallationError::InvalidInternalUnitCall(machine));
+            };
+            let (defining_operation, operation_result) = home
+                .requirement
+                .operation_result()
+                .ok_or(InstallationError::InvalidInternalUnitCall(machine))?;
+            if operation_result != &result.operation_result || home.byte_count != home.bytes.len() {
+                return Err(InstallationError::InvalidInternalUnitCall(machine));
+            }
+            push_u64(bytes, defining_operation.get());
+            encode_shape(bytes, shape)?;
+            push_u32(bytes, home.home_byte_offset);
+            push_u64(
+                bytes,
+                u64::try_from(home.code_offset)
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+            );
+            push_u64(
+                bytes,
+                u64::try_from(home.byte_count)
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+            );
+            push_u32(
+                bytes,
+                u32::try_from(home.bytes.len())
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+            );
+            bytes.extend_from_slice(&home.bytes);
+        }
+        return Ok(());
+    }
+    if result.operation_result.multiplicity != StructuralMultiplicity::Linear
+        || result.function_result.multiplicity != StructuralMultiplicity::Linear
+        || result.operation_result.structural_type != result.function_result.structural_type
+        || result.operation_result.qualifications != result.function_result.qualifications
+        || result.operation_result.claims.len() != 1
+        || !result.operation_result.claims[0].path.is_empty()
+        || result.returned_claim_transfers.len() != 1
+        || result.returned_claims.len() != 1
+        || result.caller_result_placement != result.callee_result_placement
+    {
+        return Err(InstallationError::InvalidInternalUnitCall(machine));
+    }
+    bytes.extend_from_slice(&[1, 0, 0, 0]);
+    push_u64(bytes, result.operation_result.place.get());
+    push_u64(bytes, result.operation_result.structural_type.get());
+    push_u32(
+        bytes,
+        u32::try_from(result.operation_result.qualifications.len())
+            .map_err(|_| InstallationError::TooManyInternalUnitCallClaims)?,
+    );
+    for qualification in &result.operation_result.qualifications {
+        push_u64(bytes, qualification.get());
+    }
+    push_u64(bytes, result.operation_result.claims[0].claim.get());
+    push_u64(bytes, result.function_result.place.get());
+    push_u64(bytes, result.function_result.structural_type.get());
+    push_u32(
+        bytes,
+        u32::try_from(result.function_result.qualifications.len())
+            .map_err(|_| InstallationError::TooManyInternalUnitCallClaims)?,
+    );
+    for qualification in &result.function_result.qualifications {
+        push_u64(bytes, qualification.get());
+    }
+    push_u64(bytes, result.returned_claim_transfers[0].callee_claim.get());
+    push_u64(bytes, result.returned_claim_transfers[0].caller_claim.get());
+    push_u64(bytes, result.returned_claims[0].get());
+    encode_direct_placement(bytes, &result.caller_result_placement)?;
+    encode_direct_placement(bytes, &result.callee_result_placement)?;
+    Ok(())
+}
+
+pub(crate) fn decode_internal_unit_calls(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<InstalledInternalUnitCall>, InstallationError> {
+    let count =
+        usize::try_from(reader.u32()?).map_err(|_| InstallationError::TooManyInternalUnitCalls)?;
+    if count > reader.remaining() / 64 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut internal_unit_calls = Vec::with_capacity(count);
+    for _ in 0..count {
+        internal_unit_calls.push(decode_internal_unit_call(reader)?);
+    }
+    Ok(internal_unit_calls)
+}
+
+fn decode_internal_unit_call(
+    reader: &mut Reader<'_>,
+) -> Result<InstalledInternalUnitCall, InstallationError> {
+    let machine = MachineId::new(reader.u64()?).ok_or(InstallationError::ZeroFunctionIdentity)?;
+    let text_offset = usize::try_from(reader.u64()?)
+        .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+    let owner_tag = reader.u8()?;
+    if reader.take(3)? != [0; 3] {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    let owner = match owner_tag {
+        1 => CallSiteOwner::Operation(
+            OperationId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+        ),
+        2 => {
+            let edge = EdgeId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            let action_ordinal = reader.u32()?;
+            if reader.u32()? != 0 {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            }
+        }
+        tag => return Err(InstallationError::InvalidCallSiteOwnerTag(tag)),
+    };
+    let source =
+        crate::image_emission::installation_record::codec::internal_unit::call_source::decode(
+            reader,
+        )?;
+    let target =
+        MachineId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+    let result_tag = reader.u8()?;
+    let is_address = decode_boolean(reader.u8()?)?;
+    let signed = decode_boolean(reader.u8()?)?;
+    if reader.u8()? != 0 {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    let bits = reader.u16()?;
+    let result = match result_tag {
+        0 if !is_address && !signed && bits == 0 => None,
+        1 if !is_address && !signed && bits == 0 => Some(semantic_vocabulary::ScalarType::Boolean),
+        2 => Some(semantic_vocabulary::ScalarType::Integer(
+            if is_address {
+                if signed {
+                    return Err(InstallationError::InvalidInternalUnitCall(machine));
+                }
+                semantic_vocabulary::IntegerType::address(bits)
+            } else {
+                semantic_vocabulary::IntegerType::new(
+                    if signed {
+                        semantic_vocabulary::IntegerSign::Signed
+                    } else {
+                        semantic_vocabulary::IntegerSign::Unsigned
+                    },
+                    bits,
+                )
+            }
+            .map_err(|_| InstallationError::InvalidInternalUnitCall(machine))?,
+        )),
+        3 if !is_address && !signed && bits == 32 => {
+            Some(semantic_vocabulary::ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary32,
+            ))
+        }
+        3 if !is_address && !signed && bits == 64 => {
+            Some(semantic_vocabulary::ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary64,
+            ))
+        }
+        _ => return Err(InstallationError::InvalidInternalUnitCall(machine)),
+    };
+    let semantic_result = match decode_boolean(reader.u8()?)? {
+        false => {
+            if reader.take(7)? != [0; 7] || reader.u64()? != 0 {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            None
+        }
+        true => {
+            if reader.take(7)? != [0; 7] {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            let value = semantic_vocabulary::ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            Some(
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                    value,
+                    scalar_type: result
+                        .ok_or(InstallationError::InvalidInternalUnitCall(machine))?,
+                },
+            )
+        }
+    };
+    let operation_ordinal = usize::try_from(reader.u64()?)
+        .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+    let code_offset = usize::try_from(reader.u64()?)
+        .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+    let byte_count = usize::try_from(reader.u64()?)
+        .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+    let scalar_argument_count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyInternalUnitScalarCallArguments)?;
+    if scalar_argument_count > reader.remaining() / 48 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut scalar_arguments = Vec::with_capacity(scalar_argument_count);
+    for _ in 0..scalar_argument_count {
+        scalar_arguments.push(InternalUnitScalarCallArgumentRecord {
+            parameter_index: reader.u32()?,
+            source: decode_argument_source(reader)?,
+            destination: decode_direct_placement(reader)?,
+            code_offset: usize::try_from(reader.u64()?)
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+            byte_count: usize::try_from(reader.u64()?)
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        });
+    }
+    let argument_count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyInternalUnitCallArguments)?;
+    if argument_count > reader.remaining() / 80 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut arguments = Vec::with_capacity(argument_count);
+    for _ in 0..argument_count {
+        let argument = decode_structural_argument(reader)?;
+        let root_structural_type = StructuralTypeId::new(reader.u64()?)
+            .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+        let structural_type = StructuralTypeId::new(reader.u64()?)
+            .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+        let shape = decode_shape(reader)?;
+        let source_byte_offset = reader.u32()?;
+        let source_location =
+            crate::image_emission::installation_record::codec::structural::source::decode(reader)?;
+        let call_stack_bytes = reader.u32()?;
+        let has_array = decode_boolean(reader.u8()?)?;
+        if reader.take(3)? != [0; 3] {
+            return Err(InstallationError::NonzeroReservedField);
+        }
+        let (fixed_array_length, element_stride) = if has_array {
+            (Some(reader.u64()?), Some(reader.u32()?))
+        } else {
+            (None, None)
+        };
+        let source = decode_structural_source(reader)?;
+        let destination = decode_direct_placement(reader)?;
+        let code_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+        let byte_count = usize::try_from(reader.u64()?)
+            .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+        let encoded_count = usize::try_from(reader.u32()?)
+            .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+        let bytes = reader.take(encoded_count)?.to_vec();
+        arguments.push(InternalUnitCallArgumentRecord {
+            place: argument.place,
+            access: argument.access,
+            path: argument.path,
+            root_structural_type,
+            structural_type,
+            shape,
+            source_byte_offset,
+            source_location,
+            call_stack_bytes,
+            fixed_array_length,
+            element_stride,
+            source,
+            destination,
+            code_offset,
+            byte_count,
+            bytes,
+        });
+    }
+    let claim_count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyInternalUnitCallClaims)?;
+    if claim_count > reader.remaining() / 12 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut claim_transfers = Vec::with_capacity(claim_count);
+    for _ in 0..claim_count {
+        claim_transfers.push(ClaimTransfer {
+            claim: ClaimId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+            argument_index: reader.u32()?,
+        });
+    }
+    let structural_result = decode_structural_result(reader, machine)?;
+    Ok(InstalledInternalUnitCall {
+        machine,
+        text_offset,
+        custody: InternalUnitCallRecord {
+            source,
+            owner,
+            target,
+            result,
+            semantic_result,
+            structural_result,
+            scalar_arguments,
+            arguments,
+            claim_transfers,
+            operation_ordinal,
+            code_offset,
+            byte_count,
+        },
+    })
+}
+
+fn decode_structural_result(
+    reader: &mut Reader<'_>,
+    machine: MachineId,
+) -> Result<Option<InternalStructuralCallResult>, InstallationError> {
+    let tag = reader.u8()?;
+    if reader.take(3)? != [0; 3] {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    match tag {
+        0 => return Ok(None),
+        1 => {}
+        2 | 3 => {
+            let operation_place = PlaceId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            let structural_type = StructuralTypeId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            let function_place = PlaceId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            let function_type = StructuralTypeId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            let caller_result_placement = decode_direct_placement(reader)?;
+            let callee_result_placement = decode_direct_placement(reader)?;
+            if structural_type != function_type
+                || caller_result_placement != callee_result_placement
+            {
+                return Err(InstallationError::InvalidInternalUnitCall(machine));
+            }
+            let reference_source_count = usize::try_from(reader.u32()?)
+                .map_err(|_| InstallationError::TooManyStructuralReturnReferenceSources)?;
+            if reference_source_count > reader.remaining() / 4 {
+                return Err(InstallationError::UnexpectedEnd);
+            }
+            let mut reference_sources = Vec::with_capacity(reference_source_count);
+            for _ in 0..reference_source_count {
+                let path =
+                    crate::image_emission::installation_record::codec::structural::argument::decode_path(reader)?;
+                let source = decode_structural_argument(reader)?;
+                reference_sources
+                    .push(terminal_psi::StructuralReferenceResultSource { path, source });
+            }
+            let operation_result = StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: operation_place,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            };
+            let result_home = if tag == 3 {
+                let defining_operation = OperationId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+                let shape = decode_shape(reader)?;
+                let home_byte_offset = reader.u32()?;
+                let code_offset = usize::try_from(reader.u64()?)
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+                let byte_count = usize::try_from(reader.u64()?)
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+                let encoded_count = usize::try_from(reader.u32()?)
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+                if byte_count != encoded_count {
+                    return Err(InstallationError::InvalidInternalUnitCall(machine));
+                }
+                let bytes = reader.take(encoded_count)?.to_vec();
+                Some(post_allocation_machine_to_selected_form_encoding::machine_code::InternalStructuralResultHomeRecord {
+                    requirement: abstract_operations_to_target_operations::target_operations::TargetStructuralHomeRequirement {
+                        origin: abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            operation: defining_operation,
+                            result: operation_result.clone(),
+                        },
+                        layout: abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Aggregate(shape),
+                    },
+                    home_byte_offset,
+                    code_offset,
+                    byte_count,
+                    bytes,
+                })
+            } else {
+                None
+            };
+            return Ok(Some(InternalStructuralCallResult {
+                operation_result,
+                function_result: StructuralResultDeclaration {
+                    reference_sources,
+                    place: function_place,
+                    structural_type: function_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                },
+                returned_claim_transfers: Vec::new(),
+                returned_claims: Vec::new(),
+                caller_result_placement,
+                callee_result_placement,
+                result_home,
+            }));
+        }
+        tag => return Err(InstallationError::InvalidPresenceFlag(tag)),
+    }
+    let operation_place =
+        PlaceId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+    let structural_type = StructuralTypeId::new(reader.u64()?)
+        .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+    let qualification_count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyInternalUnitCallClaims)?;
+    if qualification_count > reader.remaining() / 8 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut qualifications = Vec::with_capacity(qualification_count);
+    for _ in 0..qualification_count {
+        qualifications.push(
+            semantic_vocabulary::StructuralDomainId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+        );
+    }
+    let claim =
+        ClaimId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+    let function_place =
+        PlaceId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+    let function_type = StructuralTypeId::new(reader.u64()?)
+        .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+    let function_qualification_count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyInternalUnitCallClaims)?;
+    if function_qualification_count > reader.remaining() / 8 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut function_qualifications = Vec::with_capacity(function_qualification_count);
+    for _ in 0..function_qualification_count {
+        function_qualifications.push(
+            semantic_vocabulary::StructuralDomainId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+        );
+    }
+    let callee_claim =
+        ClaimId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+    let caller_claim =
+        ClaimId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+    let returned_claim =
+        ClaimId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+    let caller_result_placement = decode_direct_placement(reader)?;
+    let callee_result_placement = decode_direct_placement(reader)?;
+    let result = InternalStructuralCallResult {
+        operation_result: StructuralOperationResult {
+            place: operation_place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications,
+            qualification_establishments: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: vec![StructuralResultClaimBinding {
+                claim,
+                path: Vec::new(),
+            }],
+        },
+        function_result: StructuralResultDeclaration {
+            reference_sources: Vec::new(),
+            place: function_place,
+            structural_type: function_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: function_qualifications,
+            projected_qualifications: Vec::new(),
+        },
+        returned_claim_transfers: vec![StructuralResultClaimTransfer {
+            callee_claim,
+            caller_claim,
+        }],
+        returned_claims: vec![returned_claim],
+        caller_result_placement,
+        callee_result_placement,
+        result_home: None,
+    };
+    if result.operation_result.structural_type != result.function_result.structural_type
+        || result.operation_result.qualifications != result.function_result.qualifications
+        || result.operation_result.claims[0].claim
+            != result.returned_claim_transfers[0].caller_claim
+        || result.returned_claims[0] != result.returned_claim_transfers[0].caller_claim
+        || result.caller_result_placement != result.callee_result_placement
+    {
+        return Err(InstallationError::InvalidInternalUnitCall(machine));
+    }
+    Ok(Some(result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        BlockId, InstallationError, InternalStructuralCallResult,
+        InternalUnitStructuralArgumentSourceRecord, MachineId, OperationId, PlaceId, Reader,
+        StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+        StructuralResultDeclaration, StructuralTypeId, decode_structural_result,
+        decode_structural_source, encode_direct_placement, encode_structural_result,
+        encode_structural_source, push_u64,
+    };
+
+    #[test]
+    fn structural_sources_keep_established_producers_distinct_from_abi_placements() {
+        let established = InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
+            psi_operation: OperationId::new(0x0102_0304_0506_0708).unwrap(),
+        };
+        let mut bytes = Vec::new();
+        encode_structural_source(&mut bytes, &established).unwrap();
+        assert_eq!(bytes, [1, 8, 7, 6, 5, 4, 3, 2, 1]);
+        for source in [
+            established,
+            InternalUnitStructuralArgumentSourceRecord::EstablishedElementView {
+                psi_operation: OperationId::new(0x0102_0304_0506_0708).unwrap(),
+            },
+            InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
+                psi_operation: OperationId::new(0x0102_0304_0506_0708).unwrap(),
+            },
+            InternalUnitStructuralArgumentSourceRecord::BlockParameter {
+                block: BlockId::new(211).unwrap(),
+                place: PlaceId::new(213).unwrap(),
+            },
+            abstract_operations_to_target_operations::calling_conventions::ValuePlacement {
+                shape: abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(16, 8),
+                locations: vec![abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register {
+                    register: abstract_operations_to_target_operations::calling_conventions::MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                }],
+            }
+            .into(),
+        ] {
+            let mut bytes = Vec::new();
+            encode_structural_source(&mut bytes, &source).unwrap();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_structural_source(&mut reader).unwrap(), source);
+            assert_eq!(reader.remaining(), 0);
+            for length in 0..bytes.len() {
+                assert!(decode_structural_source(&mut Reader::new(&bytes[..length])).is_err());
+            }
+        }
+        assert_eq!(
+            decode_structural_source(&mut Reader::new(&[1, 0, 0, 0, 0, 0, 0, 0, 0])),
+            Err(InstallationError::ZeroInternalUnitCallIdentity),
+        );
+        assert_eq!(
+            decode_structural_source(&mut Reader::new(&[5])),
+            Err(InstallationError::InvalidInternalUnitStructuralSourceTag(5)),
+        );
+        assert_eq!(
+            decode_structural_source(&mut Reader::new(&[3, 0, 0, 0, 0, 0, 0, 0, 0])),
+            Err(InstallationError::ZeroInternalUnitCallIdentity),
+        );
+        for zero_offset in [1, 9] {
+            let mut bytes = Vec::new();
+            encode_structural_source(
+                &mut bytes,
+                &InternalUnitStructuralArgumentSourceRecord::BlockParameter {
+                    block: BlockId::new(211).unwrap(),
+                    place: PlaceId::new(213).unwrap(),
+                },
+            )
+            .unwrap();
+            bytes[zero_offset..zero_offset + 8].fill(0);
+            assert_eq!(
+                decode_structural_source(&mut Reader::new(&bytes)),
+                Err(InstallationError::ZeroInternalUnitCallIdentity)
+            );
+        }
+    }
+
+    fn affine_result() -> InternalStructuralCallResult {
+        let structural_type = StructuralTypeId::new(7).unwrap();
+        let placement = abstract_operations_to_target_operations::calling_conventions::ValuePlacement {
+            shape: abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(8, 8),
+            locations: vec![abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register {
+                register: abstract_operations_to_target_operations::calling_conventions::MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            }],
+        };
+        InternalStructuralCallResult {
+            operation_result: StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: PlaceId::new(2).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            function_result: StructuralResultDeclaration {
+                reference_sources: Vec::new(),
+                place: PlaceId::new(3).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+            returned_claim_transfers: Vec::new(),
+            returned_claims: Vec::new(),
+            caller_result_placement: placement.clone(),
+            callee_result_placement: placement,
+            result_home: None,
+        }
+    }
+
+    #[test]
+    fn native_internal_call_preserves_reference_source_correspondence() {
+        let machine = MachineId::new(1).unwrap();
+        let mut result = affine_result();
+        result.function_result.reference_sources.push(
+            terminal_psi::StructuralReferenceResultSource {
+                path: vec![terminal_psi::StructuralPathSegment::Field("held".into())],
+                source: StructuralArgument {
+                    place: PlaceId::new(1).unwrap(),
+                    path: vec![
+                        terminal_psi::StructuralPathSegment::Field("body".into()),
+                        terminal_psi::StructuralPathSegment::Referent,
+                    ],
+                    access: terminal_psi::StructuralAccess::MutableBorrow,
+                },
+            },
+        );
+        let mut bytes = Vec::new();
+        encode_structural_result(&mut bytes, machine, Some(&result)).unwrap();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            decode_structural_result(&mut reader, machine).unwrap(),
+            Some(result.clone())
+        );
+        assert_eq!(reader.remaining(), 0);
+        let mut reencoded = Vec::new();
+        encode_structural_result(&mut reencoded, machine, Some(&result)).unwrap();
+        assert_eq!(bytes, reencoded);
+    }
+
+    #[test]
+    fn affine_result_home_has_new_tag_and_preserves_legacy_payload() {
+        let machine = MachineId::new(1).unwrap();
+        let mut result = affine_result();
+        let mut legacy = Vec::new();
+        encode_structural_result(&mut legacy, machine, Some(&result)).unwrap();
+        let mut expected = vec![2, 0, 0, 0];
+        for identity in [2, 7, 3, 7] {
+            push_u64(&mut expected, identity);
+        }
+        encode_direct_placement(&mut expected, &result.caller_result_placement).unwrap();
+        encode_direct_placement(&mut expected, &result.callee_result_placement).unwrap();
+        expected.extend_from_slice(&[0; 4]);
+        assert_eq!(legacy, expected);
+        assert_eq!(
+            decode_structural_result(&mut Reader::new(&legacy), machine).unwrap(),
+            Some(result.clone())
+        );
+        result.result_home = Some(post_allocation_machine_to_selected_form_encoding::machine_code::InternalStructuralResultHomeRecord {
+            requirement: abstract_operations_to_target_operations::target_operations::TargetStructuralHomeRequirement {
+                origin: abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation: OperationId::new(5).unwrap(),
+                    result: result.operation_result.clone(),
+                },
+                layout: abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Aggregate(
+                    result.caller_result_placement.shape,
+                ),
+            },
+            home_byte_offset: 8,
+            code_offset: 20,
+            byte_count: 4,
+            bytes: 0xf900_07e0_u32.to_le_bytes().to_vec(),
+        });
+        let mut encoded = Vec::new();
+        encode_structural_result(&mut encoded, machine, Some(&result)).unwrap();
+        assert_eq!(&encoded[..4], &[3, 0, 0, 0]);
+        assert_eq!(&encoded[4..legacy.len()], &legacy[4..]);
+        let mut reader = Reader::new(&encoded);
+        assert_eq!(
+            decode_structural_result(&mut reader, machine).unwrap(),
+            Some(result.clone())
+        );
+        assert_eq!(reader.remaining(), 0);
+        assert!(
+            decode_structural_result(&mut Reader::new(&encoded[..encoded.len() - 1]), machine)
+                .is_err()
+        );
+        let mut wrong_origin = result.clone();
+        wrong_origin
+            .result_home
+            .as_mut()
+            .unwrap()
+            .requirement
+            .origin = abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::BlockParameter {
+            block: BlockId::new(7).unwrap(),
+            declaration: terminal_psi::StructuralParameterDeclaration {
+                place: result.operation_result.place,
+                position: 0,
+                is_self: false,
+                structural_type: result.operation_result.structural_type,
+                multiplicity: result.operation_result.multiplicity,
+                access: terminal_psi::StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+        };
+        assert!(
+            matches!(encode_structural_result(&mut Vec::new(), machine, Some(&wrong_origin)),
+            Err(InstallationError::InvalidInternalUnitCall(actual)) if actual == machine)
+        );
+        let abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult {
+            result: retained, ..
+        } = &mut result.result_home.as_mut().unwrap().requirement.origin
+        else {
+            panic!("operation result home");
+        };
+        retained.place = PlaceId::new(9).unwrap();
+        assert!(encode_structural_result(&mut Vec::new(), machine, Some(&result)).is_err());
+    }
+}

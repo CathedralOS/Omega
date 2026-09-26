@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use selected_instructions::{SelectedInstruction, SelectedTerminator};
+use target_operations_to_selected_instructions::{SelectedInstruction, SelectedTerminator};
 
 use super::{
     super::AllocatedCalleeSavedRequirementError,
@@ -10,7 +10,7 @@ use super::{
 
 pub(super) fn reconstruct(
     traversal: &mut ReplayTraversal<'_>,
-    function: &selected_instructions::SelectedFunction,
+    function: &target_operations_to_selected_instructions::SelectedFunction,
     homes: &crate::FunctionRegisterHomes,
 ) -> Result<(), AllocatedCalleeSavedRequirementError> {
     // The replayed allocation owns home completeness, including omitted dead

@@ -5,12 +5,12 @@
 //! assignment, emit the window through `BorrowedWindowLedger`, and leave the
 //! window reconstruction to independent Terminal verification.
 use super::CheckedTrees;
-use crate::TerminalMachineSelection;
-use checked_trees::{
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use terminal_psi::{OperationKind, Terminator};
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment,
 };
-use terminal_psi::{OperationKind, Terminator};
 
 /// The `calls/value_call_effectful_arm_rejected` customer's shape: an
 /// effectful multi-state callee returns a record that replaces a record field
@@ -68,8 +68,11 @@ fn entry_kinds(module: &terminal_psi::TerminalModule) -> Vec<&OperationKind> {
 #[test]
 fn displaced_call_result_field_replacement_lowers_and_verifies() {
     let checked = crate::front_end::checked_program(SOURCE);
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-        .expect("the composed graph lowers its displaced field replacement");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("the composed graph lowers its displaced field replacement");
     let kinds = entry_kinds(&lowered.semantic_module);
     let position = |wanted: fn(&OperationKind) -> bool| {
         kinds
@@ -131,13 +134,13 @@ fn displaced_call_result_field_replacement_lowers_and_verifies() {
         Terminator::Jump { trivial_affine_discards, .. } if trivial_affine_discards == &[displaced])));
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("independent verification reconstructs the closed window");
-    let _artifact = terminal_production::TerminalProductionRequest::new(
+    let _artifact = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::main"),
+        lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("Main::main"),
     )
     .produce(
-        terminal_production::TerminalProductionCustody::artifact_only(
-            &mut terminal_production::TerminalProductionTimings::default(),
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionCustody::artifact_only(
+            &mut lowered_psi_to_terminal_psi::terminal_production::TerminalProductionTimings::default(),
         ),
     )
     .expect("the replacement publishes a checked Terminal artifact");
@@ -169,8 +172,11 @@ fn displaced_field_replacement_composes_with_sibling_work_and_later_states() {
         }
         "#,
     );
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-        .expect("a later state's replacement lowers beside its sibling store");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("a later state's replacement lowers beside its sibling store");
     assert!(
         entry_kinds(&lowered.semantic_module)
             .iter()
@@ -185,8 +191,11 @@ fn displaced_field_replacement_composes_with_sibling_work_and_later_states() {
 #[test]
 fn displaced_field_replacement_rejects_plan_drift() {
     let original = crate::front_end::checked_program(SOURCE);
-    crate::lower_machine(&original, TerminalMachineSelection::Name("Main::main"))
-        .expect("unmodified control");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("unmodified control");
     let is_move = |operation: &CheckedUnitEffectOperationPlan| {
         matches!(
             operation,
@@ -289,7 +298,11 @@ fn displaced_field_replacement_rejects_plan_drift() {
         assert!(operations.iter().any(is_cleanup));
         mutate(operations);
         assert!(
-            crate::lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "{label} must not lower"
         );
     }
@@ -302,8 +315,11 @@ fn displaced_field_replacement_rejects_plan_drift() {
 #[test]
 fn terminal_verification_refuses_an_unclosed_or_stale_read_window() {
     let checked = crate::front_end::checked_program(SOURCE);
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-        .expect("unmodified control");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("unmodified control");
     terminal_verifier::validate_module(&lowered.semantic_module).expect("unmodified control");
     let entry = lowered.semantic_module.entry;
     let take_store = |module: &mut terminal_psi::TerminalModule| {

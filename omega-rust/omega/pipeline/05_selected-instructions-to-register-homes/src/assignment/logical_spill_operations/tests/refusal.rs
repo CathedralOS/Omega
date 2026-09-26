@@ -1,5 +1,7 @@
 use super::fixtures::fixture;
-use register_homes::{LogicalSpillOperationDecodeError, LogicalSpillOperationPlan};
+use selected_instructions_to_selected_instructions::register_homes::{
+    LogicalSpillOperationDecodeError, LogicalSpillOperationPlan,
+};
 
 #[test]
 fn codec_rejects_envelope_corruption() {

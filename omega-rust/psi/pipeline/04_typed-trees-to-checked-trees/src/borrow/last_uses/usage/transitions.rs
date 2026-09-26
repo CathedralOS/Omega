@@ -2,38 +2,38 @@ use super::expressions::{expression_uses_local_name, expression_uses_symbol};
 use symbols::SymbolHandle;
 
 pub(super) fn transition_guard_uses_symbol(
-    program: &typed_trees::TypedTrees,
-    guard: typed_trees::statement::TransitionGuardNode,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    guard: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode,
     symbol: SymbolHandle,
 ) -> bool {
     match guard {
-        typed_trees::statement::TransitionGuardNode::Always => false,
-        typed_trees::statement::TransitionGuardNode::When(expression) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::Always => false,
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(expression) => {
             expression_uses_symbol(program, expression, symbol)
         }
     }
 }
 
 pub(super) fn transition_guard_uses_local_name(
-    program: &typed_trees::TypedTrees,
-    guard: typed_trees::statement::TransitionGuardNode,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    guard: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode,
     local_name: &str,
 ) -> bool {
     match guard {
-        typed_trees::statement::TransitionGuardNode::Always => false,
-        typed_trees::statement::TransitionGuardNode::When(expression) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::Always => false,
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(expression) => {
             expression_uses_local_name(program, expression, local_name)
         }
     }
 }
 
 pub(super) fn transition_target_uses_symbol(
-    program: &typed_trees::TypedTrees,
-    target: &typed_trees::statement::TransitionTargetNode,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    target: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode,
     symbol: SymbolHandle,
 ) -> bool {
     match target {
-        typed_trees::statement::TransitionTargetNode::Named {
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named {
             path, arguments, ..
         } => {
             path.head_symbol == symbol
@@ -44,21 +44,21 @@ pub(super) fn transition_target_uses_symbol(
                     .iter()
                     .any(|argument| expression_uses_symbol(program, *argument, symbol))
         }
-        typed_trees::statement::TransitionTargetNode::Value(expression) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) => {
             expression_uses_symbol(program, *expression, symbol)
         }
-        typed_trees::statement::TransitionTargetNode::SelfTarget
-        | typed_trees::statement::TransitionTargetNode::Terminal => false,
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::SelfTarget
+        | symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }
 
 pub(super) fn transition_target_uses_local_name(
-    program: &typed_trees::TypedTrees,
-    target: &typed_trees::statement::TransitionTargetNode,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    target: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode,
     local_name: &str,
 ) -> bool {
     match target {
-        typed_trees::statement::TransitionTargetNode::Named {
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named {
             path, arguments, ..
         } => {
             program
@@ -72,10 +72,10 @@ pub(super) fn transition_target_uses_local_name(
                     .iter()
                     .any(|argument| expression_uses_local_name(program, *argument, local_name))
         }
-        typed_trees::statement::TransitionTargetNode::Value(expression) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) => {
             expression_uses_local_name(program, *expression, local_name)
         }
-        typed_trees::statement::TransitionTargetNode::SelfTarget
-        | typed_trees::statement::TransitionTargetNode::Terminal => false,
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::SelfTarget
+        | symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }

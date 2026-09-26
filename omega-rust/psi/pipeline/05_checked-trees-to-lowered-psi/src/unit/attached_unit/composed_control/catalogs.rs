@@ -50,7 +50,8 @@ pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) temporary_places: Vec<StructuralPlaceDeclaration>,
     pub(crate) result_places: Vec<StructuralPlaceDeclaration>,
     pub(crate) scalar_calls: scalar_calls::ComposedScalarCalls,
-    pub(crate) root_crash_routes: Vec<checked_trees::CrashRouteBucket>,
+    pub(crate) root_crash_routes:
+        Vec<typed_trees_to_checked_trees::checked_trees::CrashRouteBucket>,
     pub(crate) shared_units: Option<LoweredPsi>,
     pub(crate) next_value: u64,
     pub(crate) next_block: u64,
@@ -63,7 +64,7 @@ fn lower_composed_services(
     machine: symbols::SymbolHandle,
     contract_service_reach: ServiceReachPlan,
     service_reach: ServiceReachSummary,
-    states: &[checked_trees::CheckedComposedUnitControlStatePlan],
+    states: &[typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     internal_targets: &[(UnitBody<'_>, String)],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
@@ -141,8 +142,8 @@ impl LoweredComposedBoundary {
 
 pub(crate) fn lower_dynamic_catalogs(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedDynamicScalarCallPlan,
-    continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
+    plan: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicScalarCallPlan,
+    continuation: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicUnitContinuationPlan,
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     internal_targets: &[(UnitBody<'_>, String)],
 ) -> Result<ComposedCatalogs<'static>, LoweringError> {
@@ -172,7 +173,7 @@ fn lower_catalogs(
     attachment_type_identity: Option<&str>,
     contract_service_reach: ServiceReachPlan,
     service_reach: ServiceReachSummary,
-    states: &[checked_trees::CheckedComposedUnitControlStatePlan],
+    states: &[typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     admitted_internal_targets: &[(UnitBody<'_>, String)],
 ) -> Result<ComposedCatalogs<'static>, LoweringError> {

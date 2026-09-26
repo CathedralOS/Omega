@@ -28,7 +28,7 @@ fn check(machine: &str, accepted: bool) {
 /// machine's unit plan fails closed.
 fn lower_service_source(
     source: &str,
-) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let mut typed = typed_program_with_core_service(source);
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);
     lower_typed_trees(typed, &CheckingRequest::settled())

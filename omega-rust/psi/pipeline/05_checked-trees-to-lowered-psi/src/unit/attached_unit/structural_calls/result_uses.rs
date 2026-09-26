@@ -6,7 +6,7 @@ use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, ExpressionNode,
     LoweringError, Multiplicity, StatementNode, unsupported,
 };
-use checked_trees::CheckedUnitStructuralResultBindingPlan;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 /// Rejoin a whole named linear operand to its earlier successful call, not
 /// merely another result with the same carrier type. Source claims retain the
@@ -17,7 +17,7 @@ fn validate_linear_result_consumer(
     caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     argument_index: usize,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+    parameter: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan,
 ) -> Result<(), LoweringError> {
     let (machine, state, operations) = (caller.machine, caller.state, caller.operations);
     let CheckedUnitEffectOperationPlan::StructuralCall {
@@ -72,7 +72,8 @@ fn validate_linear_result_consumer(
         || result.multiplicity != Multiplicity::Linear
         || parameter.multiplicity != Multiplicity::Linear
         || !argument.path.is_empty()
-        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+        || argument.access
+            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         || parameter.access != argument.access
         || parameter.is_self
         || parameter.fused_service_erasure.is_some()
@@ -88,11 +89,12 @@ fn validate_linear_result_consumer(
         checked,
         *producer_target_state,
     )?;
-    let projected_qualifications = validation::structural_result_projected_qualifications(
-        &checked.typed,
-        producer_state.return_type,
-    )
-    .map_err(LoweringError::Unsupported)?;
+    let projected_qualifications =
+        typed_trees_to_checked_trees::validation::structural_result_projected_qualifications(
+            &checked.typed,
+            producer_state.return_type,
+        )
+        .map_err(LoweringError::Unsupported)?;
     if parameter.projected_qualifications != projected_qualifications {
         return unsupported("linear result operand changes its projected qualification row");
     }
@@ -113,10 +115,13 @@ fn validate_linear_result_consumer(
         return unsupported("linear result operand has no authored local");
     };
     if local.is_mutable
-        || validation::structural_result_qualifications(&checked.typed, local.type_reference)
-            .map_err(LoweringError::Unsupported)?
+        || typed_trees_to_checked_trees::validation::structural_result_qualifications(
+            &checked.typed,
+            local.type_reference,
+        )
+        .map_err(LoweringError::Unsupported)?
             != produced.result_qualifications
-        || validation::structural_result_projected_qualifications(
+        || typed_trees_to_checked_trees::validation::structural_result_projected_qualifications(
             &checked.typed,
             local.type_reference,
         )
@@ -198,7 +203,7 @@ fn validate_linear_result_consumer(
             .enumerate()
             .any(|(argument_position, candidate)| {
                 candidate.source_structural_result_binding_ordinal() == Some(binding_ordinal)
-                    && candidate.access == checked_trees::CheckedStructuralAccess::Owned
+                    && candidate.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     && (earlier != operation || argument_position != argument_index)
             })
         {
@@ -221,7 +226,7 @@ fn validate_argument_construction_consumer(
     caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     argument_index: usize,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+    parameter: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan,
 ) -> Result<(), LoweringError> {
     let (machine, state, operations) = (caller.machine, caller.state, caller.operations);
     let (coordinate, structural_arguments) = match operation {
@@ -264,10 +269,12 @@ fn validate_argument_construction_consumer(
         return unsupported("argument construction consumer is ambiguous");
     }
     let source = producer(operations, binding_ordinal)?;
-    let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
-        parameter_position,
-        ..
-    }) = source.construction_source
+    let Some(
+        typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument {
+            parameter_position,
+            ..
+        },
+    ) = source.construction_source
     else {
         return unsupported("argument operand is not its call's own construction");
     };
@@ -276,7 +283,8 @@ fn validate_argument_construction_consumer(
         || source.discard
         || parameter_position != parameter.position
         || !argument.path.is_empty()
-        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+        || argument.access
+            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         || parameter.access != argument.access
         || parameter.is_self
         || parameter.fused_service_erasure.is_some()
@@ -329,10 +337,11 @@ fn validate_argument_construction_consumer(
 
 struct Producer<'plan> {
     operation_index: usize,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
     result: &'plan CheckedUnitStructuralResultBindingPlan,
     discard: bool,
-    construction_source: Option<checked_trees::CheckedArrayConstructionSource>,
+    construction_source:
+        Option<typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource>,
 }
 
 /// A bare reference result's retained leaf loan proves a projected owned
@@ -343,7 +352,7 @@ struct Producer<'plan> {
 /// ordinary continuation-cleanup route.
 fn loaned_record_projection(
     operation: &CheckedUnitEffectOperationPlan,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
 ) -> bool {
     !argument.path.is_empty()
         && matches!(
@@ -353,9 +362,9 @@ fn loaned_record_projection(
         )
         && argument.path.iter().all(|segment| {
             matches!(
-                segment,
-                checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-            )
+            segment,
+            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+        )
         })
 }
 
@@ -368,9 +377,9 @@ fn loaned_record_projection(
 /// retires at the consuming call, so a longer operation schedule does not
 /// need a separate residual continuation for it.
 fn projected_moves_cover_result(
-    types: &[checked_trees::CheckedUnitStructuralTypePlan],
+    types: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan],
     result_type: &str,
-    moved_paths: &[&[checked_trees::CheckedUnitStructuralPathSegment]],
+    moved_paths: &[&[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment]],
 ) -> bool {
     if moved_paths.is_empty()
         || moved_paths.iter().enumerate().any(|(index, path)| {
@@ -386,9 +395,9 @@ fn projected_moves_cover_result(
 }
 
 fn projected_moves_cover_type(
-    types: &[checked_trees::CheckedUnitStructuralTypePlan],
+    types: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan],
     current_type: &str,
-    moved_paths: &[&[checked_trees::CheckedUnitStructuralPathSegment]],
+    moved_paths: &[&[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment]],
 ) -> bool {
     let Some(declaration) = types
         .iter()
@@ -397,7 +406,7 @@ fn projected_moves_cover_type(
         return false;
     };
     match &declaration.shape {
-        checked_trees::CheckedUnitStructuralTypeShape::Record { fields } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::Record { fields } => {
             if fields.is_empty()
                 || fields.iter().enumerate().any(|(index, field)| {
                     field.relevance.is_erased()
@@ -416,7 +425,7 @@ fn projected_moves_cover_type(
                     .filter_map(|path| {
                         matches!(
                             path.first(),
-                            Some(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                            Some(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
                                 identity
                             )) if identity == &field.identity
                         )
@@ -424,7 +433,7 @@ fn projected_moves_cover_type(
                     })
                     .collect::<Vec<_>>();
                 matched += matching.len();
-                let checked_trees::CheckedUnitStructuralFieldType::Structural { type_identity } =
+                let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralFieldType::Structural { type_identity } =
                     &field.field_type
                 else {
                     // A moved path may end at a no-cleanup leaf, but it may
@@ -447,7 +456,7 @@ fn projected_moves_cover_type(
             }
             matched == moved_paths.len()
         }
-        checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
             element_type_identity,
             length,
         } => {
@@ -461,7 +470,7 @@ fn projected_moves_cover_type(
                     .filter_map(|path| {
                         matches!(
                             path.first(),
-                            Some(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                            Some(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                                 touched
                             )) if *touched == index
                         )
@@ -487,21 +496,26 @@ fn projected_moves_cover_type(
 /// no-cleanup leaves may sit beside moved subtrees. Reference and provider
 /// carriers are `Structural` children, so an uncovered one still fails the
 /// coverage check rather than inheriting leaf treatment.
-fn no_cleanup_residual_field(field_type: &checked_trees::CheckedUnitStructuralFieldType) -> bool {
+fn no_cleanup_residual_field(
+    field_type: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralFieldType,
+) -> bool {
     matches!(
         field_type,
-        checked_trees::CheckedUnitStructuralFieldType::Structural { .. }
-            | checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(_)
-            | checked_trees::CheckedUnitStructuralFieldType::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralFieldType::Structural { .. }
+            | typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(_)
+            | typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralFieldType::ByteSequence(
+                typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             )
-            | checked_trees::CheckedUnitStructuralFieldType::Scalar(_)
+            | typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralFieldType::Scalar(_)
     )
 }
 
 impl Producer<'_> {
-    fn precedes_consumer(&self, coordinate: checked_trees::CheckedUnitCallCoordinate) -> bool {
-        if let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+    fn precedes_consumer(
+        &self,
+        coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
+    ) -> bool {
+        if let Some(typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument {
             call_ordinal,
             ..
         }) = self.construction_source
@@ -533,10 +547,11 @@ fn producer(
                 ..
             } if result.binding_ordinal == binding_ordinal => Some(Producer {
                 operation_index,
-                coordinate: checked_trees::CheckedUnitCallCoordinate {
-                    statement_index: result.statement_index,
-                    call_ordinal: 0,
-                },
+                coordinate:
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                        statement_index: result.statement_index,
+                        call_ordinal: 0,
+                    },
                 result,
                 discard: *discard_result_on_return,
                 construction_source: *operand_source,
@@ -546,10 +561,11 @@ fn producer(
             {
                 Some(Producer {
                     operation_index,
-                    coordinate: checked_trees::CheckedUnitCallCoordinate {
-                        statement_index: result.statement_index,
-                        call_ordinal: 0,
-                    },
+                    coordinate:
+                        typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                            statement_index: result.statement_index,
+                            call_ordinal: 0,
+                        },
                     result,
                     discard: false,
                     construction_source: Some(*source),
@@ -595,7 +611,9 @@ pub(crate) fn validate_usage(
     }
     let mut consumed = false;
     let mut disposed = false;
-    let mut projected_paths = Vec::<&[checked_trees::CheckedUnitStructuralPathSegment]>::new();
+    let mut projected_paths = Vec::<
+        &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment],
+    >::new();
     // Every projected move under a still return-dropped carrier must carry
     // its own proven leaf loan; a single unloaned projection revives the
     // ordinary residual-continuation requirement.
@@ -757,10 +775,10 @@ pub(crate) fn validate_usage(
                     visited.push(value);
                     let node = values.nodes.get(value);
                     match &node.kind {
-                        checked_trees::CheckedStructuralValueKind::Place(argument)
-                            if argument.source == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: local.symbol }) => {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Place(argument)
+                            if argument.source == (typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: local.symbol }) => {
                             if !matches!(checked.expression_table.expression(node.expression), ExpressionNode::Name(name) if name.symbol == local.symbol && name.head_symbol == local.symbol && name.members.count() == 1)
-                                || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                                || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                                 || !argument.path.is_empty() || argument.type_identity != result.type_identity
                                 || consumed || disposed || !projected_paths.is_empty()
                                 || operation_index <= producer.operation_index
@@ -769,13 +787,13 @@ pub(crate) fn validate_usage(
                             }
                             consumed = result.multiplicity != Multiplicity::Unrestricted;
                         }
-                        checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-                        | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+                        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                             for field in values.record_fields.span(*fields).ok_or(LoweringError::Unsupported("record consumption field roster missing"))? {
-                                if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) = field.value { pending.push(value); }
+                                if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Structural(value) = field.value { pending.push(value); }
                             }
                         }
-                        checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => pending.extend(values.dispatch_arms.span(*arms).ok_or(LoweringError::Unsupported("record consumption arm roster missing"))?.iter().map(|arm| arm.value)),
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => pending.extend(values.dispatch_arms.span(*arms).ok_or(LoweringError::Unsupported("record consumption arm roster missing"))?.iter().map(|arm| arm.value)),
                         _ => {}
                     }
                 }
@@ -786,7 +804,7 @@ pub(crate) fn validate_usage(
             affine_discards,
         } = operation
         {
-            let source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            let source = typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             };
             let immediately_discarded = operation_index.checked_sub(1)
@@ -834,7 +852,7 @@ pub(crate) fn validate_usage(
                 checked,
                 caller.state,
             )?;
-            let reference_record_end = validation::reference_result_custody::local_record_loans(
+            let reference_record_end = typed_trees_to_checked_trees::validation::reference_result_custody::local_record_loans(
                 &checked.typed,
                 &checked.facts,
                 caller.machine,
@@ -844,7 +862,7 @@ pub(crate) fn validate_usage(
             .is_some_and(|loans| {
                 !loans.is_empty()
                     && loans.iter().all(|(_, loan)| {
-                        validation::reference_result_custody::release_statement(
+                        typed_trees_to_checked_trees::validation::reference_result_custody::release_statement(
                             &checked.facts,
                             caller.machine,
                             caller.state,
@@ -886,7 +904,8 @@ pub(crate) fn validate_usage(
                 || disposed
                 || operation_index <= producer.operation_index
                 || !value.path.is_empty()
-                || value.access != checked_trees::CheckedStructuralAccess::Owned
+                || value.access
+                    != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                 || value.type_identity != result.type_identity
             {
                 return unsupported(
@@ -942,9 +961,9 @@ pub(crate) fn validate_usage(
             }
             if matches!(
                 argument.access,
-                checked_trees::CheckedStructuralAccess::SharedBorrow
-                    | checked_trees::CheckedStructuralAccess::MutableBorrow
-                    | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
+                    | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
             ) && matches!(
                 operation,
                 CheckedUnitEffectOperationPlan::CallUnit { .. }
@@ -968,7 +987,8 @@ pub(crate) fn validate_usage(
                     CheckedUnitEffectOperationPlan::CallUnit { .. }
                         | CheckedUnitEffectOperationPlan::ScalarCall { .. }
                         | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                ) || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                ) || argument.access
+                    != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
                     || argument.type_identity != result.type_identity
                 {
@@ -981,7 +1001,7 @@ pub(crate) fn validate_usage(
             if !argument.path.is_empty() {
                 let loaned = loaned_record_projection(operation, argument);
                 if !(matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. }) || loaned)
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     || result.multiplicity != Multiplicity::Affine
                     || projected_paths.iter().any(|earlier| {
                         earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
@@ -998,8 +1018,8 @@ pub(crate) fn validate_usage(
             if !projected_paths.is_empty()
                 || !matches!(
                     argument.access,
-                    checked_trees::CheckedStructuralAccess::Owned
-                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+                        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                 )
                 || argument.type_identity != result.type_identity
                 || result.multiplicity != Multiplicity::Affine
@@ -1008,7 +1028,7 @@ pub(crate) fn validate_usage(
                     "Unit structural result use is not a whole affine move or shared borrow",
                 );
             }
-            if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+            if argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                 && producer.coordinate.call_ordinal != 0
                 && (producer.coordinate.call_ordinal != 1
                     || producer.discard
@@ -1022,12 +1042,13 @@ pub(crate) fn validate_usage(
             {
                 return unsupported("anonymous shared result has no dying Unit call continuation");
             }
-            consumed = argument.access == checked_trees::CheckedStructuralAccess::Owned;
+            consumed = argument.access
+                == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned;
         }
     }
     if let Some(returned) = &caller.structural_result
         && returned.source
-            == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            == (typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             })
     {
@@ -1085,8 +1106,8 @@ pub(crate) fn validate_consumer(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
-    target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
-    target_entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+    target_parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan],
+    target_entry_claims: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitEntryClaimPlan],
 ) -> Result<(), LoweringError> {
     let (coordinate, target_machine, target_state, structural_arguments, claim_transfers) =
         match operation {
@@ -1229,8 +1250,8 @@ pub(crate) fn validate_consumer(
             && binding_ordinal.is_some()
             && matches!(
                 argument.access,
-                checked_trees::CheckedStructuralAccess::SharedBorrow
-                    | checked_trees::CheckedStructuralAccess::MutableBorrow
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
             )
         {
             crate::emission::call_source_custody::projected_receivers::validate(
@@ -1266,10 +1287,10 @@ pub(crate) fn validate_consumer(
                 .ok_or(LoweringError::Unsupported(
                     "structural argument source position is absent",
                 ))?;
-            if validation::is_closed_primitive_array_type(&checked.typed, source_parameter.type_reference)
+            if typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(&checked.typed, source_parameter.type_reference)
                 && (authored.boundary
                     || !argument.path.is_empty()
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     || source.access != argument.access
                     || parameter.access != argument.access
                     || source.multiplicity != Multiplicity::Unrestricted
@@ -1326,9 +1347,11 @@ pub(crate) fn validate_consumer(
         // bound local's domains to the formal's exact requirement.
         let linear_result_move = result.multiplicity == Multiplicity::Linear
             && argument.path.is_empty()
-            && argument.access == checked_trees::CheckedStructuralAccess::Owned
+            && argument.access
+                == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
             && argument.type_identity == result.type_identity
-            && parameter.access == checked_trees::CheckedStructuralAccess::Owned
+            && parameter.access
+                == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
             && parameter.multiplicity == Multiplicity::Linear
             && parameter.type_identity == argument.type_identity
             && !parameter.is_self
@@ -1363,7 +1386,7 @@ pub(crate) fn validate_consumer(
         // into the formal it was written for, and into no other consumer.
         if matches!(
             producer.construction_source,
-            Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
+            Some(typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
         ) {
             validate_argument_construction_consumer(checked, caller, operation, index, parameter)?;
         }
@@ -1378,7 +1401,8 @@ pub(crate) fn validate_consumer(
             validate_linear_result_consumer(checked, caller, operation, index, parameter)?;
         }
         if (producer.discard
-            && argument.access == checked_trees::CheckedStructuralAccess::Owned
+            && argument.access
+                == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
             && !loaned_record_projection(operation, argument))
             || producer.operation_index >= operation_index
             || !source_order
@@ -1401,13 +1425,13 @@ pub(crate) fn validate_consumer(
                 && argument.path.iter().all(|segment| {
                     matches!(
                         segment,
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(_)
                     )
                 })
                 && matches!(
                     argument.access,
-                    checked_trees::CheckedStructuralAccess::MutableBorrow
-                        | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
+                        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
                 )
                 && argument.access == parameter.access
                 && !parameter.is_self
@@ -1435,23 +1459,23 @@ pub(crate) fn validate_consumer(
                 ) || !argument.path.is_empty()
                     || !matches!(
                         argument.access,
-                        checked_trees::CheckedStructuralAccess::Owned
-                            | checked_trees::CheckedStructuralAccess::SharedBorrow
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+                            | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                     )))
                 || (argument.path.is_empty() && argument.type_identity != result.type_identity)
                 || parameter.type_identity != argument.type_identity
                 || (!argument.path.is_empty()
                     && (!(matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
                         || loaned_record_projection(operation, argument))
-                        || argument.access != checked_trees::CheckedStructuralAccess::Owned))
+                        || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned))
                 || !matches!(
                     argument.access,
-                    checked_trees::CheckedStructuralAccess::Owned
-                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+                        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                 )
                 || argument.access != parameter.access
                 || parameter.multiplicity
-                    != if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                    != if argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow {
                         Multiplicity::Unrestricted
                     } else {
                         result.multiplicity
@@ -1480,19 +1504,19 @@ pub(crate) fn validate_consumer(
 fn validate_operand_producers(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
-    coordinate: &checked_trees::CheckedUnitCallCoordinate,
+    coordinate: &typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
     authored: &crate::emission::call_source_custody::authored::AuthoredCall,
-    source_machine: &checked_trees::machine::Machine,
+    source_machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
     statements: &[StatementNode],
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
-    expression: Option<checked_trees::expression::ExpressionHandle>,
+    argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+    parameter: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan,
+    expression: Option<typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle>,
     binding_ordinal: Option<u32>,
 ) -> Result<(), LoweringError> {
     for candidate in caller.operations {
         if let CheckedUnitEffectOperationPlan::EstablishScalarArray {
             source:
-                source @ checked_trees::CheckedArrayConstructionSource::CallArgument {
+                source @ typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument {
                     call_ordinal,
                     parameter_position,
                 },
@@ -1524,10 +1548,10 @@ fn validate_operand_producers(
             }
             if names_result
                 && (authored.boundary
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
                     || result.multiplicity != Multiplicity::Unrestricted
-                    || !validation::is_closed_primitive_array_type(&checked.typed, source_type)
+                    || !typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(&checked.typed, source_type)
                     || checked
                         .typed
                         .normalized_type_identity(source_type)
@@ -1540,7 +1564,7 @@ fn validate_operand_producers(
         }
         if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             operand_source:
-                Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+                Some(typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument {
                     call_ordinal,
                     parameter_position,
                 }),
@@ -1563,11 +1587,11 @@ fn validate_operand_producers(
             }
             let node = checked.facts.values.structural_values.nodes.get(*value);
             let (construction_expression, construction_type) = match &node.kind {
-                checked_trees::CheckedStructuralValueKind::Case(constructor) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Case(constructor) => {
                     (constructor.expression, constructor.type_reference)
                 }
-                checked_trees::CheckedStructuralValueKind::Record { .. }
-                | checked_trees::CheckedStructuralValueKind::StructuralCase { .. } => (
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Record { .. }
+                | typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::StructuralCase { .. } => (
                     node.expression,
                     checked
                         .facts
@@ -1594,13 +1618,13 @@ fn validate_operand_producers(
             // plain contents (numeric domains allowed) need no cleanup
             // beyond the transfer itself; linear values keep claim rules.
             let whole_owned_contents = result.multiplicity != Multiplicity::Linear
-                && validation::has_plain_owned_contents_with_numeric_constraints(
+                && typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
                     &checked.typed,
                     construction_type,
                 );
             if names_result
                 && (authored.boundary
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
                     || !whole_owned_contents
                     || checked
@@ -1628,7 +1652,7 @@ fn validate_operand_producers(
             } => (*producer_coordinate, *source_site, result),
             CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => (
-                checked_trees::CheckedUnitCallCoordinate {
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,
                 },
@@ -1697,7 +1721,7 @@ fn validate_operand_producers(
             );
             if !local.symbol.is_valid()
                 || (result.multiplicity == Multiplicity::Unrestricted
-                    && !(validation::is_closed_primitive_array_type(
+                    && !(typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(
                         &checked.typed,
                         local.type_reference,
                     )
@@ -1733,9 +1757,9 @@ fn validate_operand_producers(
                     // A borrowed-view local can only ever be lent shared;
                     // its authored access names the view's only custody.
                     let authored_access = access.unwrap_or(if view_carrier.is_some() {
-                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                     } else {
-                        checked_trees::CheckedStructuralAccess::Owned
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     });
                     if path != argument.path || authored_access != argument.access {
                         return unsupported(
@@ -1755,8 +1779,11 @@ fn validate_operand_producers(
             if source.source_site != source_site {
                 return unsupported("nested structural producer has a different authored source");
             }
-            let Some(checked_trees::NominalMachineUseSite::Expression(source_expression)) =
-                source.source_site
+            let Some(
+                typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
+                    source_expression,
+                ),
+            ) = source.source_site
             else {
                 return unsupported("anonymous producer has no expression-owned source");
             };
@@ -1770,7 +1797,7 @@ fn validate_operand_producers(
                     source.source_target,
                 )?;
                 if result.multiplicity == Multiplicity::Unrestricted
-                    && !validation::is_closed_primitive_array_type(
+                    && !typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(
                         &checked.typed,
                         signature.return_type,
                     )
@@ -1785,16 +1812,20 @@ fn validate_operand_producers(
                     signature.return_type,
                     expression.unwrap(),
                 )?;
-                if root != facts::PlaceRoot::Expression(source_expression)
+                if root
+                    != typed_trees_to_checked_trees::fact_plan::PlaceRoot::Expression(
+                        source_expression,
+                    )
                     || path != argument.path
-                    || access.unwrap_or(checked_trees::CheckedStructuralAccess::Owned)
-                        != argument.access
+                    || access.unwrap_or(
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+                    ) != argument.access
                 {
                     return unsupported(
                         "anonymous result projection disagrees with its authored source",
                     );
                 }
-                if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                if argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow {
                     super::shared_temporary::validate(
                         checked,
                         caller,
@@ -1821,7 +1852,7 @@ fn validate_operand_producers(
                 // not a borrow expression.
                 let authored_access = named_result_operand(checked, expression).1;
                 let authored_access =
-                    if authored_access == checked_trees::CheckedStructuralAccess::Owned
+                    if authored_access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                         && matches!(
                             statements.get(result.statement_index as usize),
                             Some(StatementNode::LocalData(local))
@@ -1832,7 +1863,7 @@ fn validate_operand_producers(
                                 .is_some()
                         )
                     {
-                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                     } else {
                         authored_access
                     };
@@ -1860,16 +1891,16 @@ fn claimed_result_consumer(
     caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     operation_index: usize,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
     source_target: symbols::SymbolHandle,
     target_machine: symbols::SymbolHandle,
     target_state: symbols::SymbolHandle,
     argument_index: usize,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+    argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+    parameter: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan,
     producer: &Producer<'_>,
-    target_entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
-    claim_transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+    target_entry_claims: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitEntryClaimPlan],
+    claim_transfers: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitClaimTransferPlan],
 ) -> Result<(), LoweringError> {
     let result = producer.result;
     if producer.discard
@@ -1885,7 +1916,8 @@ fn claimed_result_consumer(
         || parameter.multiplicity != Multiplicity::Linear
         || !parameter.is_self
         || !argument.path.is_empty()
-        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+        || argument.access
+            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         || parameter.access != argument.access
         || argument.type_identity != result.type_identity
         || parameter.type_identity != argument.type_identity
@@ -2045,7 +2077,8 @@ fn claimed_result_consumer(
                 && event.access == language_semantics::PermissionAccess::Owned
                 && event.multiplicity == Multiplicity::Linear
                 && event.obligation_live
-                && event.root == facts::PlaceRoot::Symbol(local.symbol)
+                && event.root
+                    == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(local.symbol)
         })
         .count()
         != 1
@@ -2088,7 +2121,8 @@ fn claimed_result_consumer(
         };
         if arguments.iter().enumerate().any(|(position, argument)| {
             argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-                && argument.access == checked_trees::CheckedStructuralAccess::Owned
+                && argument.access
+                    == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                 && !(candidate == operation && position == argument_index)
         }) {
             return unsupported(
@@ -2098,7 +2132,7 @@ fn claimed_result_consumer(
     }
     if caller.structural_result.is_some_and(|returned| {
         returned.source
-            == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            == (typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             })
     }) {
@@ -2111,26 +2145,29 @@ fn claimed_result_consumer(
 
 fn named_result_operand(
     checked: &CheckedTrees,
-    expression: checked_trees::expression::ExpressionHandle,
+    expression: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
 ) -> (
-    checked_trees::expression::ExpressionHandle,
-    checked_trees::CheckedStructuralAccess,
+    typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
+    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess,
 ) {
     if let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression) {
         let access = match borrow.access {
             language_core::ReferenceAccess::Shared => {
-                checked_trees::CheckedStructuralAccess::SharedBorrow
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
             }
             language_core::ReferenceAccess::Mutable => {
-                checked_trees::CheckedStructuralAccess::MutableBorrow
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
             }
             language_core::ReferenceAccess::WriteOnly => {
-                checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
             }
         };
         (borrow.target, access)
     } else {
-        (expression, checked_trees::CheckedStructuralAccess::Owned)
+        (
+            expression,
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+        )
     }
 }
 

@@ -1,6 +1,9 @@
 //! Primitive-reference effects complete before their scalar result exists.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -8,7 +11,6 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
 
 #[test]
@@ -16,15 +18,16 @@ fn primitive_reference_reads_under_operators_preserve_pre_store_values() {
     let checked = crate::front_end::checked_program(
         "machine change(value: &mut u64, mask: u64) -> u64 { value = value ^ mask; value }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("change"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("change"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     execute(
         &artifact,
         &[unsigned(0x81)],
@@ -39,15 +42,16 @@ fn boolean_reference_negation_preserves_pre_store_value() {
     let checked = crate::front_end::checked_program(
         "machine toggle(value: &mut bool) -> bool { value = !value; value }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("toggle"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("toggle"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     for initial in [false, true] {
         execute(
             &artifact,
@@ -164,15 +168,16 @@ fn write_only_parameter_delivery_and_distinct_result_keep_dense_scalar_order() {
     let checked = crate::front_end::checked_program(
         "machine replace(destination: &write u64, replacement: u64, result_value: u64) -> u64 { destination = replacement; result_value }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("replace"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("replace"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     execute(
         &artifact,
         &[unsigned(27), unsigned(43)],
@@ -187,15 +192,16 @@ fn attached_store_return_retains_its_exact_owner() {
     let mut checked = crate::front_end::checked_program(
         "data First {} data Second {} machine First::reset(value: &mut u64) -> u64 { value = 0; 0 } machine Second::reset(value: &mut u64) -> u64 { value = 0; 0 }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("First::reset"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("First::reset"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     execute(&artifact, &[], unsigned(91), unsigned(0), unsigned(0));
     let plans = &mut checked
         .facts
@@ -231,7 +237,7 @@ fn missing_duplicate_redirected_and_changed_store_plans_reject() {
             0 => plan.effects.clear(),
             1 => plan.effects.push(plan.effects[0].clone()),
             2 | 3 => {
-                let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index,
                     destination,
                     ..
@@ -242,7 +248,7 @@ fn missing_duplicate_redirected_and_changed_store_plans_reject() {
                 if mutation == 2 {
                     *statement_index = 1;
                 } else {
-                    *destination = checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                    *destination = typed_trees_to_checked_trees::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                         parameter_index: 1,
                     };
                 }
@@ -250,23 +256,23 @@ fn missing_duplicate_redirected_and_changed_store_plans_reject() {
             4 => plan.return_statement_ordinal = 0,
             5 => {
                 plan.structural_parameters[0].access =
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
             }
             6 => plan
                 .cleanup_actions
-                .push(checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0)),
+                .push(typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0)),
             7 => {
-                let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     value,
                     ..
                 } = &mut plan.effects[0]
                 else {
                     panic!("store")
                 };
-                *value = checked_trees::CheckedCallScalarArgument::Pure(
-                    checked_trees::CheckedScalarExpression::Parameter {
+                *value = typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Parameter {
                         position: 0,
-                        primitive_type: checked_trees::types::PrimitiveType::U64,
+                        primitive_type: typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::U64,
                     },
                 );
             }
@@ -394,15 +400,16 @@ fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows
         .terminal_structural_scalar_returns
         .machines
         .retain(|plan| plan.machine != target);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &original,
-        TerminalMachineSelection::Name("reset"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("ordinary operation body independently retains the store and scalar result")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &original,
+            TerminalMachineSelection::Name("reset"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("ordinary operation body independently retains the store and scalar result")
+        .into_artifact();
     execute(&artifact, &[], unsigned(91), unsigned(0), unsigned(0));
     for mutation in [
         "missing body",
@@ -432,7 +439,7 @@ fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows
                     .iter()
                     .position(|operation| {
                         matches!(operation,
-                checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. })
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. })
                     })
                     .unwrap();
             match mutation {
@@ -445,12 +452,12 @@ fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows
                 }
                 "access" => {
                     plan.structural_parameters[0].access =
-                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                 }
                 "completion" => plan.scalar_result.as_mut().unwrap().statement_index = 0,
                 "order" => plan.operations.swap(store, store + 1),
                 "destination" | "value" => {
-                    let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                    let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                         destination,
                         value,
                         ..
@@ -459,12 +466,12 @@ fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows
                         unreachable!();
                     };
                     if mutation == "destination" {
-                        *destination = checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                        *destination = typed_trees_to_checked_trees::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                             parameter_index: 1,
                         };
                     } else {
-                        *value = checked_trees::CheckedCallScalarArgument::Pure(
-                            checked_trees::CheckedScalarExpression::IntegerLiteral {
+                        *value = typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+                            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerLiteral {
                                 literal: numerics::literals::IntegerLiteral::from_value(9),
                             },
                         );
@@ -474,7 +481,7 @@ fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("reset")
             )

@@ -2,8 +2,8 @@ use super::{
     CheckedUnitEffectOperationPlan, ShapeCollector, build_structural_scalar_field_store_sequence,
     checked_program, machine_binders,
 };
+use crate::checked_trees::types::PrimitiveType;
 use crate::execution::terminal_unit::calls::structural_scalar_signature;
-use checked_trees::types::PrimitiveType;
 
 fn stores(source: &str, state_index: usize) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let checked = checked_program(source);
@@ -61,8 +61,8 @@ fn computed_value_stores_through_a_guard_bounded_index() {
     };
     assert!(matches!(
         value,
-        checked_trees::CheckedCallScalarArgument::Pure(
-            checked_trees::CheckedScalarExpression::IntegerExactCast {
+        crate::checked_trees::CheckedCallScalarArgument::Pure(
+            crate::checked_trees::CheckedScalarExpression::IntegerExactCast {
                 primitive_type: PrimitiveType::U8,
                 ..
             }

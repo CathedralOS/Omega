@@ -1,11 +1,11 @@
 //! Direct selected/range traversal for one guarded original victim.
 
-use optimization_unit::ValueDefinitionSite;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedTerminator, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 use crate::unsequenced_spill_stages::{
     FunctionGeneralizedSpillInsertion, GeneralizedReloadCoexistingValue, GeneralizedSpillEvent,
@@ -15,8 +15,10 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryLogicalUseRewrite, GeneralizedSpillRecoveryVictim,
     GeneralizedSpillRecoveryVictimChoice,
 };
-use register_homes::LogicalSpillStorageClass;
-use selected_instructions::{FunctionLiveRanges, LiveRangeFragment, VirtualFixedConstraintSite};
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
+use target_operations_to_selected_instructions::{
+    FunctionLiveRanges, LiveRangeFragment, VirtualFixedConstraintSite,
+};
 
 pub(super) fn build(
     choice: &GeneralizedSpillRecoveryVictimChoice,
@@ -108,7 +110,7 @@ pub(super) fn build(
     };
     let definition_site_ok = matches!(
         value.definition_site,
-        Some(ValueDefinitionSite::Node { block: source, .. }) if matches!(block.origin, selected_instructions::SelectedBlockOrigin::Source(authored) if authored == source)
+        Some(ValueDefinitionSite::Node { block: source, .. }) if matches!(block.origin, target_operations_to_selected_instructions::SelectedBlockOrigin::Source(authored) if authored == source)
     );
     if !scalar_ok
         || !definition_site_ok
@@ -283,8 +285,8 @@ fn unique_pressure_reload(
     function: usize,
 ) -> Result<
     (
-        selected_instructions::SelectedInstructionId,
-        register_model::RegisterClassId,
+        target_operations_to_selected_instructions::SelectedInstructionId,
+        target_operations_to_selected_instructions::register_model::RegisterClassId,
     ),
     GeneralizedSpillRecoveryActionError,
 > {
@@ -317,8 +319,8 @@ fn unique_pressure_reload(
 }
 
 fn instruction(
-    block: &selected_instructions::SelectedBlock,
-    id: selected_instructions::SelectedInstructionId,
+    block: &target_operations_to_selected_instructions::SelectedBlock,
+    id: target_operations_to_selected_instructions::SelectedInstructionId,
 ) -> Option<&SelectedInstruction> {
     block
         .instructions

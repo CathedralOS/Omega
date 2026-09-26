@@ -10,8 +10,8 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillInsertionPolicy, GeneralizedSpillSlot, ValidatedAbstractSpillInsertion,
     ValidatedSpillRecoveryActions,
 };
-use register_homes::LogicalSpillStorageClass;
-use selected_instructions::LiveRangePoint;
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 const SLOT_BYTES: u64 = 8;
 
@@ -19,23 +19,23 @@ struct ReplayAction {
     id: GeneralizedSpillActionId,
     source: GeneralizedSpillActionSource,
     class: LogicalSpillStorageClass,
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     from: LiveRangePoint,
     through: LiveRangePoint,
-    store_instruction: selected_instructions::SelectedInstructionId,
+    store_instruction: target_operations_to_selected_instructions::SelectedInstructionId,
     before_reload: Option<GeneralizedSpillActionId>,
-    store_source: selected_instructions::VirtualRegisterId,
-    source_view: register_model::RegisterViewId,
-    reload_instruction: selected_instructions::SelectedInstructionId,
-    destination_class: register_model::RegisterClassId,
+    store_source: target_operations_to_selected_instructions::VirtualRegisterId,
+    source_view: target_operations_to_selected_instructions::register_model::RegisterViewId,
+    reload_instruction: target_operations_to_selected_instructions::SelectedInstructionId,
+    destination_class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     rewrites: Vec<ReplayRewrite>,
 }
 
 #[derive(Clone, Copy)]
 struct ReplayRewrite {
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
-    instruction: selected_instructions::SelectedInstructionId,
+    instruction: target_operations_to_selected_instructions::SelectedInstructionId,
     operand: u16,
 }
 
@@ -443,7 +443,7 @@ fn event_key(
     point: LiveRangePoint,
     rank: u8,
     action: GeneralizedSpillActionId,
-    instruction: selected_instructions::SelectedInstructionId,
+    instruction: target_operations_to_selected_instructions::SelectedInstructionId,
     operand: u16,
 ) -> EventKey {
     (

@@ -21,7 +21,7 @@ The start operation shown neither suspends nor blocks; the completion operation
 shown permits both. Call markers always follow that operation's actual contract,
 not the eventual behavior of the worker. The
 [task-runtime specification](../spec/build/task_runtime.md) and its
-[implementation note](../../omega-rust/omega/representations/task-plans/README.md)
+[implementation note](../../omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/task_plans.md)
 separate required behavior from current planning support.
 
 ## Starting Is A Provider Operation

@@ -3,12 +3,12 @@ use super::{
     PRODUCED_SOURCE, PROJECTED_SOURCE, PROOF_OUTPUT_SOURCE,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use omega::terminal_fixed_fuel::derive_fixed_entry_fuel;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{
     decode_module, decode_proof_bundle, encode_module, encode_proof_section,
     proof_bundle_fingerprint, render_verified_proof_synopsis, semantic_fingerprint,
 };
-use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
@@ -716,8 +716,9 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
         )
     }
     fn selected_specialization(
-        checked: &checked_trees::CheckedTrees,
-    ) -> &typed_trees::typed_trees::MachineSpecialization {
+        checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    ) -> &symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecialization
+    {
         let target = checked
             .facts
             .proof
@@ -734,7 +735,7 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
     }
 
     fn commitment_hex(
-        commitment: typed_trees::typed_trees::MachineSpecializationCommitment,
+        commitment: symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecializationCommitment,
     ) -> String {
         use std::fmt::Write;
 

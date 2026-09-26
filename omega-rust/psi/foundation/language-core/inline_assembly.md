@@ -72,7 +72,7 @@ consumer-defined publication authority stays receiver-side per
 A source gate, catalog row, parser
 test or instruction encoder is not final-artifact or native execution evidence.
 
-The [implicit freestanding entry plan](../../../omega/representations/calling-conventions/src/plans/mod.rs)
+The [implicit freestanding entry plan](../../../omega/pipeline/02_abstract-operations-to-target-operations/src/calling_conventions/plans/mod.rs)
 adds instruction-pointer, stack-pointer and control-state use to its ordinary
 volatile-state ceiling. This compatibility path applies only to the compiler-
 selected boot root; it must not widen an explicit source-selected boundary

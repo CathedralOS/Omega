@@ -4,15 +4,15 @@
 //! package root, including generated inputs; rechecking the authored file would
 //! lose those inputs and could repeat build effects or acquire different sources.
 
-use checked_interpreter::{BuildMachineEntry, InterpretOptions, InterpretOutcome};
-use compiler::CheckedCompileRequest;
-use compiler::{CompileOptions, CompileReport, CompileRequest};
-use diagnostics::Diagnostic;
-use package_manager::operations::LocalProjectPreparationOptions;
-use package_manager::operations::{
+use crate::checked_interpreter::{BuildMachineEntry, InterpretOptions, InterpretOutcome};
+use crate::compiler::CheckedCompileRequest;
+use crate::compiler::{CompileOptions, CompileReport, CompileRequest};
+use crate::package_manager::operations::LocalProjectPreparationOptions;
+use crate::package_manager::operations::{
     PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
     prepare_local_project,
 };
+use diagnostics::Diagnostic;
 
 pub(super) struct ProbeCompilation {
     pub report: CompileReport,
@@ -36,7 +36,7 @@ pub(super) fn compile(
     )
     .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     // Policy belongs to the authored project, never its resolver snapshot.
-    let admissions = trust_ledger::read_trust_admissions(&options.root_path)?;
+    let admissions = crate::trust_ledger::read_trust_admissions(&options.root_path)?;
     let (report, interpretation) = if let Some(prepared) = prepared {
         let request = PreparedLocalProjectNativeRequest::new(prepared, build_dir, target)
             .with_accepted_trust_admissions(admissions);
@@ -45,14 +45,14 @@ pub(super) fn compile(
         })
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?
     } else {
-        let report = compiler::compile(
+        let report = crate::compiler::compile(
             CompileRequest::new(options.clone())
-                .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
+                .with_requested_product(crate::compiler::RequestedCompileProduct::NativeArtifact)
                 .with_accepted_trust_admissions(admissions),
         )
-        .and_then(compiler::CompileOutcomes::into_single_report)?;
+        .and_then(crate::compiler::CompileOutcomes::into_single_report)?;
         let interpretation = interpret.then(|| {
-            compiler::compile_to_checked(CheckedCompileRequest::new(
+            crate::compiler::compile_to_checked(CheckedCompileRequest::new(
                 &options.root_path,
                 Some(target.target_name()),
             ))
@@ -67,7 +67,7 @@ pub(super) fn compile(
 }
 
 fn interpret_checked(
-    checked: &compiler::CheckedCompilation,
+    checked: &crate::compiler::CheckedCompilation,
 ) -> Result<InterpretOutcome, Vec<Diagnostic>> {
     let entry = checked.selected_program_entry().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -78,7 +78,7 @@ fn interpret_checked(
     // module or package may declare a same-named machine.
     // Default interpretation captures output and uses virtual host state. Do not
     // print or grant live host effects before native admission and publication.
-    Ok(checked_interpreter::interpret_entry(
+    Ok(crate::checked_interpreter::interpret_entry(
         checked,
         BuildMachineEntry::Symbol(entry.source_signature().machine_symbol()),
         &[],

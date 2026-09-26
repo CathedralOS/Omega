@@ -2,6 +2,9 @@
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    expression::ExpressionNode, statement::StatementNode,
+};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -9,13 +12,12 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue,
     interpret_terminal_artifact_measured,
 };
-use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
 #[path = "unit_tail_calls_source/statements.rs"]
 mod statements;
 
 fn artifact(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     semicolon: bool,
     locals: &[&str],
 ) -> (Vec<u8>, Vec<u8>) {
@@ -57,7 +59,9 @@ fn artifact(
     verified_artifact(checked)
 }
 
-fn verified_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
+fn verified_artifact(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> (Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -522,7 +526,7 @@ fn trailing_unit_call_semantic_modifiers_cannot_be_erased_into_an_ordinary_call(
             else {
                 unreachable!()
             };
-            let selected = typed_trees::expression::StaticMachineArgument {
+            let selected = symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument {
                 path: Box::new([]),
                 application: None,
                 type_reference: Default::default(),
@@ -533,21 +537,21 @@ fn trailing_unit_call_semantic_modifiers_cannot_be_erased_into_an_ordinary_call(
             match modifier {
                 "quotient" => {
                     call.quotient_operation =
-                        Some(typed_trees::expression::QuotientOperationRequest {
-                            kind: typed_trees::expression::QuotientOperationKind::Lift,
+                        Some(symbol_resolved_trees_to_typed_trees::typed_trees::expression::QuotientOperationRequest {
+                            kind: symbol_resolved_trees_to_typed_trees::typed_trees::expression::QuotientOperationKind::Lift,
                             representative_operation: selected,
                             theorem_evidence: Box::new([]),
                         })
                 }
                 "private layout" => {
                     call.private_layout_operation =
-                        Some(typed_trees::expression::PrivateLayoutOperationRequest {
+                        Some(symbol_resolved_trees_to_typed_trees::typed_trees::expression::PrivateLayoutOperationRequest {
                             selected_slot: selected,
                         })
                 }
                 "static requirement" => {
                     call.static_requirement_dispatch =
-                        Some(typed_trees::typed_trees::StaticRequirementDispatch {
+                        Some(symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::StaticRequirementDispatch {
                             realization_state: call.target_symbol,
                             ..Default::default()
                         })
@@ -557,7 +561,12 @@ fn trailing_unit_call_semantic_modifiers_cannot_be_erased_into_an_ordinary_call(
                 _ => unreachable!(),
             }
             assert!(
-                !validation::unit_return_call_is_supported(&changed.typed, root, state, expression,),
+                !typed_trees_to_checked_trees::validation::unit_return_call_is_supported(
+                    &changed.typed,
+                    root,
+                    state,
+                    expression,
+                ),
                 "{modifier} must retain its own semantic route"
             );
             assert!(
@@ -604,7 +613,9 @@ fn unit_tail_exemption_does_not_admit_unit_calls_in_scalar_value_positions() {
             _ => unreachable!(),
         };
         assert!(
-            !validation::unit_return_call_is_supported(&typed, root, state, unit_call),
+            !typed_trees_to_checked_trees::validation::unit_return_call_is_supported(
+                &typed, root, state, unit_call
+            ),
             "only the entire terminal expression receives the Unit exemption"
         );
         assert!(

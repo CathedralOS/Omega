@@ -6,12 +6,12 @@ use crate::structural_return_source::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalInterpretError,
     TerminalScalarValue,
 };
-use checked_trees::{
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
 
 #[test]
 fn returned_boolean_and_integer_boundary_values_preserve_computed_and_pure_operands() {
@@ -332,7 +332,8 @@ fn returned_boundary_computations_reject_outer_and_nested_source_custody_drift()
                     .iter_mut()
                     .find(|plan| plan.machine == root.symbol)
                     .unwrap()
-                    .result_type = typed_trees::types::PrimitiveType::U16;
+                    .result_type =
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16;
             }
             7 => {
                 let StatementNode::Expression(returned) = checked

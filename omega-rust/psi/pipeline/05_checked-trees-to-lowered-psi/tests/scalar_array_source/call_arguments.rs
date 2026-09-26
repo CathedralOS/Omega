@@ -4,10 +4,10 @@ use super::{
     IntegerType, IntegerValue, StatementNode, TerminalExecutionResult, TerminalScalarValue,
     interpret_terminal_artifact, reject, selected_source,
 };
-use checked_trees::{
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectMachinePlan, CheckedUnitStructuralArgumentSourcePlan,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 fn execute(source: &str, expected: &[u8]) {
     let checked = crate::front_end::checked_program(source);
@@ -449,7 +449,11 @@ fn source_array_arguments_reject_same_typed_binding_and_authored_operand_substit
             };
             assert_eq!(
                 source_site,
-                Some(checked_trees::NominalMachineUseSite::Expression(expression)),
+                Some(
+                    typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
+                        expression
+                    )
+                ),
                 "mutation follows the exact captured call rather than the normalized return name",
             );
             let arguments = changed

@@ -3,12 +3,12 @@ use super::{
     ExpressionNode, StatementNode,
 };
 use crate::CheckingRequest;
+use crate::checked_trees::CheckedScalarExpressionRole;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 use crate::tests::values::initializer_call_computations::ResultKind;
 use crate::tests::values::initializer_call_computations::caller;
 use crate::tests::values::initializer_call_computations::role;
-use checked_trees::CheckedScalarExpressionRole;
 
 fn sequence_source(kind: ResultKind, computed: bool) -> String {
     let declaration = match kind {
@@ -217,11 +217,13 @@ fn later_result_eligibility_rejects_mutability_receivers_and_semantic_modifiers(
     else {
         panic!("later initializer")
     };
-    assert!(validation::unit_result_initializer_call_is_supported(
-        &program,
-        machine,
-        local.initial_value
-    ));
+    assert!(
+        crate::validation::unit_result_initializer_call_is_supported(
+            &program,
+            machine,
+            local.initial_value
+        )
+    );
     for mutation in 0..5 {
         let mut changed = program.clone();
         if mutation == 0 {
@@ -238,7 +240,7 @@ fn later_result_eligibility_rejects_mutability_receivers_and_semantic_modifiers(
             else {
                 unreachable!()
             };
-            let selected = typed_trees::expression::StaticMachineArgument {
+            let selected = symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument {
                 path: Box::new([]),
                 application: None,
                 type_reference: Default::default(),
@@ -251,15 +253,15 @@ fn later_result_eligibility_rejects_mutability_receivers_and_semantic_modifiers(
                 2 => call.machine_arguments = Box::new([selected]),
                 3 => {
                     call.quotient_operation =
-                        Some(typed_trees::expression::QuotientOperationRequest {
-                            kind: typed_trees::expression::QuotientOperationKind::Lift,
+                        Some(symbol_resolved_trees_to_typed_trees::typed_trees::expression::QuotientOperationRequest {
+                            kind: symbol_resolved_trees_to_typed_trees::typed_trees::expression::QuotientOperationKind::Lift,
                             representative_operation: selected,
                             theorem_evidence: Box::new([]),
                         })
                 }
                 4 => {
                     call.private_layout_operation =
-                        Some(typed_trees::expression::PrivateLayoutOperationRequest {
+                        Some(symbol_resolved_trees_to_typed_trees::typed_trees::expression::PrivateLayoutOperationRequest {
                             selected_slot: selected,
                         })
                 }
@@ -267,7 +269,7 @@ fn later_result_eligibility_rejects_mutability_receivers_and_semantic_modifiers(
             }
         }
         assert!(
-            !validation::unit_result_initializer_call_is_supported(
+            !crate::validation::unit_result_initializer_call_is_supported(
                 &changed,
                 machine,
                 local.initial_value
@@ -307,11 +309,13 @@ fn later_boundary_structural_results_keep_operand_roots_and_scalar_namespace() {
         else {
             panic!("no synthetic source statements")
         };
-        assert!(validation::unit_result_initializer_call_is_supported(
-            &checked.typed,
-            machine,
-            local.initial_value
-        ));
+        assert!(
+            crate::validation::unit_result_initializer_call_is_supported(
+                &checked.typed,
+                machine,
+                local.initial_value
+            )
+        );
         let plan = checked
             .facts
             .flow
@@ -383,10 +387,13 @@ fn later_boundary_structural_results_keep_operand_roots_and_scalar_namespace() {
         };
         assert!(matches!(
             computations.nodes.get(*argument).kind,
-            CheckedScalarComputationKind::Value(checked_trees::CheckedScalarExpression::Local {
-                position: 1,
-                primitive_type: typed_trees::types::PrimitiveType::U32
-            })
+            CheckedScalarComputationKind::Value(
+                crate::checked_trees::CheckedScalarExpression::Local {
+                    position: 1,
+                    primitive_type:
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32
+                }
+            )
         ));
         let pure = &checked.facts.values.scalar_expressions;
         let (binding, _) = pure
@@ -408,7 +415,9 @@ fn later_boundary_structural_results_keep_operand_roots_and_scalar_namespace() {
 
 #[test]
 fn later_boundary_structural_eligibility_keeps_ownership_and_target_fences() {
-    use typed_trees::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+        DomainConstraint, TypeConstraintNode, TypeReferenceNode,
+    };
     let program = typed_program(BOUNDARY_STRUCTURAL_SEQUENCE);
     let machine = program
         .machines()
@@ -436,7 +445,7 @@ fn later_boundary_structural_eligibility_keeps_ownership_and_target_fences() {
                     changed
                         .type_reference_table
                         .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
-                            name: typed_trees::name::Identifier::generated("Unestablished"),
+                            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated("Unestablished"),
                             ..DomainConstraint::default()
                         })]);
                 changed
@@ -466,7 +475,7 @@ fn later_boundary_structural_eligibility_keeps_ownership_and_target_fences() {
                 .supply_mode = language_semantics::MachineSupplyMode::Requirement;
         }
         assert!(
-            !validation::unit_result_initializer_call_is_supported(
+            !crate::validation::unit_result_initializer_call_is_supported(
                 &changed,
                 machine,
                 local.initial_value
@@ -489,11 +498,13 @@ fn later_boundary_structural_eligibility_keeps_ownership_and_target_fences() {
     else {
         unreachable!()
     };
-    assert!(!validation::unit_result_initializer_call_is_supported(
-        &linear,
-        machine,
-        local.initial_value
-    ));
+    assert!(
+        !crate::validation::unit_result_initializer_call_is_supported(
+            &linear,
+            machine,
+            local.initial_value
+        )
+    );
 }
 
 #[test]
@@ -715,7 +726,7 @@ fn direct_boundary_result_operands_retain_exact_nonself_transfer_events() {
             .filter(|event| {
                 event.machine_symbol == machine.symbol
                     && event.state_symbol == state.symbol
-                    && event.root == ::facts::PlaceRoot::Symbol(local.symbol)
+                    && event.root == crate::fact_plan::PlaceRoot::Symbol(local.symbol)
             })
             .collect::<Vec<_>>();
         assert!(events.iter().any(|event| event.kind

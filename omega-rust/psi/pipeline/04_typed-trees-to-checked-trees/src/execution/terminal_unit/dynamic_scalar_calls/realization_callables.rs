@@ -1,17 +1,17 @@
 //! Complete checked conformance rosters, with per-member bodies and finite-family instances.
 
 use super::realization_bodies::checked_realization_scalar_body;
+use crate::checked_trees::CheckedDynamicRealizationBodyPlan;
 use crate::execution::terminal_unit::types::{is_unit, structural_access_for_type_reference};
 use crate::execution::terminal_unit::{CheckFacts, MachineSupplyMode, PrimitiveType, TypedTrees};
-use checked_trees::CheckedDynamicRealizationBodyPlan;
 
 pub(super) fn checked_dynamic_realization_callables(
     program: &TypedTrees,
     facts: &CheckFacts,
-    conformance: &typed_trees::trait_definition::Conformance,
-    selection: &checked_trees::DynamicConformanceBindingFact,
-    source_access: checked_trees::CheckedStructuralAccess,
-) -> Option<Vec<checked_trees::CheckedDynamicRealizationCallablePlan>> {
+    conformance: &symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::Conformance,
+    selection: &crate::checked_trees::DynamicConformanceBindingFact,
+    source_access: crate::checked_trees::CheckedStructuralAccess,
+) -> Option<Vec<crate::checked_trees::CheckedDynamicRealizationCallablePlan>> {
     let closed_rows = program.closed_conformance_rows(conformance)?;
     if closed_rows.len() != selection.rows.len() {
         return None;
@@ -128,18 +128,20 @@ pub(super) fn checked_dynamic_realization_callables(
             if contract.report_fingerprint == 0 || contract.commitment.is_zero() {
                 return None;
             }
-            callables.push(checked_trees::CheckedDynamicRealizationCallablePlan {
-                declaring_trait: closed.declaring_trait,
-                requirement: closed.requirement,
-                requirement_identity: requirement_identity.clone(),
-                realization_machine: realization_machine.symbol,
-                realization_state: realization_state.symbol,
-                realization_identity,
-                family_tuple,
-                body,
-                contract_report_fingerprint: contract.report_fingerprint,
-                contract_commitment: contract.commitment,
-            });
+            callables.push(
+                crate::checked_trees::CheckedDynamicRealizationCallablePlan {
+                    declaring_trait: closed.declaring_trait,
+                    requirement: closed.requirement,
+                    requirement_identity: requirement_identity.clone(),
+                    realization_machine: realization_machine.symbol,
+                    realization_state: realization_state.symbol,
+                    realization_identity,
+                    family_tuple,
+                    body,
+                    contract_report_fingerprint: contract.report_fingerprint,
+                    contract_commitment: contract.commitment,
+                },
+            );
         }
     }
     Some(callables)
@@ -150,13 +152,13 @@ pub(super) fn checked_dynamic_realization_callables(
 /// requirement. Any other generic shape stays out of the lane.
 pub(crate) fn family_tuple_roster(
     program: &TypedTrees,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
 ) -> Option<Vec<Box<[String]>>> {
     match program.finite_signature_family(requirement) {
-        typed_trees::finite_family::FamilyProbe::Finite { tuples, .. } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::finite_family::FamilyProbe::Finite { tuples, .. } => {
             Some(tuples.into_iter().map(|tuple| tuple.identities).collect())
         }
-        typed_trees::finite_family::FamilyProbe::NotFinite(_) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::finite_family::FamilyProbe::NotFinite(_) => {
             if program
                 .state_signature_type_parameters(requirement)
                 .is_empty()
@@ -177,11 +179,11 @@ pub(crate) fn family_tuple_roster(
 /// out of the lane.
 pub(crate) fn dynamic_family_tuple(
     program: &TypedTrees,
-    requirement: &typed_trees::signature::StateSignature,
-    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
+    requirement: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
+    machine_arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
 ) -> Option<Box<[String]>> {
     match program.finite_signature_family(requirement) {
-        typed_trees::finite_family::FamilyProbe::Finite { arity, tuples } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::finite_family::FamilyProbe::Finite { arity, tuples } => {
             let identities: Option<Vec<String>> = machine_arguments
                 .iter()
                 .map(|argument| program.static_const_argument_identity(argument))
@@ -196,7 +198,7 @@ pub(crate) fn dynamic_family_tuple(
             }
             Some(identities.into_boxed_slice())
         }
-        typed_trees::finite_family::FamilyProbe::NotFinite(_) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::finite_family::FamilyProbe::NotFinite(_) => {
             if machine_arguments.is_empty()
                 && program
                     .state_signature_type_parameters(requirement)
@@ -218,13 +220,13 @@ pub(crate) fn dynamic_family_tuple(
 /// position.
 pub(crate) fn dynamic_family_realization<'program>(
     program: &'program TypedTrees,
-    row_realization_machine: &'program typed_trees::machine::Machine,
-    row_realization_state: &'program typed_trees::state::State,
+    row_realization_machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    row_realization_state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     row_realization_identity: String,
     family_tuple: &[String],
 ) -> Option<(
-    &'program typed_trees::machine::Machine,
-    &'program typed_trees::state::State,
+    &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     String,
 )> {
     if family_tuple.is_empty() {

@@ -1,13 +1,13 @@
-use abstract_operations::{
+use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId};
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan,
 };
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::optimization_unit::{
     PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
     reconstruct_psi_optimization_unit_seed,
 };
-use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId};
-use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::rules::tests::fixtures::id;
 

@@ -1,6 +1,6 @@
 use super::error::ArtifactLoweringError;
+use crate::abstract_operations::AbstractOperationPlan;
 use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
-use abstract_operations::AbstractOperationPlan;
 use terminal_verifier::VerifiedOptimizableTerminalModule;
 
 /// One canonical optimizer-admitted program plus its exact plan-laid input

@@ -2,26 +2,26 @@
 //! identities. They are not body expressions: mutable entry snapshots are
 //! available to requires, while normal guarantees cannot reread them as old
 //! values. Integer leaves keep their contextual landing and operator owner.
+use crate::checked_trees::CheckedBooleanExpression;
+use crate::checked_trees::CheckedOperatorFacts;
+use crate::checked_trees::CheckedOperatorResolutionStatus;
+use crate::checked_trees::CheckedScalarExpression;
 use crate::values::operator_is_builtin;
 use crate::values::scalar::boolean_lowering::construct_integer_comparison;
 use crate::values::scalar::contract_entry;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use crate::values::scalar_expression_type;
-use checked_trees::CheckedBooleanExpression;
-use checked_trees::CheckedOperatorFacts;
-use checked_trees::CheckedOperatorResolutionStatus;
-use checked_trees::CheckedScalarExpression;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
-use typed_trees::expression::BinaryOperator;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::expression::UnaryOperator;
-use typed_trees::signature::StateParameter;
-use typed_trees::types::PrimitiveType;
-use typed_trees::types::TypeReferenceHandle;
-use typed_trees::types::TypeReferenceNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::UnaryOperator;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 
 /// The caller supplies a predicate from this machine's exact contract clause.
 /// Entry scalar parameters precede the reserved ensures-only result position.
@@ -29,7 +29,7 @@ use typed_trees::types::TypeReferenceNode;
 pub(crate) fn lower_scalar_contract_predicate(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     expression: ExpressionHandle,
     allow_result: bool,
     remaining: &mut usize,
@@ -52,8 +52,8 @@ pub(crate) fn lower_scalar_contract_predicate(
 pub(crate) fn lower_state_scalar_contract_predicate(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     expression: ExpressionHandle,
     remaining: &mut usize,
 ) -> Option<CheckedBooleanExpression> {
@@ -71,7 +71,7 @@ pub(crate) fn lower_state_scalar_contract_predicate(
 struct ContractPredicates<'program, 'budget> {
     program: &'program TypedTrees,
     operators: &'program CheckedOperatorFacts,
-    machine: &'program typed_trees::machine::Machine,
+    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     parameters: &'program [StateParameter],
     allow_result: bool,
     remaining: &'budget mut usize,
@@ -124,7 +124,7 @@ impl ContractPredicates<'_, '_> {
         // occurrence must belong to this machine's exact authored ensures.
         let entry = program.machine_states(self.machine).first()?;
         (self.allow_result
-            && validation::reserved_result_owner(program, expression)
+            && crate::validation::reserved_result_owner(program, expression)
                 == Some((self.machine.symbol, entry.return_type)))
         .then(|| {
             (
@@ -174,7 +174,7 @@ impl ContractPredicates<'_, '_> {
             ExpressionNode::Binary(binary)
                 if depth < 64 && operator_is_builtin(self.operators, expression) =>
             {
-                use checked_trees::CheckedIntegerBinaryKind;
+                use crate::checked_trees::CheckedIntegerBinaryKind;
                 let kind = match binary.operator {
                     BinaryOperator::Add => CheckedIntegerBinaryKind::ExactAdd,
                     BinaryOperator::Subtract => CheckedIntegerBinaryKind::ExactSubtract,
@@ -196,7 +196,7 @@ impl ContractPredicates<'_, '_> {
                     return None;
                 }
                 let operand_types = [Some(reference), Some(reference)];
-                if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                if !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
                     self.machine.symbol,
                     expression,
@@ -377,7 +377,7 @@ impl ContractPredicates<'_, '_> {
                             Some(self.boolean_type(binary.left)?),
                             Some(self.boolean_type(binary.right)?),
                         ];
-                        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                        if !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
                             program,
                             self.machine.symbol,
                             expression,
@@ -434,7 +434,9 @@ pub(super) fn lower_integer_contract_comparison(
             subject
                 .as_ref()
                 .map(|(_, type_reference)| *type_reference)
-                .or_else(|| validation::landed_integer_literal_type_reference(program, expression))
+                .or_else(|| {
+                    crate::validation::landed_integer_literal_type_reference(program, expression)
+                })
         });
     // A typed subject or already-landed literal supplies contextual landing.
     // Keep literal comparisons as predicates too: folding their value here
@@ -444,7 +446,7 @@ pub(super) fn lower_integer_contract_comparison(
     if !is_integer(contextual_primitive) {
         return None;
     }
-    if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+    if !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,
         owner,
         expression,
@@ -500,18 +502,19 @@ pub(crate) struct ParameterRangeRequirements {
     /// ranges as `Predicate` clauses and retained floating ranges as
     /// `FloatRange` clauses carrying their IEEE endpoints verbatim. `None`
     /// marks a present range that could not be retained at all.
-    pub(crate) scalar_clauses: Vec<Option<checked_trees::ClosedScalarContractValue>>,
+    pub(crate) scalar_clauses: Vec<Option<crate::checked_trees::ClosedScalarContractValue>>,
     /// The retained floating roster in dense scalar-parameter order. `None`
     /// records an incomplete roster — an authored floating range whose
     /// endpoints could not be retained exactly — so consumers fail closed
     /// rather than read a partial roster as complete.
-    pub(crate) float_entry_ranges: Option<Vec<checked_trees::ClosedFloatRangeRequirement>>,
+    pub(crate) float_entry_ranges: Option<Vec<crate::checked_trees::ClosedFloatRangeRequirement>>,
     /// The retained integer roster in dense scalar-parameter order. `None`
     /// records an incomplete roster — a present integer range whose
     /// normalized endpoints could not be retained exactly — so consumers
     /// fail closed rather than read a partial roster as complete. Each row
     /// shares the exact landed literals its `Predicate` clause carries.
-    pub(crate) integer_entry_ranges: Option<Vec<checked_trees::ClosedIntegerRangeRequirement>>,
+    pub(crate) integer_entry_ranges:
+        Option<Vec<crate::checked_trees::ClosedIntegerRangeRequirement>>,
 }
 
 /// Bracket constraints are native numeric requires sugar. Keep every present
@@ -520,7 +523,7 @@ pub(crate) struct ParameterRangeRequirements {
 /// the exclusive end stays authored, never an integer predecessor.
 pub(crate) fn lower_scalar_parameter_range_requirements(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> ParameterRangeRequirements {
     let mut ranges = ParameterRangeRequirements {
         integer_predicates: Vec::new(),
@@ -556,11 +559,11 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                         // means what a bracketed range meant, so it lands the
                         // same closed entry range; any other domain is a
                         // qualification this roster does not carry.
-                        if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint {
+                        if let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Domain(domain) = constraint {
                             let Some((low, high)) = primitive_type
                                 .filter(|primitive_type| is_integer(*primitive_type))
                                 .and_then(|primitive_type| {
-                                    validation::exact_declared_domain_carrier_interval(
+                                    crate::validation::exact_declared_domain_carrier_interval(
                                         program,
                                         primitive_type,
                                         domain,
@@ -575,7 +578,7 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                             ));
                             continue;
                         }
-                        let typed_trees::types::TypeConstraintNode::Range {
+                        let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range {
                             minimum,
                             maximum,
                             end_inclusive,
@@ -584,8 +587,9 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                             continue;
                         };
                         let predicate = || {
-                            let low = validation::closed_integer_range_bound(program, *minimum)?;
-                            let high = validation::closed_integer_range_maximum(
+                            let low =
+                                crate::validation::closed_integer_range_bound(program, *minimum)?;
+                            let high = crate::validation::closed_integer_range_maximum(
                                 program,
                                 *maximum,
                                 *end_inclusive,
@@ -604,22 +608,22 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                                 return None;
                             }
                             let primitive_type = primitive_type?;
-                            let minimum = validation::closed_float_range_endpoint(
+                            let minimum = crate::validation::closed_float_range_endpoint(
                                 program,
                                 *minimum,
                                 primitive_type,
                             )?;
-                            let maximum = validation::closed_float_range_endpoint(
+                            let maximum = crate::validation::closed_float_range_endpoint(
                                 program,
                                 *maximum,
                                 primitive_type,
                             )?;
                             // IEEE order: a NaN endpoint or a reversed window
                             // cannot be retained as a nonempty requirement.
-                            if !validation::ieee_float_range_ordered(minimum, maximum) {
+                            if !crate::validation::ieee_float_range_ordered(minimum, maximum) {
                                 return None;
                             }
-                            Some(checked_trees::ClosedFloatRangeRequirement {
+                            Some(crate::checked_trees::ClosedFloatRangeRequirement {
                                 position,
                                 primitive_type,
                                 minimum,
@@ -642,7 +646,7 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                                         roster.push(requirement);
                                     }
                                     ranges.scalar_clauses.push(Some(
-                                        checked_trees::ClosedScalarContractValue::FloatRange(
+                                        crate::checked_trees::ClosedScalarContractValue::FloatRange(
                                             requirement,
                                         ),
                                     ));
@@ -677,7 +681,7 @@ impl ParameterRangeRequirements {
         &mut self,
         range: Option<(
             CheckedBooleanExpression,
-            checked_trees::ClosedIntegerRangeRequirement,
+            crate::checked_trees::ClosedIntegerRangeRequirement,
         )>,
     ) {
         match range {
@@ -686,7 +690,7 @@ impl ParameterRangeRequirements {
                     roster.push(requirement);
                 }
                 self.scalar_clauses.push(Some(
-                    checked_trees::ClosedScalarContractValue::Predicate(predicate.clone()),
+                    crate::checked_trees::ClosedScalarContractValue::Predicate(predicate.clone()),
                 ));
                 self.integer_predicates.push(Some(predicate));
             }
@@ -705,7 +709,7 @@ impl ParameterRangeRequirements {
 /// state's scalar parameter roster.
 pub(crate) fn lower_state_interval_predicate(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameter: symbols::SymbolHandle,
     minimum: numerics::bignum::BigInt,
     maximum: numerics::bignum::BigInt,
@@ -737,7 +741,7 @@ fn closed_integer_entry_range(
     high: numerics::bignum::BigInt,
 ) -> Option<(
     CheckedBooleanExpression,
-    checked_trees::ClosedIntegerRangeRequirement,
+    crate::checked_trees::ClosedIntegerRangeRequirement,
 )> {
     // Existing source validation rejects range constraints outside Exact:
     // those domains do not enforce stores.
@@ -754,8 +758,8 @@ fn closed_integer_entry_range(
     }
     // Endpoints have already been evaluated under their own selected meaning.
     // Land the normalized interval, not an exclusive end outside the carrier.
-    let minimum_literal = validation::land_integer_value(&low, primitive_type)?;
-    let maximum_literal = validation::land_integer_value(&high, primitive_type)?;
+    let minimum_literal = crate::validation::land_integer_value(&low, primitive_type)?;
+    let maximum_literal = crate::validation::land_integer_value(&high, primitive_type)?;
     let minimum = CheckedScalarExpression::IntegerLiteral {
         literal: minimum_literal.clone(),
     };
@@ -782,7 +786,7 @@ fn closed_integer_entry_range(
     };
     // The retained roster row shares the exact landed endpoints the predicate
     // carries so clause and evidence can never disagree.
-    let requirement = checked_trees::ClosedIntegerRangeRequirement {
+    let requirement = crate::checked_trees::ClosedIntegerRangeRequirement {
         position,
         primitive_type,
         minimum: minimum_literal,
@@ -795,7 +799,7 @@ fn closed_integer_entry_range(
 /// keep an explicit unsupported slot because they are not integer predicates.
 pub(crate) fn lower_integer_parameter_range_requirements(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Vec<Option<CheckedBooleanExpression>> {
     lower_scalar_parameter_range_requirements(program, machine).integer_predicates
 }

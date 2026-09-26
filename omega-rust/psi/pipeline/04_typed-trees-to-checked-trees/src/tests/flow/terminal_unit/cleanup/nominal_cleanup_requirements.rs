@@ -38,7 +38,9 @@ fn nominal_cleanup_uses_exact_attached_symbol_when_spelling_is_spoofed() {
         .iter_mut()
         .find(|machine| machine.symbol == second_drop)
         .expect("mutable Second cleanup")
-        .attached_data = Some(typed_trees::name::Identifier::generated("First"));
+        .attached_data = Some(
+        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated("First"),
+    );
 
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("exact identity survives diagnostic spoofing");

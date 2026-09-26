@@ -2,21 +2,23 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
-use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
-use target::NativeTarget;
-use target_operations::{
+use crate::target_operations::{
     TargetStructuralArgument, TargetUnitOperation, TargetUnitScalarCallArgument,
     TerminalPsiProvenance,
 };
-use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
+use crate::target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
+use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
 use terminal_psi::{StructuralFieldType, StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
+};
 
 fn sum_layout(
     structural_type: StructuralTypeId,
     types: &StructuralTypeLookup<'_>,
-) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
+) -> Result<crate::calling_conventions::ConventionalSumLayout, LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralSum(structural_type);
     let declaration = types.get(&structural_type).ok_or_else(invalid)?;
     if !matches!(
@@ -55,7 +57,7 @@ pub(super) fn block_home(
         projected_qualifications: declaration.projected_qualifications.clone(),
     };
     Ok(TargetStructuralHomeRequirement {
-        origin: target_operations::TargetStructuralHomeOrigin::BlockParameter {
+        origin: crate::target_operations::TargetStructuralHomeOrigin::BlockParameter {
             block,
             declaration: declaration.clone(),
         },
@@ -126,7 +128,7 @@ pub(super) fn home(
         projected_qualifications: result.projected_qualifications.clone(),
     };
     Ok(TargetStructuralHomeRequirement {
-        origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+        origin: crate::target_operations::TargetStructuralHomeOrigin::OperationResult {
             operation,
             result: result.clone(),
         },
@@ -353,7 +355,7 @@ pub(super) fn call(
                 (
                     parameter.structural_type,
                     parameter.access,
-                    target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    crate::target_operations::TargetStructuralArgumentSource::BlockParameter {
                         block: block.block,
                         place: parameter.place,
                     },
@@ -407,10 +409,10 @@ pub(super) fn call(
         return Err(invalid());
     }
     operations.push(TargetUnitOperation::Call {
-        origin: target_operations::NativeCallOrigin::Authored,
+        origin: crate::target_operations::NativeCallOrigin::Authored,
         psi_operation: *psi_operation,
         callee: *callee,
-        result: target_operations::TargetCallResult::Structural {
+        result: crate::target_operations::TargetCallResult::Structural {
             result: result.clone(),
             callee_result: callee_result.clone(),
             result_home: (!reference_only).then_some(result_home),

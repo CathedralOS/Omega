@@ -2,7 +2,7 @@
 
 use crate::rules::global_value_numbering::proof_certified_scalar_expression;
 use crate::rules::tests::fixtures::global_value_numbering::proof_certified_local_cse_unit;
-use abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
 
 #[test]
 fn proof_certified_cse_expression_vocabulary_is_closed_and_exact() {

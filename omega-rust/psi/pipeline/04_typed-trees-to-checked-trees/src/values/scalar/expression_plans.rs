@@ -7,6 +7,11 @@
 //! elements first, and the statement's kind selects its own planner beside
 //! this file.
 
+use crate::checked_trees::{
+    CheckedBooleanExpression, CheckedLocatedScalarExpression, CheckedOperatorFacts,
+    CheckedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionPlans,
+    CheckedScalarExpressionRole,
+};
 use crate::values::scalar::boolean_lowering::lower_boolean_guard;
 use crate::values::scalar::call_lowering::{
     LoweredCallArguments, lower_call_arguments, lower_direct_call_binding_arguments,
@@ -17,16 +22,17 @@ use crate::values::scalar::machine_parameter_booleans::lower_machine_parameter_b
 use crate::values::scalar::scalar_lowering::{lower_index_expression, lower_return_expression};
 use crate::values::scalar::selected_operator_operands::lower_selected_operator_operands;
 use crate::values::scalar::semantic_casts;
-use checked_trees::{
-    CheckedBooleanExpression, CheckedLocatedScalarExpression, CheckedOperatorFacts,
-    CheckedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionPlans,
-    CheckedScalarExpressionRole,
-};
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionGuardNode, TransitionTargetNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 
 mod array_elements;
 mod assignment;
@@ -50,20 +56,23 @@ pub(crate) struct ScalarLocal {
 struct StatementPlanner<'p, 's> {
     program: &'p TypedTrees,
     operators: &'p CheckedOperatorFacts,
-    exact_integer_casts: &'p [validation::ExactIntegerCastFact],
-    proof_only: &'s typed_trees::proof_only::ProofOnlyClassification,
-    machine: &'p typed_trees::machine::Machine,
-    state: &'p typed_trees::state::State,
-    states: &'p [typed_trees::state::State],
-    parameters: &'p [typed_trees::signature::StateParameter],
-    scalar_parameters: &'s [typed_trees::signature::StateParameter],
+    exact_integer_casts: &'p [crate::validation::ExactIntegerCastFact],
+    proof_only:
+        &'s symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
+    machine: &'p symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &'p symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    states: &'p [symbol_resolved_trees_to_typed_trees::typed_trees::state::State],
+    parameters:
+        &'p [symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
+    scalar_parameters:
+        &'s [symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     parameter_types: &'s [PrimitiveType],
     result_type: Option<PrimitiveType>,
     statement_index: usize,
     statement_ordinal: u32,
     locals: &'s mut Vec<ScalarLocal>,
     expressions: &'s mut Vec<CheckedLocatedScalarExpression>,
-    proof_terms: &'s mut Vec<checked_trees::CheckedLocatedProofTerm>,
+    proof_terms: &'s mut Vec<crate::checked_trees::CheckedLocatedProofTerm>,
     source_bindings: &'s mut arena::Arena<CheckedScalarExpressionBindings>,
     binding_symbols: &'s mut arena::Arena<symbols::SymbolHandle>,
 }
@@ -98,13 +107,14 @@ impl<'p> StatementPlanner<'p, '_> {
 pub(crate) fn build_checked_scalar_expression_plans(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-    proof_terms: &mut Vec<checked_trees::CheckedLocatedProofTerm>,
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    proof_terms: &mut Vec<crate::checked_trees::CheckedLocatedProofTerm>,
 ) -> CheckedScalarExpressionPlans {
     let mut expressions = Vec::new();
     let mut source_bindings = arena::Arena::default();
     let mut binding_symbols = arena::Arena::default();
-    let proof_only = validation::proof_only_classification(program);
+    let proof_only =
+        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program);
     for machine in program.machines() {
         let states = program.machine_states(machine);
         for state in states {
@@ -200,7 +210,7 @@ fn retain_subslice_endpoints(
     )>,
     state: symbols::SymbolHandle,
     statement_ordinal: u32,
-    scalar_parameters: &[typed_trees::signature::StateParameter],
+    scalar_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     locals: &[ScalarLocal],
     expressions: &mut Vec<CheckedLocatedScalarExpression>,
     source_bindings: &mut arena::Arena<CheckedScalarExpressionBindings>,

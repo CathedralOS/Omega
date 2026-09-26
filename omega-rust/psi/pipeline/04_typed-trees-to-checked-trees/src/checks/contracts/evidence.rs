@@ -1,17 +1,17 @@
-use arena::{Handle, HandleSpan};
-use checked_trees::{
+use crate::checked_trees::{
     CheckFacts, CheckedEvidenceTerm, CheckedPropositionApplication, ContractEvidenceArgument,
     ContractProofFactKind, ContractProofFactOwner,
 };
+use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
-use typed_trees::proposition::PropositionLabels;
+use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionLabels;
 
 use crate::semantic::calls::call_site_evidence_arguments;
 use crate::semantic::calls::call_target_parameters;
 use crate::semantic::calls::find_call_site;
 
 pub(super) fn bind_contract_expression_evidence_arguments(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -38,7 +38,10 @@ pub(super) fn bind_contract_expression_evidence_arguments(
             }
             let node = program.expression_table.expression(expression);
             append_expression_children(program, node, &mut expressions);
-            let typed_trees::expression::ExpressionNode::Call(call) = node else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+                call,
+            ) = node
+            else {
                 continue;
             };
             for (static_argument_position, argument) in call.machine_arguments.iter().enumerate() {
@@ -49,7 +52,7 @@ pub(super) fn bind_contract_expression_evidence_arguments(
                     program, argument,
                 ) {
                     Ok(application) => static_conformance_applications.push(
-                        checked_trees::ContractExpressionStaticConformanceApplicationFact {
+                        crate::checked_trees::ContractExpressionStaticConformanceApplicationFact {
                             owner,
                             fact,
                             expression,
@@ -140,15 +143,17 @@ pub(super) fn bind_contract_expression_evidence_arguments(
                     invalid = true;
                     continue;
                 }
-                bindings.push(checked_trees::ContractExpressionEvidenceArgumentFact {
-                    source,
-                    parameter,
-                    lane_position,
-                    instantiated_proposition,
-                });
+                bindings.push(
+                    crate::checked_trees::ContractExpressionEvidenceArgumentFact {
+                        source,
+                        parameter,
+                        lane_position,
+                        instantiated_proposition,
+                    },
+                );
             }
             if !invalid {
-                calls.push(checked_trees::ContractExpressionEvidenceCallFact {
+                calls.push(crate::checked_trees::ContractExpressionEvidenceCallFact {
                     owner,
                     fact,
                     expression,
@@ -167,16 +172,22 @@ pub(super) fn bind_contract_expression_evidence_arguments(
 }
 
 fn proof_fact_expression_roots(
-    program: &typed_trees::TypedTrees,
-    fact: Handle<typed_trees::domain::ProofFact>,
-    expressions: &mut Vec<typed_trees::expression::ExpressionHandle>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    fact: Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+    expressions: &mut Vec<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
 ) {
     match program.proof_facts.get(fact) {
-        typed_trees::domain::ProofFact::Expression(expression) => expressions.push(*expression),
-        typed_trees::domain::ProofFact::Membership(membership) => {
-            expressions.push(membership.value)
-        }
-        typed_trees::domain::ProofFact::Proposition(application) => expressions.extend(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            expression,
+        ) => expressions.push(*expression),
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) => expressions.push(membership.value),
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+            application,
+        ) => expressions.extend(
             program
                 .expression_table
                 .expression_handles(application.arguments)
@@ -187,16 +198,18 @@ fn proof_fact_expression_roots(
 }
 
 fn append_expression_children(
-    program: &typed_trees::TypedTrees,
-    expression: &typed_trees::expression::ExpressionNode,
-    children: &mut Vec<typed_trees::expression::ExpressionHandle>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode,
+    children: &mut Vec<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
 ) {
-    use typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
     match expression {
         ExpressionNode::Match(dispatch) => {
             children.push(dispatch.subject);
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     children.push(pattern);
                 }
                 children.push(arm.value);
@@ -314,13 +327,13 @@ pub(crate) fn exact_target_evidence_parameters(
 }
 
 pub(crate) fn instantiate_contract_expression_evidence_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     target_state_symbol: symbols::SymbolHandle,
     parameter: Handle<CheckedEvidenceTerm>,
 ) -> Option<CheckedPropositionApplication> {
-    let typed_trees::expression::ExpressionNode::Call(call) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
         program.expression_table.expression(expression)
     else {
         return None;
@@ -378,10 +391,10 @@ fn evidence_term_visible_from_owner(
 }
 
 fn instantiate_proof_expression_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     call_site: &crate::semantic::calls::CallSite<'_>,
-    target_parameters: &[typed_trees::signature::StateParameter],
+    target_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     parameter: Handle<CheckedEvidenceTerm>,
 ) -> Option<CheckedPropositionApplication> {
     let contract = facts
@@ -390,8 +403,9 @@ fn instantiate_proof_expression_parameter(
         .iter()
         .map(|(_, contract)| contract)
         .find(|contract| contract.evidence_term == Some(parameter))?;
-    let typed_trees::domain::ProofFact::Proposition(application) =
-        program.proof_facts.get(contract.fact)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+        application,
+    ) = program.proof_facts.get(contract.fact)
     else {
         return None;
     };
@@ -427,7 +441,7 @@ fn instantiate_proof_expression_parameter(
 }
 
 pub(super) fn bind_call_evidence_arguments(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -536,7 +550,7 @@ pub(super) fn bind_call_evidence_arguments(
 
 fn source_term_by_name(
     terms: &arena::Arena<CheckedEvidenceTerm>,
-    arms: &arena::Arena<checked_trees::OutcomeSpecificArmFact>,
+    arms: &arena::Arena<crate::checked_trees::OutcomeSpecificArmFact>,
     caller_machine_symbol: symbols::SymbolHandle,
     caller_state_symbol: symbols::SymbolHandle,
     statement_index: usize,
@@ -570,9 +584,9 @@ fn source_term_by_name(
 }
 
 fn instantiated_parameter_proposition(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
-    call: &checked_trees::ContractCallFact,
+    call: &crate::checked_trees::ContractCallFact,
     call_site: &crate::semantic::calls::CallSite<'_>,
     parameter: Handle<CheckedEvidenceTerm>,
 ) -> Option<CheckedPropositionApplication> {
@@ -584,8 +598,9 @@ fn instantiated_parameter_proposition(
         .iter()
         .map(|fact_ref| facts.proof.contract_facts.get(fact_ref.fact))
         .find(|contract| contract.evidence_term == Some(parameter))?;
-    let typed_trees::domain::ProofFact::Proposition(application) =
-        program.proof_facts.get(contract.fact)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+        application,
+    ) = program.proof_facts.get(contract.fact)
     else {
         return None;
     };
@@ -624,7 +639,10 @@ fn instantiated_parameter_proposition(
     Some(proposition)
 }
 
-fn call_target_name(program: &typed_trees::TypedTrees, target: symbols::SymbolHandle) -> String {
+fn call_target_name(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    target: symbols::SymbolHandle,
+) -> String {
     crate::labels::call_target_label(program, target)
 }
 
@@ -675,7 +693,7 @@ mod tests {
             facts
                 .proof
                 .contract_facts
-                .append(checked_trees::ContractProofFact {
+                .append(crate::checked_trees::ContractProofFact {
                     kind: ContractProofFactKind::Requires,
                     owner,
                     fact: Handle::invalid(),

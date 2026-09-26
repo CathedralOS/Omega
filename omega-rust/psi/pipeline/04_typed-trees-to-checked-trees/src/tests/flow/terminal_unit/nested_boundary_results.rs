@@ -186,7 +186,7 @@ fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() 
                     event.machine_symbol == machine
                         && event.state_symbol == plan.state
                         && event.root
-                            == ::facts::PlaceRoot::Expression(producer.authored_expression)
+                            == crate::fact_plan::PlaceRoot::Expression(producer.authored_expression)
                 })
                 .collect::<Vec<_>>();
             let [event] = moves.as_slice() else {
@@ -386,7 +386,7 @@ fn nested_ordinary_results_keep_postorder_and_exact_boundary_operand_roles() {
             .filter(|event| {
                 event.machine_symbol == machine
                     && event.state_symbol == plan.state
-                    && matches!(event.root, ::facts::PlaceRoot::Expression(_))
+                    && matches!(event.root, crate::fact_plan::PlaceRoot::Expression(_))
             })
             .collect::<Vec<_>>();
         assert_eq!(temporary_moves.len(), 2);

@@ -140,7 +140,7 @@ pub(crate) fn checked_structural_result_type(
     result_type: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<CheckedUnitStructuralResultBindingPlan> {
-    if validation::reference_result_custody::parts(program, result_type).is_some() {
+    if crate::validation::reference_result_custody::parts(program, result_type).is_some() {
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
             binding_ordinal: 0,
@@ -179,15 +179,15 @@ pub(crate) fn checked_structural_result_type(
         || is_reference(program, result_type)
         || type_graph_requires_nominal_drop(program, result_type)
         || (multiplicity != Multiplicity::Linear
-            && (!(validation::has_plain_owned_contents_with_numeric_constraints(
+            && (!(crate::validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 result_type,
-            ) || validation::is_closed_primitive_array_type(program, result_type)
-                || validation::reference_result_custody::is_reference_record(
+            ) || crate::validation::is_closed_primitive_array_type(program, result_type)
+                || crate::validation::reference_result_custody::is_reference_record(
                     program,
                     result_type,
                 )
-                || validation::has_owned_or_shared_view_fields(program, result_type))
+                || crate::validation::has_owned_or_shared_view_fields(program, result_type))
                 || !qualifications.is_empty()))
     {
         return None;

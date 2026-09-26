@@ -11,7 +11,7 @@ use crate::rewrites::runtime_spill::admission;
 use crate::rewrites::runtime_spill::tests::budget;
 use crate::spill_selected_runtime_value;
 use crate::validate_runtime_spill;
-use selected_instructions::SelectedBlockOrigin;
+use target_operations_to_selected_instructions::SelectedBlockOrigin;
 
 fn downstream_use_fixture(
     target: NativeTarget,

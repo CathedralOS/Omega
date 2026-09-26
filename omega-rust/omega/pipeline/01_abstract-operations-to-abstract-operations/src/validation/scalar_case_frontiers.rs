@@ -21,13 +21,13 @@
 //! moved away from its seed block can gain or lose membership anywhere, so
 //! validating the verified seed itself never rewrites a single fact.
 
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OwnershipFrontierFact, OwnershipFrontierOwnedPlace, OwnershipFrontierSite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId};
-use std::collections::{BTreeMap, BTreeSet};
 
 /// The affine `EstablishScalarCase`, `EstablishRecord`, and `CallStructural`
 /// results whose

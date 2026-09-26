@@ -2,10 +2,14 @@
 //! argument placement. Reference leaves resolve against the state before the
 //! call, so a producer cannot substitute a new home for the caller's referent.
 
-use abstract_operations::{AbstractOperation, AbstractOperationPlan, AbstractResult};
-use calling_conventions::CallPlan;
-use optimization_unit::PsiOptimizationFunction;
-use target_operations::{TargetCallResult, TargetUnitScalarHomeRequirement};
+use abstract_operations_to_target_operations::calling_conventions::CallPlan;
+use abstract_operations_to_target_operations::target_operations::{
+    TargetCallResult, TargetUnitScalarHomeRequirement,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractOperationPlan, AbstractResult,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction;
 
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::{aggregate_results, reference_custody, scalar_shape};

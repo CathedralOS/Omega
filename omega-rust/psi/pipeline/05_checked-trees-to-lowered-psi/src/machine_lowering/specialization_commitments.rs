@@ -6,9 +6,9 @@
 //! and matching callback signatures cannot select a body. The roster is
 //! replayed once per selected batch before source companions are discarded.
 
-use checked_trees::CheckedTrees;
-use lowered_psi::LoweredPsi;
+use crate::lowered_psi::LoweredPsi;
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 /// The checked specialization instances whose custody this selected closure
 /// must commit: every specialization whose instance is an included source, or

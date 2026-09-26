@@ -15,12 +15,12 @@ mod member_crash_routes;
 #[path = "crash_member_source/projected_arithmetic.rs"]
 mod projected_arithmetic;
 
+use omega::terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, Proposition, ScalarTerm, StructuralFieldId,
 };
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
-use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
     TerminalStructuralValue, interpret_terminal_artifact_measured,

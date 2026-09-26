@@ -2,7 +2,9 @@ use super::seeded_plain_data_inputs;
 use crate::lowerer::seeded_continuation::{
     lower_seeded_extension, retained_typed_base_is_exact_prefix,
 };
-use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::{
+    SymbolResolvedTrees, expression::ExpressionHandle,
+};
 
 fn resolved_local(program: &SymbolResolvedTrees, local_name: &str) -> ExpressionHandle {
     let machine = program
@@ -18,7 +20,7 @@ fn resolved_local(program: &SymbolResolvedTrees, local_name: &str) -> Expression
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            symbol_resolved_trees::statement::StatementNode::LocalData(local)
+            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == local_name =>
             {
                 Some(local.initial_value)
@@ -30,7 +32,7 @@ fn resolved_local(program: &SymbolResolvedTrees, local_name: &str) -> Expression
 
 #[test]
 fn seeded_retained_scalar_and_array_constants_type_without_relowering_base() {
-    use symbol_resolved_trees::expression::ExpressionNode;
+    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode;
 
     let (base, extension) = seeded_plain_data_inputs(
         "module settings; pub const COUNT: u64 = 7; pub const VALUES: [u64; 2] = [3, 5];",
@@ -83,7 +85,7 @@ fn seeded_retained_nominal_constant_keeps_constructor_custody_under_shadowing() 
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
-    use symbol_resolved_trees::expression::ExpressionNode;
+    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode;
 
     let (base, extension) = seeded_plain_data_inputs(
         "module settings;

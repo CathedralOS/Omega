@@ -6,8 +6,8 @@ use super::{
     BTreeMap, CheckFacts, CheckedStructuralAccess, CheckedUnitCallCoordinate, ServiceReachSummary,
     SymbolHandle, TypedTrees,
 };
+use crate::checked_trees::{CheckedDynamicBinding, CheckedDynamicDispatchPlan};
 use crate::execution::terminal_unit::types::ShapeCollector;
-use checked_trees::{CheckedDynamicBinding, CheckedDynamicDispatchPlan};
 
 use crate::execution::terminal_unit::dynamic_scalar_calls::descriptor_transfers::inbound_call_site_counts;
 
@@ -15,7 +15,7 @@ pub(super) fn promote_two_predecessor_dynamic_scalar_joins(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    plans: &mut checked_trees::CheckedDynamicDispatchPlans,
+    plans: &mut crate::checked_trees::CheckedDynamicDispatchPlans,
 ) {
     promote_two_predecessor_dynamic_joins(
         program,
@@ -34,7 +34,7 @@ pub(super) fn promote_two_predecessor_dynamic_unit_joins(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    plans: &mut checked_trees::CheckedDynamicDispatchPlans,
+    plans: &mut crate::checked_trees::CheckedDynamicDispatchPlans,
 ) {
     promote_two_predecessor_dynamic_joins(
         program,
@@ -57,7 +57,7 @@ fn promote_two_predecessor_dynamic_joins<Call: JoinBranch>(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    plans: &mut checked_trees::CheckedDynamicDispatchPlans,
+    plans: &mut crate::checked_trees::CheckedDynamicDispatchPlans,
     direct_call: impl Fn(&CheckedDynamicDispatchPlan) -> Option<&Call>,
     publish: impl Fn(CheckedDynamicBinding<Call>) -> CheckedDynamicDispatchPlan,
 ) {
@@ -116,17 +116,17 @@ fn promote_two_predecessor_dynamic_joins<Call: JoinBranch>(
                 control.entry_state.generation(),
             ),
             CheckedDynamicBinding::Joined {
-                control: checked_trees::CheckedDynamicJoinControlPlan {
+                control: crate::checked_trees::CheckedDynamicJoinControlPlan {
                     entry_state: control.entry_state,
                     caller_attachment_type_identity: control.attachment_type_identity,
                     scalar_parameters: control.scalar_parameters,
                     guard: control.guard,
                 },
-                when_true: checked_trees::CheckedDynamicJoinBranchPlan {
+                when_true: crate::checked_trees::CheckedDynamicJoinBranchPlan {
                     successor: control.successors[0].clone(),
                     call: when_true_call.clone(),
                 },
-                when_false: checked_trees::CheckedDynamicJoinBranchPlan {
+                when_false: crate::checked_trees::CheckedDynamicJoinBranchPlan {
                     successor: control.successors[1].clone(),
                     call: when_false_call.clone(),
                 },
@@ -156,21 +156,21 @@ struct JoinBranchView<'a> {
     caller_multiplicity: language_semantics::Multiplicity,
     caller_parameter_access: CheckedStructuralAccess,
     caller_contract_report_fingerprint: u64,
-    caller_contract_commitment: &'a checked_trees::MachineContractCommitment,
+    caller_contract_commitment: &'a crate::checked_trees::MachineContractCommitment,
     caller_service_reach: &'a ServiceReachSummary,
     coordinate: CheckedUnitCallCoordinate,
     receiver_binding: SymbolHandle,
-    selection: &'a checked_trees::DynamicConformanceBindingFact,
+    selection: &'a crate::checked_trees::DynamicConformanceBindingFact,
     target_trait: SymbolHandle,
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
     requirement_identity: &'a str,
     checked_call_service_reach: &'a ServiceReachSummary,
     forwarded_origin: Option<(SymbolHandle, SymbolHandle, SymbolHandle)>,
-    forwarding_transfers: &'a [checked_trees::CheckedDynamicDescriptorTransferPlan],
+    forwarding_transfers: &'a [crate::checked_trees::CheckedDynamicDescriptorTransferPlan],
 }
 
-impl JoinBranch for checked_trees::CheckedDynamicScalarCallPlan {
+impl JoinBranch for crate::checked_trees::CheckedDynamicScalarCallPlan {
     fn results_match(&self, other: &Self) -> bool {
         self.result.primitive_type == other.result.primitive_type
             && self.caller_structural_scalar_field_store.is_none()
@@ -182,8 +182,8 @@ impl JoinBranch for checked_trees::CheckedDynamicScalarCallPlan {
     fn view(&self) -> JoinBranchView<'_> {
         let plan = self;
         let forwarded_origin = match plan.origin {
-            checked_trees::CheckedDynamicScalarCallOrigin::Local => None,
-            checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+            crate::checked_trees::CheckedDynamicScalarCallOrigin::Local => None,
+            crate::checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
                 machine,
                 state,
                 parameter,
@@ -213,7 +213,7 @@ impl JoinBranch for checked_trees::CheckedDynamicScalarCallPlan {
     }
 }
 
-impl JoinBranch for checked_trees::CheckedDynamicUnitCallPlan {
+impl JoinBranch for crate::checked_trees::CheckedDynamicUnitCallPlan {
     fn results_match(&self, _: &Self) -> bool {
         true
     }
@@ -221,8 +221,8 @@ impl JoinBranch for checked_trees::CheckedDynamicUnitCallPlan {
     fn view(&self) -> JoinBranchView<'_> {
         let plan = self;
         let forwarded_origin = match plan.origin {
-            checked_trees::CheckedDynamicUnitCallOrigin::Local => None,
-            checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
+            crate::checked_trees::CheckedDynamicUnitCallOrigin::Local => None,
+            crate::checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
                 machine,
                 state,
                 parameter,
@@ -256,7 +256,7 @@ fn joined_branches_match(
     control: &super::super::composed_control::DynamicJoinControlTopology,
     when_true: JoinBranchView<'_>,
     when_false: JoinBranchView<'_>,
-    transfers: &[checked_trees::CheckedDynamicDescriptorTransferPlan],
+    transfers: &[crate::checked_trees::CheckedDynamicDescriptorTransferPlan],
     inbound_counts: &BTreeMap<(u32, u32), usize>,
 ) -> bool {
     if when_true.caller_machine != when_false.caller_machine
@@ -291,14 +291,14 @@ fn joined_branches_match(
         [] => (dispatch_machine, dispatch_state, dispatch_parameter),
         forwarding @ [first, ..]
             if first.source
-                == checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                == crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 }
                 && first.source_predecessor_count == 2
                 && first.source_paths.len() == 2
                 && forwarding.iter().all(|transfer| {
                     transfer.source
-                        == checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                        == crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                             parameter_position: 0,
                         }
                         && transfer.source_paths.len() == 2
@@ -341,7 +341,7 @@ fn joined_branches_match(
                     && transfer.target_trait == plan.target_trait
                     && transfer.source_binding == plan.receiver_binding
                     && transfer.source
-                        == checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+                        == crate::checked_trees::CheckedDynamicDescriptorTransferSource::Selection
                     && transfer.sole_selection() == Some(plan.selection)
                     && transfer.has_complete_source_custody(transfers)
             })

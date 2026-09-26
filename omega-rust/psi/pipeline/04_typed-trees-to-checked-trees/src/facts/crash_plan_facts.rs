@@ -5,13 +5,13 @@ use crate::facts::canonical_encoding::{
     encode_contract_set_canonical, encode_type_spelling,
 };
 use crate::facts::crash_calls;
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 pub(crate) fn build_crash_contract_capsules(
     program: &TypedTrees,
-    content_conservation: &[validation::ContentConservationSourcePlan],
-    operators: &checked_trees::CheckedOperatorFacts,
-) -> Vec<checked_trees::CrashContractCapsule> {
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
+    operators: &crate::checked_trees::CheckedOperatorFacts,
+) -> Vec<crate::checked_trees::CrashContractCapsule> {
     let mut signatures = Vec::new();
     for machine in program.machines() {
         for (owner_symbol, target_state, signature) in
@@ -70,7 +70,7 @@ pub(crate) fn build_crash_contract_capsules(
                 Some(operators),
                 &[],
             );
-            let crash = checked_trees::CrashPlan::published_ceiling(published.clone());
+            let crash = crate::checked_trees::CrashPlan::published_ceiling(published.clone());
 
             let published_service_names = program
                 .service_reach_rows
@@ -80,13 +80,13 @@ pub(crate) fn build_crash_contract_capsules(
                 .map(|definition| definition.name.clone())
                 .collect::<Vec<_>>();
             let published_invocations =
-                validation::declared_signature_invocations(program, signature)
+                crate::validation::declared_signature_invocations(program, signature)
                     .into_iter()
                     .map(|invocation| match invocation {
-                        flow_effects::InvocationTarget::Parameter(index) => {
+                        crate::flow_effects::InvocationTarget::Parameter(index) => {
                             format!("parameter:{index}")
                         }
-                        flow_effects::InvocationTarget::Service(symbol) => program
+                        crate::flow_effects::InvocationTarget::Service(symbol) => program
                             .traits()
                             .iter()
                             .find(|definition| definition.symbol == symbol)
@@ -136,7 +136,7 @@ pub(crate) fn build_crash_contract_capsules(
             let termination = language_semantics::TerminationInterface::Published(
                 signature.termination_guarantee.clone(),
             );
-            let identity = checked_trees::contract_identity(
+            let identity = crate::checked_trees::contract_identity(
                 language_semantics::MachineSupplyMode::Requirement,
                 &published_service_names,
                 language_semantics::SynchronousInvocationInterface::PublishedCeiling,
@@ -147,7 +147,7 @@ pub(crate) fn build_crash_contract_capsules(
                 &termination,
                 &canonical_facts,
             );
-            checked_trees::CrashContractCapsule::new_with_commitment(
+            crate::checked_trees::CrashContractCapsule::new_with_commitment(
                 target_machine,
                 target_state,
                 identity.report_fingerprint,
@@ -176,13 +176,13 @@ pub(crate) fn build_crash_contract_capsules(
 }
 
 pub(crate) fn encode_signature_contract_kind(
-    kind: &typed_trees::signature::SignatureContractKind,
+    kind: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind,
     output: &mut Vec<u8>,
 ) {
     match kind {
-        typed_trees::signature::SignatureContractKind::Requires => output.push(1),
-        typed_trees::signature::SignatureContractKind::Ensures => output.push(2),
-        typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires => output.push(1),
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures => output.push(2),
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
             result_data,
             result_case,
         } => {
@@ -190,11 +190,11 @@ pub(crate) fn encode_signature_contract_kind(
             output.extend_from_slice(&result_data.arena_index().to_le_bytes());
             output.extend_from_slice(&result_case.arena_index().to_le_bytes());
         }
-        typed_trees::signature::SignatureContractKind::Crashes { cause } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { cause } => {
             output.push(4);
             output.push(match cause {
-                typed_trees::signature::CrashCause::Trap => 1,
-                typed_trees::signature::CrashCause::Abort => 2,
+                symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Trap => 1,
+                symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Abort => 2,
             });
         }
     }
@@ -202,12 +202,12 @@ pub(crate) fn encode_signature_contract_kind(
 
 pub(crate) fn build_published_crash_plan(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
-    operators: &checked_trees::CheckedOperatorFacts,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> checked_trees::CrashPlan {
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
+    operators: &crate::checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+) -> crate::checked_trees::CrashPlan {
     let structural_runtime_requirements =
         build_structural_runtime_requirements(program, machine, operators, exact_integer_casts);
     let published = build_published_crash_buckets(
@@ -223,9 +223,9 @@ pub(crate) fn build_published_crash_plan(
         || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !published.is_empty()
     {
-        checked_trees::CrashPlan::published_ceiling(published)
+        crate::checked_trees::CrashPlan::published_ceiling(published)
     } else {
-        checked_trees::CrashPlan::default()
+        crate::checked_trees::CrashPlan::default()
     })
     .with_structural_runtime_requirements(structural_runtime_requirements);
     let checked_sites = build_checked_crash_sites(program, machine, &plan);
@@ -235,19 +235,19 @@ pub(crate) fn build_published_crash_plan(
 
 fn build_structural_runtime_requirements(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    operators: &checked_trees::CheckedOperatorFacts,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<Vec<checked_trees::CheckedBooleanExpression>> {
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+) -> Option<Vec<crate::checked_trees::CheckedBooleanExpression>> {
     let entry = program.machine_states(machine).first()?;
     let mut requirements = program
         .machine_contracts(machine)
         .iter()
         .chain(program.state_contracts(entry))
-        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
+        .filter(|contract| contract.kind == symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .map(|fact| {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 return None;
             };
             crate::values::lower_machine_entry_boolean_expression(
@@ -274,8 +274,8 @@ fn build_structural_runtime_requirements(
 
 pub(crate) fn derive_authored_machine_crash_buckets(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> Vec<checked_trees::CrashRouteBucket> {
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+) -> Vec<crate::checked_trees::CrashRouteBucket> {
     let parameter_names = program
         .machine_states(machine)
         .first()
@@ -287,7 +287,7 @@ pub(crate) fn derive_authored_machine_crash_buckets(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    let conservation = validation::content_conservation_plans(program);
+    let conservation = crate::validation::build_content_conservation_plans(program);
     build_published_crash_buckets(
         program,
         program.machine_contracts(machine),
@@ -301,14 +301,14 @@ pub(crate) fn derive_authored_machine_crash_buckets(
 
 pub(crate) fn derive_authored_signature_crash_buckets(
     program: &TypedTrees,
-    signature: &typed_trees::signature::StateSignature,
-) -> Vec<checked_trees::CrashRouteBucket> {
+    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
+) -> Vec<crate::checked_trees::CrashRouteBucket> {
     let parameter_names = program
         .state_signature_parameters(signature)
         .iter()
         .map(|parameter| parameter.name.as_str().to_owned())
         .collect::<Vec<_>>();
-    let conservation = validation::content_conservation_plans(program);
+    let conservation = crate::validation::build_content_conservation_plans(program);
     build_published_crash_buckets(
         program,
         program.state_signature_contracts(signature),
@@ -327,10 +327,10 @@ pub(crate) fn derive_authored_signature_crash_buckets(
 /// keeps its identity only, so downstream lowering still fails closed on it.
 pub(crate) fn derive_authored_operator_crash_buckets(
     program: &TypedTrees,
-    operator: &typed_trees::operator::OperatorDefinition,
-    operators: &checked_trees::CheckedOperatorFacts,
-    content_conservation: &[validation::ContentConservationSourcePlan],
-) -> Vec<checked_trees::CrashRouteBucket> {
+    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
+) -> Vec<crate::checked_trees::CrashRouteBucket> {
     let parameter_names = program
         .operator_parameters(operator)
         .iter()
@@ -350,37 +350,45 @@ pub(crate) fn derive_authored_operator_crash_buckets(
 }
 
 enum CrashContractOwner<'program> {
-    Machine(&'program typed_trees::machine::Machine),
-    Signature(&'program typed_trees::signature::StateSignature),
-    Operator(&'program typed_trees::operator::OperatorDefinition),
+    Machine(&'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine),
+    Signature(
+        &'program symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
+    ),
+    Operator(
+        &'program symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    ),
 }
 
 fn build_published_crash_buckets(
     program: &TypedTrees,
-    contracts: &[typed_trees::signature::SignatureContract],
+    contracts: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
     owner: Option<CrashContractOwner<'_>>,
-    operators: Option<&checked_trees::CheckedOperatorFacts>,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Vec<checked_trees::CrashRouteBucket> {
+    operators: Option<&crate::checked_trees::CheckedOperatorFacts>,
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+) -> Vec<crate::checked_trees::CrashRouteBucket> {
     pub(crate) use std::collections::BTreeMap;
 
     #[derive(Default)]
     struct Bucket {
         unconditional: bool,
-        routes: Vec<checked_trees::CrashPredicateIdentity>,
+        routes: Vec<crate::checked_trees::CrashPredicateIdentity>,
     }
 
-    let mut buckets = BTreeMap::<checked_trees::CrashCause, Bucket>::new();
+    let mut buckets = BTreeMap::<crate::checked_trees::CrashCause, Bucket>::new();
     for contract in contracts {
-        let typed_trees::signature::SignatureContractKind::Crashes { cause } = &contract.kind
+        let symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { cause } = &contract.kind
         else {
             continue;
         };
         let cause = match cause {
-            typed_trees::signature::CrashCause::Trap => checked_trees::CrashCause::Trap,
-            typed_trees::signature::CrashCause::Abort => checked_trees::CrashCause::Abort,
+            symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Trap => {
+                crate::checked_trees::CrashCause::Trap
+            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Abort => {
+                crate::checked_trees::CrashCause::Abort
+            }
         };
         let bucket = buckets.entry(cause).or_default();
         let facts = program.proof_facts.span_or_empty(contract.facts);
@@ -399,7 +407,7 @@ fn build_published_crash_buckets(
                 &mut route,
             );
             let identity = match fact {
-                typed_trees::domain::ProofFact::Expression(expression) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) => {
                     let structured = crash_calls::crash_predicate_from_expression(
                         program,
                         *expression,
@@ -437,16 +445,16 @@ fn build_published_crash_buckets(
                             }
                         });
                     let identity = if let Some(scalar) = scalar {
-                        checked_trees::CrashPredicateIdentity::from_expression_and_scalar(
+                        crate::checked_trees::CrashPredicateIdentity::from_expression_and_scalar(
                             structured, scalar,
                         )
                     } else {
-                        checked_trees::CrashPredicateIdentity::from_expression(structured)
+                        crate::checked_trees::CrashPredicateIdentity::from_expression(structured)
                     };
                     debug_assert_eq!(identity.canonical_bytes(), route);
                     identity
                 }
-                _ => checked_trees::CrashPredicateIdentity::from_canonical_bytes(route),
+                _ => crate::checked_trees::CrashPredicateIdentity::from_canonical_bytes(route),
             };
             bucket.routes.push(identity);
         }
@@ -456,17 +464,17 @@ fn build_published_crash_buckets(
         .into_iter()
         .map(|(cause, mut bucket)| {
             let alternative_guards = if bucket.unconditional {
-                vec![checked_trees::CrashRouteGuard::Truth]
+                vec![crate::checked_trees::CrashRouteGuard::Truth]
             } else {
                 bucket.routes.sort();
                 bucket.routes.dedup();
                 bucket
                     .routes
                     .into_iter()
-                    .map(checked_trees::CrashRouteGuard::Predicate)
+                    .map(crate::checked_trees::CrashRouteGuard::Predicate)
                     .collect()
             };
-            checked_trees::CrashRouteBucket::new(cause, alternative_guards)
+            crate::checked_trees::CrashRouteBucket::new(cause, alternative_guards)
                 .expect("an authored crash bucket has a canonical nonempty route set")
         })
         .collect()
@@ -474,9 +482,9 @@ fn build_published_crash_buckets(
 
 fn build_checked_crash_sites(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    crash_plan: &checked_trees::CrashPlan,
-) -> Vec<checked_trees::CheckedCrashSite> {
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    crash_plan: &crate::checked_trees::CrashPlan,
+) -> Vec<crate::checked_trees::CheckedCrashSite> {
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
         for (statement_ordinal, statement) in program
@@ -485,15 +493,22 @@ fn build_checked_crash_sites(
             .iter()
             .enumerate()
         {
-            let typed_trees::statement::StatementNode::Transition(transition) = statement else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(transition) = statement else {
                 continue;
             };
-            let typed_trees::statement::TransitionExit::Crash(cause) = transition.exit else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionExit::Crash(
+                cause,
+            ) = transition.exit
+            else {
                 continue;
             };
             let cause = match cause {
-                typed_trees::signature::CrashCause::Trap => checked_trees::CrashCause::Trap,
-                typed_trees::signature::CrashCause::Abort => checked_trees::CrashCause::Abort,
+                symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Trap => {
+                    crate::checked_trees::CrashCause::Trap
+                }
+                symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Abort => {
+                    crate::checked_trees::CrashCause::Abort
+                }
             };
             // An unconditional same-cause route covers every possible path
             // guard. Guarded buckets join only after path-conditioned
@@ -504,8 +519,8 @@ fn build_checked_crash_sites(
                     (bucket.cause() == cause && bucket.is_unconditional()).then_some(id)
                 })
                 .collect();
-            sites.push(checked_trees::CheckedCrashSite::new(
-                checked_trees::CrashSiteLocation::new(
+            sites.push(crate::checked_trees::CheckedCrashSite::new(
+                crate::checked_trees::CrashSiteLocation::new(
                     state.symbol,
                     u32::try_from(statement_ordinal)
                         .expect("state-local statement ordinal exceeds checked identity range"),
@@ -521,14 +536,14 @@ fn build_checked_crash_sites(
 
 pub(crate) fn is_true_crash_route(
     program: &TypedTrees,
-    fact: &typed_trees::domain::ProofFact,
+    fact: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact,
 ) -> bool {
     matches!(
         fact,
-        typed_trees::domain::ProofFact::Expression(expression)
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression)
             if matches!(
                 program.expression_table.expression(*expression),
-                typed_trees::expression::ExpressionNode::Boolean(true)
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(true)
             )
     )
 }
@@ -540,11 +555,11 @@ pub(crate) fn is_true_crash_route(
 /// the same source-handle-free bytes.
 pub(crate) fn canonical_crash_path_predicate(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
-) -> checked_trees::CrashPredicateIdentity {
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
+) -> crate::checked_trees::CrashPredicateIdentity {
     let expression = crash_calls::crash_predicate_from_expression(
         program,
         expression,
@@ -552,14 +567,14 @@ pub(crate) fn canonical_crash_path_predicate(
         Some(content_conservation),
     );
     let expression = if negated {
-        checked_trees::CrashPredicateExpression::Unary {
-            operator: typed_trees::expression::UnaryOperator::LogicalNot as u8,
+        crate::checked_trees::CrashPredicateExpression::Unary {
+            operator: symbol_resolved_trees_to_typed_trees::typed_trees::expression::UnaryOperator::LogicalNot as u8,
             operand: Box::new(expression),
         }
     } else {
         expression
     };
-    checked_trees::CrashPredicateIdentity::from_expression(expression)
+    crate::checked_trees::CrashPredicateIdentity::from_expression(expression)
 }
 
 /// Canonical identity of a checker-derived binary predicate assembled from
@@ -567,12 +582,12 @@ pub(crate) fn canonical_crash_path_predicate(
 /// never rewrites the published contract itself.
 pub(crate) fn canonical_crash_binary_path_predicate(
     program: &TypedTrees,
-    operator: typed_trees::expression::BinaryOperator,
-    left: typed_trees::expression::ExpressionHandle,
-    right: typed_trees::expression::ExpressionHandle,
+    operator: symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator,
+    left: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    right: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
-) -> checked_trees::CrashPredicateIdentity {
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
+) -> crate::checked_trees::CrashPredicateIdentity {
     let left = crash_calls::crash_predicate_from_expression(
         program,
         left,
@@ -585,8 +600,8 @@ pub(crate) fn canonical_crash_binary_path_predicate(
         parameter_names,
         Some(content_conservation),
     );
-    checked_trees::CrashPredicateIdentity::from_expression(
-        checked_trees::CrashPredicateExpression::Binary {
+    crate::checked_trees::CrashPredicateIdentity::from_expression(
+        crate::checked_trees::CrashPredicateExpression::Binary {
             operator: operator as u8,
             left: Box::new(left),
             right: Box::new(right),
@@ -599,10 +614,10 @@ pub(crate) fn canonical_crash_binary_path_predicate(
 /// only complete predicate identities enter checked crash plans.
 pub(crate) fn canonical_crash_operand_identity(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
-) -> checked_trees::CrashPredicateIdentity {
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
+) -> crate::checked_trees::CrashPredicateIdentity {
     let mut bytes = vec![0x6f]; // checker-private operand namespace
     encode_contract_expression_canonical(
         program,
@@ -611,5 +626,5 @@ pub(crate) fn canonical_crash_operand_identity(
         content_conservation,
         &mut bytes,
     );
-    checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
+    crate::checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
 }

@@ -17,10 +17,14 @@ use crate::unsequenced_spill_stages::{
 };
 pub use identity::homed_spill_pseudo_instruction_plan_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::AllocatorAvailabilityIdentity;
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{LiveRangePoint, SelectedBlockId, SelectedInstructionId};
+use selected_instructions_to_selected_instructions::register_homes::AllocatorAvailabilityIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
+};
+use target_operations_to_selected_instructions::{
+    LiveRangePoint, SelectedBlockId, SelectedInstructionId,
+};
 pub use validate::validate_homed_spill_pseudo_instructions;
 
 pub fn lower_homed_recursive_spill_pseudos(

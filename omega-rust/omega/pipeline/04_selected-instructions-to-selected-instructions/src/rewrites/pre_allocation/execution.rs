@@ -39,9 +39,9 @@ use optimization_core::{
     Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     PreAllocationOptimizationCompletionIdentity,
 };
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     SelectedInstruction, SelectedInstructionKind, SelectedInstructionPlan,
 };
 

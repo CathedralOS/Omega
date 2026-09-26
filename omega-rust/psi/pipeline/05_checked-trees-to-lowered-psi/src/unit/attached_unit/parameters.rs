@@ -23,8 +23,9 @@ pub(crate) use source_path::{expression_producer, source_path, source_place_path
 /// reference presentation rather than silently turning a view into ownership.
 pub(crate) fn structural_carrier_type(
     checked: &CheckedTrees,
-    mut reference: checked_trees::types::TypeReferenceHandle,
-) -> Result<checked_trees::types::TypeReferenceHandle, LoweringError> {
+    mut reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
+) -> Result<typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle, LoweringError>
+{
     let mut visited = Vec::new();
     loop {
         if !reference.is_valid() || visited.contains(&reference) {
@@ -32,7 +33,7 @@ pub(crate) fn structural_carrier_type(
         }
         visited.push(reference);
         match checked.type_reference_table.type_reference(reference) {
-            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type
             }
             _ => return Ok(reference),
@@ -48,7 +49,7 @@ pub(crate) fn structural_carrier_type(
 pub(crate) fn validate_direct_unit_parameter_custody(
     checked: &CheckedTrees,
 ) -> Result<(), LoweringError> {
-    let has_receipt = |parameters: &[checked_trees::CheckedUnitStructuralParameterPlan]| {
+    let has_receipt = |parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan]| {
         parameters
             .iter()
             .any(|parameter| parameter.fused_service_erasure.is_some())
@@ -189,7 +190,8 @@ pub(crate) fn validate_direct_unit_parameter_custody(
                 || source.is_mutable
                 || parameter.is_self
                 || parameter.multiplicity != Multiplicity::Affine
-                || parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                || parameter.access
+                    != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                 || receipt.source_parameter != source.symbol
                 || receipt.requirement != carrier.requirement
                 || receipt.carrier_type_identity != carrier.carrier_type_identity
@@ -222,8 +224,11 @@ pub(crate) fn validate_direct_unit_parameter_custody(
 
 pub(crate) fn checked_scalar_source_parameters(
     checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-) -> Result<Vec<checked_trees::CheckedStructuralScalarParameterPlan>, LoweringError> {
+    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+) -> Result<
+    Vec<typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan>,
+    LoweringError,
+> {
     checked
         .state_parameters(state)
         .iter()
@@ -242,12 +247,14 @@ pub(crate) fn checked_scalar_source_parameters(
             if source.is_self || source.is_const || source.is_mutable {
                 return unsupported("scalar parameter is not an immutable direct value");
             }
-            Ok(checked_trees::CheckedStructuralScalarParameterPlan {
-                source_position: u32::try_from(position).map_err(|_| {
-                    LoweringError::Unsupported("scalar source position exceeds u32")
-                })?,
-                primitive_type,
-            })
+            Ok(
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan {
+                    source_position: u32::try_from(position).map_err(|_| {
+                        LoweringError::Unsupported("scalar source position exceeds u32")
+                    })?,
+                    primitive_type,
+                },
+            )
         })
         .collect()
 }
@@ -255,8 +262,8 @@ pub(crate) fn checked_scalar_source_parameters(
 /// Merge retained formals without turning lane-local proof/custody coordinates
 /// into ABI positions. Gaps may denote omitted receivers or erased formals.
 pub(crate) fn lower_boundary_parameter_order(
-    scalars: &[checked_trees::CheckedStructuralScalarParameterPlan],
-    structural: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    scalars: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan],
+    structural: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Result<Vec<terminal_psi::BoundaryParameterKind>, LoweringError> {
     use terminal_psi::BoundaryParameterKind::{Scalar, Structural};
     if scalars
@@ -298,7 +305,7 @@ pub(crate) fn lower_boundary_parameter_order(
 }
 
 pub(crate) fn lower_unit_scalar_parameter_types(
-    parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+    parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan],
 ) -> Result<Vec<ScalarType>, LoweringError> {
     if parameters
         .windows(2)
@@ -312,7 +319,7 @@ pub(crate) fn lower_unit_scalar_parameter_types(
         .collect()
 }
 pub(crate) fn lower_unit_parameters(
-    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(String, StructuralTypeId)],
     domain_ids: &[(language_semantics::SemanticDomainId, StructuralDomainId)],
     next_place: &mut u64,
@@ -342,7 +349,7 @@ pub(crate) fn lower_unit_parameters(
             if parameter.fused_service_erasure.is_some()
                 && (parameter.is_self
                     || parameter.multiplicity != Multiplicity::Affine
-                    || parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                    || parameter.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     || !parameter.qualifications.is_empty())
             {
                 return Err(LoweringError::Unsupported(
@@ -362,14 +369,14 @@ pub(crate) fn lower_unit_parameters(
                     Multiplicity::Linear => StructuralMultiplicity::Linear,
                 },
                 access: match parameter.access {
-                    checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => {
                         StructuralAccess::SharedBorrow
                     }
-                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => {
                         StructuralAccess::MutableBorrow
                     }
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
                         StructuralAccess::WriteOnlyBorrow
                     }
                 },
@@ -460,10 +467,13 @@ pub(crate) fn lower_fixed_boundary_service_reach(
     service_ids: &[(ServiceReachId, ServiceId)],
 ) -> Result<Vec<ServiceId>, LoweringError> {
     let source =
-        validation::fixed_installation_boundary_service_reach(&checked.typed, boundary.state)
-            .ok_or(LoweringError::Unsupported(
-                "fixed boundary reach has no exact typed requirement",
-            ))?;
+        typed_trees_to_checked_trees::validation::fixed_installation_boundary_service_reach(
+            &checked.typed,
+            boundary.state,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "fixed boundary reach has no exact typed requirement",
+        ))?;
     let mut fixed = source
         .iter()
         .map(|service| lookup_service_id(service_ids, *service))
@@ -537,12 +547,12 @@ pub(crate) struct StructuralResultCustody<'a> {
 }
 
 pub(crate) fn validate_transfer_shape(
-    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
-    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+    arguments: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan],
+    transfers: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitClaimTransferPlan],
     caller_parameters: &[StructuralParameterDeclaration],
     caller_trivial_affine_locals: &[StructuralPlaceDeclaration],
     caller_structural_results: &[(StructuralPlaceDeclaration, bool)],
-    target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    target_parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
     expected_claim_arguments: &[u32],
@@ -556,7 +566,7 @@ pub(crate) fn validate_transfer_shape(
     }
     for (argument_index, (argument, target)) in arguments.iter().zip(target_parameters).enumerate()
     {
-        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
+        if let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
             argument.source
         {
             let local = super::primitive_locals::find(primitive_locals, symbol)?;
@@ -565,7 +575,7 @@ pub(crate) fn validate_transfer_shape(
                 || argument.type_identity != target.type_identity
                 || !matches!(local.declaration.kind, StructuralPlaceKind::OperationResult { structural_type, .. }
                     if structural_type == expected_type)
-                || argument.access == checked_trees::CheckedStructuralAccess::Owned
+                || argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                 || argument.access != target.access
                 || target.multiplicity != Multiplicity::Unrestricted
                 || !target.qualifications.is_empty()
@@ -580,7 +590,7 @@ pub(crate) fn validate_transfer_shape(
         if argument.byte_sequence_literal().is_some()
             || matches!(
                 argument.source,
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
             )
         {
             // The target's domain requirements are arg satisfaction checked at
@@ -589,7 +599,7 @@ pub(crate) fn validate_transfer_shape(
             // whole immutable borrowed view.
             if !argument.path.is_empty()
                 || argument.type_identity != target.type_identity
-                || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                 || argument.access != target.access
                 || target.multiplicity != Multiplicity::Unrestricted
             {
@@ -627,8 +637,10 @@ pub(crate) fn validate_transfer_shape(
                 || !argument.path.is_empty()
                 || argument.type_identity != target.type_identity
                 || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
-                || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                || target.access != checked_trees::CheckedStructuralAccess::Owned
+                || argument.access
+                    != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+                || target.access
+                    != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                 || target.multiplicity != Multiplicity::Affine
                 || !target.qualifications.is_empty()
             {
@@ -746,7 +758,7 @@ pub(crate) fn validate_transfer_shape(
                     || argument.type_identity != target.type_identity
                     || result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
                     || !argument.path.is_empty()
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     || target.access != argument.access
                     || target.fused_service_erasure.is_some()
                     || result.qualifications != qualifications
@@ -765,21 +777,21 @@ pub(crate) fn validate_transfer_shape(
             let record_borrow =
                 matches!(
                     argument.access,
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
-                        | checked_trees::CheckedStructuralAccess::MutableBorrow
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+                        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
                 ) && record_projection_type(structural_types, structural_type, &argument.path)
                     == Some(lookup_type_id(type_ids, &argument.type_identity)?);
             // A completed case value can lend its whole sum to a shared
             // receiver without selecting or transferring a case payload.
             let case_receiver_borrow = argument.path.is_empty()
-                && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                && argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                 && structural_types.iter().any(|declaration| {
                     declaration.id == structural_type
                         && matches!(declaration.shape, StructuralTypeShape::Sum { .. })
                 });
             let reference_borrow = argument.path.split_last().is_some_and(|(last, prefix)| {
                 *last == CheckedUnitStructuralPathSegment::Referent
-                    && argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                    && argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
                     && record_field_type(structural_types, structural_type, prefix)
                         .is_some_and(|leaf| structural_types.iter().any(|declaration| {
                             declaration.id == leaf
@@ -789,7 +801,8 @@ pub(crate) fn validate_transfer_shape(
                         }))
             });
             let unrestricted_whole = target.multiplicity == Multiplicity::Unrestricted
-                && argument.access == checked_trees::CheckedStructuralAccess::Owned
+                && argument.access
+                    == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                 && argument.path.is_empty()
                 && structural_types.iter().any(|declaration| {
                     declaration.id == structural_type
@@ -805,8 +818,8 @@ pub(crate) fn validate_transfer_shape(
             // same plain leaf shape the argument presents.
             let scalar_leaf_borrow = matches!(
                 argument.access,
-                checked_trees::CheckedStructuralAccess::MutableBorrow
-                    | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
+                    | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
             ) && lookup_type_id(type_ids, &argument.type_identity)
                 .ok()
                 .and_then(|leaf| {
@@ -821,7 +834,7 @@ pub(crate) fn validate_transfer_shape(
                         == Some(expected)
                 });
             if (!argument.path.is_empty()
-                && argument.access != checked_trees::CheckedStructuralAccess::Owned
+                && argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                 && !record_borrow
                 && !reference_borrow
                 && !scalar_leaf_borrow)
@@ -833,8 +846,8 @@ pub(crate) fn validate_transfer_shape(
                     && !scalar_leaf_borrow
                     && !matches!(
                         argument.access,
-                        checked_trees::CheckedStructuralAccess::Owned
-                            | checked_trees::CheckedStructuralAccess::SharedBorrow
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+                            | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                     ))
                 || argument.access != target.access
                 || target.multiplicity
@@ -842,7 +855,7 @@ pub(crate) fn validate_transfer_shape(
                         || record_borrow
                         || reference_borrow
                         || scalar_leaf_borrow
-                        || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                        || argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                     {
                         Multiplicity::Unrestricted
                     } else {
@@ -891,13 +904,13 @@ pub(crate) fn validate_transfer_shape(
             return unsupported("Unit structural argument type identity is inconsistent");
         }
         let source_access = match source.access {
-            StructuralAccess::Owned => checked_trees::CheckedStructuralAccess::Owned,
-            StructuralAccess::SharedBorrow => checked_trees::CheckedStructuralAccess::SharedBorrow,
+            StructuralAccess::Owned => typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+            StructuralAccess::SharedBorrow => typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow,
             StructuralAccess::MutableBorrow => {
-                checked_trees::CheckedStructuralAccess::MutableBorrow
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
             }
             StructuralAccess::WriteOnlyBorrow => {
-                checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
             }
         };
         if argument.access != target.access
@@ -932,9 +945,9 @@ pub(crate) fn validate_transfer_shape(
 /// the result place's own frontier the same way it resolves every other
 /// caller claim.
 pub(crate) fn emitted_claim_transfers(
-    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
-    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
-    target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    arguments: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan],
+    transfers: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitClaimTransferPlan],
+    target_parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan],
     completed_results: &[(u32, terminal_psi::StructuralOperationResult)],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
 ) -> Result<Vec<ClaimTransfer>, LoweringError> {
@@ -981,8 +994,8 @@ pub(crate) fn emitted_claim_transfers(
 
 fn fixed_byte_array_view_transfer(
     source: &StructuralParameterDeclaration,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    target: &checked_trees::CheckedUnitStructuralParameterPlan,
+    argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+    target: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan,
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
 ) -> bool {
@@ -994,8 +1007,12 @@ fn fixed_byte_array_view_transfer(
         return false;
     }
     let access = match target.access {
-        checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-        checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => {
+            StructuralAccess::SharedBorrow
+        }
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => {
+            StructuralAccess::MutableBorrow
+        }
         _ => return false,
     };
     let Ok(structural_type) = lookup_type_id(type_ids, &target.type_identity) else {
@@ -1028,10 +1045,10 @@ fn fixed_byte_array_view_transfer(
 }
 
 fn checked_access_can_supply(
-    source: checked_trees::CheckedStructuralAccess,
-    presented: checked_trees::CheckedStructuralAccess,
+    source: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess,
+    presented: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess,
 ) -> bool {
-    use checked_trees::CheckedStructuralAccess;
+    use typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess;
     match source {
         CheckedStructuralAccess::Owned => true,
         CheckedStructuralAccess::SharedBorrow => presented == CheckedStructuralAccess::SharedBorrow,
@@ -1048,7 +1065,7 @@ fn checked_access_can_supply(
 }
 
 pub(crate) fn literal_argument_places(
-    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    arguments: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan],
     literals: &[StructuralPlaceDeclaration],
     next_literal: &mut usize,
 ) -> Result<Vec<PlaceId>, LoweringError> {
@@ -1074,7 +1091,7 @@ pub(crate) fn literal_argument_places(
 }
 
 pub(crate) fn lower_structural_arguments(
-    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    arguments: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan],
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
     structural_results: &[(StructuralPlaceDeclaration, bool)],
@@ -1085,19 +1102,19 @@ pub(crate) fn lower_structural_arguments(
     arguments
         .iter()
         .map(|argument| {
-            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } = argument.source {
+            if let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } = argument.source {
                 let local = super::primitive_locals::find(primitive_locals, symbol)?;
                 if !argument.path.is_empty() { return unsupported("primitive local borrow has a projection"); }
                 let access = match argument.access {
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-                    checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
-                    checked_trees::CheckedStructuralAccess::Owned => return unsupported("primitive local cannot transfer owned custody"),
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned => return unsupported("primitive local cannot transfer owned custody"),
                 };
                 return Ok(StructuralArgument { place: local.declaration.id, path: Vec::new(), access });
             }
             if argument.byte_sequence_literal().is_some()
-                || matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })
+                || matches!(argument.source, typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })
             {
                 let place = *byte_argument_places
                     .get(next_byte_argument)
@@ -1109,16 +1126,16 @@ pub(crate) fn lower_structural_arguments(
                     place,
                     path: Vec::new(),
                     access: match argument.access {
-                        checked_trees::CheckedStructuralAccess::Owned => {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned => {
                             StructuralAccess::Owned
                         }
-                        checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => {
                             StructuralAccess::SharedBorrow
                         }
-                        checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => {
                             StructuralAccess::MutableBorrow
                         }
-                        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
                             StructuralAccess::WriteOnlyBorrow
                         }
                     },
@@ -1154,10 +1171,10 @@ pub(crate) fn lower_structural_arguments(
                     place: source.id,
                     path: lower_structural_path(&argument.path)?,
                     access: match argument.access {
-                        checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
-                        checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-                        checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-                        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
                     },
                 });
             }
@@ -1178,14 +1195,14 @@ pub(crate) fn lower_structural_arguments(
                 place: parameter.place,
                 path: lower_structural_path(&argument.path)?,
                 access: match argument.access {
-                    checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => {
                         StructuralAccess::SharedBorrow
                     }
-                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => {
                         StructuralAccess::MutableBorrow
                     }
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
                         StructuralAccess::WriteOnlyBorrow
                     }
                 },
@@ -1204,7 +1221,7 @@ pub(crate) fn lower_structural_arguments(
 fn structural_result_source<'results>(
     results: &'results [(StructuralPlaceDeclaration, bool)],
     binding_ordinal: u32,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
 ) -> Result<&'results StructuralPlaceDeclaration, LoweringError> {
     let (source, discard) = results
         .get(usize::try_from(binding_ordinal).map_err(|_| {
@@ -1218,7 +1235,8 @@ fn structural_result_source<'results>(
     // was proven upstream (the bare reference result's leaf loan), and the
     // carrier's residual legitimately keeps that return drop.
     if (*discard
-        && argument.access == checked_trees::CheckedStructuralAccess::Owned
+        && argument.access
+            == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         && argument.path.is_empty())
         || !matches!(source.kind, StructuralPlaceKind::OperationResult { .. })
     {
@@ -1228,7 +1246,7 @@ fn structural_result_source<'results>(
 }
 
 pub(crate) fn lower_projected_qualifications(
-    rows: &[checked_trees::CheckedStructuralPathQualification],
+    rows: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPathQualification],
     domain_ids: &[(language_semantics::SemanticDomainId, StructuralDomainId)],
 ) -> Result<Vec<terminal_psi::StructuralPathQualification>, LoweringError> {
     rows.iter()

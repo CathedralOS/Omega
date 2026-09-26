@@ -16,16 +16,16 @@
 // other one calls.
 #![allow(dead_code)]
 
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use source::{SourceId, SourceMap};
 use source_files_to_tokens::Lexer;
 use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees::SyntaxTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
-use typed_trees::TypedTrees;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 use typed_trees_to_checked_trees::{CheckingRequest, lower_typed_trees};
 
 /// Unwrap one stage's result, or panic with the stage name and the source it

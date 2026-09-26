@@ -3,11 +3,11 @@
 //! its state. That forwarding belongs to the Unit state graph; the scalar
 //! graph keeps structural formals to one body.
 use super::{Multiplicity, PrimitiveType};
-use crate::tests::flow::terminal_unit::{checked, machine_named};
-use checked_trees::{
+use crate::checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
     CheckedStructuralControlTransferSourcePlan,
 };
+use crate::tests::flow::terminal_unit::{checked, machine_named};
 
 const SOURCE: &str = r#"
     machine scan(line: &[u8], start: u64, end: u64) -> u64 {

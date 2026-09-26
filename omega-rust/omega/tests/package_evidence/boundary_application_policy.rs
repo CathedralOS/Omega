@@ -1,0 +1,363 @@
+//! Receipt-free D29 relationships derived from checked compiler consumers.
+use crate::support;
+
+use omega::compiler::CheckedCompileRequest;
+use omega::package_evidence::record::*;
+use omega::package_evidence::{
+    project_checked_boundary_application_policy, project_checked_callable_policy,
+    project_checked_selected_provider_policy,
+};
+use support::*;
+use target::TargetProfile;
+
+fn compile(source: &str) -> (TempPackage, ReviewFixture) {
+    let package = TempPackage::new();
+    package.write("main.omg", source);
+    package.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+    );
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
+    .unwrap_or_else(|diagnostics| panic!("D29 source should check: {diagnostics:#?}"));
+    (package, checked)
+}
+
+fn project_source(source: &str) -> PackagePolicyBoundaryApplications {
+    let (_package, checked) = compile(source);
+    project(&checked)
+}
+
+fn project(checked: &ReviewFixture) -> PackagePolicyBoundaryApplications {
+    let applications = project_checked_boundary_application_policy(
+        checked,
+        TargetProfile::WindowsX64,
+        package_identity(),
+    )
+    .expect("exact receipt-free D29 policy");
+    let baseline = omega::package_evidence::project_checked_package_policy(
+        checked,
+        TargetProfile::WindowsX64,
+        package_identity(),
+    )
+    .expect("complete baseline retains actual D29 source meaning");
+    let membership = baseline
+        .validate_package_membership(
+            |_| true,
+            omega::package_evidence::encoding::PackagePolicyMembershipLimits::default(),
+        )
+        .expect(
+            "actual D29 callable/operator and service identities preserve package-owner grammar",
+        );
+    let text = baseline.canonical_text().expect("named D29 baseline");
+    let recovered = PackagePolicyBaseline::recover_text(
+        &text,
+        omega::package_evidence::encoding::PackagePolicyTextRecoveryLimits::default(),
+    )
+    .expect("recover named symbolic and closed D29 applications");
+    assert_eq!(recovered, baseline);
+    assert_eq!(recovered.boundary_applications(), &applications);
+    assert_eq!(
+        recovered
+            .validate_package_membership(
+                |_| true,
+                omega::package_evidence::encoding::PackagePolicyMembershipLimits::default()
+            )
+            .unwrap(),
+        membership,
+    );
+    applications
+}
+
+#[test]
+fn symbolic_demand_producer_joins_full_callable_identity_and_exact_binders() {
+    let source = r#"pub data Math {}
+pub boundary operator Math::same<Value>(left: Value, right: Value) -> bool;
+pub machine compare<Element>(left: Element, right: Element) -> bool { Math::same(left, right) }
+"#;
+    let (_package, checked) = compile(source);
+    let policy = project(&checked);
+    let [demand] = policy.demands() else {
+        panic!("one open producer demand")
+    };
+    assert!(policy.realizations().is_empty());
+    let callables =
+        project_checked_callable_policy(&checked, TargetProfile::WindowsX64, package_identity())
+            .unwrap();
+    let producers = callables
+        .callables()
+        .iter()
+        .filter(|callable| callable.role() == PackagePolicyCallableRole::Public)
+        .collect::<Vec<_>>();
+    let [producer] = producers.as_slice() else {
+        panic!("one public producer")
+    };
+    assert_eq!(demand.producer_callable(), producer.identity());
+    assert_eq!(
+        demand.arguments(),
+        &[
+            PackageReviewSymbolicBoundaryApplicationArgument::TypeBinder {
+                requirement_binder_ordinal: 0,
+                producer_binder_ordinal: 0
+            }
+        ]
+    );
+    assert_eq!(
+        policy,
+        project_source(
+            &source
+                .replace("Element", "Item")
+                .replace("Value", "Operand")
+        )
+    );
+    let mut stale = checked.clone();
+    let typed_trees_to_checked_trees::checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+        machine_binder_ordinal,
+        ..
+    } = &mut stale.facts.operators.symbolic_boundary_applications[0].arguments[0];
+    *machine_binder_ordinal = 99;
+    assert!(
+        project_checked_boundary_application_policy(
+            &stale,
+            TargetProfile::WindowsX64,
+            package_identity()
+        )
+        .is_err()
+    );
+}
+
+const CLOSED: &str = r#"pub data GenericMath {}
+pub boundary operator GenericMath::identity<Element>(value: Element) -> Element;
+pub data GenericProvider {}
+pub machine GenericProvider::identity<Value>(value: Value) -> Value satisfies GenericMath::identity { value }
+pub machine first(value: i32) -> i32 { GenericMath::identity(value) }
+pub machine second(value: u64) -> u64 { GenericMath::identity(value) }
+pub data ScalarMath {}
+pub boundary operator ScalarMath::identity(value: i32) -> i32;
+pub data ScalarProvider {}
+pub machine ScalarProvider::identity(value: i32) -> i32 satisfies ScalarMath::identity { value }
+pub machine scalar(value: i32) -> i32 { ScalarMath::identity(value) }
+"#;
+
+#[test]
+fn generic_operator_binder_renaming_preserves_selected_rows_and_closed_applications() {
+    let (_package, checked) = compile(CLOSED);
+    let (_renamed_package, renamed) = compile(
+        &CLOSED
+            .replace("Element", "Item")
+            .replace("Value", "Operand"),
+    );
+    let providers = |compilation: &ReviewFixture| {
+        project_checked_selected_provider_policy(
+            compilation,
+            TargetProfile::WindowsX64,
+            package_identity(),
+        )
+        .unwrap()
+    };
+    let first = providers(&checked);
+    let second = providers(&renamed);
+    assert_eq!(first, second);
+    assert_eq!(
+        first.canonical_bytes().unwrap(),
+        second.canonical_bytes().unwrap()
+    );
+    assert_eq!(project(&checked), project(&renamed));
+}
+
+#[test]
+fn closed_roles_rejoin_canonical_selected_plans_and_authored_templates() {
+    let (_package, checked) = compile(CLOSED);
+    let policy = project(&checked);
+    let providers = project_checked_selected_provider_policy(
+        &checked,
+        TargetProfile::WindowsX64,
+        package_identity(),
+    )
+    .unwrap();
+    assert_eq!(policy.realizations().len(), 3);
+    let mut specialized = 0;
+    let mut nongeneric = 0;
+    for application in policy.realizations() {
+        let plan = &providers.plans()[application.selected_plan_index() as usize];
+        assert_eq!(
+            plan.schema_declaration(),
+            application.operator_coordinate().identity()
+        );
+        let [row] = plan.rows() else {
+            panic!("one exact realization")
+        };
+        assert_eq!(row.requirement().path(), application.requirement_identity());
+        match application.realization() {
+            PackagePolicyBoundaryRealization::SpecializedCheckedBody {
+                declaration,
+                template,
+            } => {
+                specialized += 1;
+                assert_eq!(Some(declaration), row.realization());
+                assert_eq!(declaration.path(), "GenericProvider::identity");
+                assert_eq!(declaration.owner(), template.owner());
+                assert!(
+                    matches!(application.application(), PackageReviewBoundaryApplication::Exact(arguments) if arguments.len() == 1)
+                );
+            }
+            PackagePolicyBoundaryRealization::NongenericCheckedBody {
+                declaration,
+                realization,
+            } => {
+                nongeneric += 1;
+                assert_eq!(Some(declaration), row.realization());
+                assert_eq!(declaration.owner(), realization.owner());
+                assert_eq!(
+                    application.application(),
+                    &PackageReviewBoundaryApplication::Empty
+                );
+            }
+            PackagePolicyBoundaryRealization::ExactCompilerIntrinsic { .. } => {
+                panic!("checked fixtures select no intrinsic")
+            }
+        }
+    }
+    assert_eq!((specialized, nongeneric), (2, 1));
+    let changed = CLOSED.replace("{ value }", "{ transition { _ -> value } }");
+    assert_eq!(
+        policy,
+        project_source(&changed),
+        "private state lowering must not become application policy identity"
+    );
+}
+
+#[test]
+fn exact_intrinsic_application_retains_closed_execution_not_a_report_digest() {
+    let (_package, checked) = compile(
+        r#"pub data F32 {}
+pub boundary operator F32::negate(value: f32) -> f32;
+pub data FloatProvider {}
+pub machine FloatProvider::negate(value: f32) -> f32 satisfies F32::negate via ForeignBinding::CompilerIntrinsic;
+machine exercise() { let negative: f32 = F32::negate(1.0f32); }
+"#,
+    );
+    let policy = project(&checked);
+    let [application] = policy.realizations() else {
+        panic!("one intrinsic application")
+    };
+    assert_eq!(
+        application.realization(),
+        &PackagePolicyBoundaryRealization::ExactCompilerIntrinsic {
+            execution: PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
+                numerics::literals::FloatFormat::F32
+            )
+        }
+    );
+    assert_eq!(
+        application.application(),
+        &PackageReviewBoundaryApplication::Empty
+    );
+}
+
+const FLOAT_MATCH: &str = r#"
+use omega::language::core::float_operations;
+machine identity(value: f32) -> f32 { value }
+machine choose(value: f32, first: f32, second: f32) -> u64 {
+    match identity(value) {
+        identity(first) -> 7,
+        identity(second) -> 9,
+        _ -> 11
+    }
+}
+"#;
+
+#[test]
+fn float_match_applications_retain_selected_intrinsic_review() {
+    let (_package, checked) = compile(FLOAT_MATCH);
+    let policy = project(&checked);
+    let [application] = policy.realizations() else {
+        panic!("equal complete arm realizations share one policy row");
+    };
+    assert!(matches!(
+        application.realization(),
+        PackagePolicyBoundaryRealization::ExactCompilerIntrinsic {
+            execution: PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { .. }
+        }
+    ));
+}
+
+#[test]
+fn float_match_review_rejects_substituted_arm() {
+    {
+        let (_package, mut checked) = compile(FLOAT_MATCH);
+        project_checked_boundary_application_policy(
+            &checked,
+            TargetProfile::WindowsX64,
+            package_identity(),
+        )
+        .expect("unmodified Match review must succeed before corruption");
+        {
+            let application =
+                checked
+                    .facts
+                    .operators
+                    .boundary_applications
+                    .iter_mut()
+                    .find(|application| {
+                        matches!(application.site,
+                    typed_trees_to_checked_trees::checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality { .. })
+                    })
+                    .expect("implicit application");
+            let typed_trees_to_checked_trees::checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
+                source_arm,
+                ..
+            } = &mut application.site
+            else {
+                panic!("Match");
+            };
+            *source_arm = Default::default();
+        }
+        assert!(
+            project_checked_boundary_application_policy(
+                &checked,
+                TargetProfile::WindowsX64,
+                package_identity(),
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn float_match_review_rejects_lost_enclosing_source_extent() {
+    let (_package, mut checked) = compile(FLOAT_MATCH);
+    project_checked_boundary_application_policy(
+        &checked,
+        TargetProfile::WindowsX64,
+        package_identity(),
+    )
+    .expect("unmodified Match source custody");
+    let expression = checked
+        .facts
+        .operators
+        .uses
+        .iter()
+        .find(|(_, operator_use)| {
+            matches!(
+                operator_use.occurrence,
+                typed_trees_to_checked_trees::checked_trees::CheckedOperatorOccurrence::MatchEquality { .. }
+            )
+        })
+        .map(|(_, operator_use)| operator_use.expression)
+        .expect("Match root");
+    checked
+        .typed
+        .expression_table
+        .set_source_span(expression, Default::default());
+    assert!(
+        project_checked_boundary_application_policy(
+            &checked,
+            TargetProfile::WindowsX64,
+            package_identity()
+        )
+        .is_err()
+    );
+}

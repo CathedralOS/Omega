@@ -3,7 +3,7 @@ use super::{
     LegalizedScalarTerminator, OperationId, SelectedFunction, SelectedInstructionKind,
     SelectedSelectionConstraints, build,
 };
-use selected_instructions::{LocalStorageSlotId, SelectedBoundarySettlementPayload};
+use crate::selected_instructions::{LocalStorageSlotId, SelectedBoundarySettlementPayload};
 
 #[test]
 fn repeated_byte_input_preserves_distinct_owned_homes_and_reverse_cleanup() {
@@ -21,17 +21,21 @@ fn repeated_byte_input_preserves_distinct_owned_homes_and_reverse_cleanup() {
         };
         assert_eq!(
             returned.ownership,
-            [optimization_unit::OwnershipEvent::Cleanup(vec![
-                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                    semantic_vocabulary::PlaceId::new(2).unwrap()
-                ),
-                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                    semantic_vocabulary::PlaceId::new(1).unwrap()
-                ),
-            ])]
+            [
+                terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
+                    vec![
+                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                            semantic_vocabulary::PlaceId::new(2).unwrap()
+                        ),
+                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                            semantic_vocabulary::PlaceId::new(1).unwrap()
+                        ),
+                    ]
+                )
+            ]
         );
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -83,8 +87,11 @@ fn repeated_byte_input_preserves_distinct_owned_homes_and_reverse_cleanup() {
             else {
                 unreachable!()
             };
-            let [optimization_unit::OwnershipEvent::Cleanup(actions)] =
-                returned.ownership.as_mut_slice()
+            let [
+                terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
+                    actions,
+                ),
+            ] = returned.ownership.as_mut_slice()
             else {
                 unreachable!()
             };
@@ -111,7 +118,7 @@ fn byte_input_selection_rejects_result_home_and_occurrence_substitution() {
         let legal = crate::legalize_target_operations(&native, &abstracted, &unit).unwrap();
         let source = &legal.plan().scalar_functions[0];
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -185,7 +192,7 @@ fn byte_input_selection_rejects_result_home_and_occurrence_substitution() {
         }
         for ownership in [
             Vec::new(),
-            vec![optimization_unit::OwnershipEvent::ClaimCompletion(vec![
+            vec![terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(vec![
                 semantic_vocabulary::ClaimId::new(1).unwrap(),
             ])],
         ] {

@@ -69,7 +69,7 @@ fn indexed_byte_arithmetic_captures_materialized_bounds() {
         assert!(
             !plans.expressions.iter().any(|expression| matches!(
                 expression.expression,
-                checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead { .. }
+                crate::checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead { .. }
             )),
             "selected or competing Index providers cannot borrow builtin byte meaning"
         );

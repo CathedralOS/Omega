@@ -1,5 +1,7 @@
-use optimization_unit::{PsiOptimizationUnit, ValueDefinition, ValueUse};
 use semantic_vocabulary::MachineId;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, ValueDefinition, ValueUse,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UseDefinitionAnalysis {

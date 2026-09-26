@@ -1,17 +1,19 @@
 //! The checked proposition vocabulary and lowered proposition applications.
 
+use crate::checked_trees::ContractProofFactKind;
 use arena::{Handle, HandleSpan};
-use checked_trees::ContractProofFactKind;
+use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::{
+    ProofSubstitutions, PropositionLabels,
+};
 use symbols::SymbolHandle;
-use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 pub(crate) fn contract_proposition_labels(
-    program: &typed_trees::TypedTrees,
-    contracts: &[typed_trees::signature::SignatureContract],
-    kind: typed_trees::signature::SignatureContractKind,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    contracts: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
+    kind: symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind,
     substitutions: &[(SymbolHandle, String, String)],
 ) -> std::collections::BTreeSet<String> {
-    use typed_trees::domain::ProofFact;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
 
     contracts
         .iter()
@@ -34,8 +36,8 @@ pub(crate) fn contract_proposition_labels(
 }
 
 pub(crate) fn proposition_application_label(
-    program: &typed_trees::TypedTrees,
-    application: &typed_trees::proposition::PropositionApplication,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    application: &symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionApplication,
     substitutions: &[(SymbolHandle, String, String)],
 ) -> Option<String> {
     let binder_labels = application
@@ -70,39 +72,39 @@ pub(crate) fn proposition_application_label(
 }
 
 pub(crate) fn build_checked_proposition_vocabulary(
-    program: &typed_trees::TypedTrees,
-) -> checked_trees::CheckedPropositionVocabulary {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> crate::checked_trees::CheckedPropositionVocabulary {
     let declarations = program
         .propositions()
         .iter()
         .filter_map(|declaration| {
             let evidence = match declaration.body {
-                typed_trees::proposition::PropositionBody::Primitive => {
-                    checked_trees::CheckedPropositionEvidence::FactOnly
+                symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBody::Primitive => {
+                    crate::checked_trees::CheckedPropositionEvidence::FactOnly
                 }
-                typed_trees::proposition::PropositionBody::Witness { evidence } => {
-                    checked_trees::CheckedPropositionEvidence::Witness {
+                symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBody::Witness { evidence } => {
+                    crate::checked_trees::CheckedPropositionEvidence::Witness {
                         evidence_type: program.display_type_reference(evidence),
                     }
                 }
-                typed_trees::proposition::PropositionBody::Transparent { .. } => return None,
+                symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBody::Transparent { .. } => return None,
             };
             let binders = program
                 .proposition_binders(declaration)
                 .iter()
-                .map(|binder| checked_trees::CheckedPropositionBinder {
+                .map(|binder| crate::checked_trees::CheckedPropositionBinder {
                     name: binder.name.as_str().to_owned(),
                     kind: match binder.kind {
-                        typed_trees::proposition::PropositionBinderKind::Type => {
-                            checked_trees::CheckedPropositionBinderKind::Type
+                        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBinderKind::Type => {
+                            crate::checked_trees::CheckedPropositionBinderKind::Type
                         }
-                        typed_trees::proposition::PropositionBinderKind::Const {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBinderKind::Const {
                             type_reference,
-                        } => checked_trees::CheckedPropositionBinderKind::Const {
+                        } => crate::checked_trees::CheckedPropositionBinderKind::Const {
                             type_identity: program.display_type_reference(type_reference),
                         },
-                        typed_trees::proposition::PropositionBinderKind::Machine => {
-                            checked_trees::CheckedPropositionBinderKind::Machine
+                        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBinderKind::Machine => {
+                            crate::checked_trees::CheckedPropositionBinderKind::Machine
                         }
                     },
                 })
@@ -112,7 +114,7 @@ pub(crate) fn build_checked_proposition_vocabulary(
                 .iter()
                 .map(|parameter| program.display_type_reference(parameter.type_reference))
                 .collect();
-            Some(checked_trees::CheckedPropositionDeclaration {
+            Some(crate::checked_trees::CheckedPropositionDeclaration {
                 symbol: declaration.symbol,
                 name: declaration.name.as_str().to_owned(),
                 is_public: declaration.is_public,
@@ -126,7 +128,10 @@ pub(crate) fn build_checked_proposition_vocabulary(
         .proof_facts
         .iter()
         .filter_map(|(_, fact)| {
-            let typed_trees::domain::ProofFact::Proposition(application) = fact else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+                application,
+            ) = fact
+            else {
                 return None;
             };
             let normalized =
@@ -134,36 +139,36 @@ pub(crate) fn build_checked_proposition_vocabulary(
             Some(lower_checked_proposition_application(normalized))
         })
         .collect();
-    checked_trees::CheckedPropositionVocabulary {
+    crate::checked_trees::CheckedPropositionVocabulary {
         declarations,
         applications,
     }
 }
 
 pub(crate) fn lower_checked_proposition_application(
-    normalized: typed_trees::proposition::NormalizedPropositionApplicationIdentity,
-) -> checked_trees::CheckedPropositionApplication {
+    normalized: symbol_resolved_trees_to_typed_trees::typed_trees::proposition::NormalizedPropositionApplicationIdentity,
+) -> crate::checked_trees::CheckedPropositionApplication {
     let evidence_interface = match &normalized.classification {
-        typed_trees::proposition::PropositionEvidenceClassification::FactOnly => None,
-        typed_trees::proposition::PropositionEvidenceClassification::Witness {
+        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionEvidenceClassification::FactOnly => None,
+        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionEvidenceClassification::Witness {
             interface, ..
         } => interface.as_ref().map(lower_checked_evidence_interface),
     };
-    checked_trees::CheckedPropositionApplication {
+    crate::checked_trees::CheckedPropositionApplication {
         declaration: normalized.declaration,
         binder_arguments: normalized
             .binder_arguments
             .into_iter()
-            .map(|argument| checked_trees::CheckedPropositionBinderArgument {
+            .map(|argument| crate::checked_trees::CheckedPropositionBinderArgument {
                 kind: match argument.kind {
-                    typed_trees::proposition::PropositionBinderArgumentKind::Type => {
-                        checked_trees::CheckedPropositionBinderArgumentKind::Type
+                    symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+                        crate::checked_trees::CheckedPropositionBinderArgumentKind::Type
                     }
-                    typed_trees::proposition::PropositionBinderArgumentKind::Const => {
-                        checked_trees::CheckedPropositionBinderArgumentKind::Const
+                    symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+                        crate::checked_trees::CheckedPropositionBinderArgumentKind::Const
                     }
-                    typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
-                        checked_trees::CheckedPropositionBinderArgumentKind::Machine
+                    symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+                        crate::checked_trees::CheckedPropositionBinderArgumentKind::Machine
                     }
                 },
                 identity: argument.identity,
@@ -176,9 +181,9 @@ pub(crate) fn lower_checked_proposition_application(
 }
 
 pub(crate) fn lower_checked_evidence_interface(
-    interface: &typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
-) -> checked_trees::CheckedEvidenceInterfaceIdentity {
-    checked_trees::CheckedEvidenceInterfaceIdentity {
+    interface: &symbol_resolved_trees_to_typed_trees::typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
+) -> crate::checked_trees::CheckedEvidenceInterfaceIdentity {
+    crate::checked_trees::CheckedEvidenceInterfaceIdentity {
         trait_symbol: interface.trait_symbol,
         arguments: interface
             .arguments
@@ -189,7 +194,7 @@ pub(crate) fn lower_checked_evidence_interface(
             .requirements
             .iter()
             .map(
-                |requirement| checked_trees::CheckedEvidenceRequirementIdentity {
+                |requirement| crate::checked_trees::CheckedEvidenceRequirementIdentity {
                     declaring_trait: requirement.declaring_trait,
                     declaring_trait_arguments: requirement.declaring_trait_arguments.clone(),
                     requirement: requirement.requirement,
@@ -200,8 +205,9 @@ pub(crate) fn lower_checked_evidence_interface(
 }
 
 pub(crate) fn fact_handles(
-    facts: HandleSpan<typed_trees::domain::ProofFact>,
-) -> impl Iterator<Item = Handle<typed_trees::domain::ProofFact>> {
+    facts: HandleSpan<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+) -> impl Iterator<Item = Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>>
+{
     (0..facts.count()).map(move |offset| {
         Handle::from_parts(
             facts
@@ -215,16 +221,16 @@ pub(crate) fn fact_handles(
 }
 
 pub(crate) fn contract_fact_kind(
-    kind: &typed_trees::signature::SignatureContractKind,
+    kind: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind,
 ) -> Option<ContractProofFactKind> {
     match kind {
-        typed_trees::signature::SignatureContractKind::Requires => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires => {
             Some(ContractProofFactKind::Requires)
         }
-        typed_trees::signature::SignatureContractKind::Ensures => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures => {
             Some(ContractProofFactKind::Ensures)
         }
-        typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. } => None,
-        typed_trees::signature::SignatureContractKind::Crashes { .. } => None,
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. } => None,
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { .. } => None,
     }
 }

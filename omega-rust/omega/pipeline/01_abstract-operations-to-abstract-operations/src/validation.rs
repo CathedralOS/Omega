@@ -14,8 +14,8 @@
 //! the component), `place_observations` (whether what they observe is
 //! invariant) and `relocation_rewrites` (the rewrites a relocation performs).
 
-use abstract_operations::AbstractOperation as O;
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
 
 mod context;
 pub(crate) mod invariant_calls;

@@ -33,7 +33,7 @@ use super::{
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::callee_plan;
 use crate::legalization::scalar_graph_input::target::Checker;
-use target_operations::{
+use abstract_operations_to_target_operations::target_operations::{
     ScalarAbiValue, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
 };
 mod aggregate_results;
@@ -69,7 +69,7 @@ pub(super) fn validate_operation(
             let mut ordinary = target.clone();
             match &mut ordinary {
                 TargetUnitOperation::Call { origin, .. } => {
-                    *origin = target_operations::NativeCallOrigin::Authored
+                    *origin = abstract_operations_to_target_operations::target_operations::NativeCallOrigin::Authored
                 }
                 _ => return Err(LegalizationError::custody()),
             }
@@ -129,11 +129,11 @@ pub(super) fn validate_operation(
         {
             sources.push((
                 result.value,
-                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                Source::Home(abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement {
                     defining_operation: *psi_operation,
                     source_value: result.value,
                     scalar_type: result.scalar_type,
-                    shape: calling_conventions::ValueShape::integer(1, 1),
+                    shape: abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(1, 1),
                 }),
             ));
         }
@@ -291,7 +291,7 @@ pub(super) fn validate_operation(
             }
             sources.push((
                 result.value,
-                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                Source::Home(abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement {
                     defining_operation: *psi_operation,
                     source_value: result.value,
                     scalar_type: result.scalar_type,
@@ -445,7 +445,7 @@ pub(super) fn validate_operation(
             }
             sources.push((
                 result.value,
-                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                Source::Home(abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement {
                     defining_operation: *psi_operation,
                     source_value: result.value,
                     scalar_type: result.scalar_type,
@@ -484,7 +484,7 @@ pub(super) fn validate_operation(
             }
             sources.push((
                 result.value,
-                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                Source::Home(abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement {
                     defining_operation: *psi_operation,
                     source_value: result.value,
                     scalar_type: result.scalar_type,
@@ -534,7 +534,7 @@ pub(super) fn validate_operation(
             },
         ) => {
             if result != expected
-                || !matches!(view, target_operations::TargetByteView::Subslice { psi_operation: operation, .. } if operation == psi_operation)
+                || !matches!(view, abstract_operations_to_target_operations::target_operations::TargetByteView::Subslice { psi_operation: operation, .. } if operation == psi_operation)
                 || !checker.byte_view(view, result.place, &[])
             {
                 return Err(LegalizationError::custody());
@@ -549,7 +549,7 @@ pub(super) fn validate_operation(
             },
         ) => {
             if result != expected
-                || !matches!(view, target_operations::TargetElementView::Subslice { psi_operation: operation, .. } if operation == psi_operation)
+                || !matches!(view, abstract_operations_to_target_operations::target_operations::TargetElementView::Subslice { psi_operation: operation, .. } if operation == psi_operation)
                 || !checker.element_view(view, result.place, &[])
             {
                 return Err(LegalizationError::custody());
@@ -565,7 +565,7 @@ pub(super) fn validate_operation(
             },
         ) => {
             if result != expected
-                || !matches!(view, target_operations::TargetElementView::Established { psi_operation: operation, .. } if operation == psi_operation)
+                || !matches!(view, abstract_operations_to_target_operations::target_operations::TargetElementView::Established { psi_operation: operation, .. } if operation == psi_operation)
                 || !checker.element_view(view, *destination, &[])
             {
                 return Err(LegalizationError::custody());
@@ -589,7 +589,7 @@ pub(super) fn validate_operation(
         (
             TargetUnitOperation::BoundarySettlement { .. },
             AbstractOperation::BoundaryCall {
-                result: abstract_operations::AbstractBoundaryResult::Structural(_),
+                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(_),
                 ..
             },
         ) => {
@@ -731,7 +731,7 @@ pub(super) fn validate_operation(
 /// resolved to the exact source already available for that value. The
 /// element's bound is its path segment's obligation, which the row keeps.
 pub(super) fn runtime_indices_rejoin(
-    indices: &[target_operations::TargetStructuralRuntimeIndex],
+    indices: &[abstract_operations_to_target_operations::target_operations::TargetStructuralRuntimeIndex],
     elements: &[crate::structural_inputs::structural_reference_input::RuntimeElement],
     sources: &[(ValueId, Source)],
 ) -> bool {

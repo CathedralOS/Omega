@@ -1,10 +1,13 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
-fn literal_move_program(body: &str, scalar: &str) -> typed_trees::TypedTrees {
+fn literal_move_program(
+    body: &str,
+    scalar: &str,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let unknown_machine = if body.contains("write_unknown") {
         "machine write_unknown(mut outer: Outer) { outer.inner.absent = 1; }"
     } else {
@@ -207,7 +210,7 @@ fn immediate_literal_moves_preserve_complete_caller_reference_frames() {
         else {
             panic!("call");
         };
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         for (query, paths) in [
             (
                 "state",
@@ -282,7 +285,7 @@ fn immediate_literal_moves_keep_sibling_producer_writes_separate() {
     else {
         panic!("call");
     };
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     for (query, paths, expected) in [
         (
             "state",
@@ -328,7 +331,7 @@ fn immediate_literal_moves_preserve_expression_call_frames() {
     else {
         panic!("result");
     };
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     for paths in [
         resolver
             .inferred_state_write_frame(machine, state)
@@ -449,7 +452,7 @@ fn immediate_literal_move_sources_require_exact_declaration_identity() {
             else {
                 panic!("call");
             };
-            let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+            let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
             assert_eq!(
                 resolver
                     .inferred_state_write_frame(machine, state)
@@ -483,7 +486,7 @@ fn immediate_literal_moves_invalidate_owner_and_alias_arithmetic_facts() {
         ),
     ] {
         let program = literal_move_program(body, "u8");
-        match validation::validate_program(&program) {
+        match crate::validation::validate_program(&program) {
             Err(diagnostics)
                 if diagnostics.iter().any(|diagnostic| {
                     let message = diagnostic.to_string();
@@ -515,7 +518,7 @@ fn immediate_literal_parameter_move_preserves_named_state_cycle_frame() {
         .find(|machine| machine.name.as_str() == "literal_cycle")
         .expect("machine");
     let entry = &program.machine_states(machine)[0];
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     for _ in 0..2 {
         assert_eq!(
             resolver
@@ -554,7 +557,7 @@ fn immediate_literal_move_composes_owned_suffix_below_reference_leaf() {
     else {
         panic!("call");
     };
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     for paths in [
         resolver
             .inferred_state_write_frame(machine, state)
@@ -618,7 +621,7 @@ fn immediate_literal_moves_preserve_complete_empty_owned_and_shared_frames() {
         else {
             panic!("call");
         };
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         for (query, paths) in [
             (
                 "state",
@@ -663,7 +666,7 @@ fn immediate_literal_moves_reject_unknown_suffix_below_reference_leaf() {
     else {
         panic!("call");
     };
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     assert!(
         !resolver
             .inferred_state_write_frame(machine, state)
@@ -697,7 +700,7 @@ fn immediate_literal_moves_preserve_acyclic_named_transition_origins() {
         .find(|machine| machine.name.as_str() == "Main::run")
         .expect("caller");
     let state = &program.machine_states(machine)[0];
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     for _ in 0..2 {
         assert_eq!(
             resolver

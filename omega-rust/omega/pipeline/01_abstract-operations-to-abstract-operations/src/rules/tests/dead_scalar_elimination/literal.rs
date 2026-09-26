@@ -5,14 +5,18 @@ use super::super::super::DeadScalarLiteralEliminationRule;
 use crate::rules::tests::fixtures::dead_scalar_elimination::dead_scalar_literals_unit;
 use crate::rules::tests::fixtures::id;
 use crate::{RuleAnalysisView, compute_analysis};
-use abstract_operations::{AbstractFunctionResult, AbstractOperation as O, AbstractResult};
 use optimization_core::AnalysisKind;
-use optimization_unit::{PsiProvenance, recompute_psi_optimization_unit_identity};
-use optimization_unit_semantics::{
-    validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunctionResult, AbstractOperation as O, AbstractResult,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiProvenance, recompute_psi_optimization_unit_identity,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
+    validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
 };
 
 #[test]
@@ -90,11 +94,13 @@ fn dead_scalar_literals_rehome_operation_custody_without_tombstones() {
         value: id(1_204, ValueId::new),
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
     });
-    used.functions[0].blocks[0].nodes[2].uses = vec![optimization_unit::ValueUse {
-        value: id(1_204, ValueId::new),
-        block: id(1_202, BlockId::new),
-        node: 2,
-    }];
+    used.functions[0].blocks[0].nodes[2].uses = vec![
+        terminal_psi_to_abstract_operations::optimization_unit::ValueUse {
+            value: id(1_204, ValueId::new),
+            block: id(1_202, BlockId::new),
+            node: 2,
+        },
+    ];
     used.identity = recompute_psi_optimization_unit_identity(&used);
     validate_psi_optimization_unit(&used).unwrap();
     let liveness = compute_analysis(&used, AnalysisKind::ValueLiveness).unwrap();

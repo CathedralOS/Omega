@@ -5,7 +5,9 @@ mod replay;
 mod work;
 
 use crate::{LogicalSpillOperationError, ValidatedLogicalSpillOperations};
-use register_homes::{LogicalSpillOperationPlan, LogicalSpillOperationPolicy};
+use selected_instructions_to_selected_instructions::register_homes::{
+    LogicalSpillOperationPlan, LogicalSpillOperationPolicy,
+};
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
     ValidatedSpillChoices,

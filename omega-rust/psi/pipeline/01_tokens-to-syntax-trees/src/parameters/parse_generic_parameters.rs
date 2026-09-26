@@ -1,19 +1,19 @@
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::{
+    DataProperties, MachineParameterContract, TypeParameter, TypeParameterKind,
+};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use crate::type_syntax::properties::parse_property_brackets;
 use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{
-    DataProperties, MachineParameterContract, TypeParameter, TypeParameterKind,
-};
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 #[derive(Default)]
 pub(crate) struct ParsedGenericParameters {
     pub(crate) lifetime_parameters: Vec<Identifier>,
     pub(crate) type_parameters: HandleSpan<TypeParameter>,
-    pub(crate) conformance_bounds: Vec<syntax_trees::item::GenericConformanceBound>,
+    pub(crate) conformance_bounds: Vec<crate::syntax_trees::item::GenericConformanceBound>,
 }
 
 #[derive(Clone, Copy)]
@@ -138,13 +138,16 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
             let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
             (name, TypeParameterKind::Const { type_reference }, input)
-        } else if input.at_keyword(tokens::KeywordKind::Machine) {
+        } else if input.at_keyword(source_files_to_tokens::tokens::KeywordKind::Machine) {
             if !allow_machine_parameters {
                 return Err(input.error_here(
                     "`<machine M>` is a static machine parameter and is only legal on a machine or conformance declaration",
                 ));
             }
-            let input = input.take_keyword(tokens::KeywordKind::Machine, "machine")?;
+            let input = input.take_keyword(
+                source_files_to_tokens::tokens::KeywordKind::Machine,
+                "machine",
+            )?;
             let (name, input) = input.take_identifier()?;
             let contract = trait_requirement_parameters
                 .then_some(MachineParameterContract::RequirementIdentity);
@@ -203,7 +206,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                     syntax_trees,
                     rest,
                 )?;
-            conformance_bounds.push(syntax_trees::item::GenericConformanceBound {
+            conformance_bounds.push(crate::syntax_trees::item::GenericConformanceBound {
                 binder: Some(name),
                 subject,
                 carrier,

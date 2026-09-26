@@ -43,7 +43,10 @@ machine Root::run(&mut self) reaches Host {{
 
 fn composed_plan_exists(
     source: &str,
-) -> (bool, Option<checked_trees::CheckedUnitPlanOmissionStage>) {
+) -> (
+    bool,
+    Option<crate::checked_trees::CheckedUnitPlanOmissionStage>,
+) {
     let checked = checked_with_service(source);
     let root = machine_named(&checked, "run");
     let plans = &checked.facts.flow.terminal_unit_effects;

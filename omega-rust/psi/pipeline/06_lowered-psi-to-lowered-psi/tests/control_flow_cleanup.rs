@@ -11,9 +11,9 @@ use common::{
     unit_call, value,
 };
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
-use optimization::{PsiOptimization, PsiOptimizationSelections};
 use semantic_vocabulary::ScalarTerm;
 use std::collections::BTreeSet;
+use terminal_codec::optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{DebugSubject, Terminator};
 
 fn selections() -> PsiOptimizationSelections {
@@ -23,7 +23,11 @@ fn selections() -> PsiOptimizationSelections {
 /// Install one valid operation crash-contract row naming `operation` inside
 /// `machine`, publishing the matching unconditional Trap route the caller
 /// coverage check requires.
-fn crash_contract(lowered: &mut lowered_psi::LoweredPsi, machine_index: usize, operation: u64) {
+fn crash_contract(
+    lowered: &mut checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+    machine_index: usize,
+    operation: u64,
+) {
     let unconditional_trap = terminal_psi::CrashRouteBucket {
         cause: terminal_psi::CrashCause::Trap,
         alternatives: vec![terminal_psi::CrashRouteGuard::Truth],

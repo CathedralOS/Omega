@@ -1,7 +1,7 @@
 //! Admit whole shared or exclusive byte views, shared address joins over plain
 //! referents, and plain owned structural arrivals.
 //!
-//! An address join (see `abstract_operations::control_flow::address_joins`)
+//! An address join (see `crate::abstract_operations::control_flow::address_joins`)
 //! is the only borrowed arrival an edge may bind through a projected path:
 //! its carrier is the address of that static place, so `&a.left` and `&b.right`
 //! can meet in one parameter without copying either leaf. Descriptor views and
@@ -43,7 +43,7 @@ pub(super) fn validate_structural_block_bindings(
                                     ),
                                     terminal_psi::StructuralAccess::SharedBorrow
                                     | terminal_psi::StructuralAccess::MutableBorrow => {
-                                        abstract_operations::control_flow::address_joins::is_address_join_in(
+                                        crate::abstract_operations::control_flow::address_joins::is_address_join_in(
                                             parameter,
                                             &module.structural_types,
                                         ) || parameter.multiplicity
@@ -129,9 +129,13 @@ fn unsupported_argument(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
     let projected_address = argument.access == terminal_psi::StructuralAccess::SharedBorrow
-        && abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+        && crate::abstract_operations::control_flow::address_joins::is_static_projection(
+            &argument.path,
+        )
         && parameter.is_some_and(|parameter| {
-            abstract_operations::control_flow::address_joins::is_address_join_in(parameter, types)
+            crate::abstract_operations::control_flow::address_joins::is_address_join_in(
+                parameter, types,
+            )
         });
     (!argument.path.is_empty() && !projected_address)
         || !matches!(

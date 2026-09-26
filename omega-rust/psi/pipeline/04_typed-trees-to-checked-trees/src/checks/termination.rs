@@ -62,17 +62,17 @@ use diagnostics::Diagnostic;
 
 #[cfg(test)]
 pub(crate) fn check_machine_termination(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     check_machine_termination_with_call_frames(program, None)
 }
 
 pub(crate) fn check_machine_termination_with_call_frames(
-    program: &typed_trees::TypedTrees,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let ranked_call_components = validation::validated_runtime_recursive_components(program);
+    let ranked_call_components = crate::validation::validated_runtime_recursive_components(program);
 
     // The use-site subtraction spelling `terminates by upper - lower` is retired:
     // the ranked subjects are spelled as the argumented tuple
@@ -205,8 +205,8 @@ pub(crate) fn check_machine_termination_with_call_frames(
 /// view are implementation-only evidence.
 #[cfg(test)]
 pub(crate) fn build_checked_termination_plan(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> language_semantics::MachineTerminationPlan {
     build_checked_termination_plan_with_summary(
         program,
@@ -216,8 +216,8 @@ pub(crate) fn build_checked_termination_plan(
 }
 
 pub(crate) fn build_checked_termination_plan_with_summary(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     checked_summary: language_semantics::TerminationGuarantee,
 ) -> language_semantics::MachineTerminationPlan {
     let mut plan = machine.termination_plan.clone();
@@ -239,16 +239,16 @@ pub(crate) use progress::analyze_checked_progress_with_call_frames;
 /// need the judgment before they can materialize constants into the typed
 /// program; they must not grow a second approximation of termination.
 pub(crate) fn infer_machine_checked_summary(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> language_semantics::TerminationGuarantee {
     infer_machine_checked_summary_with_call_frames(program, machine, None)
 }
 
 pub(crate) fn infer_machine_checked_summary_with_call_frames(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> language_semantics::TerminationGuarantee {
     use language_semantics::TerminationGuarantee;
 
@@ -336,8 +336,8 @@ fn inverted_distance_message(machine: &str, inverted: &ranking::InvertedDistance
 /// The message spells the exact argumented replacement, with the subtraction's
 /// operands reordered into the view's `(lower, upper)` parameter order.
 fn retired_subtraction_message(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<String> {
     let [subject] = machine
         .termination_plan

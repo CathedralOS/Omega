@@ -28,7 +28,7 @@ fn nominal_machine_parameter_view_rejects_mismatched_trait_requirement_pair() {
         .trait_machine_signatures(second.machines)
         .first()
         .expect("Second::call");
-    let mismatched = symbol_resolved_trees::data::MachineParameterContract::Nominal {
+    let mismatched = crate::symbol_resolved_trees::data::MachineParameterContract::Nominal {
         trait_definition: first.symbol,
         requirement: second_requirement.symbol,
         authored_path: Vec::new(),
@@ -151,32 +151,32 @@ fn retains_callable_conformance_bound_declarations_with_owner_exposure() {
     let selections = program.authored_declaration_selections();
 
     assert!(selections.iter().any(|selection| {
-        selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::TypeReference
+        selection.kind() == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::TypeReference
             && selection.exposure()
-                == symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+                == crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
             && matches!(
                 selection.target(),
-                symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
                     if target.selected_symbol() == ranked
             )
     }));
     assert!(selections.iter().any(|selection| {
-        selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::TypeReference
+        selection.kind() == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::TypeReference
             && selection.exposure()
-                == symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                == crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
             && matches!(
                 selection.target(),
-                symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
                     if target.selected_symbol() == card
             )
     }));
     assert!(selections.iter().any(|selection| {
-        selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Conformance
+        selection.kind() == crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::Conformance
             && selection.exposure()
-                == symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                == crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
             && matches!(
                 selection.target(),
-                symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
                     if target.selected_symbol() == power_order
             )
     }));
@@ -240,10 +240,10 @@ fn resolves_every_selected_conformance_bound_application_lane() {
     ] {
         assert!(program.authored_declaration_selections().iter().any(|selection| {
             selection.exposure()
-                == symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                == crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
                 && matches!(
                     selection.target(),
-                    symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
                         if target.selected_symbol() == expected
                 )
         }));
@@ -275,7 +275,7 @@ fn lowers_closed_conformance_rows_to_exact_machine_states() {
     let [conformance] = conformances.as_slice() else {
         panic!("one conformance");
     };
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -343,7 +343,7 @@ fn lowers_subjectless_conformance_to_package_symbol_and_closed_rows() {
     let conformance = program.conformances.iter().next().expect("one conformance");
     assert!(matches!(
         conformance.subject,
-        symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
+        crate::symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
     ));
     assert!(conformance.symbol.is_valid());
     assert_eq!(program.symbols.name(conformance.symbol), "ConcreteEvidence");
@@ -351,7 +351,7 @@ fn lowers_subjectless_conformance_to_package_symbol_and_closed_rows() {
         program.symbols.get(conformance.symbol).parent,
         program.symbols.root()
     );
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -391,7 +391,7 @@ fn subjectless_inline_calls_route_through_the_same_closed_map() {
     let program =
         resolve(ResolutionRequest::new(&syntax_trees)).expect("subjectless rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -422,7 +422,7 @@ fn subjectless_inline_calls_route_through_the_same_closed_map() {
         .statements(first_state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
+            crate::symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
             _ => None,
         })
         .expect("first calls second");
@@ -464,7 +464,7 @@ fn closed_conformance_retains_trait_default_selection_rows() {
     let program = resolve(ResolutionRequest::new(&syntax_trees))
         .expect("the selected trait-default template should cover the row");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -472,7 +472,7 @@ fn closed_conformance_retains_trait_default_selection_rows() {
     assert_eq!(rows.len(), 1);
     assert_eq!(
         rows[0].source,
-        symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+        crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
     );
     assert!(rows[0].realization_machine.is_valid());
     assert!(rows[0].realization_state.is_valid());
@@ -540,7 +540,7 @@ fn inherited_trait_default_applications_partition_shared_authored_calls() {
             .state_statements(state.statements)
             .iter()
             .find_map(|statement| match statement {
-                symbol_resolved_trees::statement::Statement::Call(call) => Some(call),
+                crate::symbol_resolved_trees::statement::Statement::Call(call) => Some(call),
                 _ => None,
             })
             .expect("default body call");
@@ -610,7 +610,7 @@ fn parameterized_trait_default_applications_partition_shared_authored_calls() {
             .state_statements(state.statements)
             .iter()
             .find_map(|statement| match statement {
-                symbol_resolved_trees::statement::Statement::Call(call) => Some(call),
+                crate::symbol_resolved_trees::statement::Statement::Call(call) => Some(call),
                 _ => None,
             })
             .expect("default body call");
@@ -696,14 +696,15 @@ fn closed_conformance_retains_every_same_named_default_overload() {
     let program = resolve(ResolutionRequest::new(&syntax_trees))
         .expect("same-named default overloads retain exact declaration identities");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
     };
     assert_eq!(rows.len(), 2);
     assert!(rows.iter().all(|row| {
-        row.source == symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+        row.source
+            == crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
             && row.requirement.is_valid()
             && row.realization_state.is_valid()
     }));
@@ -730,7 +731,7 @@ fn closed_conformance_matches_inline_members_to_result_overloads() {
     let program = resolve(ResolutionRequest::new(&syntax_trees))
         .expect("the inline member's complete signature should select one overload");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -739,7 +740,8 @@ fn closed_conformance_matches_inline_members_to_result_overloads() {
     assert_eq!(
         rows.iter()
             .filter(|row| {
-                row.source == symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline
+                row.source
+                    == crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline
             })
             .count(),
         1
@@ -748,7 +750,7 @@ fn closed_conformance_matches_inline_members_to_result_overloads() {
         rows.iter()
             .filter(|row| {
                 row.source
-                    == symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+                    == crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
             })
             .count(),
         1
@@ -789,7 +791,7 @@ fn trait_default_calls_route_through_the_same_closed_map() {
     let program =
         resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -804,7 +806,7 @@ fn trait_default_calls_route_through_the_same_closed_map() {
         .expect("inline second row");
     assert_eq!(
         first.source,
-        symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+        crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
     );
     let machine = program
         .machines
@@ -816,7 +818,7 @@ fn trait_default_calls_route_through_the_same_closed_map() {
         .first()
         .map(|handle| program.machine_state(*handle))
         .expect("instantiated default state");
-    let [symbol_resolved_trees::statement::StatementNode::Call(call)] = program
+    let [crate::symbol_resolved_trees::statement::StatementNode::Call(call)] = program
         .tables
         .bodies
         .statements
@@ -847,7 +849,7 @@ fn trait_default_synthesis_is_idempotent_across_orchestration_and_lowering() {
     let program = resolve(ResolutionRequest::new(&syntax_trees))
         .expect("resolution's mandatory synthesis pass must not duplicate the row");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -879,14 +881,15 @@ fn inherited_same_name_defaults_keep_distinct_exact_rows() {
     let program =
         resolve(ResolutionRequest::new(&syntax_trees)).expect("exact defaults should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
     };
     assert_eq!(rows.len(), 2);
     assert!(rows.iter().all(|row| {
-        row.source == symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+        row.source
+            == crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
             && row.realization_machine.is_valid()
             && row.realization_state.is_valid()
     }));
@@ -936,7 +939,7 @@ fn inherited_requirement_collisions_require_trait_qualified_rows() {
     let program =
         resolve(ResolutionRequest::new(&syntax_trees)).expect("qualified rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -966,7 +969,7 @@ fn inline_conformance_member_calls_route_through_the_same_closed_map() {
     let program =
         resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -989,7 +992,7 @@ fn inline_conformance_member_calls_route_through_the_same_closed_map() {
         .first()
         .map(|handle| program.machine_state(*handle))
         .expect("inline first state");
-    let [symbol_resolved_trees::statement::StatementNode::Call(call)] = program
+    let [crate::symbol_resolved_trees::statement::StatementNode::Call(call)] = program
         .tables
         .bodies
         .statements
@@ -1034,7 +1037,7 @@ fn inline_conformance_value_calls_route_through_the_same_closed_map() {
     let program =
         resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -1057,7 +1060,7 @@ fn inline_conformance_value_calls_route_through_the_same_closed_map() {
         .first()
         .map(|handle| program.machine_state(*handle))
         .expect("inline first state");
-    let Some(symbol_resolved_trees::statement::StatementNode::LocalData(local)) = program
+    let Some(crate::symbol_resolved_trees::statement::StatementNode::LocalData(local)) = program
         .tables
         .bodies
         .statements
@@ -1066,7 +1069,7 @@ fn inline_conformance_value_calls_route_through_the_same_closed_map() {
     else {
         panic!("value-call normalization should retain its hoisted initializer");
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
         .tables
         .bodies
         .expressions
@@ -1099,7 +1102,7 @@ fn inline_conformance_calls_preserve_a_foreign_receiver_method() {
     let program =
         resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");
@@ -1122,7 +1125,7 @@ fn inline_conformance_calls_preserve_a_foreign_receiver_method() {
         .first()
         .map(|handle| program.machine_state(*handle))
         .expect("inline first state");
-    let [symbol_resolved_trees::statement::StatementNode::Call(call)] = program
+    let [crate::symbol_resolved_trees::statement::StatementNode::Call(call)] = program
         .tables
         .bodies
         .statements
@@ -1159,7 +1162,8 @@ fn proposition_parameter_signatures_receive_distinct_symbols() {
         program.symbols.get(relation.symbol).kind,
         symbols::SymbolKind::PropositionParameter
     );
-    let symbol_resolved_trees::data::TypeParameterKind::Proposition { contract } = &relation.kind
+    let crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { contract } =
+        &relation.kind
     else {
         panic!("Relation should retain a proposition signature");
     };
@@ -1168,7 +1172,7 @@ fn proposition_parameter_signatures_receive_distinct_symbols() {
     };
     assert!(left.symbol.is_valid() && right.symbol.is_valid());
     for parameter in [left, right] {
-        let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+        let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
             &parameter.type_reference
         else {
             panic!("relation parameter should retain C");
@@ -1182,12 +1186,12 @@ fn proposition_parameter_signatures_receive_distinct_symbols() {
     let [contract] = program.signature_contracts(signature.contracts) else {
         panic!("proof signature should retain one ensures contract");
     };
-    let [symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
+    let [crate::symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
         program.proof_facts(contract.facts)
     else {
         panic!("resolved proof fact should remain an expression");
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         program.tables.bodies.expressions.expression(*expression)
     else {
         panic!("ensures should remain a proposition-family call");
@@ -1243,28 +1247,29 @@ fn proposition_declarations_resolve_as_a_distinct_proof_category() {
     };
     assert!(matches!(
         generator.kind,
-        symbol_resolved_trees::proposition::PropositionBinderKind::Machine
+        crate::symbol_resolved_trees::proposition::PropositionBinderKind::Machine
     ));
     assert_eq!(
         program.symbols.get(generator.symbol).kind,
         symbols::SymbolKind::PropositionMachineParameter
     );
-    let symbol_resolved_trees::proposition::PropositionBody::Witness { evidence } = &witnessed.body
+    let crate::symbol_resolved_trees::proposition::PropositionBody::Witness { evidence } =
+        &witnessed.body
     else {
         panic!("witness evidence should remain distinct from a body");
     };
     assert!(matches!(
         evidence,
-        symbol_resolved_trees::types::TypeReference::Named { symbol, name }
+        crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name }
             if symbol.is_valid() && name.as_str() == "i32"
     ));
 
-    let symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+    let crate::symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
         program.propositions[2].body
     else {
         panic!("transparent proposition should retain its source expansion");
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         program.tables.bodies.expressions.expression(proposition)
     else {
         panic!("transparent expansion should remain a proposition call");
@@ -1276,7 +1281,7 @@ fn proposition_declarations_resolve_as_a_distinct_proof_category() {
         .expressions
         .expression_handles(call.arguments)
     {
-        let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+        let crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) =
             program.tables.bodies.expressions.expression(*argument)
         else {
             panic!("alias arguments should remain parameter names");

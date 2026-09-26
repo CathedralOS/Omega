@@ -12,11 +12,15 @@ use super::{
     ValueShape, scalar_shape,
 };
 use crate::SelectedInstructionError;
-use calling_conventions::{EntryControl, validate_boundary_entry_plan};
-use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedScalarInstruction};
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId};
-use target_operations::{TargetStructuralArgumentSource, TargetUnitScalarArgumentSource};
+use crate::legalized_operations::{LegalizedNormalizedForeignCall, LegalizedScalarInstruction};
+use crate::register_environment::ValidatedTargetRegisterEnvironment;
+use crate::register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId};
+use abstract_operations_to_target_operations::calling_conventions::{
+    EntryControl, validate_boundary_entry_plan,
+};
+use abstract_operations_to_target_operations::target_operations::{
+    TargetStructuralArgumentSource, TargetUnitScalarArgumentSource,
+};
 
 /// Scalar rows retain their native ordinals; the remaining ordered slots
 /// belong to the structural lane except the retained callback row's private
@@ -43,7 +47,7 @@ pub(crate) fn structural_parameter_positions(
 fn plan_operand_views(
     call: &LegalizedNormalizedForeignCall,
     environment: &ValidatedTargetRegisterEnvironment,
-) -> Option<Vec<(register_model::RegisterViewId, RegisterOperandAccess)>> {
+) -> Option<Vec<(crate::register_model::RegisterViewId, RegisterOperandAccess)>> {
     let plan = &call.binding.boundary_entry_plan.call;
     let mut views = Vec::new();
     // The plan keeps authored identity; only explicit instruction operands are
@@ -61,7 +65,8 @@ fn plan_operand_views(
         .filter(|(position, _)| Some(*position) != callback_ordinal)
         .collect::<Vec<_>>();
     parameters.sort_by_key(|(_, placement)| {
-        placement.shape.class == calling_conventions::ValueClass::Float
+        placement.shape.class
+            == abstract_operations_to_target_operations::calling_conventions::ValueClass::Float
     });
     for (_, placement) in parameters {
         match placement.locations.as_slice() {
@@ -186,7 +191,7 @@ pub(crate) fn validate(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
-    let legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) =
+    let crate::legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) =
         &instruction.kind
     else {
         return Err(invalid());
@@ -390,7 +395,7 @@ pub(crate) fn validate(
     };
     let validated = match &call.callback {
         Some(callback) => {
-            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+            abstract_operations_to_target_operations::calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
                 plan.clone(),
                 &signature,
                 &callback.registrar_context,

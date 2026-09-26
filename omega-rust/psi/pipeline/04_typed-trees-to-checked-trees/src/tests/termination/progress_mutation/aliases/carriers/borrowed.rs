@@ -44,10 +44,13 @@ fn borrowed_carrier_loads_retain_exact_reference_origins() {
             .unwrap();
         let state = &program.machine_states(machine)[0];
         let statements = program.statement_table.statements(state.statement_nodes);
-        let typed_trees::statement::StatementNode::LocalData(borrowed) = &statements[0] else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            borrowed,
+        ) = &statements[0]
+        else {
             panic!("reference local")
         };
-        let resolver = validation::CallFrameResolver::new(&program).unwrap();
+        let resolver = crate::validation::CallFrameResolver::new(&program).unwrap();
         let (root, segments) = resolver
             .local_reference_origin_before_statement(
                 machine,
@@ -56,7 +59,7 @@ fn borrowed_carrier_loads_retain_exact_reference_origins() {
             )
             .expect("a frozen input carrier reference leaf has an exact subject");
         assert_eq!(root, program.state_parameters(state)[0].symbol);
-        let [facts::PlaceSegment::Field { symbol }] = segments.as_slice() else {
+        let [crate::fact_plan::PlaceSegment::Field { symbol }] = segments.as_slice() else {
             panic!("one reference field: {segments:?}")
         };
         assert_eq!(
@@ -111,7 +114,7 @@ fn a_borrowed_carrier_load_cannot_establish_a_missing_state_qualification() {
     }
 }
 
-fn assert_input_premise(program: &checked_trees::CheckedTrees) {
+fn assert_input_premise(program: &crate::checked_trees::CheckedTrees) {
     let machine = program
         .machines()
         .iter()

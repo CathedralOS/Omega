@@ -1,10 +1,14 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
-fn aggregate_result_program(body: &str, extra: &str, scalar: &str) -> typed_trees::TypedTrees {
+fn aggregate_result_program(
+    body: &str,
+    extra: &str,
+    scalar: &str,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let source = format!(
         r#"
         data Cell {{ value: {scalar}; }}
@@ -286,7 +290,7 @@ fn aggregate_helper_results_transport_complete_reference_origins() {
         else {
             panic!("write demand");
         };
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         for (query, paths) in [
             (
                 "state",
@@ -356,7 +360,7 @@ fn aggregate_helper_result_producer_writes_do_not_become_later_call_writes() {
     else {
         panic!("call");
     };
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     for (query, paths, expected) in [
         (
             "state",
@@ -467,7 +471,7 @@ fn aggregate_helper_result_target_identity_is_live_and_nominally_compatible() {
         let StatementNode::Call(call) = statement else {
             panic!("call");
         };
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         assert_eq!(
             resolver
                 .inferred_state_write_frame(machine, state)
@@ -518,7 +522,7 @@ fn aggregate_helper_results_keep_independent_input_lifetimes_and_origins() {
     else {
         panic!("call");
     };
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     for (paths, expected) in [
         (
             resolver
@@ -556,7 +560,7 @@ fn aggregate_helper_result_writes_invalidate_prior_arithmetic_facts() {
             "let mut local: View = make_view(&mut self.value); local.body = 0; self.value = 255; self.value = local.body + 1;",
         ),
     ] {
-        match validation::validate_program(&aggregate_result_program(body, "", "u8")) {
+        match crate::validation::validate_program(&aggregate_result_program(body, "", "u8")) {
             Err(diagnostics)
                 if diagnostics.iter().any(|diagnostic| {
                     let message = diagnostic.to_string();
@@ -595,7 +599,7 @@ fn aggregate_helper_result_from_exclusive_self_retains_owned_field_origin() {
     else {
         panic!("call");
     };
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     for paths in [
         resolver
             .inferred_state_write_frame(machine, state)
@@ -646,12 +650,12 @@ fn aggregate_helper_result_reborrow_fence_peels_constrained_formals() {
             .clone();
         assert!(matches!(
             node,
-            typed_trees::types::TypeReferenceNode::Reference { .. }
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. }
         ));
         let base_type = program.type_reference_table.insert(node);
         program.type_reference_table.substitute_node(
             reference,
-            typed_trees::types::TypeReferenceNode::Constrained {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
                 base_type,
                 constraints: Default::default(),
             },
@@ -670,7 +674,7 @@ fn aggregate_helper_result_reborrow_fence_peels_constrained_formals() {
         else {
             panic!("call");
         };
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         assert!(
             !resolver
                 .inferred_state_write_frame(machine, state)
@@ -772,7 +776,7 @@ fn aggregate_helper_borrowed_source_requires_exact_live_parameter_identity() {
         let StatementNode::Call(call) = statement else {
             panic!("call");
         };
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         assert_eq!(
             resolver
                 .inferred_state_write_frame(machine, state)

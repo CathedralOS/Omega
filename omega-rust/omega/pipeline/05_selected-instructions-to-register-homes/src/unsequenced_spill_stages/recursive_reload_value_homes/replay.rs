@@ -7,12 +7,12 @@ mod timeline;
 mod work;
 
 use optimization_core::OptimizationWorkBudget;
-use register_model::{
+use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::register_model::{
     RegisterClassId, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionId, RecursiveReloadCoexistingValue, RecursiveReloadValueHomeError,
@@ -20,16 +20,16 @@ use crate::unsequenced_spill_stages::{
     ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryActions,
     ValidatedRecursiveSpillInsertion,
 };
-use selected_instructions::LiveRangePoint;
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
 };
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 #[derive(Clone)]
 struct ReplaySpec {
     action: GeneralizedSpillActionId,
     source: RecursiveSpillActionSource,
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     start: LiveRangePoint,
     full_exclusive_end: LiveRangePoint,
     exclusive_end: LiveRangePoint,

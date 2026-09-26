@@ -41,7 +41,7 @@ fn unchanged_seed_roster_is_not_a_new_retry() {
     assert!(seeds.is_none());
 }
 
-fn guarded_join_source(right_reason: i32) -> lowered_psi::LoweredPsi {
+fn guarded_join_source(right_reason: i32) -> crate::lowered_psi::LoweredPsi {
     let source = format!(
         "machine root(flag: bool, count: u64) -> i32 {{
             transition flag {{ true -> report(10, count) false -> report({right_reason}, count) }}
@@ -54,8 +54,7 @@ fn guarded_join_source(right_reason: i32) -> lowered_psi::LoweredPsi {
         }}"
     );
     let checked = crate::front_end::checked_program(&source);
-    crate::machine_lowering::lower_machine(&checked, TerminalMachineSelection::Name("root"))
-        .unwrap()
+    crate::lower_machine(&checked, TerminalMachineSelection::Name("root")).unwrap()
 }
 
 #[test]
@@ -154,11 +153,10 @@ const FIELD_DIVISOR: &str = "
         state done(&mut self) { }
     }";
 
-fn lower_field_loop(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
+fn lower_field_loop(source: &str, machine: &str) -> crate::lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(source);
-    let lowered =
-        crate::machine_lowering::lower_machine(&checked, TerminalMachineSelection::Name(machine))
-            .unwrap_or_else(|error| panic!("{machine} lowers: {error:?}"));
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name(machine))
+        .unwrap_or_else(|error| panic!("{machine} lowers: {error:?}"));
     assert!(!lowered.semantic_module.scalar_block_invariants.is_empty());
     terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -171,7 +169,7 @@ fn lower_field_loop(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
 
 /// Replace the loop's stored start value and drop every proposal and proof,
 /// so the header invariant must be rediscovered against the changed entry.
-fn restart_field_loop(lowered: &lowered_psi::LoweredPsi, start: i128, changed_start: i128) {
+fn restart_field_loop(lowered: &crate::lowered_psi::LoweredPsi, start: i128, changed_start: i128) {
     let mut changed = lowered.clone();
     changed.semantic_module.scalar_block_invariants.clear();
     changed.proof_bundle = terminal_verifier::ProofBundle::default();

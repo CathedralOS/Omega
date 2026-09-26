@@ -12,9 +12,9 @@ use super::use_item::parse_use_item;
 use crate::declarations::data::{parse_boundary_data_definition, parse_data_definition};
 use crate::declarations::machines::parse_machine;
 use crate::input::token_cursor::{Input, ParseResult};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{Item, MathematicalDefinition};
-use tokens::{KeywordKind, PunctuationKind};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{Item, MathematicalDefinition};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 /// One parsed top-level declaration. `let`/`boundary let` mathematical
 /// declarations are not [`Item`] variants yet — the symbol-resolution

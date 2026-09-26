@@ -1,5 +1,5 @@
+use crate::fact_plan::{FactPayload, FactPlace, QualificationEvidence};
 use diagnostics::Diagnostic;
-use facts::{FactPayload, FactPlace, QualificationEvidence};
 use language_core::receiver_place_label;
 use language_semantics::{CarryPolicy, CarrySuspension};
 
@@ -7,13 +7,13 @@ mod activation;
 mod intra_statement;
 
 struct ClaimCarryContext<'facts> {
-    semantic: &'facts facts::FactPlan,
-    ownership: &'facts checked_trees::FlowOwnershipFacts,
-    claim_policies: &'facts [checked_trees::ClaimCarryPolicyFact],
+    semantic: &'facts crate::fact_plan::FactPlan,
+    ownership: &'facts crate::checked_trees::FlowOwnershipFacts,
+    claim_policies: &'facts [crate::checked_trees::ClaimCarryPolicyFact],
     state_symbol: symbols::SymbolHandle,
     statement_index: usize,
     call_ordinal: usize,
-    entry_contexts: Vec<facts::FactContextHandle>,
+    entry_contexts: Vec<crate::fact_plan::FactContextHandle>,
 }
 
 impl ClaimCarryContext<'_> {
@@ -24,7 +24,7 @@ impl ClaimCarryContext<'_> {
     /// permissive axis from a sibling.
     fn effective_policy(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         value_name: &str,
         structural: CarryPolicy,
         claim_identities: &[language_semantics::PermissionClaimIdentity],
@@ -99,7 +99,7 @@ impl ClaimCarryContext<'_> {
 
     fn live_claim_identities(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         value_name: &str,
     ) -> Vec<language_semantics::PermissionClaimIdentity> {
         let mut latest_by_path = Vec::<(
@@ -131,7 +131,7 @@ impl ClaimCarryContext<'_> {
             ) else {
                 continue;
             };
-            let label = facts::canonical_place_label_from_parts(
+            let label = crate::fact_plan::canonical_place_label_from_parts(
                 program,
                 event.root,
                 self.ownership.segments.span_or_empty(event.segments),
@@ -198,7 +198,7 @@ fn permission_event_order_before_call(
 
 struct CrossingAccumulator {
     effective: CarryPolicy,
-    live_values: Vec<checked_trees::SuspensionCrossingLiveValueFact>,
+    live_values: Vec<crate::checked_trees::SuspensionCrossingLiveValueFact>,
 }
 
 impl Default for CrossingAccumulator {
@@ -217,8 +217,8 @@ impl Default for CrossingAccumulator {
 /// here. The independent activation-wide analysis derives CPU/thread
 /// preservation obligations without publishing a provider preemption mode.
 pub(super) fn check_suspension_carry(
-    program: &typed_trees::TypedTrees,
-    facts: &mut checked_trees::CheckFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    facts: &mut crate::checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     facts.carry.claim_policies = derive_claim_carry_policies(facts);
     let activation_wide_carry =
@@ -338,7 +338,7 @@ pub(super) fn check_suspension_carry(
                 &mut crossing,
                 &mut diagnostics,
             );
-            suspension_crossings.push(checked_trees::SuspensionCrossingCarryFact {
+            suspension_crossings.push(crate::checked_trees::SuspensionCrossingCarryFact {
                 machine: machine.symbol,
                 state: state.symbol,
                 statement_index: call.statement_index,
@@ -364,8 +364,8 @@ pub(super) fn check_suspension_carry(
 }
 
 fn derive_claim_carry_policies(
-    facts: &checked_trees::CheckFacts,
-) -> Vec<checked_trees::ClaimCarryPolicyFact> {
+    facts: &crate::checked_trees::CheckFacts,
+) -> Vec<crate::checked_trees::ClaimCarryPolicyFact> {
     let mut origins = Vec::<(
         language_semantics::PermissionClaimIdentity,
         QualificationEvidence,
@@ -424,7 +424,7 @@ fn derive_claim_carry_policies(
         }
     }
 
-    let mut policies = Vec::<checked_trees::ClaimCarryPolicyFact>::new();
+    let mut policies = Vec::<crate::checked_trees::ClaimCarryPolicyFact>::new();
     for (claim_identity, _, origin_policy) in origins {
         if let Some(fact) = policies
             .iter_mut()
@@ -433,7 +433,7 @@ fn derive_claim_carry_policies(
             fact.effective = fact.effective.intersect(origin_policy);
             fact.contributing_origins = fact.contributing_origins.saturating_add(1);
         } else {
-            policies.push(checked_trees::ClaimCarryPolicyFact {
+            policies.push(crate::checked_trees::ClaimCarryPolicyFact {
                 claim_identity,
                 effective: origin_policy,
                 contributing_origins: 1,
@@ -444,8 +444,8 @@ fn derive_claim_carry_policies(
 }
 
 fn append_call_carried_argument_diagnostics(
-    program: &typed_trees::TypedTrees,
-    call: &checked_trees::BorrowCallFact,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    call: &crate::checked_trees::BorrowCallFact,
     call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
@@ -474,8 +474,8 @@ fn append_call_carried_argument_diagnostics(
             &display_name,
             call,
             claim_carry,
-            checked_trees::SuspensionCrossingStorage::CallArgument,
-            checked_trees::SuspensionCrossingValueOrigin::CallArgument { position },
+            crate::checked_trees::SuspensionCrossingStorage::CallArgument,
+            crate::checked_trees::SuspensionCrossingValueOrigin::CallArgument { position },
             crossing,
             diagnostics,
         );
@@ -483,10 +483,10 @@ fn append_call_carried_argument_diagnostics(
 }
 
 fn append_live_persistent_diagnostics(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    call: &checked_trees::BorrowCallFact,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::BorrowCallFact,
     call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
@@ -500,7 +500,9 @@ fn append_live_persistent_diagnostics(
     {
         for member in program.data_members(attached) {
             match member {
-                typed_trees::data::DataMember::Field(field) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) => {
                     append_persistent_field_if_live(
                         program,
                         machine,
@@ -515,7 +517,9 @@ fn append_live_persistent_diagnostics(
                         diagnostics,
                     );
                 }
-                typed_trees::data::DataMember::Variant(variant) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) => {
                     for field in program.data_payload_fields(variant) {
                         append_persistent_field_if_live(
                             program,
@@ -555,13 +559,13 @@ fn append_live_persistent_diagnostics(
 
 #[allow(clippy::too_many_arguments)]
 fn append_persistent_field_if_live(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    call: &checked_trees::BorrowCallFact,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::BorrowCallFact,
     call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     field_symbol: symbols::SymbolHandle,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     field_name: &str,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
@@ -586,8 +590,8 @@ fn append_persistent_field_if_live(
         &display_name,
         call,
         claim_carry,
-        checked_trees::SuspensionCrossingStorage::Persistent,
-        checked_trees::SuspensionCrossingValueOrigin::Persistent {
+        crate::checked_trees::SuspensionCrossingStorage::Persistent,
+        crate::checked_trees::SuspensionCrossingValueOrigin::Persistent {
             symbol: field_symbol,
         },
         crossing,
@@ -596,10 +600,10 @@ fn append_persistent_field_if_live(
 }
 
 fn persistent_symbol_is_live_after_call(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    call: &checked_trees::BorrowCallFact,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::BorrowCallFact,
     call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     field_symbol: symbols::SymbolHandle,
     field_name: &str,
@@ -656,9 +660,9 @@ fn persistent_symbol_is_live_after_call(
 }
 
 fn append_state_successors_after_statement(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     successors: &mut Vec<symbols::SymbolHandle>,
 ) {
@@ -673,9 +677,9 @@ fn append_state_successors_after_statement(
 }
 
 fn append_all_state_successors(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     successors: &mut Vec<symbols::SymbolHandle>,
 ) {
     for statement in program.statement_table.statements(state.statement_nodes) {
@@ -684,13 +688,16 @@ fn append_all_state_successors(
 }
 
 fn append_statement_successors(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement: &typed_trees::statement::StatementNode,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    statement: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode,
     successors: &mut Vec<symbols::SymbolHandle>,
 ) {
-    let typed_trees::statement::StatementNode::Transition(transition) = statement else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(
+        transition,
+    ) = statement
+    else {
         return;
     };
     append_transition_target_successor(program, machine, state, transition.target, successors);
@@ -706,17 +713,17 @@ fn append_statement_successors(
 }
 
 fn append_transition_target_successor(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    target: typed_trees::statement::TransitionTargetHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
     successors: &mut Vec<symbols::SymbolHandle>,
 ) {
     let symbol = match program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named { path, .. } => path.symbol,
-        typed_trees::statement::TransitionTargetNode::SelfTarget => state.symbol,
-        typed_trees::statement::TransitionTargetNode::Value(_)
-        | typed_trees::statement::TransitionTargetNode::Terminal => return,
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { path, .. } => path.symbol,
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::SelfTarget => state.symbol,
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Terminal => return,
     };
     if symbol.is_valid()
         && program
@@ -729,10 +736,10 @@ fn append_transition_target_successor(
 }
 
 fn append_live_parameter_diagnostics(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    call: &checked_trees::BorrowCallFact,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::BorrowCallFact,
     call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
@@ -769,8 +776,8 @@ fn append_live_parameter_diagnostics(
             parameter.name.as_str(),
             call,
             claim_carry,
-            checked_trees::SuspensionCrossingStorage::Parameter,
-            checked_trees::SuspensionCrossingValueOrigin::Parameter {
+            crate::checked_trees::SuspensionCrossingStorage::Parameter,
+            crate::checked_trees::SuspensionCrossingValueOrigin::Parameter {
                 symbol: parameter.symbol,
                 position,
             },
@@ -781,10 +788,10 @@ fn append_live_parameter_diagnostics(
 }
 
 fn append_live_local_diagnostics(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    call: &checked_trees::BorrowCallFact,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::BorrowCallFact,
     call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
@@ -805,7 +812,10 @@ fn append_live_local_diagnostics(
         if definition_index >= call.statement_index {
             break;
         }
-        let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            local,
+        ) = statement
+        else {
             continue;
         };
         let position = local_position;
@@ -835,8 +845,8 @@ fn append_live_local_diagnostics(
             local.name.as_str(),
             call,
             claim_carry,
-            checked_trees::SuspensionCrossingStorage::Local,
-            checked_trees::SuspensionCrossingValueOrigin::Local {
+            crate::checked_trees::SuspensionCrossingStorage::Local,
+            crate::checked_trees::SuspensionCrossingValueOrigin::Local {
                 symbol: local.symbol,
                 statement_index: definition_index,
                 environment_position: parameter_count + position,
@@ -848,14 +858,14 @@ fn append_live_local_diagnostics(
 }
 
 fn append_if_suspension_forbidden(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     value_name: &str,
-    call: &checked_trees::BorrowCallFact,
+    call: &crate::checked_trees::BorrowCallFact,
     claim_carry: &ClaimCarryContext<'_>,
-    storage: checked_trees::SuspensionCrossingStorage,
-    origin: checked_trees::SuspensionCrossingValueOrigin,
+    storage: crate::checked_trees::SuspensionCrossingStorage,
+    origin: crate::checked_trees::SuspensionCrossingValueOrigin,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -874,25 +884,25 @@ fn append_if_suspension_forbidden(
 }
 
 fn append_if_suspension_forbidden_with_type_parameters(
-    program: &typed_trees::TypedTrees,
-    type_parameters: &[typed_trees::data::TypeParameter],
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter],
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     value_name: &str,
-    call: &checked_trees::BorrowCallFact,
+    call: &crate::checked_trees::BorrowCallFact,
     claim_carry: &ClaimCarryContext<'_>,
-    storage: checked_trees::SuspensionCrossingStorage,
-    origin: checked_trees::SuspensionCrossingValueOrigin,
+    storage: crate::checked_trees::SuspensionCrossingStorage,
+    origin: crate::checked_trees::SuspensionCrossingValueOrigin,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let structural =
-        validation::effective_type_carry_policy(program, type_parameters, type_reference);
+        crate::validation::effective_type_carry_policy(program, type_parameters, type_reference);
     let claims = claim_carry.live_claim_identities(program, value_name);
     let policy = claim_carry.effective_policy(program, value_name, structural, &claims);
     crossing.effective = crossing.effective.intersect(policy);
     crossing
         .live_values
-        .push(checked_trees::SuspensionCrossingLiveValueFact {
+        .push(crate::checked_trees::SuspensionCrossingLiveValueFact {
             type_reference,
             storage,
             origin,

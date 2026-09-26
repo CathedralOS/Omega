@@ -5,8 +5,8 @@ use super::{
     SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueId, ValueShape,
     build, evaluate_call_plan,
 };
+use crate::legalized_operations::LegalizedScalarComparison;
 use crate::selection::construction::scalar_graph::tests::control;
-use legalized_operations::LegalizedScalarComparison;
 
 #[test]
 fn boolean_return_materialization_replays_condition_result_and_fuel() {
@@ -17,7 +17,7 @@ fn boolean_return_materialization_replays_condition_result_and_fuel() {
         target::NativeTarget::windows_x64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

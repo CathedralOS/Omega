@@ -1,18 +1,18 @@
 //! Structural Unit cleanup regression families.
 
 use super::{CheckedTrees, LoweringError, lower_machine};
-use crate::TerminalMachineSelection;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::unit::unit_cleanup::{
     lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
 };
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
-};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_psi::{
     OperationKind, StructuralFieldType, StructuralPathSegment, StructuralTypeShape, Terminator,
+};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
 };
 fn nominal_affine_unit_checked_fixture() -> CheckedTrees {
     let source = r#"
@@ -352,7 +352,7 @@ fn ordered_nominal_cleanup_lowering_deduplicates_a_shared_helper_across_two_acti
 
     let mut contextual = plan;
     contextual.caller_requirements.push(
-        checked_trees::CheckedUnitNominalAffineCallerRequirementPlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitNominalAffineCallerRequirementPlan {
             source_parameter_index: 0,
             field_identity: "flag".to_owned(),
             expected: true,
@@ -866,8 +866,10 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
         .find(|field| field.identity == "before_bytes")
         .expect("bounded byte field")
         .field_type = CheckedUnitStructuralFieldType::ByteSequence(
-        checked_trees::CheckedByteSequenceCarrier::BorrowedView {
-            access: Some(checked_trees::CheckedStructuralAccess::SharedBorrow),
+        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+            access: Some(
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow,
+            ),
         },
     );
     assert!(matches!(

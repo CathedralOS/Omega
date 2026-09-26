@@ -11,23 +11,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
-    CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedNominalAffineUnitCleanupMachinePlan,
-    CheckedReturnPlan, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralReturnMachinePlan,
-    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
-    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
-    ClosedScalarContractValue,
-};
+use crate::lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
     ServiceReachSummary,
 };
-use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use semantic_vocabulary::{
     BoundaryMachineId, ContractId, DomainSemanticId, IeeeFloatFormat, IntegerSign, MachineId,
     PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
@@ -44,6 +32,18 @@ use terminal_psi::{
     Terminator, ValueDeclaration,
 };
 use terminal_verifier::ProofBundle;
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
+    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedReturnPlan, CheckedScalarBindingValue, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedStructuralReturnMachinePlan,
+    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
+    ClosedScalarContractValue,
+};
 
 use crate::emission::boolean_control::{
     bind_boolean_decision, boolean_decision_block_count, emit_inlined_boolean_value_blocks,

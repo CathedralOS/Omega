@@ -221,7 +221,7 @@ pub(super) fn validate(
                     matches!(
                         node.operation,
                         AbstractOperation::BoundaryCall {
-                            result: abstract_operations::AbstractBoundaryResult::Structural(_),
+                            result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(_),
                             ..
                         }
                     )

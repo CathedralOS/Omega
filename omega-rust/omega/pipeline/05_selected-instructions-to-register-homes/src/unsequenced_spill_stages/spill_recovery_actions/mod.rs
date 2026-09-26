@@ -19,20 +19,22 @@ use crate::unsequenced_spill_stages::{
     ValidatedSpillRecoveryWorklist,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use optimization_unit::ValueDefinitionSite;
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LogicalReloadValueId,
     LogicalSpillStorageClass,
-};
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{
-    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId, ScalarType};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
+};
+use target_operations_to_selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlanIdentity, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 pub fn plan_spill_recovery_actions<S: ValidatedSelectedAnalysis>(
     selected: &S,

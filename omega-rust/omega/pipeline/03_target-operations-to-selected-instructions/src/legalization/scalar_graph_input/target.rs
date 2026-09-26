@@ -6,11 +6,11 @@ use super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::instruction;
-use semantic_vocabulary::BlockId;
-use target_operations::{
+use abstract_operations_to_target_operations::target_operations::{
     ScalarParameterLocation, TargetBooleanExpression as Boolean,
     TargetIntegerExpression as Expression, TargetScalarExpression, TargetUnitOperation,
 };
+use semantic_vocabulary::BlockId;
 mod byte_view;
 pub(in crate::legalization::scalar_graph_input) mod control_flow;
 mod element_view;
@@ -74,7 +74,7 @@ pub(super) fn validate_target(
 
 struct Checker<'a> {
     function: &'a TargetFunction,
-    available: Option<&'a [(ValueId, target_operations::TargetUnitScalarArgumentSource)]>,
+    available: Option<&'a [(ValueId, abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource)]>,
     optimized: &'a PsiOptimizationFunction,
     types: &'a [terminal_psi::StructuralTypeDeclaration],
 }

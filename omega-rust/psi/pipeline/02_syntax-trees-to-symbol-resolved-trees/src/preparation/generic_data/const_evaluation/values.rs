@@ -453,15 +453,15 @@ fn generic_application_label(
                         return Ok(slug);
                     }
                     closed_argument_identity(
-                        syntax,
-                        selection,
-                        *argument,
-                        matches!(
-                            parameter.kind,
-                            syntax_trees::item::TypeParameterKind::Const { .. }
-                        ),
-                    )
-                    .ok_or("generic const carrier is not a closed monomorphizable application")?;
+                    syntax,
+                    selection,
+                    *argument,
+                    matches!(
+                        parameter.kind,
+                        tokens_to_syntax_trees::syntax_trees::item::TypeParameterKind::Const { .. }
+                    ),
+                )
+                .ok_or("generic const carrier is not a closed monomorphizable application")?;
                     let label = selected_type_label(syntax, *argument, selection)?;
                     if let TypeReferenceNode::Generic { base_name, .. } =
                         syntax.type_references.type_reference(*argument)
@@ -506,7 +506,7 @@ fn synthesized_instance<'syntax>(
                 *argument,
                 matches!(
                     parameter.kind,
-                    syntax_trees::item::TypeParameterKind::Const { .. }
+                    tokens_to_syntax_trees::syntax_trees::item::TypeParameterKind::Const { .. }
                 ),
             )
         })
@@ -1493,8 +1493,10 @@ fn canonicalize_selected_data_const_expression(
 
 pub(in crate::preparation::generic_data) fn canonicalize_named_fields(
     syntax: &SyntaxTrees,
-    declared_fields: &[&syntax_trees::item::DataField],
-    literal_fields: HandleSpan<syntax_trees::expression::TableStructLiteralField>,
+    declared_fields: &[&tokens_to_syntax_trees::syntax_trees::item::DataField],
+    literal_fields: HandleSpan<
+        tokens_to_syntax_trees::syntax_trees::expression::TableStructLiteralField,
+    >,
     selection: Option<&ConstantSelection>,
     substitution: &GenericApplicationSubstitution,
 ) -> Result<Vec<(String, CanonicalConstNode)>, String> {

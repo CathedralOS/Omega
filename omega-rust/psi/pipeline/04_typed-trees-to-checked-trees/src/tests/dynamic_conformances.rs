@@ -7,10 +7,10 @@ mod finite_family;
 mod structural_field_stores_and_descriptor_transfers;
 
 use crate::CheckingRequest;
+use crate::checked_trees::CheckedDynamicBinding::{Direct, Rebound};
+use crate::checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 use crate::tests::front_end::typed_program_with_core_service;
 use crate::tests::lower_typed_trees;
-use checked_trees::CheckedDynamicBinding::{Direct, Rebound};
-use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 
 const STRUCTURAL_INTEGER_STORE_SOURCE: &str = r#"
     trait Shape {
@@ -207,7 +207,7 @@ const NESTED_MUTATING_REALIZATION_SOURCE: &str = r#"
     }
 "#;
 
-fn check_dynamic_source(source: &str) -> checked_trees::CheckedTrees {
+fn check_dynamic_source(source: &str) -> crate::checked_trees::CheckedTrees {
     let mut typed = typed_program_with_core_service(source);
     // `Binding<R>` carrier fields stay unshaped — and the machine fails
     // closed — until the settled fused-provider input supplies an erasure
@@ -217,8 +217,8 @@ fn check_dynamic_source(source: &str) -> checked_trees::CheckedTrees {
 }
 
 fn sole_direct_dynamic_plan(
-    checked: &checked_trees::CheckedTrees,
-) -> &checked_trees::CheckedDynamicScalarCallPlan {
+    checked: &crate::checked_trees::CheckedTrees,
+) -> &crate::checked_trees::CheckedDynamicScalarCallPlan {
     assert!(
         checked
             .facts
@@ -242,10 +242,10 @@ fn sole_direct_dynamic_plan(
 }
 
 fn sole_rebound_dynamic_plan(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
 ) -> (
-    &checked_trees::CheckedDynamicSelectionPlan,
-    &checked_trees::CheckedDynamicScalarCallPlan,
+    &crate::checked_trees::CheckedDynamicSelectionPlan,
+    &crate::checked_trees::CheckedDynamicScalarCallPlan,
 ) {
     assert!(
         checked
@@ -270,10 +270,10 @@ fn sole_rebound_dynamic_plan(
 }
 
 fn sole_rebound_dynamic_unit_plan(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
 ) -> (
-    &checked_trees::CheckedDynamicSelectionPlan,
-    &checked_trees::CheckedDynamicUnitCallPlan,
+    &crate::checked_trees::CheckedDynamicSelectionPlan,
+    &crate::checked_trees::CheckedDynamicUnitCallPlan,
 ) {
     let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     let [Unit(Rebound { initial, latest })] = dynamic.calls.as_slice() else {
@@ -283,8 +283,8 @@ fn sole_rebound_dynamic_unit_plan(
 }
 
 fn sole_direct_dynamic_unit_plan(
-    checked: &checked_trees::CheckedTrees,
-) -> &checked_trees::CheckedDynamicUnitCallPlan {
+    checked: &crate::checked_trees::CheckedTrees,
+) -> &crate::checked_trees::CheckedDynamicUnitCallPlan {
     let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     let [Unit(Direct(plan))] = dynamic.calls.as_slice() else {
         panic!("one direct dynamic Unit plan expected, got {dynamic:#?}")

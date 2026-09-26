@@ -8,7 +8,10 @@ use super::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, ValueId,
 };
-use calling_conventions::{ValueClass, ValueLocation};
+use crate::calling_conventions::{ValueClass, ValueLocation};
+use crate::target_operations::{
+    TargetOperationPlan, TargetStructuralArgument, TargetUnitOperation,
+};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
@@ -16,14 +19,15 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
-use target_operations::{TargetOperationPlan, TargetStructuralArgument, TargetUnitOperation};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
-pub(super) fn source_plan(source: &str) -> abstract_operations::AbstractOperationPlan {
+pub(super) fn source_plan(
+    source: &str,
+) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
@@ -82,7 +86,7 @@ fn ordinary_calls_reject_missing_substituted_and_forged_scalar_homes() {
             .flat_map(|block| &block.operations)
             .find_map(|operation| match operation {
                 TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Scalar(home),
+                    result: crate::target_operations::TargetCallResult::Scalar(home),
                     ..
                 } => Some(*home),
                 _ => None,
@@ -95,7 +99,7 @@ fn ordinary_calls_reject_missing_substituted_and_forged_scalar_homes() {
                     matches!(
                         operation,
                         TargetUnitOperation::Call {
-                            result: target_operations::TargetCallResult::Scalar(_),
+                            result: crate::target_operations::TargetCallResult::Scalar(_),
                             ..
                         }
                     )
@@ -105,17 +109,17 @@ fn ordinary_calls_reject_missing_substituted_and_forged_scalar_homes() {
                         unreachable!()
                     };
                     if mutation == 0 {
-                        *result = target_operations::TargetCallResult::Unit;
+                        *result = crate::target_operations::TargetCallResult::Unit;
                         return;
                     }
-                    let target_operations::TargetCallResult::Scalar(home) = result else {
+                    let crate::target_operations::TargetCallResult::Scalar(home) = result else {
                         unreachable!()
                     };
                     match mutation {
                         1 => home.defining_operation = OperationId::new(99_001).unwrap(),
                         2 => home.source_value = ValueId::new(99_002).unwrap(),
                         3 => home.scalar_type = ScalarType::Boolean,
-                        _ => home.shape = calling_conventions::ValueShape::integer(1, 1),
+                        _ => home.shape = crate::calling_conventions::ValueShape::integer(1, 1),
                     }
                 },
             );
@@ -130,7 +134,7 @@ fn ordinary_calls_reject_missing_substituted_and_forged_scalar_homes() {
                 matches!(
                     operation,
                     TargetUnitOperation::Call {
-                        result: target_operations::TargetCallResult::Unit,
+                        result: crate::target_operations::TargetCallResult::Unit,
                         ..
                     }
                 )
@@ -139,7 +143,7 @@ fn ordinary_calls_reject_missing_substituted_and_forged_scalar_homes() {
                 let TargetUnitOperation::Call { result, .. } = operation else {
                     unreachable!()
                 };
-                *result = target_operations::TargetCallResult::Scalar(scalar_home);
+                *result = crate::target_operations::TargetCallResult::Scalar(scalar_home);
             },
         );
         assert!(
@@ -383,14 +387,14 @@ fn structural_result_call_preserves_verified_crash_continuations() {
                 |candidate| {
                     matches!(
                         candidate,
-                        TargetUnitOperation::Call { psi_operation, result: target_operations::TargetCallResult::Structural { .. }, .. }
+                        TargetUnitOperation::Call { psi_operation, result: crate::target_operations::TargetCallResult::Structural { .. }, .. }
                             if *psi_operation == operation
                     )
                 },
                 |call| {
                     let TargetUnitOperation::Call {
                         crash_continuations,
-                        result: target_operations::TargetCallResult::Structural { .. },
+                        result: crate::target_operations::TargetCallResult::Structural { .. },
                         ..
                     } = call
                     else {
@@ -434,7 +438,7 @@ fn relevant_erased_record_fields_have_no_runtime_layout_or_scalar_access() {
             entry.operations.retain(|operation| {
                 matches!(
                     operation,
-                    abstract_operations::AbstractOperation::ReturnUnit { .. }
+                    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ReturnUnit { .. }
                 )
             });
         }
@@ -511,7 +515,7 @@ fn relevant_erased_record_fields_have_no_runtime_layout_or_scalar_access() {
                 .operations
                 .iter_mut()
                 .find_map(|operation| match operation {
-                    abstract_operations::AbstractOperation::StructuralScalarFieldStore {
+                    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::StructuralScalarFieldStore {
                         field,
                         ..
                     } => Some(field),
@@ -531,7 +535,8 @@ fn relevant_erased_record_fields_have_no_runtime_layout_or_scalar_access() {
     }
 }
 
-fn shared_source() -> abstract_operations::AbstractOperationPlan {
+fn shared_source() -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan
+{
     source_plan(
         r#"
             trait Read { machine read(&self) -> i32; }
@@ -548,7 +553,8 @@ fn shared_source() -> abstract_operations::AbstractOperationPlan {
     )
 }
 
-fn projected_field_borrow_plan() -> abstract_operations::AbstractOperationPlan {
+fn projected_field_borrow_plan()
+-> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let tally = StructuralTypeId::new(1).unwrap();
     let main = StructuralTypeId::new(2).unwrap();
     let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
@@ -637,7 +643,8 @@ fn projected_field_borrow_plan() -> abstract_operations::AbstractOperationPlan {
 
 /// The same projected-field borrow with one runtime scalar argument, so the
 /// retained call exercises the scalar prefix of the callee's plan too.
-fn projected_field_borrow_scalar_argument_plan() -> abstract_operations::AbstractOperationPlan {
+fn projected_field_borrow_scalar_argument_plan()
+-> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let mut plan = projected_field_borrow_plan();
     let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let caller_value = ValueId::new(40).unwrap();
@@ -661,7 +668,8 @@ fn projected_field_borrow_scalar_argument_plan() -> abstract_operations::Abstrac
 /// rather than a machine parameter. The referent's declaration comes from
 /// the `EstablishRecord` results, so the retained argument must replay
 /// against that home's own root type and byte offset.
-fn established_home_borrow_plan() -> abstract_operations::AbstractOperationPlan {
+fn established_home_borrow_plan()
+-> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let mut plan = projected_field_borrow_plan();
     let tally = StructuralTypeId::new(1).unwrap();
     let main = StructuralTypeId::new(2).unwrap();
@@ -742,7 +750,8 @@ fn established_home_borrow_plan() -> abstract_operations::AbstractOperationPlan 
 /// projection retains the root array's extent and element stride beside the
 /// projected byte offset — metadata the validator must reconstruct from the
 /// referent's declaration rather than accept from the retained row.
-fn indexed_element_borrow_plan() -> abstract_operations::AbstractOperationPlan {
+fn indexed_element_borrow_plan()
+-> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let element = StructuralTypeId::new(1).unwrap();
     let array = StructuralTypeId::new(2).unwrap();
     let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
@@ -829,7 +838,8 @@ fn indexed_element_borrow_plan() -> abstract_operations::AbstractOperationPlan {
 /// same structural type, and returns that result itself. The retained
 /// structural-result `Call` must carry the declared result identity plus the
 /// independently derived durable home.
-fn structural_result_call_plan() -> abstract_operations::AbstractOperationPlan {
+fn structural_result_call_plan()
+-> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let primitive = StructuralTypeId::new(1).unwrap();
     let array = StructuralTypeId::new(2).unwrap();
     let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
@@ -960,7 +970,8 @@ fn structural_result_call_plan() -> abstract_operations::AbstractOperationPlan {
 /// ingress parameter, so the retained structural-result `Call` must carry one
 /// `reference_results` row resolved through caller custody: path
 /// `[reference]`, root the caller's parameter place.
-fn reference_result_call_plan() -> abstract_operations::AbstractOperationPlan {
+fn reference_result_call_plan()
+-> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let primitive = StructuralTypeId::new(1).unwrap();
     let reference = StructuralTypeId::new(2).unwrap();
     let carrier = StructuralTypeId::new(3).unwrap();
@@ -1124,7 +1135,8 @@ fn reference_result_call_plan() -> abstract_operations::AbstractOperationPlan {
 /// The retained rows are one `StoreDynamicDescriptor` plus one
 /// `StoredDynamicScalarCall` whose plan and source argument replay the
 /// selected realization's single-parameter signature.
-fn stored_descriptor_source() -> abstract_operations::AbstractOperationPlan {
+fn stored_descriptor_source()
+-> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     source_plan(
         r#"
             trait Measure { machine measure(&self) -> bool; }
@@ -1145,7 +1157,8 @@ fn stored_descriptor_source() -> abstract_operations::AbstractOperationPlan {
 
 /// A rebound descriptor call: the retained `DynamicScalarCall` carries both
 /// the initializer and the latest source against the same realization plan.
-fn rebound_descriptor_source() -> abstract_operations::AbstractOperationPlan {
+fn rebound_descriptor_source()
+-> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     source_plan(
         r#"
             trait Measure {
@@ -1169,7 +1182,7 @@ fn rebound_descriptor_source() -> abstract_operations::AbstractOperationPlan {
 
 fn mutate_call_plan(
     target: &TargetOperationPlan,
-    f: impl Fn(&mut calling_conventions::CallPlan),
+    f: impl Fn(&mut crate::calling_conventions::CallPlan),
 ) -> TargetOperationPlan {
     let mut target = target.clone();
     for function in &mut target.functions {
@@ -1188,7 +1201,7 @@ fn mutate_call_plan(
 
 fn mutate_scalar_arguments(
     target: &TargetOperationPlan,
-    f: impl Fn(&mut Vec<target_operations::TargetUnitScalarCallArgument>),
+    f: impl Fn(&mut Vec<crate::target_operations::TargetUnitScalarCallArgument>),
 ) -> TargetOperationPlan {
     let mut target = target.clone();
     for function in &mut target.functions {
@@ -1529,31 +1542,31 @@ fn projected_field_borrow_rejects_substituted_home_identity() {
         for mutation in [
             Box::new(|argument: &mut TargetStructuralArgument| {
                 argument.source =
-                    target_operations::TargetStructuralArgumentSource::StructuralHome {
+                    crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
                         psi_operation: OperationId::new(1).unwrap(),
                     }
             }) as Box<dyn Fn(&mut TargetStructuralArgument)>,
             Box::new(|argument: &mut TargetStructuralArgument| {
                 argument.source =
-                    target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                    crate::target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
                         psi_operation: OperationId::new(1).unwrap(),
                     }
             }),
             Box::new(|argument: &mut TargetStructuralArgument| {
                 argument.source =
-                    target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                    crate::target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                         psi_operation: OperationId::new(77).unwrap(),
                     }
             }),
             Box::new(|argument: &mut TargetStructuralArgument| {
                 argument.source =
-                    target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    crate::target_operations::TargetStructuralArgumentSource::BlockParameter {
                         block: semantic_vocabulary::BlockId::new(1).unwrap(),
                         place: argument.place,
                     }
             }),
             Box::new(|argument: &mut TargetStructuralArgument| {
-                let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+                let crate::target_operations::TargetStructuralArgumentSource::Placement(placement) =
                     &argument.source
                 else {
                     panic!("caller parameter transport");
@@ -1598,7 +1611,7 @@ fn established_home_borrow_retains_borrowed_reference_and_validates() {
         assert_eq!(argument.shape.class, ValueClass::BorrowedReference);
         assert_eq!(
             argument.source,
-            target_operations::TargetStructuralArgumentSource::StructuralHome {
+            crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
                 psi_operation: OperationId::new(12).unwrap()
             }
         );
@@ -1645,7 +1658,7 @@ fn borrowed_unit_call_into_a_serviceful_callee_keeps_its_row_and_replay() {
             .collect::<Vec<_>>();
         assert_eq!(
             retained,
-            vec![(callee, &target_operations::TargetCallResult::Unit, 1)]
+            vec![(callee, &crate::target_operations::TargetCallResult::Unit, 1)]
         );
         // The ceiling does not relax custody: a callee that also publishes
         // entry claims still refuses the borrowed row.
@@ -1689,14 +1702,14 @@ fn established_home_borrow_rejects_substituted_root_projection_and_home() {
             // A sibling establishment is not this referent's producer.
             Box::new(|argument: &mut TargetStructuralArgument| {
                 argument.source =
-                    target_operations::TargetStructuralArgumentSource::StructuralHome {
+                    crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
                         psi_operation: OperationId::new(11).unwrap(),
                     }
             }),
             // An established home is not a block arrival.
             Box::new(|argument: &mut TargetStructuralArgument| {
                 argument.source =
-                    target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    crate::target_operations::TargetStructuralArgumentSource::BlockParameter {
                         block: semantic_vocabulary::BlockId::new(1).unwrap(),
                         place: argument.place,
                     }
@@ -1751,7 +1764,7 @@ fn indexed_element_borrow_retains_array_transport_and_validates() {
         assert_eq!(argument.element_stride, Some(8));
         assert_eq!(
             argument.source,
-            target_operations::TargetStructuralArgumentSource::Placement(
+            crate::target_operations::TargetStructuralArgumentSource::Placement(
                 target.functions[0].graph.parameters[0].placement.clone()
             )
         );
@@ -1804,7 +1817,7 @@ fn indexed_element_borrow_rejects_substituted_projection_and_transport() {
             // An owned array parameter is not an operation-established home.
             Box::new(|argument: &mut TargetStructuralArgument| {
                 argument.source =
-                    target_operations::TargetStructuralArgumentSource::StructuralHome {
+                    crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
                         psi_operation: OperationId::new(1).unwrap(),
                     }
             }),
@@ -1832,19 +1845,19 @@ fn projected_field_borrow_rejects_substituted_callee_plan() {
             crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
                 .unwrap();
         for mutation in [
-            Box::new(|plan: &mut calling_conventions::CallPlan| {
+            Box::new(|plan: &mut crate::calling_conventions::CallPlan| {
                 plan.stack_alignment = plan.stack_alignment.wrapping_add(8);
-            }) as Box<dyn Fn(&mut calling_conventions::CallPlan)>,
-            Box::new(|plan: &mut calling_conventions::CallPlan| {
+            }) as Box<dyn Fn(&mut crate::calling_conventions::CallPlan)>,
+            Box::new(|plan: &mut crate::calling_conventions::CallPlan| {
                 plan.result = Some(plan.parameters[0].clone());
             }),
-            Box::new(|plan: &mut calling_conventions::CallPlan| {
+            Box::new(|plan: &mut crate::calling_conventions::CallPlan| {
                 plan.parameters.push(plan.parameters[0].clone());
             }),
-            Box::new(|plan: &mut calling_conventions::CallPlan| {
-                plan.policy = calling_conventions::CallingPolicy::MicrosoftX64;
+            Box::new(|plan: &mut crate::calling_conventions::CallPlan| {
+                plan.policy = crate::calling_conventions::CallingPolicy::MicrosoftX64;
             }),
-            Box::new(|plan: &mut calling_conventions::CallPlan| {
+            Box::new(|plan: &mut crate::calling_conventions::CallPlan| {
                 plan.shadow_bytes = plan.shadow_bytes.wrapping_add(4);
             }),
         ] {
@@ -1874,23 +1887,24 @@ fn call_scalar_arguments_reject_substituted_identity_and_placement() {
             .expect("honest scalar argument transport");
         for mutation in [
             Box::new(
-                |arguments: &mut Vec<target_operations::TargetUnitScalarCallArgument>| {
+                |arguments: &mut Vec<crate::target_operations::TargetUnitScalarCallArgument>| {
                     arguments.clear();
                 },
-            ) as Box<dyn Fn(&mut Vec<target_operations::TargetUnitScalarCallArgument>)>,
+            )
+                as Box<dyn Fn(&mut Vec<crate::target_operations::TargetUnitScalarCallArgument>)>,
             Box::new(
-                |arguments: &mut Vec<target_operations::TargetUnitScalarCallArgument>| {
+                |arguments: &mut Vec<crate::target_operations::TargetUnitScalarCallArgument>| {
                     arguments[0].parameter_index = 9;
                 },
             ),
             Box::new(
-                |arguments: &mut Vec<target_operations::TargetUnitScalarCallArgument>| {
+                |arguments: &mut Vec<crate::target_operations::TargetUnitScalarCallArgument>| {
                     arguments[0].placement.locations.clear();
                 },
             ),
             Box::new(
-                |arguments: &mut Vec<target_operations::TargetUnitScalarCallArgument>| {
-                    let target_operations::TargetUnitScalarArgumentSource::Parameter {
+                |arguments: &mut Vec<crate::target_operations::TargetUnitScalarCallArgument>| {
+                    let crate::target_operations::TargetUnitScalarArgumentSource::Parameter {
                         scalar_type,
                         ..
                     } = arguments[0].source
@@ -1898,7 +1912,7 @@ fn call_scalar_arguments_reject_substituted_identity_and_placement() {
                         panic!("caller parameter transport");
                     };
                     arguments[0].source =
-                        target_operations::TargetUnitScalarArgumentSource::Parameter {
+                        crate::target_operations::TargetUnitScalarArgumentSource::Parameter {
                             parameter_index: 0,
                             source_value: semantic_vocabulary::ValueId::new(99).unwrap(),
                             scalar_type,
@@ -1906,7 +1920,7 @@ fn call_scalar_arguments_reject_substituted_identity_and_placement() {
                 },
             ),
             Box::new(
-                |arguments: &mut Vec<target_operations::TargetUnitScalarCallArgument>| {
+                |arguments: &mut Vec<crate::target_operations::TargetUnitScalarCallArgument>| {
                     arguments.push(arguments[0].clone());
                 },
             ),
@@ -1923,8 +1937,8 @@ fn call_scalar_arguments_reject_substituted_identity_and_placement() {
 
 #[test]
 fn every_borrow_mode_uses_register_and_stack_pointers_without_value_copies() {
+    use crate::calling_conventions::IndirectPointerLocation;
     use crate::lowering::structural_signature::StructuralCallSignature;
-    use calling_conventions::IndirectPointerLocation;
     use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::StructuralAccess;
 
@@ -2019,7 +2033,7 @@ fn structural_result_call_replays_result_identity_home_and_plan() {
                 matches!(
                     operation,
                     TargetUnitOperation::Call {
-                        result: target_operations::TargetCallResult::Structural { .. },
+                        result: crate::target_operations::TargetCallResult::Structural { .. },
                         ..
                     }
                 )
@@ -2028,7 +2042,7 @@ fn structural_result_call_replays_result_identity_home_and_plan() {
         let TargetUnitOperation::Call {
             call_plan,
             result:
-                target_operations::TargetCallResult::Structural {
+                crate::target_operations::TargetCallResult::Structural {
                     result,
                     callee_result,
                     result_home: Some(home),
@@ -2048,7 +2062,7 @@ fn structural_result_call_replays_result_identity_home_and_plan() {
         );
         assert!(matches!(
             home.layout,
-            target_operations::TargetStructuralHomeLayout::Aggregate(_)
+            crate::target_operations::TargetStructuralHomeLayout::Aggregate(_)
         ));
         // One owned aggregate parameter occupies the only plan destination,
         // and the structural result still reserves a plan result placement.
@@ -2069,7 +2083,7 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
         matches!(
             operation,
             TargetUnitOperation::Call {
-                result: target_operations::TargetCallResult::Structural { .. },
+                result: crate::target_operations::TargetCallResult::Structural { .. },
                 ..
             }
         )
@@ -2092,7 +2106,7 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
                     callee,
-                    result: target_operations::TargetCallResult::Structural { .. },
+                    result: crate::target_operations::TargetCallResult::Structural { .. },
                     ..
                 } = operation
                 else {
@@ -2102,7 +2116,7 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
             }) as Box<dyn FnOnce(&mut TargetUnitOperation)>,
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Structural { result, .. },
+                    result: crate::target_operations::TargetCallResult::Structural { result, .. },
                     ..
                 } = operation
                 else {
@@ -2112,7 +2126,7 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Structural { result, .. },
+                    result: crate::target_operations::TargetCallResult::Structural { result, .. },
                     ..
                 } = operation
                 else {
@@ -2122,7 +2136,7 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Structural { result, .. },
+                    result: crate::target_operations::TargetCallResult::Structural { result, .. },
                     ..
                 } = operation
                 else {
@@ -2132,7 +2146,8 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Structural { callee_result, .. },
+                    result:
+                        crate::target_operations::TargetCallResult::Structural { callee_result, .. },
                     ..
                 } = operation
                 else {
@@ -2142,7 +2157,8 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Structural { callee_result, .. },
+                    result:
+                        crate::target_operations::TargetCallResult::Structural { callee_result, .. },
                     ..
                 } = operation
                 else {
@@ -2152,7 +2168,8 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Structural { result_home, .. },
+                    result:
+                        crate::target_operations::TargetCallResult::Structural { result_home, .. },
                     ..
                 } = operation
                 else {
@@ -2162,35 +2179,38 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Structural { result_home, .. },
+                    result:
+                        crate::target_operations::TargetCallResult::Structural { result_home, .. },
                     ..
                 } = operation
                 else {
                     unreachable!()
                 };
                 let home = result_home.as_mut().unwrap();
-                home.origin = target_operations::TargetStructuralHomeOrigin::BlockParameter {
-                    block: BlockId::new(9).unwrap(),
-                    declaration: forged_declaration(),
-                };
+                home.origin =
+                    crate::target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                        block: BlockId::new(9).unwrap(),
+                        declaration: forged_declaration(),
+                    };
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Structural { result_home, .. },
+                    result:
+                        crate::target_operations::TargetCallResult::Structural { result_home, .. },
                     ..
                 } = operation
                 else {
                     unreachable!()
                 };
                 let home = result_home.as_mut().unwrap();
-                home.layout = target_operations::TargetStructuralHomeLayout::Aggregate(
-                    calling_conventions::ValueShape::integer(4, 4),
+                home.layout = crate::target_operations::TargetStructuralHomeLayout::Aggregate(
+                    crate::calling_conventions::ValueShape::integer(4, 4),
                 );
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
                     arguments,
-                    result: target_operations::TargetCallResult::Structural { .. },
+                    result: crate::target_operations::TargetCallResult::Structural { .. },
                     ..
                 } = operation
                 else {
@@ -2202,15 +2222,15 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
                 let TargetUnitOperation::Call {
                     scalar_arguments,
                     call_plan,
-                    result: target_operations::TargetCallResult::Structural { .. },
+                    result: crate::target_operations::TargetCallResult::Structural { .. },
                     ..
                 } = operation
                 else {
                     unreachable!()
                 };
-                scalar_arguments.push(target_operations::TargetUnitScalarCallArgument {
+                scalar_arguments.push(crate::target_operations::TargetUnitScalarCallArgument {
                     parameter_index: 0,
-                    source: target_operations::TargetUnitScalarArgumentSource::Parameter {
+                    source: crate::target_operations::TargetUnitScalarArgumentSource::Parameter {
                         parameter_index: 0,
                         source_value: ValueId::new(50).unwrap(),
                         scalar_type: ScalarType::Boolean,
@@ -2221,7 +2241,7 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
                     requirement_obligations,
-                    result: target_operations::TargetCallResult::Structural { .. },
+                    result: crate::target_operations::TargetCallResult::Structural { .. },
                     ..
                 } = operation
                 else {
@@ -2238,16 +2258,16 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
             );
         }
         for plan_mutation in [
-            Box::new(|plan: &mut calling_conventions::CallPlan| {
+            Box::new(|plan: &mut crate::calling_conventions::CallPlan| {
                 plan.stack_alignment = plan.stack_alignment.wrapping_add(8);
-            }) as Box<dyn Fn(&mut calling_conventions::CallPlan)>,
+            }) as Box<dyn Fn(&mut crate::calling_conventions::CallPlan)>,
             // A structural-result callee always has a result placement;
             // dropping it is not an equivalent plan on any target.
-            Box::new(|plan: &mut calling_conventions::CallPlan| {
+            Box::new(|plan: &mut crate::calling_conventions::CallPlan| {
                 plan.result = None;
             }),
-            Box::new(|plan: &mut calling_conventions::CallPlan| {
-                plan.policy = calling_conventions::CallingPolicy::MicrosoftX64;
+            Box::new(|plan: &mut crate::calling_conventions::CallPlan| {
+                plan.policy = crate::calling_conventions::CallingPolicy::MicrosoftX64;
             }),
         ] {
             let mutated = mutate_call_plan(&target, plan_mutation);
@@ -2277,7 +2297,7 @@ fn structural_result_call_replays_reference_result_custody() {
                 matches!(
                     operation,
                     TargetUnitOperation::Call {
-                        result: target_operations::TargetCallResult::Structural { .. },
+                        result: crate::target_operations::TargetCallResult::Structural { .. },
                         ..
                     }
                 )
@@ -2285,7 +2305,7 @@ fn structural_result_call_replays_reference_result_custody() {
             .expect("retained structural result call");
         let TargetUnitOperation::Call {
             result:
-                target_operations::TargetCallResult::Structural {
+                crate::target_operations::TargetCallResult::Structural {
                     result,
                     reference_results,
                     ..
@@ -2300,7 +2320,7 @@ fn structural_result_call_replays_reference_result_custody() {
         // result path and still suspends the caller's ingress root.
         assert_eq!(
             reference_results.as_slice(),
-            [target_operations::TargetReferenceResult {
+            [crate::target_operations::TargetReferenceResult {
                 path: vec![terminal_psi::StructuralPathSegment::Field(
                     "reference".into()
                 )],
@@ -2323,7 +2343,7 @@ fn structural_result_call_rejects_forged_reference_result_rows() {
         matches!(
             operation,
             TargetUnitOperation::Call {
-                result: target_operations::TargetCallResult::Structural { .. },
+                result: crate::target_operations::TargetCallResult::Structural { .. },
                 ..
             }
         )
@@ -2339,7 +2359,7 @@ fn structural_result_call_rejects_forged_reference_result_rows() {
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
                     result:
-                        target_operations::TargetCallResult::Structural {
+                        crate::target_operations::TargetCallResult::Structural {
                             reference_results, ..
                         },
                     ..
@@ -2353,7 +2373,7 @@ fn structural_result_call_rejects_forged_reference_result_rows() {
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
                     result:
-                        target_operations::TargetCallResult::Structural {
+                        crate::target_operations::TargetCallResult::Structural {
                             reference_results, ..
                         },
                     ..
@@ -2368,7 +2388,7 @@ fn structural_result_call_rejects_forged_reference_result_rows() {
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
                     result:
-                        target_operations::TargetCallResult::Structural {
+                        crate::target_operations::TargetCallResult::Structural {
                             reference_results, ..
                         },
                     ..
@@ -2384,7 +2404,7 @@ fn structural_result_call_rejects_forged_reference_result_rows() {
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
                     result:
-                        target_operations::TargetCallResult::Structural {
+                        crate::target_operations::TargetCallResult::Structural {
                             reference_results, ..
                         },
                     ..
@@ -2399,7 +2419,7 @@ fn structural_result_call_rejects_forged_reference_result_rows() {
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
                     result:
-                        target_operations::TargetCallResult::Structural {
+                        crate::target_operations::TargetCallResult::Structural {
                             reference_results, ..
                         },
                     ..
@@ -2486,7 +2506,7 @@ fn embedded_scalar_calls_replay_declared_signature_rows() {
                 };
                 let scalar_type = arguments[0].source.scalar_type();
                 arguments[0].source =
-                    target_operations::TargetUnitScalarArgumentSource::Parameter {
+                    crate::target_operations::TargetUnitScalarArgumentSource::Parameter {
                         parameter_index: 0,
                         source_value: ValueId::new(99).unwrap(),
                         scalar_type,
@@ -2494,7 +2514,7 @@ fn embedded_scalar_calls_replay_declared_signature_rows() {
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Scalar(result_home),
+                    result: crate::target_operations::TargetCallResult::Scalar(result_home),
                     ..
                 } = operation
                 else {
@@ -2504,7 +2524,7 @@ fn embedded_scalar_calls_replay_declared_signature_rows() {
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Scalar(result_home),
+                    result: crate::target_operations::TargetCallResult::Scalar(result_home),
                     ..
                 } = operation
                 else {
@@ -2514,7 +2534,7 @@ fn embedded_scalar_calls_replay_declared_signature_rows() {
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Scalar(result_home),
+                    result: crate::target_operations::TargetCallResult::Scalar(result_home),
                     ..
                 } = operation
                 else {
@@ -2524,13 +2544,13 @@ fn embedded_scalar_calls_replay_declared_signature_rows() {
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
-                    result: target_operations::TargetCallResult::Scalar(result_home),
+                    result: crate::target_operations::TargetCallResult::Scalar(result_home),
                     ..
                 } = operation
                 else {
                     unreachable!()
                 };
-                result_home.shape = calling_conventions::ValueShape::integer(8, 8);
+                result_home.shape = crate::calling_conventions::ValueShape::integer(8, 8);
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
@@ -2547,7 +2567,7 @@ fn embedded_scalar_calls_replay_declared_signature_rows() {
                 let TargetUnitOperation::Call { result, .. } = operation else {
                     unreachable!()
                 };
-                *result = target_operations::TargetCallResult::Unit;
+                *result = crate::target_operations::TargetCallResult::Unit;
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::Call {
@@ -2622,15 +2642,15 @@ fn direct_calls_reject_cross_kind_result_custody() {
             .collect::<Vec<_>>();
         assert!(matches!(
             results[0],
-            target_operations::TargetCallResult::Unit
+            crate::target_operations::TargetCallResult::Unit
         ));
         assert!(matches!(
             results[1],
-            target_operations::TargetCallResult::Scalar(_)
+            crate::target_operations::TargetCallResult::Scalar(_)
         ));
         assert!(matches!(
             results[2],
-            target_operations::TargetCallResult::Structural { .. }
+            crate::target_operations::TargetCallResult::Structural { .. }
         ));
         for (source_position, (source, target)) in sources.iter().zip(&targets).enumerate() {
             for (replacement_position, replacement) in results.iter().enumerate() {
@@ -2686,8 +2706,8 @@ fn embedded_calls_reject_unbound_and_duplicate_forged_rows() {
             unreachable!()
         };
         let forged = |psi_operation| TargetUnitOperation::Call {
-            result: target_operations::TargetCallResult::Unit,
-            origin: target_operations::NativeCallOrigin::Authored,
+            result: crate::target_operations::TargetCallResult::Unit,
+            origin: crate::target_operations::NativeCallOrigin::Authored,
             psi_operation,
             callee,
             call_plan: call_plan.clone(),
@@ -2890,7 +2910,7 @@ fn stored_descriptor_calls_replay_unique_custody_plan_and_result() {
                     unreachable!()
                 };
                 source_argument.source =
-                    target_operations::TargetStructuralArgumentSource::StructuralHome {
+                    crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
                         psi_operation: OperationId::new(1).unwrap(),
                     };
             }),
@@ -2906,7 +2926,7 @@ fn stored_descriptor_calls_replay_unique_custody_plan_and_result() {
                 else {
                     unreachable!()
                 };
-                result_home.shape = calling_conventions::ValueShape::integer(8, 8);
+                result_home.shape = crate::calling_conventions::ValueShape::integer(8, 8);
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
                 let TargetUnitOperation::StoredDynamicScalarCall {

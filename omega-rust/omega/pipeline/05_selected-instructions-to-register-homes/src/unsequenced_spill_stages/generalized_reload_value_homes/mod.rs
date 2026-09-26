@@ -20,16 +20,20 @@ use crate::unsequenced_spill_stages::{
     ValidatedSpillRecoveryActions,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{
-    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionPlanIdentity,
-    VirtualRegisterId,
+use selected_instructions_to_selected_instructions::register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity,
 };
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
+};
+use target_operations_to_selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionPlanIdentity,
+    VirtualRegisterId,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub fn assign_generalized_reload_value_homes(
@@ -39,10 +43,10 @@ pub fn assign_generalized_reload_value_homes(
     selected: &target_operations_to_selected_instructions::ValidatedSelectedInstructions,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
-    physical: &register_model::ValidatedPhysicalRegisterModel,
-    constraints: &register_model::ValidatedRegisterConstraintCatalog,
-    reservations: &register_model::ValidatedRegisterReservationProfile,
-    selected_keys: &register_model::TargetRegisterEnvironmentConstraintKeys,
+    physical: &target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel,
+    constraints: &target_operations_to_selected_instructions::register_model::ValidatedRegisterConstraintCatalog,
+    reservations: &target_operations_to_selected_instructions::register_model::ValidatedRegisterReservationProfile,
+    selected_keys: &target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentConstraintKeys,
     policy: GeneralizedReloadValueHomePolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedGeneralizedReloadValueHomes, GeneralizedReloadValueHomeError> {

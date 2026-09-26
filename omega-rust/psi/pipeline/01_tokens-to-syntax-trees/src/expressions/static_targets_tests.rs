@@ -1,5 +1,5 @@
+use crate::syntax_trees::{SyntaxTrees, expression::ExpressionNode, statement::StatementNode};
 use source_files_to_tokens::Lexer;
-use syntax_trees::{SyntaxTrees, expression::ExpressionNode, statement::StatementNode};
 
 #[test]
 fn call_roots_retain_distinct_target_occurrences_through_syntax_copy() {
@@ -12,7 +12,7 @@ fn call_roots_retain_distinct_target_occurrences_through_syntax_copy() {
         let mut pending = program
             .root_items()
             .filter_map(|item| match item {
-                syntax_trees::item::Item::Const(definition) => Some(definition.value),
+                crate::syntax_trees::item::Item::Const(definition) => Some(definition.value),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -59,7 +59,7 @@ fn static_and_value_call_targets_remain_distinct_after_syntax_copy() {
         let mut statements = Vec::new();
         let mut expressions = Vec::new();
         for item in program.root_items() {
-            let syntax_trees::item::Item::Machine(machine) = item else {
+            let crate::syntax_trees::item::Item::Machine(machine) = item else {
                 continue;
             };
             for state in program.items.state_handles(machine.states) {
@@ -119,6 +119,6 @@ fn structural_static_arguments_publish_only_confirmed_call_types() {
         syntax
             .type_references
             .type_reference(call.machine_arguments[0].type_reference),
-        syntax_trees::types::TypeReferenceNode::Constrained { .. }
+        crate::syntax_trees::types::TypeReferenceNode::Constrained { .. }
     ));
 }

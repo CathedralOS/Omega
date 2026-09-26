@@ -3,13 +3,13 @@
 use crate::bodies::statements::statement_tables::expression_handle_to_statement_call;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
-use crate::type_syntax::parse_type::parse_type_reference_handle_allowing_borrow;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableIndexedExpression, TableMemberExpression,
 };
-use syntax_trees::statement::{StatementHandle, StatementNode, TableLocalData};
-use tokens::PunctuationKind;
+use crate::syntax_trees::statement::{StatementHandle, StatementNode, TableLocalData};
+use crate::type_syntax::parse_type::parse_type_reference_handle_allowing_borrow;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 /// `_ = call();` -- an explicit-discard statement. The call executes and its
 /// non-unit result is intentionally dropped (frozen decision 9: discarding a

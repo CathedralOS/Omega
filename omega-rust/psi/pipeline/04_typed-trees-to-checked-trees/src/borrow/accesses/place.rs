@@ -1,11 +1,11 @@
 use super::contextual::{contextual_effective_member_symbol, contextual_name_root_symbol};
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
-pub(crate) use checked_trees::CapturedPlace as BorrowAccessPlace;
+pub(crate) use crate::checked_trees::CapturedPlace as BorrowAccessPlace;
 
 pub(crate) fn borrow_access_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -85,7 +85,7 @@ pub(crate) fn borrow_access_place(
             // A declared case name constructs a value; it does not read storage
             // rooted at the type or variant declaration. Payload computations
             // have their own ordinary accesses before establishment.
-            if validation::exact_case_reference_owner(program, expression).is_some() {
+            if crate::validation::exact_case_reference_owner(program, expression).is_some() {
                 return None;
             }
             let root_symbol = contextual_name_root_symbol(

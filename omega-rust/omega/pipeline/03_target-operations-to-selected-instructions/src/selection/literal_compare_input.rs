@@ -4,7 +4,7 @@
 //! legalized source through this one decision.
 use std::ops::RangeInclusive;
 
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarComparison, LegalizedScalarFunction,
     LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };

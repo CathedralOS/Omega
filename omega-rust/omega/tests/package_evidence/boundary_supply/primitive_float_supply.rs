@@ -1,0 +1,515 @@
+use crate::support::*;
+use omega::compiler::CheckedCompileRequest;
+
+#[test]
+fn review_closes_named_float_negation_without_replacing_authored_realizations() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data F32 {}
+pub boundary operator F32::negate(value: f32) -> f32;
+pub data F64 {}
+pub boundary operator F64::negate(value: f64) -> f64;
+
+pub data FloatProvider {}
+pub machine FloatProvider::negate_f32(value: f32) -> f32
+    satisfies F32::negate
+    via ForeignBinding::CompilerIntrinsic;
+pub machine FloatProvider::negate_f64(value: f64) -> f64
+    satisfies F64::negate
+    via ForeignBinding::CompilerIntrinsic;
+
+machine exercise() {
+    let negative32: f32 = F32::negate(1.0f32);
+    let negative64: f64 = F64::negate(1.0f64);
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+"#,
+    );
+
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
+    .expect("named-float negation fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("named-float negation has a closed package-review identity");
+
+    for (requirement, realization, format) in [
+        (
+            "F32::negate",
+            "FloatProvider::negate_f32",
+            numerics::literals::FloatFormat::F32,
+        ),
+        (
+            "F64::negate",
+            "FloatProvider::negate_f64",
+            numerics::literals::FloatFormat::F64,
+        ),
+    ] {
+        let selected = review
+            .selected_providers()
+            .iter()
+            .find(|provider| provider.schema_declaration().path() == requirement)
+            .unwrap_or_else(|| panic!("missing selected provider for {requirement}"));
+        let [row] = selected.row_declarations() else {
+            panic!("one selected provider row for {requirement}")
+        };
+        assert_eq!(
+            row.compiler_intrinsic_execution(),
+            Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
+                format
+            )),
+        );
+        assert_eq!(row.compiler_intrinsic_builtin(), None);
+        assert_eq!(
+            row.realization().expect("authored row realization").path(),
+            realization,
+            "the authored realization nominal remains independent of compiler execution identity",
+        );
+    }
+
+    let applications = review.boundary_application_realizations();
+    assert_eq!(applications.len(), 2);
+    for (requirement, format) in [
+        ("F32::negate", numerics::literals::FloatFormat::F32),
+        ("F64::negate", numerics::literals::FloatFormat::F64),
+    ] {
+        let application = applications
+            .iter()
+            .find(|application| application.operator_declaration().path() == requirement)
+            .unwrap_or_else(|| panic!("missing exact application for {requirement}"));
+        assert_eq!(
+            application.application(),
+            PackageReviewBoundaryApplication::Empty
+        );
+        assert_eq!(
+            application.role(),
+            PackageReviewBoundaryApplicationRealizationRole::ExactCompilerIntrinsic,
+        );
+        assert!(matches!(
+            application.realization(),
+            PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic {
+                execution: PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(actual),
+            } if *actual == format
+        ));
+        assert_ne!(application.selected_plan_digest(), &[0; 32]);
+    }
+
+    let selected_rows = review
+        .canonical_rows()
+        .expect("canonical negation provider rows")
+        .into_iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::SelectedProviderSet)
+        .collect::<Vec<_>>();
+    assert_eq!(selected_rows.len(), 1);
+    for row in selected_rows {
+        let encoded = encode_package_review_canonical_row(&row)
+            .expect("selected negation-provider recovery envelope should encode");
+        let decoded = decode_package_review_canonical_row(&encoded)
+            .expect("selected negation-provider recovery envelope should decode");
+        assert_eq!(decoded.canonical_bytes(), row.canonical_bytes());
+    }
+    let application_rows = review
+        .canonical_rows()
+        .expect("canonical intrinsic application rows")
+        .into_iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::BoundaryApplicationRealization)
+        .collect::<Vec<_>>();
+    assert_eq!(application_rows.len(), 2);
+    for row in application_rows {
+        let decoded = decode_package_review_canonical_row(
+            &encode_package_review_canonical_row(&row)
+                .expect("intrinsic application recovery envelope should encode"),
+        )
+        .expect("intrinsic application recovery envelope should decode");
+        assert_eq!(decoded.canonical_bytes(), row.canonical_bytes());
+    }
+}
+
+#[test]
+fn review_closes_named_float_conversion_with_exact_types_and_domain() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data F32 {}
+pub boundary operator F32::from_f64(value: f64) -> f32;
+pub data FloatProvider {}
+pub machine FloatProvider::from_f64(value: f64) -> f32
+    satisfies F32::from_f64
+    via ForeignBinding::CompilerIntrinsic;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+"#,
+    );
+
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
+    .expect("named-float conversion fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("named-float conversion has a closed package-review identity");
+    let selected = review
+        .selected_providers()
+        .iter()
+        .find(|provider| provider.schema_declaration().path() == "F32::from_f64")
+        .expect("selected F32::from_f64 provider");
+    let [row] = selected.row_declarations() else {
+        panic!("one selected provider row for F32::from_f64")
+    };
+    assert_eq!(
+        row.compiler_intrinsic_execution(),
+        Some(
+            PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
+                source: omega::provider_planning::CompilerNumericType::F64,
+                target: omega::provider_planning::CompilerNumericType::F32,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            }
+        ),
+    );
+    assert_eq!(row.compiler_intrinsic_builtin(), None);
+    assert_eq!(
+        row.realization().expect("authored row realization").path(),
+        "FloatProvider::from_f64"
+    );
+
+    let selected_provider_row = review
+        .canonical_rows()
+        .expect("canonical conversion provider rows")
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::SelectedProviderSet)
+        .expect("selected-provider canonical row");
+    let encoded = encode_package_review_canonical_row(&selected_provider_row)
+        .expect("selected conversion-provider recovery envelope should encode");
+    let decoded = decode_package_review_canonical_row(&encoded)
+        .expect("selected conversion-provider recovery envelope should decode");
+    assert_eq!(
+        decoded.canonical_bytes(),
+        selected_provider_row.canonical_bytes(),
+        "canonical recovery must preserve exact conversion identity",
+    );
+}
+
+#[test]
+fn review_closes_primitive_float_binary_execution_by_operation_and_format() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    use numerics::literals::FloatFormat;
+    use omega::provider_planning::CompilerPrimitiveFloatBinaryOperation as Operation;
+
+    let operations = [
+        ("add", "+", Operation::Add, false),
+        ("subtract", "-", Operation::Subtract, false),
+        ("multiply", "*", Operation::Multiply, false),
+        ("divide", "/", Operation::Divide, false),
+        ("equal", "==", Operation::Equal, true),
+        ("not_equal", "!=", Operation::NotEqual, true),
+        ("less", "<", Operation::Less, true),
+        ("less_or_equal", "<=", Operation::LessOrEqual, true),
+        ("greater", ">", Operation::Greater, true),
+        ("greater_or_equal", ">=", Operation::GreaterOrEqual, true),
+    ];
+    let formats = [("f32", FloatFormat::F32), ("f64", FloatFormat::F64)];
+    let mut source = "pub data Float {}\npub data FloatProvider {}\n".to_owned();
+    for (name, spelling, _, returns_boolean) in operations {
+        for (primitive, _) in formats {
+            let result = if returns_boolean { "bool" } else { primitive };
+            source.push_str(&format!(
+                "pub boundary operator {spelling} Float::{name}(left: {primitive}, right: {primitive}) -> {result};\n\
+                 pub machine FloatProvider::{name}_{primitive}(left: {primitive}, right: {primitive}) -> {result}\n\
+                     satisfies Float::{name}\n\
+                     via ForeignBinding::CompilerIntrinsic;\n",
+            ));
+        }
+    }
+    source.push_str("machine exercise_add(left: f32, right: f32) -> f32 { left + right }\n");
+
+    let package = TempPackage::new();
+    package.write("main.omg", &source);
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+"#,
+    );
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
+    .expect("primitive float boundary-operator overloads should select independently");
+    let review = project_checked_package_review(&checked)
+        .expect("primitive float executions have closed package-review identities");
+    let rows = review
+        .selected_providers()
+        .iter()
+        .flat_map(|provider| provider.row_declarations())
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), operations.len() * formats.len());
+    for (name, _, operation, _) in operations {
+        for (primitive, format) in formats {
+            let realization = format!("FloatProvider::{name}_{primitive}");
+            let row = rows
+                .iter()
+                .find(|row| {
+                    row.realization().map(|identity| identity.path()) == Some(realization.as_str())
+                })
+                .unwrap_or_else(|| panic!("missing selected provider row for {realization}"));
+            assert_eq!(
+                row.compiler_intrinsic_execution(),
+                Some(
+                    PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
+                        operation,
+                        format,
+                    }
+                ),
+            );
+            assert_eq!(row.compiler_intrinsic_builtin(), None);
+        }
+    }
+    let [application] = review.boundary_application_realizations() else {
+        panic!("one actual primitive-float application")
+    };
+    assert_eq!(
+        application.role(),
+        PackageReviewBoundaryApplicationRealizationRole::ExactCompilerIntrinsic,
+    );
+    assert!(matches!(
+        application.realization(),
+        PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic {
+            execution: PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
+                operation: Operation::Add,
+                format: FloatFormat::F32,
+            },
+        }
+    ));
+
+    let selected_provider_row = review
+        .canonical_rows()
+        .expect("canonical primitive-float provider rows")
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::SelectedProviderSet)
+        .expect("selected-provider canonical row");
+    let encoded = encode_package_review_canonical_row(&selected_provider_row)
+        .expect("primitive-float provider recovery envelope should encode");
+    let decoded = decode_package_review_canonical_row(&encoded)
+        .expect("primitive-float provider recovery envelope should decode");
+    assert_eq!(
+        decoded.canonical_bytes(),
+        selected_provider_row.canonical_bytes()
+    );
+}
+
+#[test]
+fn primitive_float_binary_intrinsics_require_the_exact_token_and_shape() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+"#;
+    let cases = [
+        (
+            "tokenless",
+            "pub boundary operator Float::add(left: f32, right: f32) -> f32;",
+            "pub machine FloatProvider::realize(left: f32, right: f32) -> f32",
+        ),
+        (
+            "mismatched-token",
+            "pub boundary operator - Float::add(left: f32, right: f32) -> f32;",
+            "pub machine FloatProvider::realize(left: f32, right: f32) -> f32",
+        ),
+        (
+            "integer-operands",
+            "pub boundary operator + Float::add(left: i32, right: i32) -> i32;",
+            "pub machine FloatProvider::realize(left: i32, right: i32) -> i32",
+        ),
+        (
+            "mixed-formats",
+            "pub boundary operator + Float::add(left: f32, right: f64) -> f32;",
+            "pub machine FloatProvider::realize(left: f32, right: f64) -> f32",
+        ),
+        (
+            "arithmetic-bool-result",
+            "pub boundary operator + Float::add(left: f32, right: f32) -> bool;",
+            "pub machine FloatProvider::realize(left: f32, right: f32) -> bool",
+        ),
+        (
+            "comparison-float-result",
+            "pub boundary operator == Float::equal(left: f32, right: f32) -> f32;",
+            "pub machine FloatProvider::realize(left: f32, right: f32) -> f32",
+        ),
+    ];
+
+    for (label, operator, machine) in cases {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                "pub data Float {{}}\npub data FloatProvider {{}}\n{operator}\n{machine}\n    satisfies Float::{}\n    via ForeignBinding::CompilerIntrinsic;\n",
+                if label == "comparison-float-result" {
+                    "equal"
+                } else {
+                    "add"
+                },
+            ),
+        );
+        package.write("build.omg", build);
+        let diagnostics = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
+        .expect_err("malformed primitive float intrinsic must fail before package review");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("no compiler-known migrated intrinsic")
+                    || diagnostic
+                        .message
+                        .contains("no compiler-known intrinsic realization")
+            }),
+            "{label}: {diagnostics:?}",
+        );
+    }
+}
+
+/// The requirement-side intrinsic bridge: the same in-package float intrinsic
+/// spelled as a top-level `boundary requirement` projects the same selected
+/// provider row and the same D29 application-realization row as the named
+/// operator spelling, modulo the species-specific declaration path and the
+/// overload coordinate the requirement view keys on.
+#[test]
+fn review_closes_a_requirement_spelled_float_negation_like_the_operator_spelling() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    const OPERATOR_SOURCE: &str = r#"pub data F32 {}
+pub boundary operator F32::negate(value: f32) -> f32;
+
+pub data FloatProvider {}
+pub machine FloatProvider::negate_f32(value: f32) -> f32
+    satisfies F32::negate
+    via ForeignBinding::CompilerIntrinsic;
+
+machine exercise() {
+    let negative32: f32 = F32::negate(1.0f32);
+}
+"#;
+    let mut reviews = Vec::new();
+    for source in [
+        OPERATOR_SOURCE.to_owned(),
+        OPERATOR_SOURCE.replace("pub boundary operator", "pub boundary requirement"),
+    ] {
+        let package = TempPackage::new();
+        package.write("main.omg", &source);
+        package.write(
+            "build.omg",
+            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+"#,
+        );
+        let checked = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
+        .expect("both negation spellings check");
+        let requirement_uses = checked.facts.operators.named_requirement_uses().count();
+        let operator_uses = checked.facts.operators.named_uses().count();
+        reviews.push((
+            project_checked_package_review(&checked)
+                .expect("both negation spellings have a closed package-review identity"),
+            operator_uses,
+            requirement_uses,
+        ));
+    }
+    let [(operator_review, 1, 0), (requirement_review, 0, 1)] = reviews.as_slice() else {
+        panic!(
+            "each spelling stamps exactly one use of its own species: {:?}",
+            reviews
+                .iter()
+                .map(|(_, operators, requirements)| (operators, requirements))
+                .collect::<Vec<_>>()
+        );
+    };
+
+    for (review, species) in [
+        (operator_review, "operator"),
+        (requirement_review, "requirement"),
+    ] {
+        let selected = review
+            .selected_providers()
+            .iter()
+            .find(|provider| provider.schema_declaration().path() == "F32::negate")
+            .unwrap_or_else(|| panic!("{species}: missing selected provider for F32::negate"));
+        let [row] = selected.row_declarations() else {
+            panic!("{species}: one selected provider row for F32::negate")
+        };
+        assert_eq!(
+            row.compiler_intrinsic_execution(),
+            Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
+                numerics::literals::FloatFormat::F32
+            )),
+            "{species}: the closed execution identity is the same",
+        );
+        assert_eq!(
+            row.realization().expect("authored row realization").path(),
+            "FloatProvider::negate_f32"
+        );
+
+        let [application] = review.boundary_application_realizations() else {
+            panic!("{species}: exactly one D29 application-realization row")
+        };
+        assert_eq!(application.operator_declaration().path(), "F32::negate");
+        assert_eq!(
+            application.application(),
+            PackageReviewBoundaryApplication::Empty
+        );
+        assert_eq!(
+            application.role(),
+            PackageReviewBoundaryApplicationRealizationRole::ExactCompilerIntrinsic,
+        );
+        assert!(matches!(
+            application.realization(),
+            PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic {
+                execution: PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
+                    numerics::literals::FloatFormat::F32
+                ),
+            }
+        ));
+        assert_ne!(application.selected_plan_digest(), &[0; 32]);
+    }
+    let [operator_application] = operator_review.boundary_application_realizations() else {
+        unreachable!()
+    };
+    let [requirement_application] = requirement_review.boundary_application_realizations() else {
+        unreachable!()
+    };
+    assert_ne!(
+        operator_application.requirement_identity(),
+        requirement_application.requirement_identity(),
+        "the overload coordinate is the species' own: the operator overload identity or the requirement's normalized machine overload",
+    );
+    assert_eq!(
+        operator_application.realization(),
+        requirement_application.realization()
+    );
+    assert_eq!(
+        operator_application.selected_plan_digest() == &[0; 32],
+        requirement_application.selected_plan_digest() == &[0; 32]
+    );
+}

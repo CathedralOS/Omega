@@ -4,14 +4,14 @@ use optimization_core::{
     OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
     OptimizationValidatorIdentity,
 };
-use optimization_unit::CycleComponentId;
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, MachineId, OperationId};
+use terminal_psi_to_abstract_operations::optimization_unit::CycleComponentId;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     EffectLink, NodeLocation, OptimizationFact, OptimizationNode, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiTransformationLedger, PsiTransformationRecord, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
-use semantic_vocabulary::{BlockId, MachineId, OperationId};
 
 use crate::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
@@ -174,11 +174,13 @@ pub enum CountdownInvariantConstantRelocationError {
         candidate: OptimizationUnitIdentity,
         reconstructed: OptimizationUnitIdentity,
     },
-    TransformedValidation(optimization_unit_semantics::OptimizationUnitValidationError),
+    TransformedValidation(terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError),
     CountedLoop(CountedLoopAnalysisError),
     InvariantConstant(CountdownInvariantConstantAnalysisError),
     ReconstructedPlacement(CountdownInvariantConstantPlacementAnalysisError),
-    InvalidLedger(optimization_unit::InvalidPsiTransformationLedger),
+    InvalidLedger(
+        terminal_psi_to_abstract_operations::optimization_unit::InvalidPsiTransformationLedger,
+    ),
 }
 
 impl std::fmt::Display for CountdownInvariantConstantRelocationError {

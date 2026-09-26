@@ -176,10 +176,13 @@ fn a_reconstructed_result_query_retains_the_input_leaf_without_changing_frames()
         .unwrap();
     let state = &program.machine_states(machine)[0];
     let statements = program.statement_table.statements(state.statement_nodes);
-    let typed_trees::statement::StatementNode::LocalData(borrowed) = &statements[1] else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        borrowed,
+    ) = &statements[1]
+    else {
         panic!("the selected reference local")
     };
-    let resolver = validation::CallFrameResolver::new(&program).unwrap();
+    let resolver = crate::validation::CallFrameResolver::new(&program).unwrap();
     let frame = resolver.inferred_state_write_frame(machine, state);
     let (root, segments) = resolver
         .local_reference_origin_before_statement(
@@ -189,7 +192,7 @@ fn a_reconstructed_result_query_retains_the_input_leaf_without_changing_frames()
         )
         .expect("the helper preserves one frozen input leaf");
     assert_eq!(root, program.state_parameters(state)[0].symbol);
-    let [facts::PlaceSegment::Field { symbol }] = segments.as_slice() else {
+    let [crate::fact_plan::PlaceSegment::Field { symbol }] = segments.as_slice() else {
         panic!("one exact reference field: {segments:?}")
     };
     assert_eq!(

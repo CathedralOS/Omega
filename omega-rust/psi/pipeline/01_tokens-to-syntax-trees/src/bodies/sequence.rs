@@ -1,9 +1,9 @@
 use crate::bodies::statements::parse_statement::parse_statement_handles;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::statement::StatementHandle;
 use arena::HandleSpan;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::statement::StatementHandle;
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 #[derive(Clone, Copy)]
 pub(crate) enum BodyKind {

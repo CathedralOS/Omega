@@ -6,9 +6,9 @@ use diagnostics::Diagnostic;
 
 pub(crate) fn lower_operator_definition(
     lowerer: &mut Lowerer,
-    operator: &symbol_resolved_trees::operator::OperatorDefinition,
-) -> Result<typed_trees::operator::OperatorDefinition, Diagnostic> {
-    let mut typed_operator = typed_trees::operator::OperatorDefinition {
+    operator: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::operator::OperatorDefinition,
+) -> Result<crate::typed_trees::operator::OperatorDefinition, Diagnostic> {
+    let mut typed_operator = crate::typed_trees::operator::OperatorDefinition {
         is_public: operator.is_public,
         is_boundary: operator.is_boundary,
         symbol: operator.symbol,
@@ -25,7 +25,7 @@ pub(crate) fn lower_operator_definition(
             .as_ref()
             .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
             .transpose()?
-            .unwrap_or_else(typed_trees::types::TypeReferenceHandle::invalid),
+            .unwrap_or_else(crate::typed_trees::types::TypeReferenceHandle::invalid),
         contracts: Default::default(),
         spelling: operator.spelling,
         token_count: operator.token_count,
@@ -45,7 +45,7 @@ pub(crate) fn lower_operator_definition(
         let type_reference = lower_type_reference_into_table(lowerer, &parameter.type_reference)?;
         lowerer.typed_trees.push_operator_parameter(
             &mut typed_operator,
-            typed_trees::signature::StateParameter {
+            crate::typed_trees::signature::StateParameter {
                 symbol: parameter.symbol,
                 name: crate::lowerer::name::lower_name(&parameter.name),
                 type_reference,
@@ -61,30 +61,30 @@ pub(crate) fn lower_operator_definition(
         let facts = lower_proof_facts(lowerer, contract.facts)?;
         lowerer.typed_trees.push_operator_contract(
             &mut typed_operator,
-            typed_trees::signature::SignatureContract {
+            crate::typed_trees::signature::SignatureContract {
                 kind: match &contract.kind {
-                    symbol_resolved_trees::signature::SignatureContractKind::Requires => {
-                        typed_trees::signature::SignatureContractKind::Requires
+                    syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::SignatureContractKind::Requires => {
+                        crate::typed_trees::signature::SignatureContractKind::Requires
                     }
-                    symbol_resolved_trees::signature::SignatureContractKind::Ensures => {
-                        typed_trees::signature::SignatureContractKind::Ensures
+                    syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::SignatureContractKind::Ensures => {
+                        crate::typed_trees::signature::SignatureContractKind::Ensures
                     }
-                    symbol_resolved_trees::signature::SignatureContractKind::EnsuresForResultCase {
+                    syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::SignatureContractKind::EnsuresForResultCase {
                         result_data,
                         result_case,
-                    } => typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
+                    } => crate::typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
                         result_data: *result_data,
                         result_case: *result_case,
                     },
-                    symbol_resolved_trees::signature::SignatureContractKind::Crashes {
+                    syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::SignatureContractKind::Crashes {
                         cause,
-                    } => typed_trees::signature::SignatureContractKind::Crashes {
+                    } => crate::typed_trees::signature::SignatureContractKind::Crashes {
                         cause: match cause {
-                            symbol_resolved_trees::signature::CrashCause::Trap => {
-                                typed_trees::signature::CrashCause::Trap
+                            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::CrashCause::Trap => {
+                                crate::typed_trees::signature::CrashCause::Trap
                             }
-                            symbol_resolved_trees::signature::CrashCause::Abort => {
-                                typed_trees::signature::CrashCause::Abort
+                            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::CrashCause::Abort => {
+                                crate::typed_trees::signature::CrashCause::Abort
                             }
                         },
                     },

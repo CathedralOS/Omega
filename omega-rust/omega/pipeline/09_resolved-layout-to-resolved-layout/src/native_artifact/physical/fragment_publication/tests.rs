@@ -1,0 +1,191 @@
+use super::{Arc, FragmentPublicationBinding, validate_final_plan};
+use abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance;
+use post_allocation_machine_to_selected_form_encoding::machine_code::{
+    MachineCodeFunction, MachineCodePlan, SemanticCodeAttribution, SemanticCodeSite,
+    UnitAffineCleanupRecord, UnitStackEvidence,
+};
+use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, MachineId};
+use target::NativeTarget;
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+
+#[test]
+fn construction_rejects_detached_final_plan_and_object_terminal() {
+    let psi = terminal_psi::TerminalPsiIdentity {
+        vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+        program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([17; 32]),
+    };
+    let retained =
+        terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
+            psi,
+            entry: semantic_vocabulary::MachineId::new(1).unwrap(),
+            structural_types: Vec::new().into(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            functions: Vec::new(),
+        };
+    assert!(validate_final_plan(&retained, &retained, psi, psi).is_ok());
+    let mut changed = retained.clone();
+    changed.entry = semantic_vocabulary::MachineId::new(2).unwrap();
+    assert!(validate_final_plan(&changed, &retained, psi, psi).is_err());
+    let mut changed_terminal = psi;
+    changed_terminal.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([18; 32]);
+    assert!(validate_final_plan(&retained, &retained, psi, changed_terminal).is_err());
+}
+
+#[test]
+fn admitted_object_binding_rejects_a_different_valid_object() {
+    let original = crate::image_emission::build_object_artifact(&plan(1)).unwrap();
+    let different = crate::image_emission::build_object_artifact(&plan(2)).unwrap();
+    let machine = MachineId::new(7).unwrap();
+    let binding = FragmentPublicationBinding {
+        object: Arc::new(original.clone()),
+        foreign_call_custody: Vec::new(),
+        relocation_free_object: Arc::new(
+            crate::object_file::RelocationFreeObjectPlan {
+                identity: optimization_core::RelocationFreeObjectPlanIdentity::from_canonical_bytes(
+                    b"fragment-object",
+                ),
+                source_text_section:
+                    optimization_core::TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(
+                        b"text",
+                    ),
+                psi: terminal(),
+                fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+                selected: target_operations_to_selected_instructions::SelectedInstructionPlanIdentity::from_canonical_bytes(
+                    b"selected",
+                ),
+                selections: optimization_core::OptimizationSelectionIdentity::from_bytes([6; 32]),
+                target: NativeTarget::linux_x64(),
+                text_section: crate::object_file::RelocationFreeObjectTextSection {
+                    name: ".text".to_owned(),
+                    alignment: 1,
+                    byte_count: 1,
+                    bytes: vec![0xc3],
+                },
+                symbol_policy: crate::object_file::RelocationFreeObjectSymbolPolicy::PrivateSemanticMachineSymbolsV1,
+                symbols: Vec::new(),
+                semantic_entry: machine,
+                semantic_entry_symbol: crate::object_file::ObjectLocalSymbolId::new(1).unwrap(),
+                normalized_imports: Vec::new(),
+                unresolved_normalized_foreign_calls: Vec::new(),
+                relocation_record_count: 0,
+                relocation_requirements:
+                    crate::object_file::RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+            },
+        ),
+        text_section: Arc::new(post_allocation_machine_to_selected_form_encoding::machine_code::RelocationFreeTextSectionPlacement {
+            identity: optimization_core::TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(
+                b"text",
+            ),
+            source_fragments: optimization_core::FunctionFragmentEmissionIdentity::from_canonical_bytes(
+                b"fragments",
+            ),
+            psi: terminal(),
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+            selected: target_operations_to_selected_instructions::SelectedInstructionPlanIdentity::from_canonical_bytes(
+                b"selected",
+            ),
+            target: NativeTarget::linux_x64(),
+            semantic_entry: machine,
+            semantic_entry_offset: 0,
+            policy: post_allocation_machine_to_selected_form_encoding::machine_code::TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1,
+            section_alignment: 1,
+            byte_count: 1,
+            bytes: vec![0xc3],
+            functions: Vec::new(),
+            resolved_internal_machine_calls: Vec::new(),
+            unresolved_normalized_foreign_calls: Vec::new(),
+            relocation_requirements:
+                post_allocation_machine_to_selected_form_encoding::machine_code::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+        }),
+        selected: Arc::new(target_operations_to_selected_instructions::SelectedInstructionPlan {
+            psi: terminal(),
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+            target: NativeTarget::linux_x64(),
+            entry: machine,
+            functions: Vec::new().into(),
+        }),
+        identity: [7; 32],
+    };
+    assert!(binding.validate_object(&original).is_ok());
+    assert!(binding.validate_object(&different).is_err());
+}
+
+fn terminal() -> TerminalPsiIdentity {
+    TerminalPsiIdentity {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        program_fingerprint: SemanticFingerprint::from_bytes([17; 32]),
+    }
+}
+
+fn plan(machine_raw: u64) -> MachineCodePlan {
+    let machine = MachineId::new(machine_raw).expect("nonzero machine");
+    let return_edge = EdgeId::new(7).expect("nonzero edge");
+    MachineCodePlan {
+        psi: terminal(),
+        target: NativeTarget::linux_x64(),
+        entry: machine,
+        functions: vec![MachineCodeFunction {
+            machine,
+            attachment: None,
+            scalar_abi: None,
+            mixed_structural_scalar_abi: None,
+            structural_call_scalar_return: None,
+            parameter_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: Vec::new(),
+                edges: vec![return_edge],
+            },
+            bytes: vec![0xc3],
+            x86_scalar_fma: Vec::new(),
+            x86_scalar_fma_occurrences: Vec::new(),
+            x86_floating_control: None,
+            unit_stack: Some(UnitStackEvidence {
+                frame: None,
+                aarch64_return_link: None,
+                stack_alignment: 16,
+            }),
+            unit_parameter_homes: Vec::new(),
+            unit_parameters: Vec::new(),
+            scalar_stack: None,
+            internal_calls: Vec::new(),
+            foreign_calls: Vec::new(),
+            internal_unit_calls: Vec::new(),
+            internal_unit_scalar_calls: Vec::new(),
+            installed_provider_unit_scalar_calls: Vec::new(),
+            dynamic_calls: Vec::new(),
+            stored_dynamic_calls: Vec::new(),
+            dynamic_parameter_calls: Vec::new(),
+            forwarded_dynamic_parameter_calls: Vec::new(),
+            forwarded_dynamic_descriptor_calls: Vec::new(),
+            unit_scalar_homes: Vec::new(),
+            unit_integer_constants: Vec::new(),
+            unit_affine_scalar_records: Vec::new(),
+            unit_structural_scalar_field_stores: Vec::new(),
+            unit_write_only_primitive_stores: Vec::new(),
+            scalar_structural_scalar_field_stores: Vec::new(),
+            unit_continuations: Vec::new(),
+            unit_affine_cleanup: Some(UnitAffineCleanupRecord {
+                psi_edge: return_edge,
+                structural_types: Vec::new().into(),
+                locals: Vec::new(),
+                actions: Vec::new(),
+                code_offset: 0,
+                byte_count: 1,
+            }),
+            scalar_affine_cleanup: None,
+            scalar_control_affine_cleanups: Vec::new(),
+            scalar_structural_parameters: Vec::new(),
+            scalar_structural_parameter_homes: Vec::new(),
+            semantic_code_attribution: vec![SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(return_edge),
+                operation_ordinal: 0,
+                code_offset: 0,
+                byte_count: 1,
+            }],
+            port_effects: Vec::new(),
+            boundary_settlements: Vec::new(),
+            structural_return: None,
+        }],
+    }
+}

@@ -8,7 +8,7 @@ use super::{
     Replay, SourceArm, SymbolHandle, TypeReferenceHandle, unsupported, validate_operand,
 };
 use arena::HandleSpan;
-use checked_trees::CheckedStructuralRecordField;
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordField;
 
 /// Replay one `StructuralCase` node established at `expression` for `reference`.
 pub(super) fn validate(
@@ -34,11 +34,14 @@ pub(super) fn validate(
     else {
         return unsupported("case establishment lost its authored constructor");
     };
-    let expected = validation::unwrapped_type_reference(&checked.typed, reference)
-        .ok_or(LoweringError::Unsupported("case carrier missing"))?;
+    let expected = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+        &checked.typed,
+        reference,
+    )
+    .ok_or(LoweringError::Unsupported("case carrier missing"))?;
     if literal.case_symbol != Some(case)
         || literal.type_symbol != data_symbol
-        || !matches!(checked.type_reference_table.type_reference(expected), checked_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == data_symbol)
+        || !matches!(checked.type_reference_table.type_reference(expected), typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == data_symbol)
     {
         return unsupported("case establishment substituted its nominal owner");
     }
@@ -51,7 +54,9 @@ pub(super) fn validate(
         .data_members(data)
         .iter()
         .find_map(|member| match member {
-            checked_trees::data::DataMember::Variant(variant) if variant.symbol == case => {
+            typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(variant)
+                if variant.symbol == case =>
+            {
                 Some(variant)
             }
             _ => None,
@@ -83,7 +88,7 @@ pub(super) fn validate(
         }
         selected.push(field.field);
         match field.value {
-            checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
                 let role = CheckedScalarExpressionRole::StructuralValueField {
                     expression,
                     field_ordinal: u32::try_from(ordinal)
@@ -98,12 +103,12 @@ pub(super) fn validate(
                     value,
                     initializer.value,
                 )?;
-                let expected = validation::unwrapped_type_reference(
+                let expected = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
                     &checked.typed,
                     declaration.type_reference,
                 )
                 .and_then(|reference| checked.primitive_type_reference(reference));
-                if validation::reference_result_custody::parts(
+                if typed_trees_to_checked_trees::validation::reference_result_custody::parts(
                     &checked.typed,
                     declaration.type_reference,
                 )
@@ -114,7 +119,7 @@ pub(super) fn validate(
                 }
                 operand_roles.push(role);
             }
-            checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
                 pending.push((
                     value,
                     initializer.value,

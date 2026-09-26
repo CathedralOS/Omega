@@ -282,7 +282,7 @@ fn multi_hop_case_guard_promotes_only_the_proven_conditional_crash_claim() {
                     .span_or_empty(event.segments)
                     .iter()
                     .find_map(|segment| match segment {
-                        facts::PlaceSegment::Case { variant } => Some(*variant),
+                        crate::fact_plan::PlaceSegment::Case { variant } => Some(*variant),
                         _ => None,
                     })
             })
@@ -293,9 +293,9 @@ fn multi_hop_case_guard_promotes_only_the_proven_conditional_crash_claim() {
         .iter()
         .flat_map(|definition| checked.data_members(definition))
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Variant(variant) if variant.name.as_str() == "Live" => {
-                Some(variant.symbol)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) if variant.name.as_str() == "Live" => Some(variant.symbol),
             _ => None,
         })
         .expect("Live variant");
@@ -461,7 +461,7 @@ fn nested_case_membership_proves_every_conditional_crash_claim_segment() {
                 .segments
                 .span_or_empty(event.segments)
                 .iter()
-                .filter(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+                .filter(|segment| matches!(segment, crate::fact_plan::PlaceSegment::Case { .. }))
                 .count()
         })
         .expect("nested claim event");

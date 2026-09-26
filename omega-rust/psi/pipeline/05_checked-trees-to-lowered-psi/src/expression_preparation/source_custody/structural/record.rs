@@ -10,7 +10,7 @@ use super::{
     unsupported, validate_operand,
 };
 use arena::HandleSpan;
-use checked_trees::CheckedStructuralRecordField;
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordField;
 
 /// Replay one `Record` node established at `expression` for `reference`.
 pub(super) fn validate(
@@ -35,14 +35,20 @@ pub(super) fn validate(
     else {
         return unsupported("record establishment lost its authored constructor");
     };
-    let expected = validation::unwrapped_type_reference(&checked.typed, reference)
-        .ok_or(LoweringError::Unsupported("record carrier missing"))?;
+    let expected = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+        &checked.typed,
+        reference,
+    )
+    .ok_or(LoweringError::Unsupported("record carrier missing"))?;
     // A lifetime-parameterized record names its carrier through a
     // `Generic` node whose type arguments are empty — the authored
     // record name is still the nominal carrier.
     let nominal_carrier = match checked.type_reference_table.type_reference(expected) {
-        checked_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
-        checked_trees::types::TypeReferenceNode::Generic {
+        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
+            symbol,
+            ..
+        } => *symbol,
+        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Generic {
             base_symbol,
             arguments,
             ..
@@ -69,10 +75,12 @@ pub(super) fn validate(
         .find(|data| data.symbol == data_symbol)
         .ok_or(LoweringError::Unsupported("record declaration missing"))?;
     let members = checked.data_members(data);
-    if members
-        .iter()
-        .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
-    {
+    if members.iter().any(|member| {
+        matches!(
+            member,
+            typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(_)
+        )
+    }) {
         return unsupported("record establishment selected a sum");
     }
     // Erased members stay in the checked record's field list: they
@@ -82,7 +90,9 @@ pub(super) fn validate(
     let declared = members
         .iter()
         .filter_map(|member| match member {
-            checked_trees::data::DataMember::Field(field) => Some(field),
+            typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(field) => {
+                Some(field)
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -122,7 +132,7 @@ pub(super) fn validate(
             // only a structural zeroed-leaf value qualifies, and
             // its own arm replays the declared carrier and the
             // literal-zero element.
-            let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) = field.value
+            let typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Structural(value) = field.value
             else {
                 return unsupported("record establishment omitted a scalar member");
             };
@@ -154,7 +164,7 @@ pub(super) fn validate(
             return unsupported("record establishment reordered or substituted a field");
         }
         match field.value {
-            checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
                 let role = CheckedScalarExpressionRole::RecordField {
                     expression,
                     field_ordinal: u32::try_from(ordinal)
@@ -169,12 +179,12 @@ pub(super) fn validate(
                     value,
                     initializer.value,
                 )?;
-                let expected = validation::unwrapped_type_reference(
+                let expected = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
                     &checked.typed,
                     declaration.type_reference,
                 )
                 .and_then(|reference| checked.primitive_type_reference(reference));
-                if validation::reference_result_custody::parts(
+                if typed_trees_to_checked_trees::validation::reference_result_custody::parts(
                     &checked.typed,
                     declaration.type_reference,
                 )
@@ -185,7 +195,7 @@ pub(super) fn validate(
                 }
                 operand_roles.push(role);
             }
-            checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
                 pending.push((
                     value,
                     initializer.value,

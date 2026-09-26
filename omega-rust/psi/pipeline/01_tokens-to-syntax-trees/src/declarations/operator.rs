@@ -3,13 +3,13 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
-use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, CrashCause, OperatorDefinition,
 };
-use syntax_trees::operator_spelling::OperatorSpelling;
-use tokens::PunctuationKind;
+use crate::syntax_trees::operator_spelling::OperatorSpelling;
+use arena::{Handle, HandleSpan};
+use source_files_to_tokens::tokens::PunctuationKind;
 
 pub(super) fn parse_operator_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

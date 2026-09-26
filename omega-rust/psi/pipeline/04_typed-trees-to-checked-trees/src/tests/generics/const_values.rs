@@ -1,11 +1,15 @@
 use crate::CheckingRequest;
+use crate::checked_trees::CheckedTrees;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program_with_generic_data_result;
-use checked_trees::CheckedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionTargetNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 fn accepts(source: &str) -> CheckedTrees {
     let typed =
@@ -417,7 +421,7 @@ fn authored_unit_annotation_is_not_an_inferred_temporary() {
             program
                 .type_reference_table
                 .type_reference(local.type_reference),
-            typed_trees::types::TypeReferenceNode::Unit
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit
         ));
     };
     assert_annotation(&typed);

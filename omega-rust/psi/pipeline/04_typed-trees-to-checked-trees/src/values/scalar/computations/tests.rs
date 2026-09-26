@@ -88,7 +88,7 @@ fn qualified_call_assignment_retains_exact_argument_coordinates() {
     );
 }
 
-fn checked(argument: &str, combined: bool) -> checked_trees::CheckedTrees {
+fn checked(argument: &str, combined: bool) -> crate::checked_trees::CheckedTrees {
     let source = format!(
         r#"
         machine inner(input: bool) -> bool {{ input }}
@@ -105,7 +105,7 @@ fn checked(argument: &str, combined: bool) -> checked_trees::CheckedTrees {
     checked_source(&source, combined)
 }
 
-fn checked_source(source: &str, combined: bool) -> checked_trees::CheckedTrees {
+fn checked_source(source: &str, combined: bool) -> crate::checked_trees::CheckedTrees {
     let mut typed = typed_program(source);
     if combined {
         let machine = typed
@@ -540,9 +540,9 @@ fn scalar_computations_keep_initializer_roles_and_prior_binding_positions() {
             .map(|binding| binding.value.clone())
             .collect::<Vec<_>>(),
         vec![
-            checked_trees::CheckedScalarBindingValue::Expression,
-            checked_trees::CheckedScalarBindingValue::Computation,
-            checked_trees::CheckedScalarBindingValue::Computation
+            crate::checked_trees::CheckedScalarBindingValue::Expression,
+            crate::checked_trees::CheckedScalarBindingValue::Computation,
+            crate::checked_trees::CheckedScalarBindingValue::Computation
         ]
     );
 }
@@ -607,12 +607,12 @@ fn scalar_computations_retain_each_call_initializer_without_duplicating_pure_val
         .unwrap();
     assert_eq!(
         graph.states[0].bindings[0].value,
-        checked_trees::CheckedScalarBindingValue::Expression
+        crate::checked_trees::CheckedScalarBindingValue::Expression
     );
     for binding in &graph.states[0].bindings[1..] {
         assert!(matches!(
             binding.value,
-            checked_trees::CheckedScalarBindingValue::Computation
+            crate::checked_trees::CheckedScalarBindingValue::Computation
         ));
     }
 }

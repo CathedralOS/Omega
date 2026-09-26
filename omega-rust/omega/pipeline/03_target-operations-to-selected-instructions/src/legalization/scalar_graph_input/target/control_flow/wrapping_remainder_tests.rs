@@ -9,11 +9,13 @@ use super::{
 };
 use crate::legalization::scalar_graph_input::supports_wrapping_division;
 use crate::legalization::scalar_graph_input::target::Expression;
-use abstract_operations::{AbstractBlockEntry, AbstractParameter, AbstractResult};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ObligationId, OperationId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractParameter, AbstractResult,
+};
 
 fn value(ordinal: u64) -> ValueId {
     ValueId::new(ordinal).unwrap()
@@ -104,7 +106,7 @@ fn fixture(
         ),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )

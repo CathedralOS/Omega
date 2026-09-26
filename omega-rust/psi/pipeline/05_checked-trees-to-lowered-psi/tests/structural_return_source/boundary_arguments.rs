@@ -2,8 +2,10 @@
 //! artifacts, wrapper sources and the observing handlers.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_interpreter::TerminalStructuralInputs;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 #[path = "boundary_arguments/anonymous_fields.rs"]
 mod anonymous_fields;
 #[path = "boundary_arguments/constructed_wrappers_and_qualifications.rs"]
@@ -19,10 +21,12 @@ use crate::structural_return_source::{
     TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue, Terminator,
     decode_module, encode_module, encode_proof_section,
 };
-use checked_trees::CheckedUnitEffectOperationPlan;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 
-fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
+fn artifact(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> (Vec<u8>, Vec<u8>) {
     let root = checked
         .typed
         .machines()
@@ -104,7 +108,9 @@ fn unit_wrapper_source() -> String {
     )
 }
 
-fn unit_wrapper_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
+fn unit_wrapper_artifact(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> (Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -120,15 +126,16 @@ fn unit_wrapper_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec
         &AdmissionProfile::default(),
     )
     .unwrap();
-    let published = terminal_production::TerminalProductionRequest::new(
-        checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let published =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     assert_eq!(published.semantic_bytes(), artifact.0);
     artifact
 }
@@ -374,10 +381,10 @@ fn assert_constructed_wrapper_execution(source: &str) {
         unreachable!()
     };
     match &mut structural_arguments[0].source {
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
             declaration_ordinal,
         } => *declaration_ordinal += 1,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
         } => *binding_ordinal += 1,
         _ => panic!("constructed local source"),
@@ -406,9 +413,11 @@ fn constructed_wrapper_source(fields: &str, values: &str) -> String {
 }
 
 fn record_field_computation(
-    checked: &checked_trees::CheckedTrees,
-) -> checked_trees::CheckedScalarComputationHandle {
-    let checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) = checked
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationHandle {
+    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Scalar(
+        value,
+    ) = checked
         .facts
         .values
         .structural_values

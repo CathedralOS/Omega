@@ -2,17 +2,19 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
-use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
-use target_operations::{
+use crate::target_operations::{
     TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlTerminator,
     TargetScalarBlockValue, TargetStructuralCaseSource, TargetStructuralHomeLayout,
     TargetStructuralParameter,
 };
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use crate::target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
+};
 
 pub(super) fn observe(
     operation: &AbstractOperation,
@@ -302,7 +304,7 @@ mod tests {
             relevance: terminal_psi::BindingRelevance::Relevant,
             field_type,
         };
-        let catalog: abstract_operations::StructuralTypeCatalog = vec![
+        let catalog: terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog = vec![
             StructuralTypeDeclaration {
                 id: sum,
                 identity: "Color".into(),

@@ -1,5 +1,5 @@
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use arena::Arena;
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::top_level::next_child_of_kind;
@@ -31,11 +31,11 @@ pub(super) fn assign_root_operator_symbols(
 pub(super) fn assign_operator_symbols(
     symbols: &SymbolTable,
     siblings: &mut impl Iterator<Item = SymbolHandle>,
-    data_type_parameters: &mut Arena<symbol_resolved_trees::data::TypeParameter>,
-    state_parameters: &mut Arena<symbol_resolved_trees::signature::StateParameter>,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    operator: &mut symbol_resolved_trees::operator::OperatorDefinition,
+    data_type_parameters: &mut Arena<crate::symbol_resolved_trees::data::TypeParameter>,
+    state_parameters: &mut Arena<crate::symbol_resolved_trees::signature::StateParameter>,
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
+    operator: &mut crate::symbol_resolved_trees::operator::OperatorDefinition,
 ) {
     if !operator.symbol.is_valid() {
         operator.symbol = next_child_of_kind(siblings, symbols, SymbolKind::Operator);
@@ -55,8 +55,8 @@ pub(super) fn assign_operator_symbols(
             .clone();
         let mut resolved_kind = kind;
         let type_reference = match &mut resolved_kind {
-            symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
-            | symbol_resolved_trees::data::TypeParameterKind::Value { type_reference } => {
+            crate::symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+            | crate::symbol_resolved_trees::data::TypeParameterKind::Value { type_reference } => {
                 type_reference
             }
             _ => continue,

@@ -31,17 +31,21 @@ use super::owned_selection::place_paths_overlap;
 use crate::flow::CanonicalPlace;
 use diagnostics::Diagnostic;
 use language_core::ReferenceAccess;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, MatchPattern,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
-use typed_trees::statement::StatementNode;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// One absent place inside exclusive borrowed storage. `root`/`path` name the
 /// resolved storage place (a `&mut`-local route is already rebased onto the
 /// referent root); `spelling` is the authored-facing name used in diagnostics.
 struct OpenWindow {
-    root: facts::PlaceRoot,
-    path: Vec<facts::PlaceSegment>,
+    root: crate::fact_plan::PlaceRoot,
+    path: Vec<crate::fact_plan::PlaceSegment>,
     spelling: String,
     required_type: TypeReferenceHandle,
     opened_statement: usize,
@@ -63,15 +67,15 @@ impl BorrowedStorageWindows {
     /// recorded.
     pub(super) fn open(
         &mut self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statements: &[StatementNode],
         statement_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
-        path: &[facts::PlaceSegment],
+        path: &[crate::fact_plan::PlaceSegment],
     ) -> Option<Diagnostic> {
-        let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = event.root else {
             return Some(borrowed_transfer_diagnostic(
                 machine,
                 state,
@@ -152,19 +156,19 @@ impl BorrowedStorageWindows {
     /// whole-owner moves (empty paths) the borrowed gate never sees.
     pub(super) fn refuse_move_over_open(
         &self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statements: &[StatementNode],
         statement_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
-        path: &[facts::PlaceSegment],
+        path: &[crate::fact_plan::PlaceSegment],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if self.open.is_empty() {
             return;
         }
-        let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = event.root else {
             return;
         };
         let (root, storage_path) = resolve_storage_place(
@@ -197,14 +201,14 @@ impl BorrowedStorageWindows {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_invocation(
         &self,
-        program: &typed_trees::TypedTrees,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statement_index: usize,
         expression: ExpressionHandle,
-        control: &checked_trees::FlowControlFacts,
-        state_calls: &[checked_trees::FlowCallFact],
-        service_reaches: &checked_trees::ServiceReachFacts,
-        operators: &checked_trees::CheckedOperatorFacts,
+        control: &crate::checked_trees::FlowControlFacts,
+        state_calls: &[crate::checked_trees::FlowCallFact],
+        service_reaches: &crate::checked_trees::ServiceReachFacts,
+        operators: &crate::checked_trees::CheckedOperatorFacts,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if self.open.is_empty() {
@@ -261,9 +265,9 @@ impl BorrowedStorageWindows {
 
     pub(super) fn check_use(
         &self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statements: &[StatementNode],
         statement_index: usize,
         use_place: &CanonicalPlace,
@@ -272,7 +276,7 @@ impl BorrowedStorageWindows {
         if self.open.is_empty() {
             return;
         }
-        let facts::PlaceRoot::Symbol(root_symbol) = use_place.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = use_place.root else {
             return;
         };
         let (root, storage_path) = resolve_storage_place(
@@ -304,12 +308,12 @@ impl BorrowedStorageWindows {
     /// exact type. Any other overlapping store touches absent storage.
     pub(super) fn check_repair(
         &mut self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statements: &[StatementNode],
         statement_index: usize,
-        assignment: &typed_trees::statement::TableAssignment,
+        assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let Some(target) = crate::flow::canonical_place_from_expression_in_state(
@@ -320,7 +324,7 @@ impl BorrowedStorageWindows {
         ) else {
             return;
         };
-        let facts::PlaceRoot::Symbol(root_symbol) = target.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = target.root else {
             return;
         };
         let (root, target_path) = resolve_storage_place(
@@ -356,7 +360,7 @@ impl BorrowedStorageWindows {
                 // stored value's type to the owner's.
                 continue;
             }
-            let value_type = validation::expression_result_type_reference(
+            let value_type = crate::validation::expression_result_type_reference(
                 program,
                 machine,
                 state,
@@ -383,8 +387,8 @@ impl BorrowedStorageWindows {
     /// reports once: additional arms leaving the same region add no noise.
     pub(super) fn refuse_open_at_exit(
         &mut self,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for absent in &mut self.open {
@@ -410,11 +414,11 @@ impl BorrowedStorageWindows {
 /// ordinal before occurrence-ordered replay uses the row. Retired calls belong
 /// to their selected replacements and are not executed again here.
 pub(super) fn check_call_occurrences(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    calls: &[checked_trees::FlowCallFact],
-    control: &checked_trees::FlowControlFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    calls: &[crate::checked_trees::FlowCallFact],
+    control: &crate::checked_trees::FlowControlFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for call in calls {
@@ -448,12 +452,12 @@ pub(super) fn check_call_occurrences(
 /// This query runs only for calls crossing an open window. Its local visited
 /// set closes cycles without inventing a new effect row or expanding paths.
 fn call_may_enter_boundary(
-    program: &typed_trees::TypedTrees,
-    service_reaches: &checked_trees::ServiceReachFacts,
-    control: &checked_trees::FlowControlFacts,
-    operators: &checked_trees::CheckedOperatorFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    service_reaches: &crate::checked_trees::ServiceReachFacts,
+    control: &crate::checked_trees::FlowControlFacts,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
     state: SymbolHandle,
-    call: &checked_trees::FlowCallFact,
+    call: &crate::checked_trees::FlowCallFact,
 ) -> bool {
     let empty = language_semantics::ServiceReachRowTable::EMPTY_ROW;
     // The row-table reader maps unknown IDs to an empty slice. Only the
@@ -519,9 +523,9 @@ fn call_may_enter_boundary(
 /// those records for both named and spelled operators so skipped operands do
 /// not become calls, and wrappers cannot hide an opaque operator invocation.
 fn state_has_boundary_operator(
-    program: &typed_trees::TypedTrees,
-    control: &checked_trees::FlowControlFacts,
-    operators: &checked_trees::CheckedOperatorFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    control: &crate::checked_trees::FlowControlFacts,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
     state: SymbolHandle,
     statement: Option<usize>,
     expression: Option<ExpressionHandle>,
@@ -542,20 +546,22 @@ fn state_has_boundary_operator(
                 usage.expression,
             )
         };
-        matches!(origin, checked_trees::CheckedValueOrigin::StateStatement {
+        matches!(origin, crate::checked_trees::CheckedValueOrigin::StateStatement {
             state_symbol, statement_index, ..
         } if state_symbol == state && statement.is_none_or(|expected| expected == statement_index))
             && expression.is_none_or(|expected| expected == occurrence)
-            && typed_trees::operator::declaration_by_symbol(program, target)
-                .is_some_and(|operator| operator.is_boundary)
+            && symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+                program, target,
+            )
+            .is_some_and(|operator| operator.is_boundary)
     })
 }
 
 /// The shared diagnostic for a borrowed-storage transfer that cannot open or
 /// complete a window.
 pub(super) fn borrowed_transfer_diagnostic(
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
 ) -> Diagnostic {
     Diagnostic::error(format!(
@@ -572,18 +578,19 @@ pub(super) fn borrowed_transfer_diagnostic(
 /// different routes (a `&mut` local versus the owner path), so each arm's
 /// route is checked on its own links even though the join opens one hole.
 pub(super) fn authored_route_exclusive(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    root: facts::PlaceRoot,
-    path: &[facts::PlaceSegment],
+    root: crate::fact_plan::PlaceRoot,
+    path: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
-    matches!(root, facts::PlaceRoot::Symbol(_))
+    matches!(root, crate::fact_plan::PlaceRoot::Symbol(_))
         && exclusive_storage_chain(program, machine, state, statement_index, root, path)
 }
 
-type ArmHandle = arena::Handle<typed_trees::expression::TableMatchArm>;
+type ArmHandle =
+    arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMatchArm>;
 
 fn arm_key(handle: ArmHandle) -> (u32, u32) {
     (handle.arena_index(), handle.generation())
@@ -600,7 +607,9 @@ struct MatchWindowFrame {
     /// where an agreeing arm debt becomes one hole on the joined edge.
     expression: ExpressionHandle,
     /// The arm span is the frame's identity and its membership roster.
-    arms: arena::HandleSpan<typed_trees::expression::TableMatchArm>,
+    arms: arena::HandleSpan<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMatchArm,
+    >,
     /// Arms that can evaluate: shadowed patterns and post-covered arms never
     /// run, so agreement holds them to nothing.
     reachable: Vec<ArmHandle>,
@@ -654,8 +663,13 @@ pub(super) struct ArmWindowPlan {
     arm_of_expression: std::collections::BTreeMap<(u32, u32), ArmHandle>,
     /// Resolved storage places each arm's borrowed moves open, keyed by the
     /// arm's handle identity.
-    arm_debts:
-        std::collections::BTreeMap<(u32, u32), Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)>>,
+    arm_debts: std::collections::BTreeMap<
+        (u32, u32),
+        Vec<(
+            crate::fact_plan::PlaceRoot,
+            Vec<crate::fact_plan::PlaceSegment>,
+        )>,
+    >,
     /// frame index → every arm on its enclosing chain is reachable.
     live: Vec<bool>,
     /// frame index → its reachable arms agreed on identical debts.
@@ -667,9 +681,18 @@ pub(super) struct ArmWindowPlan {
     rooted_agreed: Vec<bool>,
     /// Resolved debts this plan already opened per frame — sibling arms of an
     /// agreeing match contribute one hole per place, not one hole per event.
-    opened: Vec<(usize, facts::PlaceRoot, Vec<facts::PlaceSegment>)>,
+    opened: Vec<(
+        usize,
+        crate::fact_plan::PlaceRoot,
+        Vec<crate::fact_plan::PlaceSegment>,
+    )>,
     /// frame index → the agreed debt set its reachable arms carry.
-    agreed_debts: Vec<Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)>>,
+    agreed_debts: Vec<
+        Vec<(
+            crate::fact_plan::PlaceRoot,
+            Vec<crate::fact_plan::PlaceSegment>,
+        )>,
+    >,
     /// frame index → the match itself sits in a statement-conditional
     /// position, or a match enclosing it does. Pending debts then can never
     /// commit to the statement edge.
@@ -677,12 +700,21 @@ pub(super) struct ArmWindowPlan {
     /// Places already absent on one arm's own edge, in step order, as
     /// (recording arm, resolved root, resolved path). A sibling arm's hole
     /// does not appear on this edge — only the join shares it.
-    edge_absent: Vec<(ArmHandle, facts::PlaceRoot, Vec<facts::PlaceSegment>)>,
+    edge_absent: Vec<(
+        ArmHandle,
+        crate::fact_plan::PlaceRoot,
+        Vec<crate::fact_plan::PlaceSegment>,
+    )>,
     /// Agreed debts awaiting their root frame's join: (root frame index,
     /// move event index, resolved place). The caller commits them through
     /// `open` when the match's `Invoke` step crosses; the place fields dedupe
     /// one hole per place at the join even when several frames contributed.
-    pending: Vec<(usize, usize, facts::PlaceRoot, Vec<facts::PlaceSegment>)>,
+    pending: Vec<(
+        usize,
+        usize,
+        crate::fact_plan::PlaceRoot,
+        Vec<crate::fact_plan::PlaceSegment>,
+    )>,
     /// Expressions evaluated conditionally on their own arm's edge — a
     /// short-circuit operand inside the arm's value, for example. A move
     /// there cannot promise the hole on that edge.
@@ -695,9 +727,9 @@ impl ArmWindowPlan {
     /// the enclosing context, arm values in their arm, and short-circuit
     /// right operands stay conditional on both their edge and the statement.
     pub(super) fn new(
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         statement: &StatementNode,
-        operators: &checked_trees::CheckedOperatorFacts,
+        operators: &crate::checked_trees::CheckedOperatorFacts,
     ) -> Self {
         let mut plan = Self {
             frames: Vec::new(),
@@ -759,19 +791,19 @@ impl ArmWindowPlan {
     /// expression→arm map (call-flow argument moves).
     pub(super) fn add_borrowed_move(
         &mut self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statements: &[StatementNode],
         statement_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
-        path: &[facts::PlaceSegment],
+        path: &[crate::fact_plan::PlaceSegment],
     ) {
         let arm = self.effective_arm(program, machine, state, event);
         if !arm.is_valid() {
             return;
         }
-        let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = event.root else {
             return;
         };
         self.arm_debts
@@ -807,21 +839,34 @@ impl ArmWindowPlan {
                     });
         }
         self.agreed = vec![false; count];
-        let mut agreed_debts: Vec<Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)>> =
-            vec![Vec::new(); count];
+        let mut agreed_debts: Vec<
+            Vec<(
+                crate::fact_plan::PlaceRoot,
+                Vec<crate::fact_plan::PlaceSegment>,
+            )>,
+        > = vec![Vec::new(); count];
         // enclosing arm handle identity → the nested frame's contribution:
         // `Some` is its agreed debt set, `None` a nested disagreement that
         // keeps the arm's set from ever matching its siblings.
         let mut contributions: std::collections::BTreeMap<
             (u32, u32),
-            Option<Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)>>,
+            Option<
+                Vec<(
+                    crate::fact_plan::PlaceRoot,
+                    Vec<crate::fact_plan::PlaceSegment>,
+                )>,
+            >,
         > = std::collections::BTreeMap::new();
         for index in (0..count).rev() {
             if !self.live[index] {
                 continue;
             }
-            let mut arm_sets: Vec<Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)>> = self.frames
-                [index]
+            let mut arm_sets: Vec<
+                Vec<(
+                    crate::fact_plan::PlaceRoot,
+                    Vec<crate::fact_plan::PlaceSegment>,
+                )>,
+            > = self.frames[index]
                 .reachable
                 .iter()
                 .map(|arm| {
@@ -899,14 +944,14 @@ impl ArmWindowPlan {
     /// `Invoke` crosses, so a sibling arm's reads still see the place present.
     pub(super) fn verdict(
         &mut self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statements: &[StatementNode],
         statement_index: usize,
         event_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
-        path: &[facts::PlaceSegment],
+        path: &[crate::fact_plan::PlaceSegment],
     ) -> Option<ArmWindowVerdict> {
         let arm = self.effective_arm(program, machine, state, event);
         if !arm.is_valid() {
@@ -930,7 +975,7 @@ impl ArmWindowPlan {
         {
             return Some(ArmWindowVerdict::Reject);
         }
-        let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = event.root else {
             return Some(ArmWindowVerdict::Reject);
         };
         let resolved = resolve_storage_place(
@@ -1024,9 +1069,9 @@ impl ArmWindowPlan {
     /// exists only after the match commits.
     pub(super) fn check_edge_use(
         &self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statements: &[StatementNode],
         statement_index: usize,
         expression: ExpressionHandle,
@@ -1042,7 +1087,7 @@ impl ArmWindowPlan {
         if !arm.is_valid() {
             return;
         }
-        let facts::PlaceRoot::Symbol(root_symbol) = use_place.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = use_place.root else {
             return;
         };
         let (root, storage_path) = resolve_storage_place(
@@ -1077,15 +1122,15 @@ impl ArmWindowPlan {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_edge_invocation(
         &self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statement_index: usize,
         expression: ExpressionHandle,
-        control: &checked_trees::FlowControlFacts,
-        state_calls: &[checked_trees::FlowCallFact],
-        service_reaches: &checked_trees::ServiceReachFacts,
-        operators: &checked_trees::CheckedOperatorFacts,
+        control: &crate::checked_trees::FlowControlFacts,
+        state_calls: &[crate::checked_trees::FlowCallFact],
+        service_reaches: &crate::checked_trees::ServiceReachFacts,
+        operators: &crate::checked_trees::CheckedOperatorFacts,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if self.edge_absent.is_empty() {
@@ -1097,7 +1142,11 @@ impl ArmWindowPlan {
         if !arm.is_valid() {
             return;
         }
-        let absent_edges: Vec<&(ArmHandle, facts::PlaceRoot, Vec<facts::PlaceSegment>)> = self
+        let absent_edges: Vec<&(
+            ArmHandle,
+            crate::fact_plan::PlaceRoot,
+            Vec<crate::fact_plan::PlaceSegment>,
+        )> = self
             .edge_absent
             .iter()
             .filter(|(edge_arm, _, _)| self.edge_covers(*edge_arm, arm))
@@ -1154,9 +1203,9 @@ impl ArmWindowPlan {
     /// arm whose subtree contains the resolved call site.
     fn effective_arm(
         &self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         event: &crate::flow::DiscoveredMoveEvent,
     ) -> ArmHandle {
         if event.source_arm.is_valid() {
@@ -1192,9 +1241,9 @@ impl ArmWindowPlan {
     /// name a statement-local call by ordinal instead.
     fn event_site_expression(
         &self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         event: &crate::flow::DiscoveredMoveEvent,
     ) -> ExpressionHandle {
         if event.expression.is_valid() {
@@ -1222,12 +1271,12 @@ impl ArmWindowPlan {
 
     fn collect_frames(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         expression: ExpressionHandle,
         enclosing_arm: ArmHandle,
         statement_conditional: bool,
         edge_conditional: bool,
-        operators: &checked_trees::CheckedOperatorFacts,
+        operators: &crate::checked_trees::CheckedOperatorFacts,
     ) {
         if !expression.is_valid() {
             return;
@@ -1332,11 +1381,11 @@ impl ArmWindowPlan {
                 );
                 if matches!(
                     binary.operator,
-                    typed_trees::expression::BinaryOperator::And
-                        | typed_trees::expression::BinaryOperator::Or
+                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And
+                        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Or
                 ) {
                     let evaluate_when =
-                        binary.operator == typed_trees::expression::BinaryOperator::And;
+                        binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And;
                     let left = crate::values::evaluate_closed_boolean_expression(
                         program,
                         operators,
@@ -1485,8 +1534,14 @@ impl ArmWindowPlan {
 /// The join-agreement comparison: two arms carry the same resolved debts,
 /// regardless of the order their moves recorded them in.
 fn same_place_set(
-    left: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
-    right: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
+    left: &[(
+        crate::fact_plan::PlaceRoot,
+        Vec<crate::fact_plan::PlaceSegment>,
+    )],
+    right: &[(
+        crate::fact_plan::PlaceRoot,
+        Vec<crate::fact_plan::PlaceSegment>,
+    )],
 ) -> bool {
     left.len() == right.len() && left.iter().all(|place| right.contains(place))
 }
@@ -1497,19 +1552,24 @@ fn same_place_set(
 /// (`let s = r`), recast chains, and later reassignments of the reference
 /// local to the source the route currently captures.
 fn resolve_storage_place(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
     root_symbol: SymbolHandle,
-    path: &[facts::PlaceSegment],
-) -> (facts::PlaceRoot, Vec<facts::PlaceSegment>) {
-    let mut root =
-        crate::flow::normalized_event_place_root(program, facts::PlaceRoot::Symbol(root_symbol));
+    path: &[crate::fact_plan::PlaceSegment],
+) -> (
+    crate::fact_plan::PlaceRoot,
+    Vec<crate::fact_plan::PlaceSegment>,
+) {
+    let mut root = crate::flow::normalized_event_place_root(
+        program,
+        crate::fact_plan::PlaceRoot::Symbol(root_symbol),
+    );
     let mut segments = path.to_vec();
     for _ in 0..16 {
-        let facts::PlaceRoot::Symbol(symbol) = root else {
+        let crate::fact_plan::PlaceRoot::Symbol(symbol) = root else {
             break;
         };
         let Some(source) =
@@ -1521,7 +1581,7 @@ fn resolve_storage_place(
         else {
             break;
         };
-        let facts::PlaceRoot::Symbol(..) = source.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(..) = source.root else {
             break;
         };
         let mut rebased = source.segments;
@@ -1550,8 +1610,8 @@ fn resolve_storage_place(
 /// Returns `None` when the symbol is not a reference-typed local or the route
 /// cannot be replayed.
 fn reference_route_source(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
     symbol: SymbolHandle,
@@ -1582,8 +1642,9 @@ fn reference_route_source(
                     statement_index,
                     assignment.target,
                 )?;
-                (target.root == facts::PlaceRoot::Symbol(symbol) && target.segments.is_empty())
-                    .then_some(assignment.value)
+                (target.root == crate::fact_plan::PlaceRoot::Symbol(symbol)
+                    && target.segments.is_empty())
+                .then_some(assignment.value)
             }
             _ => None,
         })
@@ -1593,7 +1654,7 @@ fn reference_route_source(
 /// whole-place recasts unwrap to their target, and a plain place expression
 /// names the place the new local aliases.
 fn reference_source_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     initializer: ExpressionHandle,
@@ -1616,7 +1677,7 @@ fn reference_source_place(
 
 /// The access of a possibly-constrained reference type.
 fn reference_access(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<ReferenceAccess> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -1632,14 +1693,14 @@ fn reference_access(
 /// local the window resolved through). Shared or write-only links cannot
 /// carry a restoration window.
 fn exclusive_storage_chain(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    root: facts::PlaceRoot,
-    path: &[facts::PlaceSegment],
+    root: crate::fact_plan::PlaceRoot,
+    path: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
-    if root == facts::PlaceRoot::Symbol(machine.symbol)
+    if root == crate::fact_plan::PlaceRoot::Symbol(machine.symbol)
         && program
             .state_parameters(state)
             .iter()
@@ -1664,14 +1725,14 @@ fn exclusive_storage_chain(
 /// storage spells through the receiver, other roots spell their own symbol,
 /// and segments spell as field/index/case projections.
 fn place_spelling(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    root: facts::PlaceRoot,
-    path: &[facts::PlaceSegment],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    root: crate::fact_plan::PlaceRoot,
+    path: &[crate::fact_plan::PlaceSegment],
 ) -> String {
     let mut spelling = match root {
-        facts::PlaceRoot::Symbol(symbol)
+        crate::fact_plan::PlaceRoot::Symbol(symbol)
             if symbol == machine.symbol
                 && program
                     .state_parameters(state)
@@ -1680,23 +1741,23 @@ fn place_spelling(
         {
             "self".to_string()
         }
-        facts::PlaceRoot::Symbol(symbol) => program.symbols.name(symbol).to_string(),
+        crate::fact_plan::PlaceRoot::Symbol(symbol) => program.symbols.name(symbol).to_string(),
         _ => "?".to_string(),
     };
     for segment in path {
         match segment {
-            facts::PlaceSegment::Field { symbol } => {
+            crate::fact_plan::PlaceSegment::Field { symbol } => {
                 spelling.push('.');
                 spelling.push_str(program.symbols.name(*symbol));
             }
-            facts::PlaceSegment::FixedIndex { index } => {
+            crate::fact_plan::PlaceSegment::FixedIndex { index } => {
                 spelling.push_str(&format!("[{index}]"));
             }
-            facts::PlaceSegment::Index { .. } => spelling.push_str("[index]"),
-            facts::PlaceSegment::FixedRange { start, end } => {
+            crate::fact_plan::PlaceSegment::Index { .. } => spelling.push_str("[index]"),
+            crate::fact_plan::PlaceSegment::FixedRange { start, end } => {
                 spelling.push_str(&format!("[{start}..{end}]"));
             }
-            facts::PlaceSegment::Case { variant } => {
+            crate::fact_plan::PlaceSegment::Case { variant } => {
                 spelling.push_str("::");
                 spelling.push_str(program.symbols.name(*variant));
             }
@@ -1724,13 +1785,13 @@ pub(super) enum WindowStep {
 }
 
 pub(super) fn statement_steps(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     statement: &StatementNode,
     moves: &[crate::flow::DiscoveredMoveEvent],
-    operators: &checked_trees::CheckedOperatorFacts,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
 ) -> Vec<WindowStep> {
     let mut order = WindowOrder {
         program,
@@ -1783,7 +1844,7 @@ pub(super) fn statement_steps(
         }
         StatementNode::AssemblyFact(fact) => order.expression(fact.expression, false),
         StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
                 order.expression(guard, false);
             }
             for target in [transition.target, transition.continuation] {
@@ -1791,10 +1852,10 @@ pub(super) fn statement_steps(
                     continue;
                 }
                 match program.statement_table.transition_target(target) {
-                    typed_trees::statement::TransitionTargetNode::Value(value) => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(value) => {
                         order.expression(*value, true)
                     }
-                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
                         for argument in program.expression_table.expression_handles(*arguments) {
                             order.expression(*argument, true);
                         }
@@ -1820,10 +1881,10 @@ pub(super) fn statement_steps(
 }
 
 struct WindowOrder<'a> {
-    program: &'a typed_trees::TypedTrees,
+    program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state: SymbolHandle,
     statement_index: usize,
-    operators: &'a checked_trees::CheckedOperatorFacts,
+    operators: &'a crate::checked_trees::CheckedOperatorFacts,
     remaining: Vec<(usize, &'a crate::flow::DiscoveredMoveEvent)>,
     steps: Vec<WindowStep>,
 }
@@ -1895,11 +1956,11 @@ impl WindowOrder<'_> {
                 self.expression(binary.left, conditional);
                 if matches!(
                     binary.operator,
-                    typed_trees::expression::BinaryOperator::And
-                        | typed_trees::expression::BinaryOperator::Or
+                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And
+                        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Or
                 ) {
                     let evaluate_when =
-                        binary.operator == typed_trees::expression::BinaryOperator::And;
+                        binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And;
                     // Only closed selected values can skip a subtree here.
                     // Runtime bindings may have changed during earlier operands.
                     let left = crate::values::evaluate_closed_boolean_expression(
@@ -1968,11 +2029,11 @@ impl WindowOrder<'_> {
     fn selected_index(&self, expression: ExpressionHandle) -> bool {
         self.operators.resolved_uses().any(|usage| {
             usage.expression == expression
-                && usage.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-                && matches!(usage.origin, checked_trees::CheckedValueOrigin::StateStatement {
+                && usage.occurrence == crate::checked_trees::CheckedOperatorOccurrence::Expression
+                && matches!(usage.origin, crate::checked_trees::CheckedValueOrigin::StateStatement {
                     state_symbol, statement_index, ..
                 } if state_symbol == self.state && statement_index == self.statement_index)
-                && typed_trees::operator::declaration_by_symbol(
+                && symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
                     self.program,
                     usage.selected_operator_symbol,
                 )

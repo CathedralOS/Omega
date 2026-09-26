@@ -40,7 +40,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call;
 use crate::scalar_graph::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
-use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
 // The closure `lower_unit_closure` assembles: body and callee discovery,
 // admission, providers, catalogs, boundaries, claims and signatures.
@@ -659,17 +659,19 @@ pub(crate) fn lower_unit_closure(
 /// them.
 #[derive(Default)]
 struct ClosureOccurrences {
-    source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
-    ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
-    integer_comparisons: Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+    source_calls: Vec<crate::lowered_psi::LoweredSourceCallOccurrence>,
+    ieee_float_comparisons: Vec<crate::lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
+    integer_comparisons: Vec<crate::lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
 }
 
 impl ClosureOccurrences {
     fn retain(
         &mut self,
-        source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
-        ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
-        integer_comparisons: Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+        source_calls: Vec<crate::lowered_psi::LoweredSourceCallOccurrence>,
+        ieee_float_comparisons: Vec<
+            crate::lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence,
+        >,
+        integer_comparisons: Vec<crate::lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
     ) {
         self.source_calls.extend(source_calls);
         self.ieee_float_comparisons.extend(ieee_float_comparisons);

@@ -1,6 +1,6 @@
 //! Replay demand by following each declared value forward to a real observer.
 //! Independent of construction's backward worklist; cycles alone create no demand.
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarReturnValue, LegalizedScalarTerminator as Terminator,
 };
 use semantic_vocabulary::ValueId;
@@ -47,7 +47,7 @@ fn reaches_observer(function: &LegalizedScalarFunction, value: ValueId) -> bool 
             {
                 return true;
             }
-            let mut follow = |successor: &legalized_operations::LegalizedScalarSuccessor| {
+            let mut follow = |successor: &crate::legalized_operations::LegalizedScalarSuccessor| {
                 pending.extend(
                     successor
                         .bindings

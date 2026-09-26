@@ -37,8 +37,8 @@ pub(crate) use outcome_arms::{bind_outcome_specific_arm_facts, exact_outcome_cas
 pub(crate) use proof_output_calls::bind_proof_output_call_facts;
 pub(crate) use proposition_vocabulary::lower_checked_proposition_application;
 
-use checked_trees::CheckedEvidenceTerm;
-use checked_trees::{
+use crate::checked_trees::CheckedEvidenceTerm;
+use crate::checked_trees::{
     BorrowFacts, CheckedOperatorFacts, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
 };
 
@@ -55,8 +55,8 @@ use obligations::lower_proof_obligation;
 
 #[cfg(test)]
 pub(crate) fn build_proof_facts(
-    program: &typed_trees::TypedTrees,
-    proof_plan: &proof::obligations::ProofPlan,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    proof_plan: &crate::proof_engine::obligations::ProofPlan,
     borrow: &BorrowFacts,
 ) -> ProofFacts {
     build_proof_facts_with_operators(
@@ -69,8 +69,8 @@ pub(crate) fn build_proof_facts(
 }
 
 pub(crate) fn build_proof_facts_with_operators(
-    program: &typed_trees::TypedTrees,
-    proof_plan: &proof::obligations::ProofPlan,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    proof_plan: &crate::proof_engine::obligations::ProofPlan,
     borrow: &BorrowFacts,
     operators: &CheckedOperatorFacts,
 ) -> Result<ProofFacts, Vec<diagnostics::Diagnostic>> {
@@ -88,7 +88,7 @@ pub(crate) fn build_proof_facts_with_operators(
         append_machine_contract_facts(program, machine, &mut contract_facts, &mut evidence_terms);
         let mut guarded_lane_position = 0usize;
         for contract in program.machine_contracts(machine) {
-            let typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
                 result_data,
                 result_case,
             } = &contract.kind
@@ -97,7 +97,7 @@ pub(crate) fn build_proof_facts_with_operators(
             };
             for fact in fact_handles(contract.facts) {
                 let evidence_term = contract.binding.as_ref().map(|binding| {
-                    let typed_trees::domain::ProofFact::Proposition(application) =
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(application) =
                         program.proof_facts.get(fact)
                     else {
                         unreachable!("validated named guarded guarantee must bind a proposition")
@@ -106,14 +106,14 @@ pub(crate) fn build_proof_facts_with_operators(
                         .normalize_nominal_proposition_application(application, None)
                         .expect("validated named guarded guarantee must have a nominal endpoint");
                     let (evidence_type, evidence_interface) = match &normalized.classification {
-                        typed_trees::proposition::PropositionEvidenceClassification::Witness {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionEvidenceClassification::Witness {
                             evidence,
                             interface,
                         } => (
                             evidence.clone(),
                             interface.as_ref().map(lower_checked_evidence_interface),
                         ),
-                        typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                             unreachable!(
                                 "validated named guarded guarantee must bind witness evidence"
                             )
@@ -133,17 +133,19 @@ pub(crate) fn build_proof_facts_with_operators(
                     guarded_lane_position += 1;
                     term
                 });
-                outcome_specific_guarantees.append(checked_trees::OutcomeSpecificGuaranteeFact {
-                    machine_symbol: machine.symbol,
-                    result_data: *result_data,
-                    result_case: *result_case,
-                    public_selector: contract
-                        .binding
-                        .as_ref()
-                        .map(|binding| binding.as_str().to_owned()),
-                    fact,
-                    evidence_term,
-                });
+                outcome_specific_guarantees.append(
+                    crate::checked_trees::OutcomeSpecificGuaranteeFact {
+                        machine_symbol: machine.symbol,
+                        result_data: *result_data,
+                        result_case: *result_case,
+                        public_selector: contract
+                            .binding
+                            .as_ref()
+                            .map(|binding| binding.as_str().to_owned()),
+                        fact,
+                        evidence_term,
+                    },
+                );
             }
         }
         for state in program.machine_states(machine) {

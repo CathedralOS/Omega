@@ -1,12 +1,12 @@
 //! Numeric substitution preserves the selected declaration's landing boundary.
 
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::symbol_resolved_trees::types::TypeReference;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{FloatFormat, FloatLiteral, IntegerLanding, LandedIntegerType};
 use source::SourceSpan;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
-use symbol_resolved_trees::types::TypeReference;
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 
 pub(super) fn retain_declared_carrier(
@@ -174,7 +174,7 @@ pub(super) fn encoding_has_nominal_carrier(encoding: &str) -> bool {
 pub(super) fn receiving_parameters(
     program: &SymbolResolvedTrees,
     arguments: arena::HandleSpan<TypeReference>,
-) -> Option<&[symbol_resolved_trees::data::TypeParameter]> {
+) -> Option<&[crate::symbol_resolved_trees::data::TypeParameter]> {
     let mut selected = SymbolHandle::invalid();
     let mut conflicting = false;
     let mut inspect = |reference: &TypeReference| {
@@ -202,7 +202,7 @@ pub(super) fn receiving_parameters(
         }
     }
     for (_, member) in declarations.data_members.iter() {
-        if let symbol_resolved_trees::data::DataMember::Field(field) = member {
+        if let crate::symbol_resolved_trees::data::DataMember::Field(field) = member {
             inspect(&field.type_reference);
         }
     }
@@ -210,7 +210,7 @@ pub(super) fn receiving_parameters(
         inspect(&field.type_reference);
     }
     for (_, statement) in declarations.state_statements.iter() {
-        if let symbol_resolved_trees::statement::Statement::LocalData(local) = statement {
+        if let crate::symbol_resolved_trees::statement::Statement::LocalData(local) = statement {
             inspect(&local.type_reference);
         }
     }
@@ -220,7 +220,7 @@ pub(super) fn receiving_parameters(
         }
     }
     for (_, constraint) in program.tables.types.constraints.iter() {
-        if let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint
+        if let crate::symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint
             && domain.arguments == arguments
         {
             // Domain constraints retain an authored path at this phase. Resolve
@@ -254,7 +254,7 @@ pub(super) fn receiving_parameters(
         .iter()
         .find(|definition| definition.symbol == selected)?;
     let parameters = program.data_type_parameters(domain.type_parameters);
-    let carrier_binder = parameters.first().is_some_and(|parameter| matches!(parameter.kind, symbol_resolved_trees::data::TypeParameterKind::Type)
+    let carrier_binder = parameters.first().is_some_and(|parameter| matches!(parameter.kind, crate::symbol_resolved_trees::data::TypeParameterKind::Type)
         && matches!(&domain.target_type, TypeReference::Named { symbol, .. } if *symbol == parameter.symbol));
     Some(if carrier_binder {
         &parameters[1..]

@@ -1,9 +1,9 @@
 //! Canonical construction of one derived value-range fact.
 
-use optimization_unit::{
+use semantic_vocabulary::{IntegerType, IntegerValue, ValueId};
+use terminal_psi_to_abstract_operations::optimization_unit::{
     ValueRangeFact, ValueRangeRegion, ValueRangeSupport, value_range_fact_identity,
 };
-use semantic_vocabulary::{IntegerType, IntegerValue, ValueId};
 
 pub(super) fn new(
     value: ValueId,

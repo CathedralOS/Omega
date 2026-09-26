@@ -1,14 +1,14 @@
 //! Unit calls retain their authored place among scalar computations and control.
 
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
-};
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 use terminal_psi::OperationKind;
 
@@ -35,15 +35,16 @@ fn unsigned(value: u128) -> TerminalScalarValue {
 
 fn execute(source: &str, arguments: &[TerminalScalarValue], expected: TerminalScalarValue) {
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("observe"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("scalar caller retains its ordinary Unit call closure")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("observe"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("scalar caller retains its ordinary Unit call closure")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();

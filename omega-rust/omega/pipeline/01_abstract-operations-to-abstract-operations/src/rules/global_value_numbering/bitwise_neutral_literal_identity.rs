@@ -1,10 +1,12 @@
 //! The exact bitwise neutral-literal rule, and the closed semantic partition
 //! (`classify`) it proposes over.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationRuleContract;
-use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind,
+};
 
 use crate::rules::global_value_numbering::total_scalar_identities::{
     TotalScalarIdentityShape, exact_total_scalar_identity, propose_total_scalar_identities,

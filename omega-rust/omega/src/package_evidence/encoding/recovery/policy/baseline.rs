@@ -1,0 +1,74 @@
+//! Inert baseline recovery under one shared reader and allocation budget.
+
+use crate::package_evidence::record::PackagePolicyBaseline;
+mod boundary;
+mod dependencies;
+#[cfg(test)]
+mod external_tests;
+mod restricted_build;
+#[cfg(test)]
+mod row_tests;
+#[cfg(test)]
+mod tests;
+#[cfg(test)]
+mod text_tests;
+#[cfg(test)]
+mod usage_tests;
+
+use super::{
+    Error, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage, callable_policy, external,
+    identity::package, public_api, reader::Reader, representation, selected_providers,
+    terminal_permissions,
+};
+use crate::package_evidence::encoding::{
+    PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION,
+};
+
+impl PackagePolicyBaseline {
+    /// Recover comparison meaning without old source, proof, or native replay.
+    pub fn recover_canonical(
+        bytes: &[u8],
+        limits: PackagePolicyRecoveryLimits,
+    ) -> Result<Self, Error> {
+        Self::recover_canonical_with_usage(bytes, limits).map(|(policy, _)| policy)
+    }
+
+    pub(super) fn recover_canonical_with_usage(
+        bytes: &[u8],
+        limits: PackagePolicyRecoveryLimits,
+    ) -> Result<(Self, PackagePolicyRecoveryUsage), Error> {
+        let mut reader = Reader::new(bytes, limits)?;
+        reader.literal(PACKAGE_POLICY_BASELINE_MAGIC)?;
+        if reader.u16()? != PACKAGE_POLICY_BASELINE_VERSION {
+            return Err(Error::UnsupportedVersion);
+        }
+        let policy = Self {
+            package: package(&mut reader)?,
+            target: selected_providers::target(&mut reader)?,
+            public_api: public_api::public_api(&mut reader)?,
+            callables: callable_policy::policy(&mut reader)?,
+            selected_providers: selected_providers::policy(&mut reader)?,
+            terminal_permissions: terminal_permissions::policy(&mut reader)?,
+            representation: representation::policy(&mut reader)?,
+            external_supplies: reader.sequence(1, external::policy)?,
+            dangerous_capabilities: reader.sequence(1, dependencies::dangerous_authority)?,
+            slack_uses: reader.sequence(1, dependencies::slack)?,
+            semantic_dependencies: reader.sequence(1, dependencies::semantic_dependency)?,
+            boundary_applications: boundary::applications(&mut reader)?,
+            restricted_build_requests: restricted_build::requests(&mut reader)?,
+        };
+        reader.finish()?;
+        policy
+            .validate_canonical_structure()
+            .map_err(|_| Error::InvalidValue)?;
+        reader.canonical_scratch(bytes.len())?;
+        if policy
+            .canonical_bytes_for_recovery(bytes.len())
+            .map_err(|_| Error::NonCanonicalEncoding)?
+            != bytes
+        {
+            return Err(Error::NonCanonicalEncoding);
+        }
+        Ok((policy, reader.usage()))
+    }
+}

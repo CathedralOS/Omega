@@ -15,10 +15,10 @@ use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{AdmittedGraph, CheckedComposedUnitControlMachinePlan, ranking, returns, successors};
 use crate::unit::TerminalMachineResult;
 use crate::unit::attached_unit::claims::LoweredUnitClaims;
-use checked_trees::CheckedErasedProofParameterPlan;
 use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use std::collections::BTreeMap;
+use typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan;
 
 mod conditional_return;
 mod guarded_chain;

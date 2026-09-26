@@ -1,7 +1,7 @@
+use crate::checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 use crate::tests::front_end::checked_program_result;
-use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }

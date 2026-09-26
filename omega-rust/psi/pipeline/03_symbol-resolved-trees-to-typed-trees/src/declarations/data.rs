@@ -1,9 +1,9 @@
 use crate::lowerer::Lowerer;
 use crate::signatures::type_parameters::lower_type_parameters;
 use crate::type_reference::lower_type_reference_into_table;
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(crate) fn lower_data_definition(
     lowerer: &mut Lowerer,

@@ -1,8 +1,8 @@
 //! Exact live aliases and owned captures transport established qualifications.
 
-use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use facts::{Fact, FactContextHandle, FactPayload, FactPlace};
-use typed_trees::TypedTrees;
+use crate::checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
+use crate::fact_plan::{Fact, FactContextHandle, FactPayload, FactPlace};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 pub(super) fn proves(
     program: &TypedTrees,
@@ -11,7 +11,7 @@ pub(super) fn proves(
     call: &FlowCallFact,
     entry_contexts: &[FactContextHandle],
     required: &Fact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     let FactPayload::ContractDomainMembership { domain_symbol, .. } = required.payload else {
         return false;
@@ -121,11 +121,12 @@ pub(super) fn proves(
 }
 
 fn field_place(place: &crate::flow::CanonicalPlace) -> bool {
-    matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+    matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(symbol) if symbol.is_valid())
         && place.segments.iter().all(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::Case { .. }
+                crate::fact_plan::PlaceSegment::Field { .. }
+                    | crate::fact_plan::PlaceSegment::Case { .. }
             )
         })
 }

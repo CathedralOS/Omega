@@ -11,7 +11,7 @@ use crate::execution::terminal_unit::candidate_closure::retain_available;
 use crate::execution::terminal_unit::scalar_targets;
 use crate::tests::front_end::checked_program_result;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
 }
 
@@ -20,7 +20,7 @@ fn symbol(ordinal: usize) -> SymbolHandle {
 }
 
 fn compare_reference(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed: &mut Vec<CheckedComposedUnitControlMachinePlan>,
 ) {
@@ -63,7 +63,7 @@ fn compare_reference(
 fn composed(plan: &CheckedUnitEffectMachinePlan) -> CheckedComposedUnitControlMachinePlan {
     CheckedComposedUnitControlMachinePlan {
         machine: plan.machine,
-        result: checked_trees::CheckedControlResultPlan::Unit,
+        result: crate::checked_trees::CheckedControlResultPlan::Unit,
         result_reference_sources: Vec::new(),
         natural_ranks: Vec::new(),
         attachment_type_identity: plan.attachment_type_identity.clone(),

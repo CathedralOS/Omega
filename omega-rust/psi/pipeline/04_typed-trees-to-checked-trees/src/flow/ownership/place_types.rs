@@ -1,8 +1,8 @@
+use crate::checked_trees::expression::ExpressionHandle;
+use crate::checked_trees::statement::StatementNode;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::semantic::calls::find_state;
-use checked_trees::expression::ExpressionHandle;
-use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
 #[cfg(test)]
@@ -20,11 +20,11 @@ mod tests;
 /// literals, unary and binary results, range operands — keep no reference
 /// rather than borrowing a same-shaped row.
 pub(crate) fn expression_type_reference_in_state(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     if !expression.is_valid() {
         return None;
     }
@@ -39,24 +39,24 @@ pub(crate) fn expression_type_reference_in_state(
 }
 
 pub(crate) fn canonical_place_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &CanonicalPlace,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     // An expression root resumes wherever the position walk's leaf evidence
     // places it — a call at its declared return type, a stored-type leaf at
     // its own reference, a window at its element — then replays the retained
     // segments through the same hop rules member resolution commits to.
-    if let facts::PlaceRoot::Expression(expression) = place.root {
+    if let crate::fact_plan::PlaceRoot::Expression(expression) = place.root {
         return crate::flow::expression_place_type_reference(program, expression, &place.segments);
     }
     // A type-reference root names the place's own stored type: its declared
     // type is that reference replayed through the retained segments.
-    if let facts::PlaceRoot::TypeReference(reference) = place.root {
+    if let crate::fact_plan::PlaceRoot::TypeReference(reference) = place.root {
         return project_type_reference_from_segments(program, reference, &place.segments);
     }
-    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
 
@@ -71,7 +71,7 @@ pub(crate) fn canonical_place_type_reference(
                 .state_parameters(state)
                 .iter()
                 .any(|parameter| parameter.is_self && parameter.symbol == root_symbol))
-        && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
+        && let Some((crate::fact_plan::PlaceSegment::Field { symbol }, remaining)) =
             place.segments.split_first()
     {
         if machine.attached_data_application.is_valid() {
@@ -88,14 +88,14 @@ pub(crate) fn canonical_place_type_reference(
     if let Some((machine, _)) =
         crate::semantic::calls::find_state_with_machine(program, state_symbol)
         && machine.attached_data_application.is_valid()
-        && let Some(field) = validation::exact_attached_field(
+        && let Some(field) = crate::validation::exact_attached_field(
             program,
             machine,
             root_symbol,
             program.symbols.name(root_symbol),
         )
     {
-        let root_field = facts::PlaceSegment::Field {
+        let root_field = crate::fact_plan::PlaceSegment::Field {
             symbol: field.symbol,
         };
         return project_type_reference_from_segment_iter(
@@ -111,10 +111,10 @@ pub(crate) fn canonical_place_type_reference(
 }
 
 pub(crate) fn project_type_reference_from_segments(
-    program: &typed_trees::TypedTrees,
-    current: typed_trees::types::TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    current: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    segments: &[crate::fact_plan::PlaceSegment],
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     project_type_reference_from_segment_iter(program, current, segments)
 }
 
@@ -123,29 +123,30 @@ pub(crate) fn project_type_reference_from_segments(
 /// `&[Box<Context>]` resumes at `Box<Context>`. A reference with no element
 /// (a record, a scalar, an unbound parameter) has none to resume at.
 pub(crate) fn collection_element_type_reference(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     indexed_element_type_reference(program, type_reference, &[])
 }
 
 fn project_type_reference_from_segment_iter<'segment>(
-    program: &typed_trees::TypedTrees,
-    mut current: typed_trees::types::TypeReferenceHandle,
-    segments: impl IntoIterator<Item = &'segment facts::PlaceSegment>,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    mut current: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    segments: impl IntoIterator<Item = &'segment crate::fact_plan::PlaceSegment>,
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     let mut substitutions = Vec::new();
     for segment in segments {
         current = substituted_type_reference(program, current, &substitutions);
         match segment {
-            facts::PlaceSegment::Case { .. } => {}
-            facts::PlaceSegment::Field { symbol } => {
+            crate::fact_plan::PlaceSegment::Case { .. } => {}
+            crate::fact_plan::PlaceSegment::Field { symbol } => {
                 current = field_type_reference(program, current, *symbol, &mut substitutions)?;
             }
-            facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
+            crate::fact_plan::PlaceSegment::FixedIndex { .. }
+            | crate::fact_plan::PlaceSegment::Index { .. } => {
                 current = indexed_element_type_reference(program, current, &substitutions)?;
             }
-            facts::PlaceSegment::FixedRange { .. } => return None,
+            crate::fact_plan::PlaceSegment::FixedRange { .. } => return None,
         }
     }
 
@@ -153,11 +154,11 @@ fn project_type_reference_from_segment_iter<'segment>(
 }
 
 fn symbol_type_reference_in_state(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     symbol: SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     let state = find_state(program, state_symbol)?;
 
     // State parameters and statement locals key their symbol parent to the
@@ -197,10 +198,10 @@ fn symbol_type_reference_in_state(
 }
 
 fn machine_member_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     symbol: SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     crate::semantic::calls::find_state_with_machine(program, state_symbol).and_then(
         |(machine, _)| {
             program
@@ -214,15 +215,15 @@ fn machine_member_type_reference(
 }
 
 fn attached_data_field_type_reference(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     symbol: SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     if machine.attached_data_application.is_valid() {
         return project_type_reference_from_segments(
             program,
             machine.attached_data_application,
-            &[facts::PlaceSegment::Field { symbol }],
+            &[crate::fact_plan::PlaceSegment::Field { symbol }],
         );
     }
     let data = unique_data_definition_by_symbol(program, machine.attached_data_symbol)?;
@@ -230,18 +231,21 @@ fn attached_data_field_type_reference(
 }
 
 fn field_type_reference(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     field_symbol: SymbolHandle,
-    substitutions: &mut Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+    substitutions: &mut Vec<(
+        SymbolHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    )>,
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     let type_reference = substituted_type_reference(program, type_reference, substitutions);
     match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-        | typed_trees::types::TypeReferenceNode::Constrained {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..
         } => field_type_reference(program, *referee, field_symbol, substitutions),
-        typed_trees::types::TypeReferenceNode::Generic {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic {
             base_symbol,
             base_name,
             arguments,
@@ -257,7 +261,7 @@ fn field_type_reference(
                         .type_reference_handles(*arguments),
                 )
                 .filter(|&(parameter, _argument)| {
-                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                    matches!(parameter.kind, symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type)
                 })
                 .map(|(parameter, argument)| {
                     (
@@ -269,50 +273,58 @@ fn field_type_reference(
             substitutions.extend(bindings);
             data_field_type_reference(program, data, field_symbol)
         }
-        typed_trees::types::TypeReferenceNode::Named {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             name: base_name,
         } => data_definition_by_symbol_or_name(program, *base_symbol, base_name)
             .and_then(|data| data_field_type_reference(program, data, field_symbol)),
-        typed_trees::types::TypeReferenceNode::ConstExpression(_)
-        | typed_trees::types::TypeReferenceNode::FixedArray { .. }
-        | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
-        | typed_trees::types::TypeReferenceNode::Slice { .. }
-        | typed_trees::types::TypeReferenceNode::Unit => None,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::ConstExpression(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit => None,
     }
 }
 
 fn indexed_element_type_reference(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    substitutions: &[(
+        SymbolHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    )],
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     let type_reference = substituted_type_reference(program, type_reference, substitutions);
     match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-        | typed_trees::types::TypeReferenceNode::Constrained {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..
         } => indexed_element_type_reference(program, *referee, substitutions),
-        typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
-        | typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
-        typed_trees::types::TypeReferenceNode::ConstExpression(_)
-        | typed_trees::types::TypeReferenceNode::Generic { .. }
-        | typed_trees::types::TypeReferenceNode::Named { .. }
-        | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
-        | typed_trees::types::TypeReferenceNode::Unit => None,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::ConstExpression(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit => None,
     }
 }
 
 fn substituted_type_reference(
-    program: &typed_trees::TypedTrees,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-) -> typed_trees::types::TypeReferenceHandle {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    mut type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    substitutions: &[(
+        SymbolHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    )],
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle {
     let mut remaining = substitutions.len().saturating_add(1);
     while remaining > 0 {
         remaining -= 1;
-        let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(type_reference)
+        let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
+            symbol,
+            ..
+        } = program.type_reference_table.type_reference(type_reference)
         else {
             break;
         };
@@ -337,9 +349,9 @@ fn substituted_type_reference(
 /// rather than letting the first same-shaped row mint evidence for the wrong
 /// subject.
 pub(super) fn unique_data_definition_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
     let mut definitions = program
         .data_definitions()
         .iter()
@@ -349,10 +361,10 @@ pub(super) fn unique_data_definition_by_symbol(
 }
 
 fn data_definition_by_symbol_or_name<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
-    name: &typed_trees::name::Identifier,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+    name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
     // A field projection commits to exactly one data declaration. Resolve the
     // retained symbol when it is live; otherwise the retained name may stand
     // in only when it names one definition outright.
@@ -368,10 +380,10 @@ fn data_definition_by_symbol_or_name<'program>(
 }
 
 fn data_field_type_reference(
-    program: &typed_trees::TypedTrees,
-    data: &typed_trees::data::DataDefinition,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
     field_symbol: SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     if !field_symbol.is_valid() {
         return None;
     }
@@ -380,10 +392,12 @@ fn data_field_type_reference(
         .data_members(data)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
                 (field.symbol == field_symbol).then_some(field.type_reference)
             }
-            typed_trees::data::DataMember::Variant(variant) => program
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) => program
                 .data_payload_fields(variant)
                 .iter()
                 .find_map(|field| (field.symbol == field_symbol).then_some(field.type_reference)),

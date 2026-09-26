@@ -14,7 +14,9 @@ use crate::tests::legalization::unit_graph::value;
 use crate::validate_legalized_operations;
 use crate::validate_selected_instructions;
 
-fn continuation_source(native: NativeTarget) -> abstract_operations::AbstractOperationPlan {
+fn continuation_source(
+    native: NativeTarget,
+) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let (mut source, _, _) = fixture(native);
     let caller = &mut source.functions[0];
     caller.parameters.remove(0);
@@ -38,7 +40,9 @@ fn continuation_source(native: NativeTarget) -> abstract_operations::AbstractOpe
     source
 }
 
-fn bind_successor(source: &mut abstract_operations::AbstractOperationPlan) {
+fn bind_successor(
+    source: &mut terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+) {
     let caller = &mut source.functions[0];
     let scalar_type = caller.parameters[0].scalar_type;
     caller.block_entries[1].parameters = vec![AbstractParameter {
@@ -48,11 +52,13 @@ fn bind_successor(source: &mut abstract_operations::AbstractOperationPlan) {
     let AbstractOperation::Jump { bindings, .. } = &mut caller.operations[1] else {
         panic!("jump");
     };
-    bindings.push(abstract_operations::ValueBinding {
-        parameter: value(102),
-        argument: value(101),
-        scalar_type,
-    });
+    bindings.push(
+        terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+            parameter: value(102),
+            argument: value(101),
+            scalar_type,
+        },
+    );
     caller.operations[2] = call(13, 102);
 }
 
@@ -80,7 +86,7 @@ fn linear_unit_continuations_cross_translation_and_selected_replay() {
             receipt.function_roster()[0].machine(),
             source.functions[0].machine
         );
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
@@ -88,7 +94,7 @@ fn linear_unit_continuations_cross_translation_and_selected_replay() {
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -113,7 +119,7 @@ fn linear_unit_continuations_cross_translation_and_selected_replay() {
                 .flat_map(|block| &block.instructions)
                 .filter(|instruction| matches!(
                     instruction.kind,
-                    selected_instructions::SelectedInstructionKind::CallUnit { .. }
+                    crate::selected_instructions::SelectedInstructionKind::CallUnit { .. }
                 ))
                 .count(),
             2
@@ -131,7 +137,7 @@ fn linear_continuation_corruption_cannot_bypass_mandatory_graph_replay() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )

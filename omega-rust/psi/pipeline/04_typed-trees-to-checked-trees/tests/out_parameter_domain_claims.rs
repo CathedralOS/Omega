@@ -8,14 +8,22 @@
 //! call-results check, plus the rejection cases that keep immutable, shared,
 //! and owned-mutable parameters as caller premises.
 
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn check(
+    source: &str,
+) -> Result<typed_trees_to_checked_trees::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>>
+{
     typed_trees_to_checked_trees::lower_typed_trees(
         typed(source)?,
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
 }
 
-fn typed(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
+fn typed(
+    source: &str,
+) -> Result<
+    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    Vec<diagnostics::Diagnostic>,
+> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();

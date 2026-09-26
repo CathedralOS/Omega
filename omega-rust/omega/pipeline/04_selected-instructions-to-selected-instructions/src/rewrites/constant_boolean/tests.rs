@@ -5,21 +5,21 @@ use super::{
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::ValueDefinitionSite;
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionPlan, SelectedSuccessor, SelectedSuccessorRole,
-    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionPlan, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 const MATERIALIZE_A: SelectedInstructionId = SelectedInstructionId(2);
 const MATERIALIZE_B: SelectedInstructionId = SelectedInstructionId(3);
@@ -34,7 +34,7 @@ const OUTPUT: VirtualRegisterId = VirtualRegisterId(3);
 fn register(
     id: VirtualRegisterId,
     scalar_type: ScalarType,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -185,8 +185,8 @@ fn fixture(
 }
 
 fn keys(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
-) -> selected_instructions::SelectedConstraintKeys {
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+) -> target_operations_to_selected_instructions::SelectedConstraintKeys {
     environment.selected_keys()
 }
 
@@ -194,7 +194,7 @@ fn keys(
 /// the mutated plan is a well-formed analysis source.
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedConstantBoolean {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(
@@ -215,7 +215,7 @@ fn mutated(
 
 fn fold(
     source: &ValidatedConstantBoolean,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedConstantBoolean, ConstantBooleanError> {
     fold_selected_constant_boolean(source, 0, BOOLEAN, environment, budget())
 }
@@ -1157,7 +1157,7 @@ fn intervening_flag_events_reject() {
     // A used unit no in-block instruction defines or clobbers reaches in
     // from outside the block and refuses.
     let outsider = mutated(target, |function, _| {
-        let spare = register_model::RegisterUnitId(999);
+        let spare = target_operations_to_selected_instructions::register_model::RegisterUnitId(999);
         function.blocks[0].instructions[3].implicit_uses.push(spare);
     });
     assert_eq!(
@@ -1342,7 +1342,7 @@ fn malformed_boolean_shapes_reject() {
     // A pinned result stays an allocation-shaped instruction.
     let pinned = mutated(target, |function, _| {
         function.blocks[0].instructions[3].operands[0].fixed_view =
-            Some(register_model::RegisterViewId(0));
+            Some(target_operations_to_selected_instructions::register_model::RegisterViewId(0));
     });
     assert_eq!(
         fold(&pinned, &environment).unwrap_err(),
@@ -1351,8 +1351,9 @@ fn malformed_boolean_shapes_reject() {
     // The boolean cannot carry implicit definitions the materialize row
     // would drop.
     let defining = mutated(target, |function, _| {
-        function.blocks[0].instructions[3].implicit_defs =
-            vec![register_model::RegisterUnitId(u16::MAX)];
+        function.blocks[0].instructions[3].implicit_defs = vec![
+            target_operations_to_selected_instructions::register_model::RegisterUnitId(u16::MAX),
+        ];
     });
     assert_eq!(
         fold(&defining, &environment).unwrap_err(),
@@ -1360,8 +1361,9 @@ fn malformed_boolean_shapes_reject() {
     );
     // Nor clobbers.
     let clobbering = mutated(target, |function, _| {
-        function.blocks[0].instructions[3].clobbers =
-            vec![register_model::RegisterUnitId(u16::MAX)];
+        function.blocks[0].instructions[3].clobbers = vec![
+            target_operations_to_selected_instructions::register_model::RegisterUnitId(u16::MAX),
+        ];
     });
     assert_eq!(
         fold(&clobbering, &environment).unwrap_err(),
@@ -1556,9 +1558,9 @@ fn replay_rejects_anything_but_the_exact_form() {
             }
             // A phantom flag use must not linger on the materialize.
             7 => {
-                function.blocks[0].instructions[3]
-                    .implicit_uses
-                    .push(register_model::RegisterUnitId(0));
+                function.blocks[0].instructions[3].implicit_uses.push(
+                    target_operations_to_selected_instructions::register_model::RegisterUnitId(0),
+                );
             }
             // An unrelated register must stay identical.
             8 => function.virtual_registers[3].scalar_type = ScalarType::Boolean,
@@ -1566,15 +1568,15 @@ fn replay_rejects_anything_but_the_exact_form() {
             9 => {
                 function
                     .memory_accesses
-                    .push(selected_instructions::SelectedMemoryAccess {
+                    .push(target_operations_to_selected_instructions::SelectedMemoryAccess {
                         instruction: BOOLEAN,
-                        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                        origin: target_operations_to_selected_instructions::SelectedMemoryAccessOrigin::Operation(
                             OperationId::new(4).unwrap(),
                         ),
                         place: semantic_vocabulary::PlaceId::new(1).unwrap(),
                         byte_offset: 0,
                         byte_count: 8,
-                        role: selected_instructions::SelectedMemoryAccessRole::ReadPlace,
+                        role: target_operations_to_selected_instructions::SelectedMemoryAccessRole::ReadPlace,
                     });
             }
             _ => unreachable!(),

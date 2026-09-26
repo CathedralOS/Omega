@@ -5,12 +5,12 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
-use checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
+    source: &typed_trees_to_checked_trees::checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<usize, LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
@@ -88,7 +88,7 @@ pub(super) fn validate(
             .bindings
             .iter()
             .filter(|binding| {
-                binding.destination == checked_trees::CheckedScalarBindingDestination::Immutable
+                binding.destination == typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable
             })
             .count(),
     )
@@ -101,7 +101,7 @@ pub(super) fn validate(
     let mut cursor = prefix;
     for (index, operation) in state.operations.iter().enumerate() {
         let mut check_structural_binding =
-            |result: &checked_trees::CheckedUnitStructuralResultBindingPlan|
+            |result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan|
              -> Result<(), LoweringError> {
                 if result.binding_ordinal != next_structural_binding {
                     return unsupported("Unit graph structural binding namespace drifted");
@@ -141,7 +141,7 @@ pub(super) fn validate(
             | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
                 check_structural_binding(result)?;
             }
-            CheckedUnitEffectOperationPlan::AtomicAccess(checked_trees::CheckedAtomicAccessPlan {
+            CheckedUnitEffectOperationPlan::AtomicAccess(typed_trees_to_checked_trees::checked_trees::CheckedAtomicAccessPlan {
                 result: Some(result),
                 ..
             })
@@ -228,7 +228,7 @@ pub(super) fn validate(
                     binding_ordinal: result.binding_ordinal,
                 };
                 match value {
-                    checked_trees::CheckedCallScalarArgument::Pure(value) => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(value) => {
                         let (binding, retained) = checked
                             .facts
                             .values
@@ -246,7 +246,7 @@ pub(super) fn validate(
                             terminal_scalar_type(result.primitive_type)?,
                         )?;
                     }
-                    checked_trees::CheckedCallScalarArgument::Computation(handle) => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(handle) => {
                         let mut roots = checked
                             .facts
                             .values
@@ -480,7 +480,7 @@ pub(super) fn validate(
                 if *statement_index as usize != ordinal {
                     return unsupported("Unit graph reordered a primitive store");
                 }
-                let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
+                let typed_trees_to_checked_trees::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
                     destination
                 else {
                     return unsupported(
@@ -711,10 +711,11 @@ pub(super) fn validate(
 /// The binding a scalar-result state's final expression returns, if any.
 fn returned_scalar_binding(
     state: &CheckedComposedUnitControlStatePlan,
-) -> Option<&checked_trees::CheckedUnitScalarResultBindingPlan> {
+) -> Option<&typed_trees_to_checked_trees::checked_trees::CheckedUnitScalarResultBindingPlan> {
     match &state.terminator {
         CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-            completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+            completion:
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarReturnPlan::Binding(binding),
         } => Some(binding),
         _ => None,
     }
@@ -727,13 +728,13 @@ fn validate_returned_value(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: &CheckedComposedUnitControlStatePlan,
-    result: &checked_trees::CheckedUnitScalarResultBindingPlan,
-    value: &checked_trees::CheckedCallScalarArgument,
-    expression: checked_trees::expression::ExpressionHandle,
+    result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitScalarResultBindingPlan,
+    value: &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument,
+    expression: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
 ) -> Result<(), LoweringError> {
     let role = CheckedScalarExpressionRole::Return;
     match value {
-        checked_trees::CheckedCallScalarArgument::Pure(value) => {
+        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(value) => {
             let (binding, retained) = checked
                 .facts
                 .values
@@ -751,7 +752,9 @@ fn validate_returned_value(
                 terminal_scalar_type(result.primitive_type)?,
             )
         }
-        checked_trees::CheckedCallScalarArgument::Computation(handle) => {
+        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
+            handle,
+        ) => {
             let mut roots = checked
                 .facts
                 .values
@@ -868,7 +871,7 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store)
             if matches!(
                 store.value,
-                checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
             ) =>
         {
             Some(store.statement_index)
@@ -876,7 +879,7 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
         CheckedUnitEffectOperationPlan::ByteSequenceWrite(write)
             if matches!(
                 write.value,
-                checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
             ) =>
         {
             Some(write.statement_index)
@@ -928,7 +931,7 @@ fn statement_continuations(
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
                     if !matches!(
                         store.value,
-                        checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
                     ))
                 || matches!(
                     operation,
@@ -951,7 +954,7 @@ fn argument_construction(operation: &CheckedUnitEffectOperationPlan) -> bool {
         operation,
         CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             operand_source: Some(
-                checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
             ),
             ..
         }
@@ -986,10 +989,10 @@ fn call_operation(operation: &CheckedUnitEffectOperationPlan) -> bool {
 fn validate_displaced_field_replacement(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
+    source: &typed_trees_to_checked_trees::checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     ordinal: usize,
-    assignment: &checked_trees::statement::TableAssignment,
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
 ) -> Result<(), LoweringError> {
     let roster = state
         .operations
@@ -1027,7 +1030,7 @@ fn validate_displaced_field_replacement(
                 discard_result_on_return: false,
                 ..
             },
-            checked_trees::expression::ExpressionNode::Call(_),
+            typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Call(_),
         ) if coordinate.call_ordinal == 0 => result,
         (
             CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -1050,7 +1053,8 @@ fn validate_displaced_field_replacement(
     };
     let identity = &produced.type_identity;
     if place != destination
-        || place.access != checked_trees::CheckedStructuralAccess::Owned
+        || place.access
+            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         || place.path.is_empty()
         || &place.type_identity != identity
         || &moved.type_identity != identity
@@ -1060,11 +1064,11 @@ fn validate_displaced_field_replacement(
         return unsupported("Unit graph field replacement window names another place or type");
     }
     if value.source
-        != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        != (typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: produced.binding_ordinal,
         })
         || !value.path.is_empty()
-        || value.access != checked_trees::CheckedStructuralAccess::Owned
+        || value.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         || &value.type_identity != identity
     {
         return unsupported("Unit graph field replacement stores another value than its call");
@@ -1072,8 +1076,8 @@ fn validate_displaced_field_replacement(
     // The displaced value is disposed exactly as the checked plan retires it:
     // an affine value dies whole on the call continuation; a copy value has
     // no disposal obligation and no continuation.
-    let displaced = checked_trees::CheckedUnitPartialAffineDiscardPlan {
-        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+    let displaced = typed_trees_to_checked_trees::checked_trees::CheckedUnitPartialAffineDiscardPlan {
+        source: typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: moved.binding_ordinal,
         },
         path: Vec::new(),

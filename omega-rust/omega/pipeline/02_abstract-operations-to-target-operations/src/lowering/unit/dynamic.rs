@@ -5,16 +5,20 @@ use super::super::structural_signature::StructuralCallSignature;
 use super::projected_argument;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 use crate::LoweringError;
+use crate::calling_conventions::{CallPlan, ValueShape};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
-use abstract_operations::{AbstractReboundDynamicDispatch, AbstractStoredDynamicDispatch};
-use calling_conventions::{CallPlan, ValueShape};
+use crate::target_operations::{
+    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
+    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
-use target_operations::{
-    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractReboundDynamicDispatch, AbstractStoredDynamicDispatch,
 };
 
 #[allow(clippy::too_many_arguments)]

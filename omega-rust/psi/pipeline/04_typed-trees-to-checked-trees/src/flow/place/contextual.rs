@@ -1,16 +1,16 @@
 use super::resolution;
 use super::resolution::resolve_member_symbol_from_type_symbol;
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::statement::StatementNode;
 use crate::flow::CanonicalPlace;
 use crate::flow::index_place_segment;
 use crate::flow::push_field_place_segments;
 use crate::lookup::first_valid_name_path_symbol;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::StatementNode;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 pub(crate) fn contextual_canonical_place_from_expression(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -35,7 +35,7 @@ pub(crate) fn contextual_canonical_place_from_expression(
                 path,
             )?;
             let mut place = CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(root_symbol),
+                root: crate::fact_plan::PlaceRoot::Symbol(root_symbol),
                 segments: Vec::new(),
             };
             let members = program.expression_table.name_path_members(path.members);
@@ -111,11 +111,11 @@ pub(crate) fn contextual_canonical_place_from_expression(
 }
 
 fn resolve_contextual_name_path_root(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
-    path: &typed_trees::expression::TableNamePath,
+    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
 ) -> Option<SymbolHandle> {
     let name = program.expression_table.display_name(expression);
     let state = crate::semantic::calls::find_state(program, state_symbol)?;
@@ -158,22 +158,24 @@ fn resolve_contextual_name_path_root(
 /// answered only by the field that exact variant declares — an unqualified
 /// name search would mint a sibling case's same-named field for it.
 fn resolve_member_symbol_from_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     place: &CanonicalPlace,
     member_name: &str,
     case_variant: Option<&str>,
 ) -> Option<SymbolHandle> {
     let position = match place.root {
-        facts::PlaceRoot::Symbol(symbol) => resolution::symbol_type_position(program, symbol)?,
-        facts::PlaceRoot::Expression(expression) => {
+        crate::fact_plan::PlaceRoot::Symbol(symbol) => {
+            resolution::symbol_type_position(program, symbol)?
+        }
+        crate::fact_plan::PlaceRoot::Expression(expression) => {
             resolution::expression_type_position(program, expression)?
         }
         // A type-reference root names the place's own stored type: the walk
         // resumes at that reference with its reaching application intact.
-        facts::PlaceRoot::TypeReference(reference) => {
+        crate::fact_plan::PlaceRoot::TypeReference(reference) => {
             resolution::MemberPosition::Reference(reference)
         }
-        facts::PlaceRoot::Unknown => return None,
+        crate::fact_plan::PlaceRoot::Unknown => return None,
     };
 
     // The segment hops are the shared fold `member_position_after_segments`

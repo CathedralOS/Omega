@@ -4,7 +4,7 @@ use crate::tests::front_end::typed_program_with_generic_data_result;
 
 const ANONYMOUS_REMAINDERS: [(&str, &str); 3] = [("7 % 2", "1"), ("8 % 2", "0"), ("-3 % 2", "-1")];
 
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, String> {
+fn check(source: &str) -> Result<crate::checked_trees::CheckedTrees, String> {
     let typed =
         typed_program_with_generic_data_result(source).map_err(|error| format!("{error:?}"))?;
     lower_typed_trees(typed, &CheckingRequest::settled()).map_err(|error| format!("{error:?}"))

@@ -1,8 +1,7 @@
-use checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment,
-};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
@@ -11,8 +10,11 @@ use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
 };
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, Terminator};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralPathSegment,
+};
 
 #[path = "partial_affine_result_source/continuations.rs"]
 mod continuations;
@@ -94,15 +96,16 @@ fn anonymous_projected_operands_share_one_dying_continuation() {
         assert_eq!(decode_module(&semantic).unwrap(), *module);
         let proof = encode_proof_section(module, &lowered.proof_bundle).unwrap();
         assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
-        let published = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Root::enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap_or_else(|error| panic!("{source}\n{error:?}"))
-        .into_artifact();
+        let published =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Root::enter"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap_or_else(|error| panic!("{source}\n{error:?}"))
+            .into_artifact();
         assert_eq!(decode_module(published.semantic_bytes()).unwrap(), *module);
         let verified = terminal_verifier::verify_module(
             module,
@@ -110,7 +113,7 @@ fn anonymous_projected_operands_share_one_dying_continuation() {
             &AdmissionProfile::default(),
         )
         .unwrap();
-        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
         let caller = module
             .machines
             .iter()
@@ -325,7 +328,7 @@ fn assert_source(
         .statements(state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local) => Some(local),
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) => Some(local),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -349,15 +352,16 @@ fn assert_source(
     assert_eq!(decode_module(&semantic).unwrap(), *module);
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
-    let published = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let published =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     assert_eq!(decode_module(published.semantic_bytes()).unwrap(), *module);
     let verified = terminal_verifier::verify_module(
         module,
@@ -385,8 +389,8 @@ fn assert_source(
         );
     }
     let certificate =
-        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
-    terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+    omega::terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
     let fuel = 2 * moved.len() as u64 + if boundary { 2 } else { 3 };
     assert_eq!(certificate.ceiling_units(), fuel);
     let caller = module
@@ -802,7 +806,7 @@ fn source_result_paths_cannot_be_used_after_their_owned_move() {
             let source = source(boundary, false, body);
             if let Ok(checked) = crate::front_end::checked_program_result(&source) {
                 assert!(
-                    terminal_production::TerminalProductionRequest::new(
+                    lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                         &checked,
                         TerminalMachineSelection::Name("Root::enter")
                     )
@@ -825,22 +829,28 @@ fn anonymous_result_permissions_rejoin_before_publication() {
             true,
             "Sink::take(result.grid[1][1]);",
         ));
-        let _artifact = terminal_production::TerminalProductionRequest::new(
-            &original,
-            TerminalMachineSelection::Name("Root::enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("valid ownership evidence before mutations")
-        .into_artifact();
+        let _artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &original,
+                TerminalMachineSelection::Name("Root::enter"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("valid ownership evidence before mutations")
+            .into_artifact();
         let events = original
             .facts
             .flow
             .ownership
             .permissions
             .iter()
-            .filter(|(_, event)| matches!(event.root, facts::PlaceRoot::Expression(_)))
+            .filter(|(_, event)| {
+                matches!(
+                    event.root,
+                    typed_trees_to_checked_trees::fact_plan::PlaceRoot::Expression(_)
+                )
+            })
             .map(|(handle, event)| (handle, event.clone()))
             .collect::<Vec<_>>();
         assert_eq!(
@@ -853,7 +863,7 @@ fn anonymous_result_permissions_rejoin_before_publication() {
                 let mut changed = original.clone();
                 let mut altered = event.clone();
                 match mutation {
-                    0 => altered.root = facts::PlaceRoot::Unknown,
+                    0 => altered.root = typed_trees_to_checked_trees::fact_plan::PlaceRoot::Unknown,
                     1 => altered.provenance = language_semantics::PermissionProvenance::Unknown,
                     2 => altered.obligation_live = true,
                     3 => altered.source = language_semantics::PermissionEventSource::StateExit,
@@ -869,7 +879,7 @@ fn anonymous_result_permissions_rejoin_before_publication() {
                 }
                 *changed.facts.flow.ownership.permissions.get_mut(*handle) = altered;
                 assert!(
-                    terminal_production::TerminalProductionRequest::new(
+                    lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                         &changed,
                         TerminalMachineSelection::Name("Root::enter")
                     )
@@ -898,7 +908,7 @@ fn anonymous_result_permissions_rejoin_before_publication() {
             .permissions
             .get_mut(events[3].0) = first;
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("Root::enter")
             )
@@ -915,7 +925,7 @@ fn sole_call_partial_return_does_not_bypass_its_live_root_limit() {
     let live_input = anonymous_source(true, false, "Sink::take(result.right);")
         .replace("machine Root::enter()", "machine Root::enter(value: Pair)");
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &crate::front_end::checked_program(&live_input),
             TerminalMachineSelection::Name("Root::enter")
         )

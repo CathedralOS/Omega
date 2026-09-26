@@ -2,9 +2,9 @@
 //! A captured place does not grant ancestry: only receivers with independently
 //! retained lineage may exempt their own parent loans from interference.
 use super::{CapturedPlace, CheckFacts, FlowStateFact, TypeReferenceNode, TypedTrees};
+use crate::checked_trees::{BorrowFacts, BorrowLoanFact, BorrowLoanLineage, StateBorrowFact};
 use arena::{Handle, HandleSpan};
-use checked_trees::{BorrowFacts, BorrowLoanFact, BorrowLoanLineage, StateBorrowFact};
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 pub(super) struct ResolvedAlias {
     pub(super) place: CapturedPlace,
@@ -20,7 +20,7 @@ pub(super) fn resolve_receiver(
     program: &TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
-    entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
+    entry_constraints: HandleSpan<crate::checked_trees::FlowConstraintRef>,
     place: CapturedPlace,
 ) -> Option<ResolvedAlias> {
     let resolved = resolve_place(program, facts, state_flow, entry_constraints, place)?;
@@ -44,7 +44,7 @@ pub(super) fn resolve_place(
     program: &TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
-    entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
+    entry_constraints: HandleSpan<crate::checked_trees::FlowConstraintRef>,
     place: CapturedPlace,
 ) -> Option<ResolvedPlace> {
     let state = crate::semantic::calls::find_state(program, state_flow.state_symbol)?;

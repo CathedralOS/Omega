@@ -19,8 +19,11 @@ fn encoded_computed_arms(source: &str, combined: bool) -> (Vec<u8>, Vec<u8>) {
     )
 }
 
-fn assert_authored_return_roots(checked: &checked_trees::CheckedTrees, source: &str) {
-    use checked_trees::CheckedScalarExpressionRole;
+fn assert_authored_return_roots(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    source: &str,
+) {
+    use typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole;
 
     let machine = checked
         .typed
@@ -475,7 +478,9 @@ fn computed_return_narrowing_rejects_a_weakened_guarantee_with_stale_proof() {
 
 #[test]
 fn computed_return_custody_mutations_reject_before_publication() {
-    use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedScalarComputationKind, CheckedScalarExpressionRole,
+    };
 
     let source = r#"
         machine identity(input: bool) -> bool

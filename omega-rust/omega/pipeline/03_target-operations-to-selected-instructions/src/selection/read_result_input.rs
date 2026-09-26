@@ -1,5 +1,5 @@
 //! Input-only structural roster for owned results of admitted byte input.
-use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
+use crate::legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::StructuralPlaceKind;
 
 pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {

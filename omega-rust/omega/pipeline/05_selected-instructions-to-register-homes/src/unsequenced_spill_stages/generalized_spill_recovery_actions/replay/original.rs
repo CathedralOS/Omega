@@ -3,10 +3,12 @@
 use std::collections::BTreeMap;
 
 use optimization_core::OptimizationWorkBudget;
-use optimization_unit::ValueDefinitionSite;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{SelectedInstruction, SelectedTerminator, VirtualRegisterOrigin};
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
+    SelectedInstruction, SelectedTerminator, VirtualRegisterOrigin,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedSpillEvent, GeneralizedSpillRecoveryActionError,
@@ -17,11 +19,11 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryVictim, ValidatedGeneralizedReloadValueHomes,
     ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryChoices,
 };
-use register_homes::LogicalSpillStorageClass;
-use selected_instructions::{LiveRangeFragment, VirtualFixedConstraintSite};
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
 use selected_instructions_to_selected_instructions::{
     ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
+use target_operations_to_selected_instructions::{LiveRangeFragment, VirtualFixedConstraintSite};
 
 pub(super) fn replay<S: ValidatedSelectedAnalysis>(
     insertion: &ValidatedGeneralizedSpillInsertion,
@@ -239,7 +241,7 @@ pub(super) fn replay<S: ValidatedSelectedAnalysis>(
         };
         let definition_site_ok = matches!(
             value.definition_site,
-            Some(ValueDefinitionSite::Node { block: source, .. }) if matches!(block.origin, selected_instructions::SelectedBlockOrigin::Source(authored) if authored == source)
+            Some(ValueDefinitionSite::Node { block: source, .. }) if matches!(block.origin, target_operations_to_selected_instructions::SelectedBlockOrigin::Source(authored) if authored == source)
         );
         if !scalar_ok
             || !definition_site_ok

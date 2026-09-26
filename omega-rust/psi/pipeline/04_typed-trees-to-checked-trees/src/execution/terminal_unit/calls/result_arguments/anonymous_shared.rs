@@ -11,8 +11,8 @@ pub(super) fn validate(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    consumer: &checked_trees::FlowCallFact,
-    expression: typed_trees::expression::ExpressionHandle,
+    consumer: &crate::checked_trees::FlowCallFact,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<()> {
     let source_state = crate::semantic::calls::find_state(program, state)?;
     let StatementNode::Call(_) = program
@@ -94,7 +94,7 @@ pub(super) fn validate(
         .filter(|event| {
             event.machine_symbol == machine
                 && event.state_symbol == state
-                && event.root == facts::PlaceRoot::Expression(expression)
+                && event.root == crate::fact_plan::PlaceRoot::Expression(expression)
         });
     for (kind, access, multiplicity, source) in [
         (

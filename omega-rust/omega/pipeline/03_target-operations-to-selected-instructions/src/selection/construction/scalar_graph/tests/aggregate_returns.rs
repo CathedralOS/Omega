@@ -45,7 +45,7 @@ fn parameter_return(
     };
     let place = PlaceId::new(1).unwrap();
     let structural_type = signature.structural_types[0].id;
-    signature.parameters = vec![legalized_operations::LegalizedCallUnitParameter {
+    signature.parameters = vec![crate::legalized_operations::LegalizedCallUnitParameter {
         semantic: StructuralParameterDeclaration {
             place,
             position: 0,
@@ -56,15 +56,16 @@ fn parameter_return(
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         },
-        target: target_operations::TargetStructuralParameter {
-            place,
-            structural_type,
-            multiplicity,
-            access: StructuralAccess::Owned,
-            projected_qualifications: Vec::new(),
-            shape,
-            placement: source.call_plan.parameters[0].clone(),
-        },
+        target:
+            abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
+                place,
+                structural_type,
+                multiplicity,
+                access: StructuralAccess::Owned,
+                projected_qualifications: Vec::new(),
+                shape,
+                placement: source.call_plan.parameters[0].clone(),
+            },
     }];
     signature.structural_places = vec![StructuralPlaceDeclaration {
         id: place,
@@ -95,7 +96,7 @@ fn owned_parameter_returns_replay_the_current_source_and_exact_result_transfer()
         ] {
             let source = parameter_return(target, bytes, multiplicity);
             let environment =
-                register_environment::baseline_target_register_environment(target).unwrap();
+                crate::register_environment::baseline_target_register_environment(target).unwrap();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
                 fixed_inputs: Vec::new(),

@@ -13,14 +13,16 @@ use language_semantics::const_value::{
     CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
 };
 use numerics::literals::LandedIntegerType;
-use symbols::SymbolKind;
-use typed_trees::TypedTrees;
-use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
-use typed_trees::statement::StatementNode;
-use typed_trees::types::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, StaticMachineArgument,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use symbols::SymbolKind;
 
 pub(super) fn spelling(program: &TypedTrees, argument: &StaticMachineArgument) -> Option<String> {
     if argument.type_reference.is_valid()
@@ -160,7 +162,7 @@ pub(super) fn is_runtime_value_subject(
 /// counts — a runtime subject is never a type, machine, or evidence name.
 pub(super) fn resolve_runtime_subject(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     scope_limit: usize,
     argument: &StaticMachineArgument,
 ) -> Option<symbols::SymbolHandle> {
@@ -425,7 +427,7 @@ pub(super) fn validate_bindings(
                 "const specialization lost its declared binder",
             ));
         };
-        validation::validate_closed_const_argument(
+        crate::validation::validate_closed_const_argument(
             program,
             &candidate.template.template_name,
             parameter,
@@ -535,16 +537,16 @@ fn validate_structural_type_arguments(
     }
     fn validate_types(
         program: &TypedTrees,
-        caller: validation::StaticTypeArgumentOwner<'_>,
+        caller: crate::validation::StaticTypeArgumentOwner<'_>,
         arguments: &[StaticMachineArgument],
-        symbols: &validation::TopLevelSymbols<'_>,
+        symbols: &crate::validation::TopLevelSymbols<'_>,
         diagnostics: &mut Vec<Diagnostic>,
         visited_types: &mut Vec<TypeReferenceHandle>,
         expressions: &mut Vec<ExpressionHandle>,
     ) {
         for argument in arguments {
             if argument.type_reference.is_valid() {
-                validation::validate_static_type_argument(
+                crate::validation::validate_static_type_argument(
                     program,
                     caller,
                     argument.type_reference,
@@ -573,8 +575,8 @@ fn validate_structural_type_arguments(
     }
     fn validate_expressions(
         program: &TypedTrees,
-        caller: validation::StaticTypeArgumentOwner<'_>,
-        symbols: &validation::TopLevelSymbols<'_>,
+        caller: crate::validation::StaticTypeArgumentOwner<'_>,
+        symbols: &crate::validation::TopLevelSymbols<'_>,
         diagnostics: &mut Vec<Diagnostic>,
         visited_types: &mut Vec<TypeReferenceHandle>,
         expressions: &mut Vec<ExpressionHandle>,
@@ -604,7 +606,7 @@ fn validate_structural_type_arguments(
     if !has_types {
         return;
     }
-    let symbols = validation::TopLevelSymbols::build(program, diagnostics);
+    let symbols = crate::validation::TopLevelSymbols::build(program, diagnostics);
     let mut owned = Vec::new();
     // Data field types have their own lexical scope, even when a machine later
     // uses the nominal data type. Discover calls from each declaration's actual
@@ -614,10 +616,12 @@ fn validate_structural_type_arguments(
         let mut visited_types = Vec::new();
         for member in program.data_members(data) {
             let fields = match member {
-                typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-                typed_trees::data::DataMember::Variant(variant) => {
-                    program.data_payload_fields(variant)
-                }
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) => std::slice::from_ref(field),
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) => program.data_payload_fields(variant),
             };
             for field in fields {
                 collect_type_expressions(
@@ -630,7 +634,7 @@ fn validate_structural_type_arguments(
         }
         validate_expressions(
             program,
-            validation::StaticTypeArgumentOwner::Data(data),
+            crate::validation::StaticTypeArgumentOwner::Data(data),
             &symbols,
             diagnostics,
             &mut visited_types,
@@ -695,7 +699,7 @@ fn validate_structural_type_arguments(
                 if let StatementNode::Call(call) = statement {
                     validate_types(
                         program,
-                        validation::StaticTypeArgumentOwner::Machine(machine),
+                        crate::validation::StaticTypeArgumentOwner::Machine(machine),
                         &call.machine_arguments,
                         &symbols,
                         diagnostics,
@@ -707,7 +711,7 @@ fn validate_structural_type_arguments(
         }
         validate_expressions(
             program,
-            validation::StaticTypeArgumentOwner::Machine(machine),
+            crate::validation::StaticTypeArgumentOwner::Machine(machine),
             &symbols,
             diagnostics,
             &mut visited_types,

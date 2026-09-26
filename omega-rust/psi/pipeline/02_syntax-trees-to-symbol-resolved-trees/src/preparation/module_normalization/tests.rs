@@ -89,7 +89,7 @@ fn module_array_declarations_are_validated_even_without_uses() {
 fn structural_integer_encoding_retains_exact_landing_domain() {
     use numerics::arithmetic::ArithmeticDomain;
     use numerics::literals::{IntegerLanding, LandedIntegerType};
-    use syntax_trees::expression::ExpressionNode;
+    use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
     for domain in [
         ArithmeticDomain::Exact,
         ArithmeticDomain::Wrapping,
@@ -293,7 +293,7 @@ fn module_trait_defaults_join_the_exact_selected_template() {
 
 #[test]
 fn module_closed_conformance_rows_keep_the_exact_declaring_path() {
-    use syntax_trees::item::{ConformanceBody, ConformanceMember};
+    use tokens_to_syntax_trees::syntax_trees::item::{ConformanceBody, ConformanceMember};
     let mut syntax = parse(&[
         "module first; trait Service { machine run(&mut self) { } } data Worker {} membership: Worker satisfies Service {}",
         "module second; trait Service { machine stop(&mut self) { } }",
@@ -466,7 +466,7 @@ fn unmoduled_algebra_carriers_keep_their_generic_spelling() {
             .all(|item| !matches!(item, Item::Data(data) if data.generic_instance.is_some())),
         "no closed instance may stand in for the unmoduled algebra"
     );
-    use syntax_trees::types::TypeReferenceNode;
+    use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
     let holder = normalized
         .root_items()
         .find_map(|item| match item {
@@ -474,7 +474,7 @@ fn unmoduled_algebra_carriers_keep_their_generic_spelling() {
             _ => None,
         })
         .expect("Holder");
-    let [syntax_trees::item::DataMember::Field(field)] =
+    let [tokens_to_syntax_trees::syntax_trees::item::DataMember::Field(field)] =
         normalized.tables.items.data_members(holder.members)
     else {
         panic!("one field")
@@ -545,7 +545,7 @@ fn same_source_algebra_leaf_outranks_the_module_import() {
             .all(|item| !matches!(item, Item::Data(data) if data.generic_instance.is_some())),
         "the imported template cannot capture a same-source leaf"
     );
-    use syntax_trees::types::TypeReferenceNode;
+    use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
     let holder = normalized
         .root_items()
         .find_map(|item| match item {
@@ -553,7 +553,7 @@ fn same_source_algebra_leaf_outranks_the_module_import() {
             _ => None,
         })
         .expect("Holder");
-    let [syntax_trees::item::DataMember::Field(field)] =
+    let [tokens_to_syntax_trees::syntax_trees::item::DataMember::Field(field)] =
         normalized.tables.items.data_members(holder.members)
     else {
         panic!("one field")
@@ -575,12 +575,13 @@ fn same_source_algebra_leaf_outranks_the_module_import() {
         .iter()
         .find(|definition| definition.name.as_str() == "Holder")
         .expect("Holder");
-    let [symbol_resolved_trees::data::DataMember::Field(field)] =
+    let [crate::symbol_resolved_trees::data::DataMember::Field(field)] =
         program.data_members(holder.members)
     else {
         panic!("one field")
     };
-    let symbol_resolved_trees::types::TypeReference::Generic(application) = &field.type_reference
+    let crate::symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &field.type_reference
     else {
         panic!("the leaf application remains a generic carrier")
     };
@@ -638,9 +639,9 @@ fn same_named_domain_siblings_discharge_const_facts_against_their_exact_owner() 
 
 #[test]
 fn constrained_generic_arguments_select_their_module_domain_owner() {
-    use syntax_trees::item::DataMember;
-    use syntax_trees::types::TypeConstraintNode;
-    use syntax_trees::types::TypeReferenceNode;
+    use tokens_to_syntax_trees::syntax_trees::item::DataMember;
+    use tokens_to_syntax_trees::syntax_trees::types::TypeConstraintNode;
+    use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
     let syntax = parse(&[
         "data Cell<T> { value: T; } domain u64::Distance requires self > 5; data Root { value: Cell<u64 in Distance>; }",
         "module units; domain u64::Distance requires self > 0; data Holder { value: Cell<u64 in Distance>; }",
@@ -737,7 +738,7 @@ fn same_leaf_generic_family_contests_the_non_generic_sibling() {
         .iter()
         .find(|definition| definition.name.as_str() == "Bound<7>")
         .expect("the concrete instance");
-    let [symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
+    let [crate::symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
         program.proof_facts(instance.where_facts)
     else {
         panic!("the retained fact is a membership")
@@ -839,7 +840,7 @@ fn module_generic_carrier_constants_defer_value_admission_with_exact_base_select
         declaration.canonical_value_encoding.is_some(),
         "a closed generic carrier publishes the instance's canonical identity"
     );
-    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+    let crate::symbol_resolved_trees::types::TypeReference::Generic(application) =
         &declaration.declared_type
     else {
         panic!("the declared carrier remains a generic application");
@@ -870,11 +871,12 @@ fn module_generic_carrier_arrays_share_the_deferral() {
         declaration.canonical_value_encoding.is_some(),
         "an array of generic carriers publishes the closed instance identity too"
     );
-    let symbol_resolved_trees::types::TypeReference::FixedArray(array) = &declaration.declared_type
+    let crate::symbol_resolved_trees::types::TypeReference::FixedArray(array) =
+        &declaration.declared_type
     else {
         panic!("the declared carrier remains a fixed array");
     };
-    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+    let crate::symbol_resolved_trees::types::TypeReference::Generic(application) =
         program.child_type_reference(array.element_type)
     else {
         panic!("the array element remains a generic application");
@@ -900,7 +902,7 @@ fn module_generic_carrier_constants_select_qualified_foreign_bases() {
         .iter()
         .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::B")
         .expect("the module constant resolved");
-    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+    let crate::symbol_resolved_trees::types::TypeReference::Generic(application) =
         &declaration.declared_type
     else {
         panic!("the declared carrier remains a generic application");

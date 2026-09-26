@@ -1,5 +1,5 @@
+use crate::syntax_trees::expression::{ExpressionNode, MatchPattern};
 use source_files_to_tokens::Lexer;
-use syntax_trees::expression::{ExpressionNode, MatchPattern};
 
 #[test]
 fn value_match_retains_subject_once_ordered_duplicate_arms_and_spans() {
@@ -9,7 +9,7 @@ fn value_match_retains_subject_once_ordered_duplicate_arms_and_spans() {
         );
         let source_id = source::SourceId::default();
         let tokens = Lexer::new(&source).tokenize().expect("tokens");
-        let mut trees = syntax_trees::SyntaxTrees::new(source_id);
+        let mut trees = crate::syntax_trees::SyntaxTrees::new(source_id);
         let (expression, rest) = crate::expressions::parse_expression::parse_expression_handle(
             &mut trees,
             crate::input::token_cursor::Input::new(source_id, &tokens),
@@ -77,7 +77,7 @@ fn nested_initializer_match_retains_expression_local_dispatch() {
     let machine = trees
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine");
@@ -89,7 +89,7 @@ fn nested_initializer_match_retains_expression_local_dispatch() {
         .statements(state.statements)
         .iter()
         .find_map(|statement| match trees.statements.statement(*statement) {
-            syntax_trees::statement::StatementNode::LocalData(local) => Some(local),
+            crate::syntax_trees::statement::StatementNode::LocalData(local) => Some(local),
             _ => None,
         })
         .expect("initializer owner");
@@ -116,7 +116,7 @@ fn value_match_rejects_empty_and_unimplemented_binding_patterns() {
         "match value { Record { field, .. } -> field, _ -> 0 }",
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokens");
-        let mut trees = syntax_trees::SyntaxTrees::new(source::SourceId::default());
+        let mut trees = crate::syntax_trees::SyntaxTrees::new(source::SourceId::default());
         let error = crate::expressions::parse_expression::parse_expression_handle(
             &mut trees,
             crate::input::token_cursor::Input::new(source::SourceId::default(), &tokens),

@@ -1,10 +1,12 @@
 use crate::CheckingRequest;
+use crate::checked_trees::{
+    CheckedContractEntailmentAssumptionDischarge, MachineContractCommitment,
+};
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
-use checked_trees::{CheckedContractEntailmentAssumptionDischarge, MachineContractCommitment};
 use semantic_vocabulary::Proposition;
 
-fn checked_with_contracts(requires: &str, ensures: &str) -> checked_trees::CheckedTrees {
+fn checked_with_contracts(requires: &str, ensures: &str) -> crate::checked_trees::CheckedTrees {
     let source = format!(
         r#"
         machine retain(value: u64) -> u64
@@ -23,7 +25,7 @@ fn checked_with_contracts(requires: &str, ensures: &str) -> checked_trees::Check
 }
 
 fn one_certificate(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
 ) -> &CheckedContractEntailmentAssumptionDischarge {
     let [certificate] = checked
         .facts
@@ -73,11 +75,11 @@ fn unrecognized_body_emits_kernel_checked_assumption_discharge() {
     )
     .expect("independent local recheck");
 
-    let stand_downs = validation::collect_contract_entailment_stand_downs(&checked.typed);
+    let stand_downs = crate::validation::collect_contract_entailment_stand_downs(&checked.typed);
     assert!(stand_downs.iter().any(|stand_down| {
         stand_down.machine_symbol == certificate.machine_symbol()
             && stand_down.reason
-                == validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody
+                == crate::validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody
     }));
 }
 
@@ -92,7 +94,7 @@ fn non_assumption_goal_remains_uncertified() {
             .is_empty()
     );
     assert_eq!(
-        validation::collect_contract_entailment_stand_downs(&checked.typed).len(),
+        crate::validation::collect_contract_entailment_stand_downs(&checked.typed).len(),
         1,
         "the unsupported proof remains represented by its original stand-down"
     );

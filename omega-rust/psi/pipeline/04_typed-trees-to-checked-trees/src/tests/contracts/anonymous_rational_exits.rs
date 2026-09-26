@@ -1,9 +1,9 @@
 use crate::CheckingRequest;
+use crate::checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
-use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
 
-fn accepts(source: &str) -> checked_trees::CheckedTrees {
+fn accepts(source: &str) -> crate::checked_trees::CheckedTrees {
     lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
@@ -135,7 +135,7 @@ fn typed_quotient_and_exact_anonymous_cancellation_are_valid_runtime_operands() 
     }
 }
 
-fn returned(checked: &checked_trees::CheckedTrees) -> &CheckedScalarExpression {
+fn returned(checked: &crate::checked_trees::CheckedTrees) -> &CheckedScalarExpression {
     let plans = &checked.facts.values.scalar_expressions;
     let binding = plans
         .source_bindings
@@ -195,8 +195,9 @@ fn boolean_comparison_operands_land_to_the_integer_peer_not_bool() {
         let CheckedScalarExpression::Boolean(comparison) = returned(&checked) else {
             panic!("retained Boolean comparison");
         };
-        let checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } =
-            comparison.as_ref()
+        let crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
+            left, right, ..
+        } = comparison.as_ref()
         else {
             panic!("retained integer comparison");
         };
@@ -233,7 +234,7 @@ fn mixed_cancellation_must_fit_the_peer_before_the_outer_operation() {
 
 #[test]
 fn call_bearing_computations_retain_exact_rational_operands() {
-    use checked_trees::CheckedScalarComputationKind;
+    use crate::checked_trees::CheckedScalarComputationKind;
     let checked = accepts(
         "machine sample(input: i32 [0..=1]) -> i32 [0..=1] { input }
          machine value(input: i32 [0..=1]) -> i32 { sample(input) * (4097 / 2 * 2) }",

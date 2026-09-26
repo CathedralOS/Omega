@@ -1,9 +1,11 @@
 //! Function count must not multiply the module's retained declaration payload.
-use abstract_operations::{AbstractOperation, StructuralTypeCatalog};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, MachineId, ScalarType, StructuralTypeId,
 };
 use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, StructuralTypeCatalog,
+};
 
 #[test]
 fn module_type_catalog_is_shared_across_functions_and_native_stages() {
@@ -37,7 +39,7 @@ fn module_type_catalog_is_shared_across_functions_and_native_stages() {
     )
     .unwrap();
     assert_eq!(target.functions.len(), 64);
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -80,8 +82,8 @@ fn module_type_catalog_is_shared_across_functions_and_native_stages() {
     }
     assert_eq!(decoded, *legal.plan());
     assert_eq!(
-        legalized_operations::legalized_operation_plan_identity(&decoded),
-        legalized_operations::legalized_operation_plan_identity(legal.plan())
+        crate::legalized_operations::legalized_operation_plan_identity(&decoded),
+        crate::legalized_operations::legalized_operation_plan_identity(legal.plan())
     );
     crate::validate_legalized_operations(&target, &source, &unit, decoded).unwrap();
 

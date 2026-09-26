@@ -2,8 +2,8 @@ use crate::lowerer::seeded_continuation::retained_typed_base_is_exact_prefix;
 
 #[test]
 fn numeric_result_policies_are_retained_without_result_annotations_or_input_ranges() {
+    use crate::typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
     use numerics::arithmetic::ArithmeticDomain;
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
     for source in [
         "machine run(value: u64 [0..10] in Wrapping) { value; }",
         "machine run() { 1u64 as u64 in Wrapping; }",
@@ -56,7 +56,7 @@ fn numeric_result_policies_are_retained_without_result_annotations_or_input_rang
 
 #[test]
 fn retained_base_rejects_type_identity_changes_hidden_by_display_snapshots() {
-    use typed_trees::types::TypeReferenceNode;
+    use crate::typed_trees::types::TypeReferenceNode;
     let typed = crate::front_end::typed_program("machine main(value: u64) { value; }");
     let parameter = &typed.state_parameters(&typed.machine_states(&typed.machines()[0])[0])[0];
     let mut changed = typed.clone();
@@ -88,7 +88,7 @@ fn retained_base_rejects_a_changed_local_inference_origin() {
         crate::front_end::typed_program("machine main() -> u64 { let value: u64 = 7; value }");
     let mut changed = typed.clone();
     let body = changed.machine_states(&changed.machines()[0])[0].statement_nodes;
-    let typed_trees::statement::StatementNode::LocalData(local) =
+    let crate::typed_trees::statement::StatementNode::LocalData(local) =
         &mut changed.statement_table.statements_mut(body)[0]
     else {
         panic!("authored local");
@@ -122,7 +122,7 @@ fn inferred_types_do_not_depend_on_generated_binding_names() {
             .flat_map(|machine| typed.machine_states(machine))
             .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
             .find_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local)
+                crate::typed_trees::statement::StatementNode::LocalData(local)
                     if local.name.as_str() == name =>
                 {
                     Some(local)
@@ -142,7 +142,7 @@ fn inferred_types_do_not_depend_on_generated_binding_names() {
 
 #[test]
 fn proof_output_runtime_calls_copy_arguments_into_the_statement_arena() {
-    use typed_trees::{expression::ExpressionNode, statement::StatementNode};
+    use crate::typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
     let source = r#"
         trait Evidence {}
@@ -256,7 +256,7 @@ fn inherited_trait_default_realizations_settle_exact_requirement_symbols() {
             .statements(state.statement_nodes)
             .iter()
             .find_map(|statement| match statement {
-                typed_trees::statement::StatementNode::Call(call) => Some(call),
+                crate::typed_trees::statement::StatementNode::Call(call) => Some(call),
                 _ => None,
             })
             .expect("default body call");
@@ -292,7 +292,9 @@ fn exact_quoted_bytes_land_as_an_owned_fixed_u8_array() {
         .expression_table
         .expression_entries()
         .find_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::ArrayLiteral(elements) => Some(*elements),
+            crate::typed_trees::expression::ExpressionNode::ArrayLiteral(elements) => {
+                Some(*elements)
+            }
             _ => None,
         })
         .expect("the contextual string must become an ordinary array literal");
@@ -302,7 +304,7 @@ fn exact_quoted_bytes_land_as_an_owned_fixed_u8_array() {
         .iter()
         .map(
             |element| match typed.expression_table.expression(*element) {
-                typed_trees::expression::ExpressionNode::Integer(literal) => {
+                crate::typed_trees::expression::ExpressionNode::Integer(literal) => {
                     literal.value_i64().expect("byte integer")
                 }
                 other => panic!("expected byte integer, got {other:?}"),
@@ -385,8 +387,8 @@ fn trait_machine_requirement_identity_reaches_typed_trees() {
     assert!(parameter.symbol.is_valid());
     assert!(matches!(
         parameter.kind,
-        typed_trees::data::TypeParameterKind::Machine {
-            contract: typed_trees::data::MachineParameterContract::RequirementIdentity
+        crate::typed_trees::data::TypeParameterKind::Machine {
+            contract: crate::typed_trees::data::MachineParameterContract::RequirementIdentity
         }
     ));
 }
@@ -417,7 +419,7 @@ fn exact_trait_requirement_argument_reaches_typed_conformance() {
     else {
         panic!("one typed slot requirement argument")
     };
-    let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
+    let crate::typed_trees::types::TypeReferenceNode::Named { symbol, name } =
         typed.type_reference_table.type_reference(*argument)
     else {
         panic!("typed requirement argument remains a named identity")

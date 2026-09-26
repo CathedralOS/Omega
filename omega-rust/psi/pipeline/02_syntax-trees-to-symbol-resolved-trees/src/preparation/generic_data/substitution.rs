@@ -13,19 +13,19 @@ use numerics::literals::IntegerLiteral;
 use numerics::literals::IntegerRadix;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::BinaryOperator;
-use syntax_trees::expression::ExpressionHandle;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::DataMember;
-use syntax_trees::item::ProofFact;
-use syntax_trees::item::ProofMembershipFact;
-use syntax_trees::types::DomainConstraint;
-use syntax_trees::types::FixedArrayLength;
-use syntax_trees::types::TypeConstraintNode;
-use syntax_trees::types::TypeReferenceHandle;
-use syntax_trees::types::TypeReferenceNode;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::expression::BinaryOperator;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
+use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
+use tokens_to_syntax_trees::syntax_trees::item::DataMember;
+use tokens_to_syntax_trees::syntax_trees::item::ProofFact;
+use tokens_to_syntax_trees::syntax_trees::item::ProofMembershipFact;
+use tokens_to_syntax_trees::syntax_trees::types::DomainConstraint;
+use tokens_to_syntax_trees::syntax_trees::types::FixedArrayLength;
+use tokens_to_syntax_trees::syntax_trees::types::TypeConstraintNode;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
 
 /// Clone a member with the type parameters substituted. Only reached for a base
 /// `base_is_fully_monomorphizable` accepted. A field that IS a parameter points
@@ -425,7 +425,7 @@ fn rebuild_conjunction(syntax: &mut SyntaxTrees, kept: &[ExpressionHandle]) -> E
     let mut rebuilt = kept[0];
     for conjunct in &kept[1..] {
         rebuilt = syntax.expressions.insert(ExpressionNode::Binary(
-            syntax_trees::expression::TableBinaryExpression {
+            tokens_to_syntax_trees::syntax_trees::expression::TableBinaryExpression {
                 left: rebuilt,
                 operator: BinaryOperator::And,
                 right: *conjunct,
@@ -527,11 +527,11 @@ pub(crate) fn closed_name_identity(
 pub(crate) fn substitute_data_field(
     syntax: &mut SyntaxTrees,
     snapshot: &SyntaxTrees,
-    mut field: syntax_trees::item::DataField,
+    mut field: tokens_to_syntax_trees::syntax_trees::item::DataField,
     substitution: &HashMap<String, TypeReferenceHandle>,
     const_values: &HashMap<String, i128>,
     warnings: &mut Vec<Diagnostic>,
-) -> syntax_trees::item::DataField {
+) -> tokens_to_syntax_trees::syntax_trees::item::DataField {
     field.type_reference = substitute_type_reference(
         syntax,
         snapshot,

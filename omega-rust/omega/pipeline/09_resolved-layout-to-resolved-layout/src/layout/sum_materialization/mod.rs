@@ -1,0 +1,2078 @@
+//! Projection of the authoritative conventional pure-sum runtime layout.
+//!
+//! This is a report of the fixed tag-prefixed overlay selected by this crate,
+//! not a back door for programmable `Layout` policies to author case/tag
+//! placement.
+
+use diagnostics::Diagnostic;
+use language_semantics::{DataSupplyMode, Multiplicity};
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::{
+    DataDefinition, DataMember, DataShapeKind, TypeParameterKind,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
+use symbols::SymbolHandle;
+use terminal_psi::layout_plans::{
+    ConventionalNestedRecordSumOccurrenceLayoutReport, ConventionalNestedRecordSumPathLayoutReport,
+    ConventionalNestedRecordSumPathsLayoutReport, ConventionalRecordSumChildHop,
+    ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
+    ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
+    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
+    ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport, LayoutPlacementReport,
+    LayoutPlanReport,
+};
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+
+use crate::layout::{DataShape, ENUM_TAG_BYTES, LayoutPlan, TypeLayoutDescriptor};
+
+/// Project the bounded nested-sum materialization set from the exact target
+/// runtime layout: one closed `[copy]` record with one or more direct,
+/// runtime-relevant conventional pure-sum fields.
+///
+/// The outer report transcribes every placement vocabulary the target plan
+/// carries — whole-field `At`, per-element `At`, `IntegerAt`, and `Bits`
+/// entries all survive the projection unchanged. The nested reports remain
+/// compiler-owned tag/payload overlays; this function does not expose
+/// programmable tag or case placement. Every nested report is paired with
+/// its outer field name and stable member identity in authored runtime field
+/// order, so repeated uses of the same sum type remain distinguishable.
+/// Arrays of sums, recursively nested sums, and mixed data shapes reject.
+pub fn project_conventional_record_with_sum_materialization_layout(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+) -> Result<(LayoutPlanReport, Vec<ConventionalSumFieldLayoutReport>), Diagnostic> {
+    let mut reachability = SumReachability::new(program);
+    let level = project_record_level_children(
+        program,
+        plan,
+        data_symbol,
+        "nested-sum record",
+        &mut reachability,
+        LiteralArrayHopRule::OuterOnly,
+    )?;
+    // The standalone rung keeps its own narrower contract: partition the
+    // level's classified children back into the kind channels its fences
+    // inspect, in the same order its callers observed.
+    let mut child_sum_layouts = Vec::new();
+    let mut sum_arrays = Vec::new();
+    let mut record_arrays = Vec::new();
+    let mut record_paths = Vec::new();
+    for child in level.children {
+        match child {
+            RecordLevelChild::Sum(row) => child_sum_layouts.push(row),
+            RecordLevelChild::SumArray(row) => sum_arrays.push(row),
+            RecordLevelChild::RecordArray(candidate) => record_arrays.push(candidate),
+            RecordLevelChild::Record(candidate) => record_paths.push(candidate),
+        }
+    }
+    if let Some(candidate) = record_paths.first() {
+        return Err(Diagnostic::error(format!(
+            "nested-sum materialization does not lift the nested record path through `{}`; the recursive record/sum owner carries it",
+            candidate.declared.name
+        )));
+    }
+    if let Some(array) = sum_arrays.first() {
+        return Err(Diagnostic::error(format!(
+            "nested-sum materialization does not lift the direct sum array `{}`; the recursive record/sum owner carries it",
+            array.field
+        )));
+    }
+    if let Some(candidate) = record_arrays.first() {
+        return Err(Diagnostic::error(format!(
+            "nested-sum materialization does not lift the direct record array `{}`; the recursive record/sum owner carries it",
+            candidate.declared.name
+        )));
+    }
+    if child_sum_layouts.is_empty() {
+        return Err(Diagnostic::error(
+            "nested-sum layout projection requires at least one direct runtime-relevant case-bearing field",
+        ));
+    }
+    Ok((level.outer_layout, child_sum_layouts))
+}
+
+/// One runtime-relevant record field whose exact closed `[copy]` record type
+/// still reaches sums below its level — the deeper record-path candidates one
+/// level projects, in authored order.
+struct RecordPathCandidate<'a> {
+    declared: &'a symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField,
+    laid: &'a crate::layout::FieldLayout,
+    named: &'a DataDefinition,
+}
+
+/// One runtime-relevant nonzero literal `[R; N]` field whose record element
+/// still reaches sums — the record-array candidates one level projects, in
+/// authored order. The element's own recursive report supplies the shared
+/// interior every index carries. `hops` holds every consecutive literal
+/// element arity, outermost first — a `[[R; 2]; 3]` field spells `[3, 2]` and
+/// its packed row carries their product.
+struct RecordArrayPathCandidate<'a> {
+    declared: &'a symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField,
+    laid: &'a crate::layout::FieldLayout,
+    named: &'a DataDefinition,
+    hops: Vec<usize>,
+}
+
+/// How one record level's array-of-sums classifier treats an element reached
+/// through more than one literal element hop.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LiteralArrayHopRule {
+    /// The element must resolve beside the field's own literal length: a
+    /// second array level rejects, preserving the standalone rungs' narrower
+    /// contract with their const-evaluator twins.
+    OuterOnly,
+    /// Consecutive literal element hops flatten into one packed repeated row:
+    /// a conventional `[[S; N]; M]` occupies exactly the extent `[S; M * N]`
+    /// would, so the row carries the hop product and the innermost element's
+    /// report. The recursive owner's rule.
+    Flattened,
+}
+
+/// One classified direct child of a record level, carrying the evidence its
+/// row needs. Direct sums and literal sum arrays project their interior
+/// beside the field eagerly; record children defer the element or field's
+/// recursive report to the caller's own depth rule.
+enum RecordLevelChild<'a> {
+    /// A direct conventional case-bearing field — a pure sum or a mixed
+    /// common-field/case shape.
+    Sum(ConventionalSumFieldLayoutReport),
+    /// A direct nonzero literal fixed array of conventional case-bearing
+    /// elements — pure sums and mixed shapes.
+    SumArray(ConventionalSumArrayFieldLayoutReport),
+    /// A direct nonzero literal fixed array of records still reaching sums.
+    RecordArray(RecordArrayPathCandidate<'a>),
+    /// A record field whose exact type still reaches sums below this level.
+    Record(RecordPathCandidate<'a>),
+}
+
+/// The direct children one record level retains under the general recursive
+/// rule, beside the level's flat outer plan: one authored-order channel
+/// whose rows carry their own path segment and child evidence.
+struct RecordLevelChildren<'a> {
+    outer_layout: LayoutPlanReport,
+    /// Every classified child in authored field order — direct sums, direct
+    /// sum arrays, direct record arrays, and record paths interleaved as the
+    /// schema spells them.
+    children: Vec<RecordLevelChild<'a>>,
+}
+
+/// Project one record level's direct conventional-sum children from the exact
+/// target runtime layout. Every runtime-relevant field classifies under the
+/// same rule at every depth: a direct pure sum or mixed common-field/case
+/// shape emits one `ConventionalSumFieldLayoutReport`; a literal
+/// `[S; N]` field whose element resolves to a conventional pure or mixed sum
+/// emits one compact `ConventionalSumArrayFieldLayoutReport`; a
+/// literal `[R; N]` field whose record element still reaches sums enters
+/// `record_array_paths` for the caller's own depth rule; a record field still
+/// reaching sums enters `record_paths` for the caller's own depth rule;
+/// anything else is an ordinary field. Whatever the classification, each
+/// field's report entries transcribe the plan's own placement vocabulary —
+/// whole `At`, per-element `At`, `IntegerAt`, or `Bits` — through
+/// `project_field_placement_entries`. Under `LiteralArrayHopRule::Flattened`,
+/// arrays reaching sums through consecutive literal element hops — nested
+/// literal arrays of sums or of records still reaching sums — flatten into
+/// one packed row, including zero repetitions with complete element geometry.
+/// Non-literal lengths remain fenced; the standalone rungs retain their
+/// nonzero-length restriction.
+fn project_record_level_children<'a>(
+    program: &'a CheckedTrees,
+    plan: &'a LayoutPlan,
+    data_symbol: SymbolHandle,
+    owner: &str,
+    reachability: &mut SumReachability<'_>,
+    literal_array_hops: LiteralArrayHopRule,
+) -> Result<RecordLevelChildren<'a>, Diagnostic> {
+    let definition = unique_data_definition(program, data_symbol, owner)?;
+    validate_closed_copy_record(program, definition, owner)?;
+    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
+    let DataShape::Record {
+        fields: laid_fields,
+    } = data_layout.shape
+    else {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout row for {owner} `{name}` is not a record",
+            name = definition.name
+        )));
+    };
+    let declared_fields = relevant_record_fields(program, definition);
+    let laid_fields = plan.fields.span_or_empty(laid_fields);
+    if declared_fields.len() != laid_fields.len() {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout for {owner} `{name}` has {} fields; checked schema has {} relevant fields",
+            laid_fields.len(),
+            declared_fields.len(),
+            name = definition.name,
+        )));
+    }
+
+    let mut children = Vec::new();
+    children
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| Diagnostic::error(format!("{owner} report exceeds compiler resources")))?;
+    let mut entries = Vec::with_capacity(declared_fields.len());
+    let mut offsets = Vec::with_capacity(declared_fields.len());
+    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
+        if declared.symbol != laid.symbol || declared.name != laid.name {
+            return Err(Diagnostic::error(format!(
+                "target runtime layout field identity/order drifted at `{}`",
+                declared.name
+            )));
+        }
+        if reachability.type_contains_sum(declared.type_reference)? {
+            match program
+                .type_reference_table
+                .type_reference(declared.type_reference)
+            {
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                } => {
+                    // Consecutive literal element hops compose one packed
+                    // repetition: `[[S; N]; M]` stores `M * N` contiguous
+                    // elements, so the level spells the whole hop list beside
+                    // the innermost element's own report rather than an
+                    // array-of-arrays shape the row vocabulary does not have.
+                    let mut hops = vec![*length];
+                    let mut element_reference = *element_type;
+                    loop {
+                        match program
+                            .type_reference_table
+                            .type_reference(element_reference)
+                        {
+                            TypeReferenceNode::FixedArray {
+                                element_type: nested_element,
+                                length: FixedArrayLength::Literal(nested_length),
+                            } if literal_array_hops == LiteralArrayHopRule::Flattened => {
+                                hops.push(*nested_length);
+                                element_reference = *nested_element;
+                            }
+                            TypeReferenceNode::FixedArray {
+                                length: FixedArrayLength::Literal(_),
+                                ..
+                            } => {
+                                return Err(Diagnostic::error(format!(
+                                    "{owner} outer field `{}` reaches a sum through an array deeper than one literal element hop",
+                                    declared.name
+                                )));
+                            }
+                            TypeReferenceNode::FixedArray { .. } => {
+                                return Err(Diagnostic::error(format!(
+                                    "{owner} outer field `{}` reaches a sum through a non-literal-length array",
+                                    declared.name
+                                )));
+                            }
+                            _ => break,
+                        }
+                    }
+                    if literal_array_hops == LiteralArrayHopRule::OuterOnly && *length == 0 {
+                        return Err(Diagnostic::error(format!(
+                            "{owner} field `{}` must have nonzero literal length",
+                            declared.name
+                        )));
+                    }
+                    let Some(named) = exact_named_data(program, element_reference)? else {
+                        return Err(Diagnostic::error(format!(
+                            "{owner} outer field `{}` reaches a sum through an array element without one exact nominal identity",
+                            declared.name
+                        )));
+                    };
+                    match DataDefinition::shape_kind_from_members(program.data_members(named)) {
+                        // A mixed element is one case-bearing interior whose
+                        // common fields sit beside the overlay: the same
+                        // compact row carries it, with the element report
+                        // spelling the common-field rows itself.
+                        DataShapeKind::Enum | DataShapeKind::Mixed => {
+                            children.push(RecordLevelChild::SumArray(project_sum_array_row(
+                                program, plan, declared, laid, named, &hops, owner,
+                            )?));
+                        }
+                        // A record element still reaching sums crosses its
+                        // own record boundary inside each element: the level
+                        // retains the candidate and the recursive report
+                        // spells the element's interior once for every index.
+                        DataShapeKind::Record => {
+                            children.push(RecordLevelChild::RecordArray(
+                                RecordArrayPathCandidate {
+                                    declared,
+                                    laid,
+                                    named,
+                                    hops,
+                                },
+                            ));
+                        }
+                        DataShapeKind::Empty => {
+                            return Err(Diagnostic::error(format!(
+                                "{owner} outer field `{}` reaches a sum through an array deeper than one literal element hop",
+                                declared.name
+                            )));
+                        }
+                    }
+                }
+                TypeReferenceNode::FixedArray { .. } => {
+                    return Err(Diagnostic::error(format!(
+                        "{owner} outer field `{}` reaches a sum through a non-literal-length array",
+                        declared.name
+                    )));
+                }
+                _ => {
+                    let named =
+                        exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
+                            Diagnostic::error(format!(
+                                "{owner} outer field `{}` lacks one exact record identity",
+                                declared.name
+                            ))
+                        })?;
+                    match DataDefinition::shape_kind_from_members(program.data_members(named)) {
+                        // A mixed shape is one case-bearing interior plus
+                        // leading common fields: the same row carries it and
+                        // the child report spells the common rows itself.
+                        DataShapeKind::Enum | DataShapeKind::Mixed => {
+                            let TypeLayoutDescriptor::Named {
+                                symbol: laid_symbol,
+                                name: laid_name,
+                            } = &laid.type_descriptor
+                            else {
+                                return Err(Diagnostic::error(format!(
+                                    "target runtime layout field `{}` is not the exact declared nested sum",
+                                    declared.name
+                                )));
+                            };
+                            if laid.type_symbol != named.symbol
+                                || *laid_symbol != named.symbol
+                                || laid_name.as_str() != named.name.as_str()
+                            {
+                                return Err(Diagnostic::error(format!(
+                                    "target runtime layout field `{}` substitutes its nested sum type",
+                                    declared.name
+                                )));
+                            }
+                            let child_layout = project_conventional_sum_materialization_layout(
+                                program,
+                                plan,
+                                named.symbol,
+                            )?;
+                            if laid.layout.size as u64 != child_layout.size
+                                || laid.layout.alignment as u64 != child_layout.align
+                            {
+                                return Err(Diagnostic::error(format!(
+                                    "target runtime layout field `{}` does not retain the exact conventional sum extent/alignment",
+                                    declared.name
+                                )));
+                            }
+                            children.push(RecordLevelChild::Sum(
+                                ConventionalSumFieldLayoutReport {
+                                    field: declared.name.to_string(),
+                                    member_identity: declared.identity,
+                                    layout: child_layout,
+                                },
+                            ));
+                        }
+                        DataShapeKind::Record => {
+                            children.push(RecordLevelChild::Record(RecordPathCandidate {
+                                declared,
+                                laid,
+                                named,
+                            }));
+                        }
+                        DataShapeKind::Empty => {
+                            return Err(Diagnostic::error(format!(
+                                "{owner} outer field `{}` does not name the required inner record",
+                                declared.name
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+        let (field_entries, field_offset) = project_field_placement_entries(
+            program,
+            plan,
+            declared,
+            laid,
+            data_layout.layout.size,
+            owner,
+        )?;
+        entries.extend(field_entries);
+        offsets.push(field_offset);
+    }
+
+    Ok(RecordLevelChildren {
+        outer_layout: LayoutPlanReport {
+            schema_report_fingerprint: symbol_resolved_trees_to_typed_trees::typed_trees::identity::normalized_schema_report_fingerprint(
+                program, definition,
+            ),
+            entries,
+            offsets: offsets.into_iter().collect(),
+            size: Some(data_layout.layout.size as u64),
+            align: data_layout.layout.alignment as u64,
+        },
+        children,
+    })
+}
+
+/// Project one declared field's placement entries from the target plan's own
+/// metadata. `LayoutPlan` already records every placement vocabulary the
+/// normalized plan admits, so the report transcribes it exactly: a repeated
+/// literal fixed array retains one `At` entry per element at the plan's
+/// constant element stride, a fragmented scalar retains its `Bits`
+/// fragments, a stored integer retains its `IntegerAt` write, and every
+/// other field retains one whole `At`. The returned offset is the field's
+/// contribution to the report's declaration-order `offsets`; the normalized
+/// convention keeps that projection only when every field carries one whole
+/// `At` extent, so any other placement yields `None`.
+///
+/// `record_extent` is the enclosing record's fixed byte extent: the repeated
+/// placements must keep every element inside it, exactly as plan validation
+/// bounded the destinations they were derived from.
+fn project_field_placement_entries(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    declared: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField,
+    laid: &crate::layout::FieldLayout,
+    record_extent: usize,
+    owner: &str,
+) -> Result<(Vec<LayoutFieldEntryReport>, Option<u64>), Diagnostic> {
+    let entry = |placement| LayoutFieldEntryReport {
+        field: declared.name.to_string(),
+        member_identity: declared.identity,
+        placement,
+    };
+    if let Some(repeated) = plan.repeated_field(declared.symbol) {
+        let TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(element_count),
+            ..
+        } = program
+            .type_reference_table
+            .type_reference(declared.type_reference)
+        else {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` uses repeated element placement but is not a literal outer fixed array",
+                declared.name
+            )));
+        };
+        if *element_count == 0 || !laid.layout.size.is_multiple_of(*element_count) {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` repeated placement does not divide its extent into whole elements",
+                declared.name
+            )));
+        }
+        let element_extent = laid.layout.size / *element_count;
+        let stride = repeated.element_stride;
+        if stride < element_extent {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` repeated element stride {stride} overlaps its {element_extent}-byte elements",
+                declared.name
+            )));
+        }
+        // The carrier's per-element placements are whole-field evidence: the
+        // last element's extent must still fit inside the enclosing record.
+        // The checked bound also proves every `laid.offset + index * stride`
+        // below cannot overflow.
+        let extent_end = (*element_count - 1)
+            .checked_mul(stride)
+            .and_then(|span| laid.offset.checked_add(span))
+            .and_then(|last_start| last_start.checked_add(element_extent))
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "{owner} outer field `{}` repeated placement overflows the compiler host",
+                    declared.name
+                ))
+            })?;
+        if extent_end > record_extent {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` repeated placement escapes the enclosing {record_extent}-byte record extent",
+                declared.name
+            )));
+        }
+        let mut entries = Vec::with_capacity(*element_count);
+        for index in 0..*element_count {
+            entries.push(entry(LayoutPlacementReport::At {
+                offset: usize_to_u64(laid.offset + index * stride, "repeated element offset")?,
+            }));
+        }
+        return Ok((entries, None));
+    }
+    if let Some(bits) = plan.bit_field(declared.symbol) {
+        if program
+            .primitive_type_reference(declared.type_reference)
+            .is_none()
+            || bits.fragments.is_empty()
+        {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` uses bit-fragment placement but is not a primitive scalar field with fragments",
+                declared.name
+            )));
+        }
+        return Ok((
+            bits.fragments
+                .iter()
+                .map(|fragment| {
+                    Ok(entry(LayoutPlacementReport::Bits {
+                        container: usize_to_u64(
+                            fragment.container_byte_offset,
+                            "bit-fragment container offset",
+                        )?,
+                        container_width: u64::from(fragment.container_width_bits),
+                        destination_lsb: u64::from(fragment.destination_lsb),
+                        source_lsb: u64::from(fragment.source_lsb),
+                        width: u64::from(fragment.width),
+                    }))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?,
+            None,
+        ));
+    }
+    if let Some(stored) = plan.stored_integer(declared.symbol) {
+        if program
+            .primitive_type_reference(declared.type_reference)
+            .is_none()
+        {
+            return Err(Diagnostic::error(format!(
+                "{owner} outer field `{}` uses stored-integer placement but is not a primitive scalar field",
+                declared.name
+            )));
+        }
+        return Ok((
+            vec![entry(LayoutPlacementReport::IntegerAt {
+                offset: usize_to_u64(laid.offset, "stored-integer offset")?,
+                stored_width: u64::from(stored.stored_width_bits),
+                interpretation: stored.interpretation,
+            })],
+            None,
+        ));
+    }
+    let offset = usize_to_u64(laid.offset, "field offset")?;
+    Ok((
+        vec![entry(LayoutPlacementReport::At { offset })],
+        Some(offset),
+    ))
+}
+
+/// Peel `descriptor` through `hops` fixed-array levels — each level must
+/// carry the declared literal length — and return the innermost descriptor.
+/// The laid descriptor mirrors the declared chain one level per hop, so the
+/// flattened row's element/count parity proof runs level by level.
+fn laid_innermost_array_descriptor<'d>(
+    descriptor: &'d TypeLayoutDescriptor,
+    hops: &[usize],
+    field_name: &str,
+    element_role: &str,
+) -> Result<&'d TypeLayoutDescriptor, Diagnostic> {
+    let mut descriptor = descriptor;
+    for hop in hops {
+        let TypeLayoutDescriptor::FixedArray {
+            element_type,
+            length,
+        } = descriptor
+        else {
+            return Err(Diagnostic::error(format!(
+                "target runtime layout field `{field_name}` is not the exact declared fixed array"
+            )));
+        };
+        if length != hop {
+            return Err(Diagnostic::error(format!(
+                "target runtime layout field `{field_name}` substitutes its {element_role} element/count"
+            )));
+        }
+        descriptor = element_type;
+    }
+    Ok(descriptor)
+}
+
+/// Project the compact report row for one direct fixed-array-of-sums field
+/// whose innermost element resolves to `element_named`, a conventional pure
+/// sum. `hops` carries every consecutive literal arity, outermost first, and
+/// the packed row's `element_count` is their product. Empty arrays still
+/// validate and retain the complete all-case element layout once with the
+/// exact count and stride.
+fn project_sum_array_row(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    declared: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField,
+    laid: &crate::layout::FieldLayout,
+    element_named: &DataDefinition,
+    hops: &[usize],
+    owner: &str,
+) -> Result<ConventionalSumArrayFieldLayoutReport, Diagnostic> {
+    let element_layout =
+        project_conventional_sum_materialization_layout(program, plan, element_named.symbol)?;
+    let laid_element =
+        laid_innermost_array_descriptor(&laid.type_descriptor, hops, &declared.name, "sum-array")?;
+    let TypeLayoutDescriptor::Named {
+        symbol: laid_symbol,
+        name: laid_name,
+    } = laid_element
+    else {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout field `{}` substitutes its sum-array element type",
+            declared.name
+        )));
+    };
+    if *laid_symbol != element_named.symbol
+        || laid.type_symbol != element_named.symbol
+        || laid_name.as_str() != element_named.name.as_str()
+    {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout field `{}` substitutes its sum-array element/count",
+            declared.name
+        )));
+    }
+    let element_count = u64::try_from(
+        hops.iter()
+            // Match layout construction from the innermost array outward:
+            // an empty inner array stays empty even under huge outer counts.
+            .rev()
+            .try_fold(1usize, |count, hop| count.checked_mul(*hop))
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "{owner} field `{}` count exceeds canonical report width",
+                    declared.name
+                ))
+            })?,
+    )
+    .map_err(|_| {
+        Diagnostic::error(format!(
+            "{owner} field `{}` count exceeds canonical report width",
+            declared.name
+        ))
+    })?;
+    let expected_size = element_layout
+        .size
+        .checked_mul(element_count)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "{owner} field `{}` extent exceeds the compiler host",
+                declared.name
+            ))
+        })?;
+    if laid.layout.size as u64 != expected_size
+        || laid.layout.alignment as u64 != element_layout.align
+    {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout field `{}` does not retain the exact repeated conventional sum extent/alignment",
+            declared.name
+        )));
+    }
+    // A repeated placement may space the elements wider than their semantic
+    // extent; the row carries that exact physical stride so an indexed path
+    // composes the element's real offset. The check above still proves the
+    // packed semantic size. A multi-hop flattened field cannot carry this
+    // vocabulary: its outer stride describes outer elements, not the packed
+    // innermost elements the row spells.
+    let element_stride = match plan.repeated_field(declared.symbol) {
+        Some(repeated) => {
+            if hops.len() != 1 {
+                return Err(Diagnostic::error(format!(
+                    "{owner} field `{}` repeated placement cannot flatten into more than one literal element hop",
+                    declared.name
+                )));
+            }
+            let stride = usize_to_u64(repeated.element_stride, "repeated sum-array stride")?;
+            if stride < element_layout.size {
+                return Err(Diagnostic::error(format!(
+                    "{owner} field `{}` repeated element stride {stride} overlaps its {}-byte sum elements",
+                    declared.name, element_layout.size
+                )));
+            }
+            stride
+        }
+        None => element_layout.size,
+    };
+    Ok(ConventionalSumArrayFieldLayoutReport {
+        field: declared.name.to_string(),
+        member_identity: declared.identity,
+        element_count,
+        element_stride,
+        element_layout,
+    })
+}
+
+/// Project the compact report row for one direct fixed-array-of-records
+/// field whose innermost record element still reaches conventional sums.
+/// `candidate.hops` carries every consecutive literal arity, outermost
+/// first; the packed row's
+/// `element_count` is their product. The element's complete recursive report
+/// is retained once with the exact count and stride, so every index shares
+/// the same record interior rather than multiplying rows by element.
+fn project_record_array_row(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    candidate: &RecordArrayPathCandidate<'_>,
+    reachability: &mut SumReachability<'_>,
+    depth: usize,
+    owner: &str,
+) -> Result<ConventionalRecordSumChildLayoutReport, Diagnostic> {
+    let declared = candidate.declared;
+    let laid = candidate.laid;
+    let element_named = candidate.named;
+    let inner =
+        project_recursive_paths(program, plan, element_named.symbol, reachability, depth + 1)?;
+    let laid_element = laid_innermost_array_descriptor(
+        &laid.type_descriptor,
+        &candidate.hops,
+        &declared.name,
+        "record-array",
+    )?;
+    let TypeLayoutDescriptor::Named {
+        symbol: laid_symbol,
+        name: laid_name,
+    } = laid_element
+    else {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout field `{}` substitutes its record-array element type",
+            declared.name
+        )));
+    };
+    if *laid_symbol != element_named.symbol
+        || laid.type_symbol != element_named.symbol
+        || laid_name.as_str() != element_named.name.as_str()
+    {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout field `{}` substitutes its record-array element/count",
+            declared.name
+        )));
+    }
+    let element_count = u64::try_from(
+        candidate
+            .hops
+            .iter()
+            .rev()
+            .try_fold(1usize, |count, hop| count.checked_mul(*hop))
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "{owner} field `{}` count exceeds canonical report width",
+                    declared.name
+                ))
+            })?,
+    )
+    .map_err(|_| {
+        Diagnostic::error(format!(
+            "{owner} field `{}` count exceeds canonical report width",
+            declared.name
+        ))
+    })?;
+    let element_size = inner
+        .outer_layout
+        .size
+        .expect("recursive inner projection has fixed extent");
+    let expected_size = element_size.checked_mul(element_count).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "{owner} field `{}` extent exceeds the compiler host",
+            declared.name
+        ))
+    })?;
+    if laid.layout.size as u64 != expected_size
+        || laid.layout.alignment as u64 != inner.outer_layout.align
+    {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout field `{}` does not retain the exact repeated record extent/alignment",
+            declared.name
+        )));
+    }
+    // As in `project_sum_array_row`: a repeated placement's physical stride
+    // is the row's stride, and it cannot survive a multi-hop flattening.
+    let element_stride = match plan.repeated_field(declared.symbol) {
+        Some(repeated) => {
+            if candidate.hops.len() != 1 {
+                return Err(Diagnostic::error(format!(
+                    "{owner} field `{}` repeated placement cannot flatten into more than one literal element hop",
+                    declared.name
+                )));
+            }
+            let stride = usize_to_u64(repeated.element_stride, "repeated record-array stride")?;
+            if stride < element_size {
+                return Err(Diagnostic::error(format!(
+                    "{owner} field `{}` repeated element stride {stride} overlaps its {element_size}-byte record elements",
+                    declared.name
+                )));
+            }
+            stride
+        }
+        None => element_size,
+    };
+    Ok(ConventionalRecordSumChildLayoutReport {
+        field: declared.name.to_string(),
+        member_identity: declared.identity,
+        hop: ConventionalRecordSumChildHop::Index {
+            element_count,
+            element_stride,
+        },
+        interior: ConventionalRecordSumChildInterior::Record(inner),
+    })
+}
+
+/// Project the bounded one-record path to direct conventional sum fields.
+///
+/// The outer record must contain exactly one relevant direct field whose exact
+/// closed `[copy]` record type contains a nonempty direct pure-sum set. Both
+/// record layouts and all child rows come from `plan`; no path flattening or
+/// independently supplied nested plan is accepted.
+pub fn project_conventional_record_with_nested_sum_record_materialization_layout(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+) -> Result<ConventionalNestedRecordSumPathLayoutReport, Diagnostic> {
+    let plural = project_conventional_record_with_nested_sum_records_materialization_layout(
+        program,
+        plan,
+        data_symbol,
+    )?;
+    if plural.paths.len() != 1 {
+        return Err(Diagnostic::error(format!(
+            "singular nested-record sum projection requires exactly one qualifying direct inner-record field; found {}",
+            plural.paths.len()
+        )));
+    }
+    let path = plural.paths.into_iter().next().expect("exactly one path");
+    Ok(ConventionalNestedRecordSumPathLayoutReport {
+        outer_layout: plural.outer_layout,
+        outer_field: path.outer_field,
+        outer_member_identity: path.outer_member_identity,
+        inner_layout: path.inner_layout,
+        child_sum_layouts: path.child_sum_layouts,
+    })
+}
+
+/// Project the complete nonempty authored-order set of bounded one-record
+/// paths to direct conventional sum fields. The outer layout is retained once;
+/// each occurrence owns one exact inner layout and complete child rows.
+pub fn project_conventional_record_with_nested_sum_records_materialization_layout(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+) -> Result<ConventionalNestedRecordSumPathsLayoutReport, Diagnostic> {
+    let mut reachability = SumReachability::new(program);
+    project_conventional_record_with_nested_sum_records_materialization_layout_with_reachability(
+        program,
+        plan,
+        data_symbol,
+        &mut reachability,
+    )
+}
+
+fn project_conventional_record_with_nested_sum_records_materialization_layout_with_reachability(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+    reachability: &mut SumReachability<'_>,
+) -> Result<ConventionalNestedRecordSumPathsLayoutReport, Diagnostic> {
+    let definition = unique_data_definition(program, data_symbol, "nested-record sum owner")?;
+    validate_closed_copy_record(program, definition, "nested-record sum owner")?;
+    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
+    let DataShape::Record {
+        fields: laid_fields,
+    } = data_layout.shape
+    else {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout row for nested-record sum owner `{}` is not a record",
+            definition.name
+        )));
+    };
+    let declared_fields = relevant_record_fields(program, definition);
+    let laid_fields = plan.fields.span_or_empty(laid_fields);
+    if declared_fields.len() != laid_fields.len() {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout for nested-record sum owner `{}` has {} fields; checked schema has {} relevant fields",
+            definition.name,
+            laid_fields.len(),
+            declared_fields.len()
+        )));
+    }
+
+    let mut entries = Vec::new();
+    entries
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| {
+            Diagnostic::error("nested-record sum outer layout report exceeds compiler resources")
+        })?;
+    let mut offsets = Vec::new();
+    offsets
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| {
+            Diagnostic::error("nested-record sum outer offset report exceeds compiler resources")
+        })?;
+    let mut paths = Vec::new();
+    paths
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| {
+            Diagnostic::error("nested-record sum path report exceeds compiler resources")
+        })?;
+    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
+        if declared.symbol != laid.symbol || declared.name != laid.name {
+            return Err(Diagnostic::error(format!(
+                "target runtime layout field identity/order drifted at `{}`",
+                declared.name
+            )));
+        }
+
+        if matches!(
+            program
+                .type_reference_table
+                .type_reference(declared.type_reference),
+            TypeReferenceNode::FixedArray { .. }
+        ) && reachability.type_contains_sum(declared.type_reference)?
+        {
+            return Err(Diagnostic::error(format!(
+                "nested-record sum outer field `{}` uses an array or deeper aggregate containing sums",
+                declared.name
+            )));
+        }
+        if let Some(named) = exact_named_data(program, declared.type_reference)? {
+            match DataDefinition::shape_kind_from_members(program.data_members(named)) {
+                DataShapeKind::Enum | DataShapeKind::Mixed => {
+                    return Err(Diagnostic::error(format!(
+                        "nested-record sum materialization does not admit direct outer case-bearing field `{}`",
+                        declared.name
+                    )));
+                }
+                DataShapeKind::Record => {
+                    let profile = record_sum_profile(program, named, reachability)?;
+                    if profile.direct {
+                        if profile.array || profile.deeper {
+                            return Err(Diagnostic::error(format!(
+                                "nested-record sum field `{}` combines direct sums with an array or deeper sum path",
+                                declared.name
+                            )));
+                        }
+                        validate_closed_copy_record(program, named, "nested-record sum inner")?;
+                        let TypeLayoutDescriptor::Named {
+                            symbol: laid_symbol,
+                            name: laid_name,
+                        } = &laid.type_descriptor
+                        else {
+                            return Err(Diagnostic::error(format!(
+                                "target runtime layout field `{}` is not the exact declared inner record",
+                                declared.name
+                            )));
+                        };
+                        if laid.type_symbol != named.symbol
+                            || *laid_symbol != named.symbol
+                            || laid_name.as_str() != named.name.as_str()
+                        {
+                            return Err(Diagnostic::error(format!(
+                                "target runtime layout field `{}` substitutes its inner record type",
+                                declared.name
+                            )));
+                        }
+                        let (inner_layout, child_sum_layouts) =
+                            project_conventional_record_with_sum_materialization_layout(
+                                program,
+                                plan,
+                                named.symbol,
+                            )?;
+                        if usize_to_u64(laid.layout.size, "inner record extent")?
+                            != inner_layout
+                                .size
+                                .expect("inner projection has fixed extent")
+                            || usize_to_u64(laid.layout.alignment, "inner record alignment")?
+                                != inner_layout.align
+                        {
+                            return Err(Diagnostic::error(format!(
+                                "target runtime layout field `{}` does not retain the exact inner record extent/alignment",
+                                declared.name
+                            )));
+                        }
+                        paths.push(ConventionalNestedRecordSumOccurrenceLayoutReport {
+                            outer_field: declared.name.to_string(),
+                            outer_member_identity: declared.identity,
+                            inner_layout,
+                            child_sum_layouts,
+                        });
+                    } else if profile.array || profile.deeper {
+                        return Err(Diagnostic::error(format!(
+                            "nested-record sum field `{}` reaches sums beyond the admitted direct child path",
+                            declared.name
+                        )));
+                    }
+                }
+                DataShapeKind::Empty => {}
+            }
+        }
+
+        let (field_entries, field_offset) = project_field_placement_entries(
+            program,
+            plan,
+            declared,
+            laid,
+            data_layout.layout.size,
+            "nested-record sum",
+        )?;
+        entries.extend(field_entries);
+        offsets.push(field_offset);
+    }
+    if paths.is_empty() {
+        return Err(Diagnostic::error(
+            "nested-record sum projection requires a nonempty qualifying direct inner-record field set",
+        ));
+    }
+    let outer_layout = LayoutPlanReport {
+        schema_report_fingerprint: symbol_resolved_trees_to_typed_trees::typed_trees::identity::normalized_schema_report_fingerprint(
+            program, definition,
+        ),
+        entries,
+        offsets: offsets.into_iter().collect(),
+        size: Some(usize_to_u64(
+            data_layout.layout.size,
+            "outer record extent",
+        )?),
+        align: usize_to_u64(data_layout.layout.alignment, "outer record alignment")?,
+    };
+    Ok(ConventionalNestedRecordSumPathsLayoutReport {
+        outer_layout,
+        paths,
+    })
+}
+
+/// Project exact conventional record paths without encoding depth in the API.
+pub fn project_conventional_record_with_recursive_nested_sums_materialization_layout(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+) -> Result<ConventionalRecursiveRecordSumPathsLayoutReport, Diagnostic> {
+    let mut reachability = SumReachability::new(program);
+    project_recursive_paths(program, plan, data_symbol, &mut reachability, 1)
+}
+
+/// Project one record level's recursive report under the general rule: the
+/// level's classified children in authored order, each row carrying its own
+/// path segment — a field hop or a literal index hop with a count and
+/// stride — beside the child's own report. The same mechanism runs at every
+/// depth; a record child's recursion advances the depth budget once.
+fn project_recursive_paths(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+    reachability: &mut SumReachability<'_>,
+    depth: usize,
+) -> Result<ConventionalRecursiveRecordSumPathsLayoutReport, Diagnostic> {
+    if depth > terminal_psi::layout_plans::CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
+        return Err(Diagnostic::error(
+            "recursive record paths exceed the compiler depth resource bound of 64",
+        ));
+    }
+    let owner = "plural recursive sum owner";
+    let level = project_record_level_children(
+        program,
+        plan,
+        data_symbol,
+        owner,
+        reachability,
+        LiteralArrayHopRule::Flattened,
+    )?;
+    let mut children = Vec::new();
+    children
+        .try_reserve_exact(level.children.len())
+        .map_err(|_| {
+            Diagnostic::error(format!("{owner} child report exceeds compiler resources"))
+        })?;
+    let mut total_leaf_paths = 0usize;
+    for child in level.children {
+        let (row, leaf_paths) = match child {
+            RecordLevelChild::Sum(row) => (
+                ConventionalRecordSumChildLayoutReport {
+                    field: row.field,
+                    member_identity: row.member_identity,
+                    hop: ConventionalRecordSumChildHop::Field,
+                    interior: ConventionalRecordSumChildInterior::Sum(row.layout),
+                },
+                1,
+            ),
+            RecordLevelChild::SumArray(row) => (
+                ConventionalRecordSumChildLayoutReport {
+                    field: row.field,
+                    member_identity: row.member_identity,
+                    hop: ConventionalRecordSumChildHop::Index {
+                        element_count: row.element_count,
+                        element_stride: row.element_stride,
+                    },
+                    interior: ConventionalRecordSumChildInterior::Sum(row.element_layout),
+                },
+                // The compact row covers every element index it spells: one
+                // leaf occurrence per row, not per element.
+                1,
+            ),
+            RecordLevelChild::RecordArray(candidate) => {
+                let row = project_record_array_row(
+                    program,
+                    plan,
+                    &candidate,
+                    reachability,
+                    depth,
+                    owner,
+                )?;
+                let ConventionalRecordSumChildInterior::Record(inner) = &row.interior else {
+                    unreachable!("record-array row carries a record interior")
+                };
+                let leaf_paths = inner.leaf_occurrence_count().ok_or_else(|| {
+                    Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
+                })?;
+                (row, leaf_paths)
+            }
+            RecordLevelChild::Record(candidate) => {
+                let inner = project_recursive_paths(
+                    program,
+                    plan,
+                    candidate.named.symbol,
+                    reachability,
+                    depth + 1,
+                )?;
+                let TypeLayoutDescriptor::Named {
+                    symbol: laid_symbol,
+                    name: laid_name,
+                } = &candidate.laid.type_descriptor
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "target runtime layout field `{}` is not the exact declared inner record",
+                        candidate.declared.name
+                    )));
+                };
+                if candidate.laid.type_symbol != candidate.named.symbol
+                    || *laid_symbol != candidate.named.symbol
+                    || laid_name.as_str() != candidate.named.name.as_str()
+                {
+                    return Err(Diagnostic::error(format!(
+                        "target runtime layout field `{}` substitutes its inner record type",
+                        candidate.declared.name
+                    )));
+                }
+                if usize_to_u64(candidate.laid.layout.size, "recursive inner-record extent")?
+                    != inner
+                        .outer_layout
+                        .size
+                        .expect("recursive inner projection has fixed extent")
+                    || usize_to_u64(
+                        candidate.laid.layout.alignment,
+                        "recursive inner-record alignment",
+                    )? != inner.outer_layout.align
+                {
+                    return Err(Diagnostic::error(format!(
+                        "target runtime layout field `{}` does not retain the exact inner-record extent/alignment from child",
+                        candidate.declared.name
+                    )));
+                }
+                let leaf_paths = inner.leaf_occurrence_count().ok_or_else(|| {
+                    Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
+                })?;
+                (
+                    ConventionalRecordSumChildLayoutReport {
+                        field: candidate.declared.name.to_string(),
+                        member_identity: candidate.declared.identity,
+                        hop: ConventionalRecordSumChildHop::Field,
+                        interior: ConventionalRecordSumChildInterior::Record(inner),
+                    },
+                    leaf_paths,
+                )
+            }
+        };
+        total_leaf_paths = total_leaf_paths.checked_add(leaf_paths).ok_or_else(|| {
+            Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
+        })?;
+        if total_leaf_paths > SumReachability::MAX_EDGES {
+            return Err(Diagnostic::error(
+                "plural recursive paths exceed bounded total leaf occurrences".to_owned(),
+            ));
+        }
+        children.push(row);
+    }
+    if children.is_empty() {
+        return Err(Diagnostic::error(
+            "plural recursive sum projection requires at least one direct runtime-relevant pure-sum, sum-array, or record field reaching sums",
+        ));
+    }
+    Ok(ConventionalRecursiveRecordSumPathsLayoutReport {
+        outer_layout: level.outer_layout,
+        children,
+    })
+}
+
+#[derive(Default)]
+struct RecordSumProfile {
+    direct: bool,
+    array: bool,
+    deeper: bool,
+}
+
+fn record_sum_profile(
+    program: &CheckedTrees,
+    definition: &DataDefinition,
+    reachability: &mut SumReachability<'_>,
+) -> Result<RecordSumProfile, Diagnostic> {
+    let mut profile = RecordSumProfile::default();
+    for field in relevant_record_fields(program, definition) {
+        match program
+            .type_reference_table
+            .type_reference(field.type_reference)
+        {
+            TypeReferenceNode::Named { .. } => {
+                let Some(named) = exact_named_data(program, field.type_reference)? else {
+                    continue;
+                };
+                match DataDefinition::shape_kind_from_members(program.data_members(named)) {
+                    DataShapeKind::Enum | DataShapeKind::Mixed => profile.direct = true,
+                    DataShapeKind::Record => {
+                        if reachability.type_contains_sum(field.type_reference)? {
+                            profile.deeper = true;
+                        }
+                    }
+                    DataShapeKind::Empty => {}
+                }
+            }
+            TypeReferenceNode::FixedArray { .. }
+                if reachability.type_contains_sum(field.type_reference)? =>
+            {
+                profile.array = true;
+            }
+            _ => {}
+        }
+    }
+    Ok(profile)
+}
+
+#[derive(Clone, Copy)]
+enum ReachabilityState {
+    Visiting,
+    Done(bool),
+}
+
+struct ReachabilityFrame<'a> {
+    data: &'a DataDefinition,
+    next_member: usize,
+    found: bool,
+}
+
+struct SumReachability<'a> {
+    program: &'a CheckedTrees,
+    states: std::collections::HashMap<(u32, u32), ReachabilityState>,
+    traversed_edges: usize,
+}
+
+impl<'a> SumReachability<'a> {
+    const MAX_RECORDS: usize = 4096;
+    const MAX_EDGES: usize = 16384;
+
+    fn new(program: &'a CheckedTrees) -> Self {
+        Self {
+            program,
+            states: std::collections::HashMap::new(),
+            traversed_edges: 0,
+        }
+    }
+
+    fn type_contains_sum(
+        &mut self,
+        mut type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    ) -> Result<bool, Diagnostic> {
+        let mut array_depth = 0usize;
+        while let TypeReferenceNode::FixedArray { element_type, .. } = self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            array_depth += 1;
+            if array_depth > 64 {
+                return Err(Diagnostic::error(
+                    "nested-record sum path exceeds bounded fixed-array depth",
+                ));
+            }
+            type_reference = *element_type;
+        }
+        let Some(data) = exact_named_data(self.program, type_reference)? else {
+            return Ok(false);
+        };
+        match DataDefinition::shape_kind_from_members(self.program.data_members(data)) {
+            DataShapeKind::Enum | DataShapeKind::Mixed => Ok(true),
+            DataShapeKind::Empty => Ok(false),
+            DataShapeKind::Record => self.record_contains_sum(data),
+        }
+    }
+
+    fn record_contains_sum(&mut self, root: &'a DataDefinition) -> Result<bool, Diagnostic> {
+        let root_identity = symbol_identity(root.symbol)?;
+        if let Some(state) = self.states.get(&root_identity) {
+            return match state {
+                ReachabilityState::Done(found) => Ok(*found),
+                ReachabilityState::Visiting => Err(Diagnostic::error(format!(
+                    "nested-record sum path is recursive through `{}`",
+                    root.name
+                ))),
+            };
+        }
+        self.insert_state(root_identity, ReachabilityState::Visiting)?;
+        let mut stack = Vec::new();
+        stack.try_reserve(1).map_err(|_| {
+            Diagnostic::error("nested-record sum traversal stack exceeds compiler resources")
+        })?;
+        stack.push(ReachabilityFrame {
+            data: root,
+            next_member: 0,
+            found: false,
+        });
+
+        loop {
+            let Some(frame) = stack.last_mut() else {
+                unreachable!("root reachability frame returns when completed")
+            };
+            let members = self.program.data_members(frame.data);
+            // `found` is the eventual answer, not permission to skip later
+            // fields: a later branch can still expose a cycle, malformed
+            // nominal identity, or resource-bound failure.
+            if frame.next_member == members.len() {
+                let completed = stack.pop().expect("active reachability frame");
+                let identity = symbol_identity(completed.data.symbol)?;
+                self.states
+                    .insert(identity, ReachabilityState::Done(completed.found));
+                if let Some(parent) = stack.last_mut() {
+                    parent.found |= completed.found;
+                    continue;
+                }
+                return Ok(completed.found);
+            }
+            let member = &members[frame.next_member];
+            frame.next_member += 1;
+            let DataMember::Field(field) = member else {
+                frame.found = true;
+                continue;
+            };
+            if field.relevance.is_erased() {
+                continue;
+            }
+            self.traversed_edges = self.traversed_edges.checked_add(1).ok_or_else(|| {
+                Diagnostic::error("nested-record sum traversal edge count overflows")
+            })?;
+            if self.traversed_edges > Self::MAX_EDGES {
+                return Err(Diagnostic::error(
+                    "nested-record sum path exceeds bounded schema traversal edges",
+                ));
+            }
+            let mut child_type = field.type_reference;
+            let mut array_depth = 0usize;
+            while let TypeReferenceNode::FixedArray { element_type, .. } =
+                self.program.type_reference_table.type_reference(child_type)
+            {
+                array_depth += 1;
+                if array_depth > 64 {
+                    return Err(Diagnostic::error(
+                        "nested-record sum path exceeds bounded fixed-array depth",
+                    ));
+                }
+                child_type = *element_type;
+            }
+            let Some(child) = exact_named_data(self.program, child_type)? else {
+                continue;
+            };
+            match DataDefinition::shape_kind_from_members(self.program.data_members(child)) {
+                DataShapeKind::Enum | DataShapeKind::Mixed => frame.found = true,
+                DataShapeKind::Empty => {}
+                DataShapeKind::Record => {
+                    let identity = symbol_identity(child.symbol)?;
+                    match self.states.get(&identity).copied() {
+                        Some(ReachabilityState::Done(found)) => frame.found |= found,
+                        Some(ReachabilityState::Visiting) => {
+                            return Err(Diagnostic::error(format!(
+                                "nested-record sum path is recursive through `{}`",
+                                child.name
+                            )));
+                        }
+                        None => {
+                            self.insert_state(identity, ReachabilityState::Visiting)?;
+                            stack.try_reserve(1).map_err(|_| {
+                                Diagnostic::error(
+                                    "nested-record sum traversal stack exceeds compiler resources",
+                                )
+                            })?;
+                            stack.push(ReachabilityFrame {
+                                data: child,
+                                next_member: 0,
+                                found: false,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn insert_state(
+        &mut self,
+        identity: (u32, u32),
+        state: ReachabilityState,
+    ) -> Result<(), Diagnostic> {
+        if self.states.len() >= Self::MAX_RECORDS {
+            return Err(Diagnostic::error(
+                "nested-record sum path exceeds bounded schema traversal records",
+            ));
+        }
+        self.states.try_reserve(1).map_err(|_| {
+            Diagnostic::error("nested-record sum visited map exceeds compiler resources")
+        })?;
+        self.states.insert(identity, state);
+        Ok(())
+    }
+}
+
+fn symbol_identity(symbol: SymbolHandle) -> Result<(u32, u32), Diagnostic> {
+    if !symbol.is_valid() {
+        return Err(Diagnostic::error(
+            "nested-record sum path encountered an invalid nominal identity",
+        ));
+    }
+    Ok((symbol.arena_index(), symbol.generation()))
+}
+
+/// A fully-applied generic instance qualifies here: instantiation already
+/// bound every parameter and substituted its members, so it stands closed
+/// beside an authored record. The unapplied template is the shape
+/// `type_parameters` still rejects — its `ConstParameter` lengths are the
+/// non-literal array lengths this chain cannot lay out.
+fn validate_closed_copy_record(
+    program: &CheckedTrees,
+    definition: &DataDefinition,
+    role: &str,
+) -> Result<(), Diagnostic> {
+    if !definition.symbol.is_valid()
+        || definition.supply_mode != DataSupplyMode::CheckedShape
+        || definition.properties.multiplicity != Multiplicity::Unrestricted
+        || !definition.type_parameters.is_empty()
+        || !definition.lifetime_parameters.is_empty()
+        || definition.quotient.is_some()
+        || DataDefinition::shape_kind_from_members(program.data_members(definition))
+            != DataShapeKind::Record
+    {
+        return Err(Diagnostic::error(format!(
+            "{role} `{}` must be one closed non-generic `[copy]` record",
+            definition.name
+        )));
+    }
+    // A synthesized closed generic instance is itself one closed record: its
+    // members — including `const N` array lengths — were substituted at
+    // synthesis, so an authored non-literal length arrives here already
+    // literal. Only the retained application origin needs the
+    // closed-argument judgment.
+    if let Some(application) = definition.generic_instance {
+        require_closed_generic_application(program, definition, application, role)?;
+    }
+    Ok(())
+}
+
+/// The retained structural origin of a synthesized generic instance. Only a
+/// CLOSED application names one exact closed record identity for
+/// materialization: the base must resolve to the open generic template,
+/// lifetime arguments must already be erased, and each argument must satisfy
+/// its parameter kind — a closed const literal for `const`/`value`
+/// parameters, a closed type for `type` parameters. This mirrors the
+/// const-evaluable admission judgment so the interpreter and
+/// materialization rungs agree on which substituted shapes are closed.
+fn require_closed_generic_application(
+    program: &CheckedTrees,
+    definition: &DataDefinition,
+    application: TypeReferenceHandle,
+    role: &str,
+) -> Result<(), Diagnostic> {
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = program.type_reference_table.type_reference(application)
+    else {
+        return Err(Diagnostic::error(format!(
+            "{role} `{}` has a generic origin that is not a resolved generic application",
+            definition.name
+        )));
+    };
+    if !lifetime_arguments.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "{role} `{}` has non-erased lifetime arguments",
+            definition.name
+        )));
+    }
+    if !base_symbol.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "{role} `{base_name}` lacks an exact nominal base identity"
+        )));
+    }
+    let mut bases = program
+        .data_definitions()
+        .iter()
+        .filter(|candidate| candidate.symbol == *base_symbol);
+    let base = bases.next().ok_or_else(|| {
+        Diagnostic::error(format!(
+            "{role} `{base_name}` has an unknown base data type"
+        ))
+    })?;
+    if bases.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "{role} `{base_name}` has an ambiguous nominal base identity"
+        )));
+    }
+    if !consistent_nominal_spelling(base_name.as_str(), base.name.as_str())
+        || base.generic_instance.is_some()
+    {
+        return Err(Diagnostic::error(format!(
+            "{role} `{}` has base `{base_name}` that is not the open generic template",
+            definition.name
+        )));
+    }
+    let parameters = program.data_type_parameters(base);
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    if arguments.len() != parameters.len() {
+        return Err(Diagnostic::error(format!(
+            "{role} `{}` supplies {} argument(s) for {} base parameter(s)",
+            definition.name,
+            arguments.len(),
+            parameters.len()
+        )));
+    }
+    let mut active_data = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+        require_closed_generic_argument(
+            program,
+            &parameter.kind,
+            *argument,
+            &format!("{role} parameter `{}`", parameter.name),
+            &mut active_data,
+        )?;
+    }
+    Ok(())
+}
+
+/// One generic argument judged against its parameter kind. `const`/`value`
+/// parameters admit only a compile-known resolved integer literal; `type`
+/// parameters admit only a closed checked-boundary type; machine parameters
+/// admit nothing at this boundary.
+fn require_closed_generic_argument(
+    program: &CheckedTrees,
+    kind: &TypeParameterKind,
+    argument: TypeReferenceHandle,
+    role: &str,
+    active_data: &mut Vec<SymbolHandle>,
+) -> Result<(), Diagnostic> {
+    match kind {
+        TypeParameterKind::Type => {
+            require_closed_generic_type(program, argument, role, active_data)
+        }
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+            match program.type_reference_table.type_reference(argument) {
+                TypeReferenceNode::Named { symbol, name }
+                    if !symbol.is_valid()
+                        && !name.as_str().is_empty()
+                        && name.as_str().chars().all(|c| c.is_ascii_digit()) =>
+                {
+                    Ok(())
+                }
+                _ => Err(Diagnostic::error(format!(
+                    "{role} has a non-literal const argument and is not a closed const application"
+                ))),
+            }
+        }
+        TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => {
+            Err(Diagnostic::error(format!(
+                "{role} is not a data parameter; only closed const atoms and closed types can cross the materialization boundary"
+            )))
+        }
+    }
+}
+
+/// Type-level closedness for a generic argument in `type` position: a
+/// primitive, unit, a literal-length fixed array of closed elements, a
+/// constrained closed base, or a closed nominal aggregate (itself possibly
+/// a closed generic instance). References, slices, open generics,
+/// proof-static expressions, dynamic traits, and interior-mutable types are
+/// not closed.
+fn require_closed_generic_type(
+    program: &CheckedTrees,
+    type_reference: TypeReferenceHandle,
+    role: &str,
+    active_data: &mut Vec<SymbolHandle>,
+) -> Result<(), Diagnostic> {
+    if !type_reference.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "{role} has an invalid argument type"
+        )));
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Unit => Ok(()),
+        TypeReferenceNode::Named { symbol, name } => {
+            if name.as_str().starts_with("Atomic") {
+                return Err(Diagnostic::error(format!(
+                    "{role} has interior-mutable type `{name}`, which is not copy eligible"
+                )));
+            }
+            if PrimitiveType::from_name(name.as_str()).is_some() {
+                return Ok(());
+            }
+            if !symbol.is_valid() {
+                return Err(Diagnostic::error(format!(
+                    "{role} names `{name}` without an exact nominal type identity"
+                )));
+            }
+            let mut definitions = program
+                .data_definitions()
+                .iter()
+                .filter(|candidate| candidate.symbol == *symbol);
+            let definition = definitions.next().ok_or_else(|| {
+                Diagnostic::error(format!("{role} names unknown data type `{name}`"))
+            })?;
+            if definitions.next().is_some() {
+                return Err(Diagnostic::error(format!(
+                    "{role} has an ambiguous nominal type identity for `{name}`"
+                )));
+            }
+            if !consistent_nominal_spelling(name.as_str(), definition.name.as_str()) {
+                return Err(Diagnostic::error(format!(
+                    "{role} has inconsistent nominal type spelling `{name}` for `{}`",
+                    definition.name
+                )));
+            }
+            if definition.supply_mode != DataSupplyMode::CheckedShape
+                || !definition.lifetime_parameters.is_empty()
+                || !definition.type_parameters.is_empty()
+                || definition.quotient.is_some()
+            {
+                return Err(Diagnostic::error(format!(
+                    "{role} reaches open or opaque data `{name}` through a generic argument"
+                )));
+            }
+            if let Some(nested) = definition.generic_instance {
+                require_closed_generic_application(program, definition, nested, role)?;
+            }
+            if active_data.contains(symbol) {
+                return Err(Diagnostic::error(format!(
+                    "{role} reaches recursive data `{name}` through a generic argument"
+                )));
+            }
+            active_data.push(*symbol);
+            let result = (|| {
+                for member in program.data_members(definition) {
+                    match member {
+                        DataMember::Field(field) => require_closed_generic_type(
+                            program,
+                            field.type_reference,
+                            &format!("{role}.{}", field.name),
+                            active_data,
+                        )?,
+                        DataMember::Variant(variant) => {
+                            for field in program.data_payload_fields(variant) {
+                                require_closed_generic_type(
+                                    program,
+                                    field.type_reference,
+                                    &format!("{role}::{}.{}", variant.name, field.name),
+                                    active_data,
+                                )?;
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            })();
+            active_data.pop();
+            result
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let FixedArrayLength::Literal(_) = length else {
+                return Err(Diagnostic::error(format!(
+                    "{role} has a non-literal array length and is not a closed const type"
+                )));
+            };
+            require_closed_generic_type(program, *element_type, &format!("{role}[]"), active_data)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            require_closed_generic_type(program, *base_type, role, active_data)
+        }
+        TypeReferenceNode::Reference { .. } => {
+            Err(Diagnostic::error(format!("{role} has reference type")))
+        }
+        TypeReferenceNode::Slice { .. } => Err(Diagnostic::error(format!("{role} has slice type"))),
+        TypeReferenceNode::Generic { .. } => Err(Diagnostic::error(format!(
+            "{role} has an open or generic aggregate type and is not a closed const type"
+        ))),
+        TypeReferenceNode::ConstExpression(_) => Err(Diagnostic::error(format!(
+            "{role} has a proof-static expression type, not a runtime const value type"
+        ))),
+        TypeReferenceNode::DynamicTrait { .. } => Err(Diagnostic::error(format!(
+            "{role} has a dynamic trait type"
+        ))),
+    }
+}
+
+/// The `Named` reference records the use-site spelling while its symbol
+/// carries the resolved identity: a module-owner qualified spelling of the
+/// selected declaration is the same nominal type.
+fn consistent_nominal_spelling(recorded: &str, declared: &str) -> bool {
+    recorded == declared
+        || recorded
+            .strip_suffix(declared)
+            .is_some_and(|prefix| prefix.ends_with("::"))
+}
+
+fn relevant_record_fields<'a>(
+    program: &'a CheckedTrees,
+    definition: &'a DataDefinition,
+) -> Vec<&'a symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField> {
+    program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        })
+        .collect()
+}
+
+fn usize_to_u64(value: usize, role: &str) -> Result<u64, Diagnostic> {
+    u64::try_from(value).map_err(|_| Diagnostic::error(format!("{role} exceeds report width")))
+}
+
+/// Project the first compact fixed-array-of-conventional-sums rung.
+///
+/// The owner is the same exact closed `[copy]` record as the direct-field
+/// projection, but it must contain exactly one runtime-relevant direct field
+/// of type `[S; N]` where `N > 0` is literal and `S` is a conventional pure
+/// sum. The complete sum layout is retained once with exact count/stride;
+/// value-sensitive materialization retains the selected case separately for
+/// each literal index.
+pub fn project_conventional_record_with_sum_array_materialization_layout(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+) -> Result<(LayoutPlanReport, ConventionalSumArrayFieldLayoutReport), Diagnostic> {
+    let (outer, mut rows) = project_conventional_record_with_sum_arrays_materialization_layout(
+        program,
+        plan,
+        data_symbol,
+    )?;
+    if rows.len() != 1 {
+        return Err(Diagnostic::error(format!(
+            "singular nested-sum array materialization requires exactly one direct field; found {}",
+            rows.len()
+        )));
+    }
+    Ok((outer, rows.pop().expect("exactly one array row")))
+}
+
+/// Project the complete authored-order set of direct nonzero literal
+/// fixed-array-of-conventional-sum fields while retaining each complete sum
+/// layout only once per outer field occurrence.
+pub fn project_conventional_record_with_sum_arrays_materialization_layout(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+) -> Result<(LayoutPlanReport, Vec<ConventionalSumArrayFieldLayoutReport>), Diagnostic> {
+    let mut reachability = SumReachability::new(program);
+    let level = project_record_level_children(
+        program,
+        plan,
+        data_symbol,
+        "nested-sum array record",
+        &mut reachability,
+        LiteralArrayHopRule::OuterOnly,
+    )?;
+    // As in the direct-field rung above, partition the level's classified
+    // children back into the kind channels this rung's fences inspect.
+    let mut child_sum_layouts = Vec::new();
+    let mut sum_arrays = Vec::new();
+    let mut record_arrays = Vec::new();
+    let mut record_paths = Vec::new();
+    for child in level.children {
+        match child {
+            RecordLevelChild::Sum(row) => child_sum_layouts.push(row),
+            RecordLevelChild::SumArray(row) => sum_arrays.push(row),
+            RecordLevelChild::RecordArray(candidate) => record_arrays.push(candidate),
+            RecordLevelChild::Record(candidate) => record_paths.push(candidate),
+        }
+    }
+    if let Some(candidate) = record_paths.first() {
+        return Err(Diagnostic::error(format!(
+            "nested-sum array outer field `{}` reaches a sum through a nested record, outside the direct sum-array rung",
+            candidate.declared.name
+        )));
+    }
+    if !child_sum_layouts.is_empty() {
+        return Err(Diagnostic::error(
+            "nested-sum array materialization does not combine direct sum fields with the array occurrence",
+        ));
+    }
+    if let Some(candidate) = record_arrays.first() {
+        return Err(Diagnostic::error(format!(
+            "nested-sum array materialization does not lift the direct record array `{}`; the recursive record/sum owner carries it",
+            candidate.declared.name
+        )));
+    }
+    if sum_arrays.is_empty() {
+        return Err(Diagnostic::error(
+            "nested-sum array layout projection requires a nonempty direct nonzero literal fixed-array-of-sums field set",
+        ));
+    }
+    Ok((level.outer_layout, sum_arrays))
+}
+
+fn unique_data_definition<'a>(
+    program: &'a CheckedTrees,
+    data_symbol: SymbolHandle,
+    role: &str,
+) -> Result<&'a DataDefinition, Diagnostic> {
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.symbol == data_symbol);
+    let definition = definitions.next().ok_or_else(|| {
+        Diagnostic::error(format!("{role} names no exact checked data definition"))
+    })?;
+    if definitions.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "{role} data identity is ambiguous"
+        )));
+    }
+    Ok(definition)
+}
+
+fn unique_data_layout<'a>(
+    plan: &'a LayoutPlan,
+    data_symbol: SymbolHandle,
+    name: &str,
+) -> Result<&'a crate::layout::DataLayout, Diagnostic> {
+    let mut layouts = plan
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .filter(|layout| layout.symbol == data_symbol);
+    let layout = layouts.next().ok_or_else(|| {
+        Diagnostic::error(format!(
+            "target runtime layout has no exact data row for `{name}`"
+        ))
+    })?;
+    if layouts.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout has duplicate data rows for `{name}`"
+        )));
+    }
+    Ok(layout)
+}
+
+fn exact_named_data(
+    program: &CheckedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+) -> Result<Option<&DataDefinition>, Diagnostic> {
+    if program.primitive_type_reference(type_reference).is_some() {
+        return Ok(None);
+    }
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return Ok(None);
+    };
+    if !symbol.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "nested-sum field type `{name}` has no exact nominal identity"
+        )));
+    }
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.symbol == *symbol);
+    let Some(definition) = definitions.next() else {
+        return Ok(None);
+    };
+    if definitions.next().is_some() || definition.name.as_str() != name.as_str() {
+        return Err(Diagnostic::error(format!(
+            "nested-sum field type `{name}` has ambiguous or mismatched nominal identity"
+        )));
+    }
+    Ok(Some(definition))
+}
+
+/// Project one exact closed pure sum or one closed common-field/case mixed
+/// shape from the already-built runtime layout. The returned report carries
+/// the case-bearing overlay either shape shares; a mixed shape additionally
+/// retains its leading common fields, packed between the tag and the shared
+/// payload base, in authored order.
+pub fn project_conventional_sum_materialization_layout(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+) -> Result<ConventionalSumLayoutReport, Diagnostic> {
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.symbol == data_symbol);
+    let definition = definitions.next().ok_or_else(|| {
+        Diagnostic::error("conventional sum layout names no exact checked data definition")
+    })?;
+    if definitions.next().is_some() {
+        return Err(Diagnostic::error(
+            "conventional sum layout data identity is ambiguous",
+        ));
+    }
+    let members = program.data_members(definition);
+    let shape_kind = DataDefinition::shape_kind_from_members(members);
+    if !matches!(shape_kind, DataShapeKind::Enum | DataShapeKind::Mixed) {
+        return Err(Diagnostic::error(format!(
+            "conventional sum materialization requires a pure sum or a mixed common-field/case shape; `{}` is empty or a record",
+            definition.name
+        )));
+    }
+
+    let mut layouts = plan
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .filter(|layout| layout.symbol == data_symbol);
+    let data_layout = layouts.next().ok_or_else(|| {
+        Diagnostic::error(format!(
+            "runtime layout has no exact data row for case-bearing `{}`",
+            definition.name
+        ))
+    })?;
+    if layouts.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "runtime layout has duplicate data rows for case-bearing `{}`",
+            definition.name
+        )));
+    }
+    let DataShape::Enum {
+        common_fields,
+        variants,
+    } = &data_layout.shape
+    else {
+        return Err(Diagnostic::error(format!(
+            "runtime layout row for case-bearing `{}` is not case-bearing",
+            definition.name
+        )));
+    };
+    let declared_common = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let laid_common = plan.fields.span_or_empty(*common_fields);
+    if declared_common.len() != laid_common.len() {
+        return Err(Diagnostic::error(format!(
+            "case-bearing `{}` runtime layout has {} common fields; checked schema has {} relevant fields",
+            definition.name,
+            laid_common.len(),
+            declared_common.len()
+        )));
+    }
+    let common_fields = declared_common
+        .into_iter()
+        .zip(laid_common)
+        .map(|(declared, laid)| {
+            if declared.symbol != laid.symbol || declared.name != laid.name {
+                return Err(Diagnostic::error(format!(
+                    "case-bearing `{}` runtime common-field identity or order drifted at `{}`",
+                    definition.name, declared.name
+                )));
+            }
+            Ok(ConventionalSumPayloadFieldLayoutReport {
+                field: declared.name.to_string(),
+                member_identity: declared.identity,
+                offset: laid.offset as u64,
+                size: laid.layout.size as u64,
+                align: laid.layout.alignment as u64,
+            })
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+
+    let declared_cases = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant),
+            DataMember::Field(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let laid_cases = plan.variants.span_or_empty(*variants);
+    if declared_cases.len() != laid_cases.len() {
+        return Err(Diagnostic::error(format!(
+            "pure sum `{}` runtime layout has {} cases; checked schema has {}",
+            definition.name,
+            laid_cases.len(),
+            declared_cases.len()
+        )));
+    }
+
+    let cases = declared_cases
+        .into_iter()
+        .zip(laid_cases)
+        .enumerate()
+        .map(|(ordinal, (declared, laid))| {
+            if declared.symbol != laid.symbol || declared.name != laid.name {
+                return Err(Diagnostic::error(format!(
+                    "pure sum `{}` runtime case order or identity drifted at ordinal {ordinal}",
+                    definition.name
+                )));
+            }
+            let declared_payload = program
+                .data_payload_fields(declared)
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .collect::<Vec<_>>();
+            let laid_payload = plan.fields.span_or_empty(laid.fields);
+            if declared_payload.len() != laid_payload.len() {
+                return Err(Diagnostic::error(format!(
+                    "pure sum `{}` case `{}` runtime payload has {} fields; checked schema has {} relevant fields",
+                    definition.name,
+                    declared.name,
+                    laid_payload.len(),
+                    declared_payload.len()
+                )));
+            }
+            let payload_fields = declared_payload
+                .into_iter()
+                .zip(laid_payload)
+                .map(|(declared_field, laid_field)| {
+                    if declared_field.symbol != laid_field.symbol
+                        || declared_field.name != laid_field.name
+                    {
+                        return Err(Diagnostic::error(format!(
+                            "pure sum `{}` case `{}` runtime payload field identity or order drifted",
+                            definition.name, declared.name
+                        )));
+                    }
+                    Ok(ConventionalSumPayloadFieldLayoutReport {
+                        field: declared_field.name.to_string(),
+                        member_identity: declared_field.identity,
+                        offset: laid_field.offset as u64,
+                        size: laid_field.layout.size as u64,
+                        align: laid_field.layout.alignment as u64,
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            Ok(ConventionalSumCaseLayoutReport {
+                case: declared.name.to_string(),
+                member_identity: declared.identity,
+                ordinal: u32::try_from(ordinal).map_err(|_| {
+                    Diagnostic::error(format!(
+                        "pure sum `{}` case ordinal exceeds u32",
+                        definition.name
+                    ))
+                })?,
+                payload_fields,
+            })
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+
+    Ok(ConventionalSumLayoutReport {
+        schema_report_fingerprint: symbol_resolved_trees_to_typed_trees::typed_trees::identity::normalized_schema_report_fingerprint(
+            program, definition,
+        ),
+        tag_offset: 0,
+        tag_size: ENUM_TAG_BYTES as u64,
+        tag_align: ENUM_TAG_BYTES as u64,
+        common_fields,
+        cases,
+        size: data_layout.layout.size as u64,
+        align: data_layout.layout.alignment as u64,
+    })
+}
+
+#[cfg(test)]
+mod tests;

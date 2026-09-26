@@ -13,7 +13,7 @@ fn effects_fixture_source(body: &str, extra: &str) -> String {
     )
 }
 
-fn assert_no_checked_guarantee(program: &checked_trees::CheckedTrees) {
+fn assert_no_checked_guarantee(program: &crate::checked_trees::CheckedTrees) {
     let plan = program
         .facts
         .termination

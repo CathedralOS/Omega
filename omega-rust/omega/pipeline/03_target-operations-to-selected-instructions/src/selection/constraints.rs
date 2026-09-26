@@ -1,12 +1,12 @@
-use crate::selection::model::SelectedInstructionError;
-use register_model::{
+use crate::register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, ValidatedRegisterConstraintCatalog,
 };
-use selected_instructions::{
+use crate::selected_instructions::{
     SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
     VirtualRegisterId,
 };
+use crate::selection::model::SelectedInstructionError;
 
 pub(super) fn instruction(
     id: SelectedInstructionId,
@@ -82,7 +82,7 @@ pub(super) fn fixed_input_constraint(
     machine: semantic_vocabulary::MachineId,
     source_value: semantic_vocabulary::ValueId,
     parameter_index: usize,
-    register: target_operations::MachineRegister,
+    register: abstract_operations_to_target_operations::target_operations::MachineRegister,
     inputs: &[SelectedFixedInputConstraint],
 ) -> Option<&SelectedFixedInputConstraint> {
     let mut matches = inputs.iter().filter(|input| {

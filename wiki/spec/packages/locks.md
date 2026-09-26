@@ -4,7 +4,7 @@ The lock is retained project intent, not a certificate of package safety.
 [Acceptance](acceptance.md) owns review and decision authority;
 [source selection](sources.md) owns resolution and immutable graph construction.
 Standalone compiler-policy file handling belongs to
-[trust-ledger](../../../omega-rust/omega/build/trust-ledger/README.md), not this lock.
+[trust-ledger](../../../omega-rust/omega/docs/trust-ledger/README.md), not this lock.
 
 ## Retained state
 
@@ -52,7 +52,7 @@ Unknown formats or unrecoverable baseline meaning reject with recovery guidance;
 they never become empty acceptance or an inferred schema migration. Cache paths,
 proof certificates, native artifacts, replay transcripts, audit receipts, and
 compiler-private handles are not this payload. The
-[lock codec](../../../omega-rust/omega/packages/manager/src/lock/README.md) owns
+[lock codec](../../../omega-rust/omega/src/package_manager/lock/README.md) owns
 the exact framing and resource limits.
 
 Projects normally commit the lock and trust whoever lands it. Recovery checks

@@ -19,9 +19,9 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::bignum::BigInt;
 use source::SourceSpan;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::TypeParameterKind;
-use syntax_trees::types::{
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::item::TypeParameterKind;
+use tokens_to_syntax_trees::syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
@@ -107,11 +107,11 @@ impl Solver<'_, '_> {
     /// every resulting node rejoins the same constructor matcher below.
     pub(super) fn type_operand_reference(
         &mut self,
-        expression: syntax_trees::expression::ExpressionHandle,
+        expression: tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle,
         span: SourceSpan,
     ) -> Result<TypeReferenceHandle, Diagnostic> {
-        use syntax_trees::expression::ExpressionNode;
-        use syntax_trees::identifier::Identifier;
+        use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
+        use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
         match self.syntax.expressions.expression(expression).clone() {
             ExpressionNode::TypeExpression(reference) => Ok(reference),
             ExpressionNode::Name(path) => {

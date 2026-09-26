@@ -103,12 +103,12 @@
 //! refreshed coordinates.
 
 use super::super::super::super::BTreeSet;
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, PlaceId, ValueId};
+use semantic_vocabulary::{OperationId, ScalarType};
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationBlock, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiProvenance,
 };
-use semantic_vocabulary::{BlockId, PlaceId, ValueId};
-use semantic_vocabulary::{OperationId, ScalarType};
 
 use super::super::CycleComponentId;
 use super::{BTreeMap, MachineId, OptimizationUnitValidationError, OptimizerCycleComponent};
@@ -230,10 +230,10 @@ pub(super) fn validate(
     let mut relocated_case_results: BTreeMap<CycleComponentId, BTreeSet<PlaceId>> = BTreeMap::new();
     for relocation in &moved {
         let result = match &relocation.expected.operation {
-            abstract_operations::AbstractOperation::EstablishScalarCase { result, .. }
-            | abstract_operations::AbstractOperation::EstablishRecord { result, .. }
-            | abstract_operations::AbstractOperation::CallStructural { result, .. } => result,
-            abstract_operations::AbstractOperation::EstablishTrivialAffineLocal {
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::EstablishScalarCase { result, .. }
+            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::EstablishRecord { result, .. }
+            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructural { result, .. } => result,
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::EstablishTrivialAffineLocal {
                 place, ..
             } => {
                 // A trivial affine local's declared place is affine by
@@ -886,7 +886,7 @@ fn same_relocated_node(
     // substituted actuals — the same reconstruction the realization
     // performs — so a forged or stale roster in the transformed spelling
     // rejects byte-exact in the comparison below.
-    if let abstract_operations::AbstractOperation::Call {
+    if let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
         callee,
         crash_continuations,
         ..
@@ -898,7 +898,7 @@ fn same_relocated_node(
         else {
             return false;
         };
-        let abstract_operations::AbstractOperation::Call {
+        let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
             arguments,
             crash_continuations,
             ..

@@ -7,17 +7,17 @@ fn seeded_plain_data_continuation_appends_named_data_and_preserves_typed_sidecar
         "data Authored { value: u32; }",
         "data Generated { base: Authored; }",
     );
-    base.typed_mut()
-        .evidence_forwardings
-        .push(typed_trees::typed_trees::EvidenceForwarding {
+    base.typed_mut().evidence_forwardings.push(
+        crate::typed_trees::typed_trees::EvidenceForwarding {
             machine_symbol: symbols::SymbolHandle::invalid(),
             state_symbol: symbols::SymbolHandle::invalid(),
             statement_index: 7,
             source_statement_index: 11,
-            target: typed_trees::name::Identifier::generated_static("target"),
-            source: typed_trees::name::Identifier::generated_static("source"),
+            target: crate::typed_trees::name::Identifier::generated_static("target"),
+            source: crate::typed_trees::name::Identifier::generated_static("source"),
             source_conformance: None,
-        });
+        },
+    );
     let before = base.typed().clone();
     let before_members = before
         .data_members
@@ -74,7 +74,8 @@ fn seeded_plain_data_continuation_appends_named_data_and_preserves_typed_sidecar
         before_symbols
     );
     let generated = typed.data_definitions().last().expect("generated data");
-    let [typed_trees::data::DataMember::Field(generated_field)] = typed.data_members(generated)
+    let [crate::typed_trees::data::DataMember::Field(generated_field)] =
+        typed.data_members(generated)
     else {
         panic!("one generated field")
     };
@@ -98,17 +99,17 @@ fn seeded_plain_data_continuation_appends_exact_erased_lifetime_data_graph() {
             pub data Envelope<'msg> { view: View<'msg>; tail: [u8; 2]; }
         "#,
     );
-    base.typed_mut()
-        .evidence_forwardings
-        .push(typed_trees::typed_trees::EvidenceForwarding {
+    base.typed_mut().evidence_forwardings.push(
+        crate::typed_trees::typed_trees::EvidenceForwarding {
             machine_symbol: symbols::SymbolHandle::invalid(),
             state_symbol: symbols::SymbolHandle::invalid(),
             statement_index: 13,
             source_statement_index: 17,
-            target: typed_trees::name::Identifier::generated_static("lifetime-target"),
-            source: typed_trees::name::Identifier::generated_static("lifetime-source"),
+            target: crate::typed_trees::name::Identifier::generated_static("lifetime-target"),
+            source: crate::typed_trees::name::Identifier::generated_static("lifetime-source"),
             source_conformance: None,
-        });
+        },
+    );
     let before = base.typed().clone();
     let before_members = before
         .data_members
@@ -198,10 +199,10 @@ fn seeded_plain_data_continuation_appends_exact_erased_lifetime_data_graph() {
         ["msg"]
     );
 
-    let [typed_trees::data::DataMember::Field(body)] = typed.data_members(view) else {
+    let [crate::typed_trees::data::DataMember::Field(body)] = typed.data_members(view) else {
         panic!("View has one body field")
     };
-    let typed_trees::types::TypeReferenceNode::Reference {
+    let crate::typed_trees::types::TypeReferenceNode::Reference {
         referee, lifetime, ..
     } = typed
         .type_reference_table
@@ -210,17 +211,18 @@ fn seeded_plain_data_continuation_appends_exact_erased_lifetime_data_graph() {
         panic!("View.body remains a reference")
     };
     assert_eq!(lifetime.as_ref().map(|name| name.as_str()), Some("buf"));
-    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+    let crate::typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
         typed.type_reference_table.type_reference(*referee)
     else {
         panic!("View.body referee remains nominal")
     };
     assert_eq!(*symbol, main.symbol);
 
-    let [typed_trees::data::DataMember::Field(view_field), _] = typed.data_members(envelope) else {
+    let [crate::typed_trees::data::DataMember::Field(view_field), _] = typed.data_members(envelope)
+    else {
         panic!("Envelope has view and tail fields")
     };
-    let typed_trees::types::TypeReferenceNode::Generic {
+    let crate::typed_trees::types::TypeReferenceNode::Generic {
         base_symbol,
         lifetime_arguments,
         arguments,
@@ -253,17 +255,17 @@ fn seeded_plain_data_continuation_appends_owner_local_type_parameter_data() {
         "data Authored { value: u32; }",
         "data Generated<T> { value: T; pair: [T; 2]; }",
     );
-    base.typed_mut()
-        .evidence_forwardings
-        .push(typed_trees::typed_trees::EvidenceForwarding {
+    base.typed_mut().evidence_forwardings.push(
+        crate::typed_trees::typed_trees::EvidenceForwarding {
             machine_symbol: symbols::SymbolHandle::invalid(),
             state_symbol: symbols::SymbolHandle::invalid(),
             statement_index: 19,
             source_statement_index: 23,
-            target: typed_trees::name::Identifier::generated_static("generic-target"),
-            source: typed_trees::name::Identifier::generated_static("generic-source"),
+            target: crate::typed_trees::name::Identifier::generated_static("generic-target"),
+            source: crate::typed_trees::name::Identifier::generated_static("generic-source"),
             source_conformance: None,
-        });
+        },
+    );
     let before = base.typed().clone();
     let resolved_ledger = extension.trees().authored_declaration_selections().clone();
 
@@ -288,33 +290,33 @@ fn seeded_plain_data_continuation_appends_owner_local_type_parameter_data() {
     };
     assert!(matches!(
         parameter.kind,
-        typed_trees::data::TypeParameterKind::Type
+        crate::typed_trees::data::TypeParameterKind::Type
     ));
     assert_eq!(
         parameter.bounds,
-        typed_trees::data::DataProperties::default()
+        crate::typed_trees::data::DataProperties::default()
     );
     let [
-        typed_trees::data::DataMember::Field(value),
-        typed_trees::data::DataMember::Field(pair),
+        crate::typed_trees::data::DataMember::Field(value),
+        crate::typed_trees::data::DataMember::Field(pair),
     ] = typed.data_members(generated)
     else {
         panic!("Generated has value and pair fields")
     };
-    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+    let crate::typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
         .type_reference_table
         .type_reference(value.type_reference)
     else {
         panic!("Generated.value remains the owner-local type parameter")
     };
     assert_eq!(*symbol, parameter.symbol);
-    let typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } = typed
+    let crate::typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } = typed
         .type_reference_table
         .type_reference(pair.type_reference)
     else {
         panic!("Generated.pair remains a fixed array")
     };
-    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+    let crate::typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
         typed.type_reference_table.type_reference(*element_type)
     else {
         panic!("Generated.pair element remains the owner-local type parameter")
@@ -331,17 +333,17 @@ fn seeded_plain_data_continuation_appends_one_exact_local_primitive_instance() {
             data Generated { first: Cell<u32>; second: Cell<u32>; base: Authored; }
         "#,
     );
-    base.typed_mut()
-        .evidence_forwardings
-        .push(typed_trees::typed_trees::EvidenceForwarding {
+    base.typed_mut().evidence_forwardings.push(
+        crate::typed_trees::typed_trees::EvidenceForwarding {
             machine_symbol: symbols::SymbolHandle::invalid(),
             state_symbol: symbols::SymbolHandle::invalid(),
             statement_index: 29,
             source_statement_index: 31,
-            target: typed_trees::name::Identifier::generated_static("instance-target"),
-            source: typed_trees::name::Identifier::generated_static("instance-source"),
+            target: crate::typed_trees::name::Identifier::generated_static("instance-target"),
+            source: crate::typed_trees::name::Identifier::generated_static("instance-source"),
             source_conformance: None,
-        });
+        },
+    );
     let before = base.typed().clone();
     let before_members = before
         .data_members
@@ -415,7 +417,7 @@ fn seeded_plain_data_continuation_appends_one_exact_local_primitive_instance() {
         .find(|definition| definition.name.as_str() == "Generated")
         .expect("generated wrapper");
     let origin = instance.generic_instance.expect("instance origin");
-    let typed_trees::types::TypeReferenceNode::Generic {
+    let crate::typed_trees::types::TypeReferenceNode::Generic {
         base_symbol,
         lifetime_arguments,
         arguments,
@@ -432,7 +434,7 @@ fn seeded_plain_data_continuation_appends_one_exact_local_primitive_instance() {
     else {
         panic!("one exact instance argument")
     };
-    let typed_trees::types::TypeReferenceNode::Named {
+    let crate::typed_trees::types::TypeReferenceNode::Named {
         symbol: argument_symbol,
         ..
     } = typed.type_reference_table.type_reference(*argument)
@@ -443,10 +445,10 @@ fn seeded_plain_data_continuation_appends_one_exact_local_primitive_instance() {
         typed.symbols.get(*argument_symbol).kind,
         symbols::SymbolKind::BuiltinType
     );
-    let [typed_trees::data::DataMember::Field(value)] = typed.data_members(instance) else {
+    let [crate::typed_trees::data::DataMember::Field(value)] = typed.data_members(instance) else {
         panic!("instance has one substituted field")
     };
-    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+    let crate::typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
         .type_reference_table
         .type_reference(value.type_reference)
     else {
@@ -457,12 +459,12 @@ fn seeded_plain_data_continuation_appends_one_exact_local_primitive_instance() {
         .data_members(wrapper)
         .iter()
         .filter(|member| {
-            let typed_trees::data::DataMember::Field(field) = member else {
+            let crate::typed_trees::data::DataMember::Field(field) = member else {
                 return false;
             };
             matches!(
                 typed.type_reference_table.type_reference(field.type_reference),
-                typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                crate::typed_trees::types::TypeReferenceNode::Named { symbol, .. }
                     if *symbol == instance.symbol
             )
         })

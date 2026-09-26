@@ -8,7 +8,7 @@ use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, authored_expressions,
     unsupported,
 };
-use checked_trees::expression::BinaryOperator;
+use typed_trees_to_checked_trees::checked_trees::expression::BinaryOperator;
 
 /// Payload-only reconstruction cannot consume an explicit semantic transfer.
 /// Resolve the operand in the exact source scope, never by a matching name in
@@ -17,7 +17,7 @@ pub(super) fn cast_requires_custody(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    cast: &checked_trees::expression::TableCastExpression,
+    cast: &typed_trees_to_checked_trees::checked_trees::expression::TableCastExpression,
 ) -> Result<bool, LoweringError> {
     if !cast.semantic_domain.is_empty() {
         return Ok(true);
@@ -37,9 +37,13 @@ pub(super) fn cast_requires_custody(
             "scalar cast lost its source state",
         ))?;
     let Some(reference) =
-        validation::expression_result_type_reference(checked, machine, state, cast.value)
+        typed_trees_to_checked_trees::validation::expression_result_type_reference(
+            checked, machine, state, cast.value,
+        )
     else {
-        return if validation::has_anonymous_numeric_results(checked, cast.value) {
+        return if typed_trees_to_checked_trees::validation::has_anonymous_numeric_results(
+            checked, cast.value,
+        ) {
             Ok(false)
         } else {
             unsupported("scalar cast has no reconstructed operand type")
@@ -56,16 +60,20 @@ pub(super) fn anonymous_match_value(
     let ExpressionNode::Match(dispatch) = checked.expression_table.expression(source) else {
         return None;
     };
-    validation::select_anonymous_numeric_match_arm(&checked.typed, dispatch, |expression| {
-        checked
+    typed_trees_to_checked_trees::validation::select_anonymous_numeric_match_arm(
+        &checked.typed,
+        dispatch,
+        |expression| {
+            checked
             .facts
             .operators
             .expression_use(expression)
             .is_none_or(|operator_use| {
                 operator_use.status
-                    == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    == typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
             })
-    })
+        },
+    )
 }
 
 /// A pure scalar builtin (`min`/`max`, `sqrt`, the float rounding and
@@ -181,7 +189,7 @@ pub(super) fn selection(
         .operators
         .expression_use(source)
         .is_some_and(|operator_use| {
-            operator_use.status != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+            operator_use.status != typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
         })
     {
         return unsupported("computed selection is not an authored builtin conditional");

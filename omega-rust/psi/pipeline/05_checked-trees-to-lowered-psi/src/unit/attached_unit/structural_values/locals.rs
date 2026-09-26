@@ -1,8 +1,8 @@
 //! Publish a source local only after its exact initializer result exists.
 use super::super::{CheckedUnitEffectOperationPlan, LoweringError, PlaceId, unsupported};
 use super::CheckedTrees;
-use checked_trees::CheckedArrayConstructionSource;
-use checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
 
 /// Bind only the local whose initializer owns this exact published result.
 /// Nested call/argument values in the same statement have different owners and
@@ -28,8 +28,11 @@ pub(crate) fn bind_local(
                 caller_state,
                 *coordinate,
             )?;
-            let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
-                authored.source_site
+            let Some(
+                typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
+                    expression,
+                ),
+            ) = authored.source_site
             else {
                 return Ok(());
             };
@@ -47,15 +50,15 @@ pub(crate) fn bind_local(
         return Ok(());
     };
     if expression.is_some_and(|expression| expression != local.initial_value)
-        || !(validation::is_closed_primitive_array_type(&checked.typed, local.type_reference)
+        || !(typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(&checked.typed, local.type_reference)
             || (expression.is_some()
                 && matches!(
                     checked
                         .type_reference_table
                         .type_reference(local.type_reference),
-                    checked_trees::types::TypeReferenceNode::Named { .. }
+                    typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { .. }
                 )
-                && validation::has_plain_owned_contents_with_numeric_constraints(
+                && typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
                     checked,
                     local.type_reference,
                 )))

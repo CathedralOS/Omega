@@ -1,25 +1,25 @@
 use std::collections::BTreeSet;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::{
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::{
     RegisterView, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
     TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
     target_register_environment_identity,
 };
-use selected_instructions::VirtualRegisterId;
 
-use crate::{SpillChoiceError, ValidatedAllocationLegality, ValidatedLiveRanges};
-use register_homes::{
+use crate::register_homes::{
     FunctionSpillChoices, PressureContender, PressureResident, SpillChoice, SpillChoicePlan,
     SpillChoicePolicy,
 };
-use selected_instructions::{LiveRangePoint, VirtualInterference};
+use crate::{SpillChoiceError, ValidatedAllocationLegality, ValidatedLiveRanges};
+use target_operations_to_selected_instructions::{LiveRangePoint, VirtualInterference};
 
 #[derive(Debug, Clone, Copy)]
 struct ActiveHome {
     register: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     start: LiveRangePoint,
     end: LiveRangePoint,
     view: RegisterViewId,
@@ -114,7 +114,7 @@ pub(crate) fn compute_terminal_spill_choices(
 
 fn reject_constraint_topologies(
     function: usize,
-    ranges: &selected_instructions::FunctionLiveRanges,
+    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
 ) -> Result<(), SpillChoiceError> {
     if !ranges.tied_pairs.is_empty() {
         return Err(SpillChoiceError::UnsupportedTiedOperands { function });
@@ -159,8 +159,8 @@ fn validate_roots(
 
 fn compute_function(
     function_index: usize,
-    legality: &register_homes::FunctionAllocationLegality,
-    ranges: &selected_instructions::FunctionLiveRanges,
+    legality: &crate::register_homes::FunctionAllocationLegality,
+    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
     work: &mut WorkCounter,
 ) -> Result<FunctionSpillChoices, SpillChoiceError> {
@@ -392,8 +392,8 @@ fn validate_local_shape(
     register: VirtualRegisterId,
     start: LiveRangePoint,
     end: LiveRangePoint,
-    block: selected_instructions::SelectedBlockId,
-    range: &selected_instructions::VirtualLiveRange,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
+    range: &target_operations_to_selected_instructions::VirtualLiveRange,
 ) -> Result<(), SpillChoiceError> {
     if !range.edge_connectors.is_empty() || range.fragments.len() != 1 {
         return Err(SpillChoiceError::UnsupportedPressureShape {
@@ -413,7 +413,7 @@ fn validate_local_shape(
 
 fn interval_bounds(
     function: usize,
-    register: &register_homes::VirtualRegisterAllocationLegality,
+    register: &crate::register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<(LiveRangePoint, LiveRangePoint), SpillChoiceError> {
     let first = register
         .points
@@ -434,7 +434,7 @@ fn interval_bounds(
 
 fn common_candidates(
     function: usize,
-    register: &register_homes::VirtualRegisterAllocationLegality,
+    register: &crate::register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<BTreeSet<RegisterViewId>, SpillChoiceError> {
     let first = register
         .points
@@ -470,7 +470,7 @@ fn early_clobber_conflicts(
     incoming: VirtualRegisterId,
     view: &RegisterView,
     assigned: &[(VirtualRegisterId, RegisterViewId)],
-    ranges: &selected_instructions::FunctionLiveRanges,
+    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> bool {
     assigned.iter().any(|(seated, seated_view_id)| {
@@ -501,7 +501,7 @@ fn early_clobber_conflicts(
 fn checked_view(
     function: usize,
     register: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     candidate: RegisterViewId,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<&RegisterView, SpillChoiceError> {

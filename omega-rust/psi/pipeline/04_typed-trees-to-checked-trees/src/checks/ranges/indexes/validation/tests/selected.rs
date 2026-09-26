@@ -1,12 +1,12 @@
 use super::{ExpressionHandle, ExpressionNode, TableIndexedExpression};
+use crate::checked_trees::{
+    CheckedOperatorFacts, CheckedValueFact, CheckedValueFacts, CheckedValueOrigin,
+    CheckedValueStatementRole,
+};
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::indexes::check_indexed_access;
 use crate::checks::ranges::indexes::validation::BoundsCheckResult;
 use crate::tests::front_end::typed_program;
-use checked_trees::{
-    CheckedOperatorFacts, CheckedValueFact, CheckedValueFacts, CheckedValueOrigin,
-    CheckedValueStatementRole,
-};
 
 mod lower_bounds;
 
@@ -14,7 +14,7 @@ fn fixture(
     declarations: &str,
     access: &str,
 ) -> (
-    typed_trees::TypedTrees,
+    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     ExpressionHandle,
     TableIndexedExpression,
     CheckedOperatorFacts,
@@ -27,7 +27,7 @@ fn fixture_with_collection(
     access: &str,
     collection: &str,
 ) -> (
-    typed_trees::TypedTrees,
+    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     ExpressionHandle,
     TableIndexedExpression,
     CheckedOperatorFacts,
@@ -112,7 +112,7 @@ fn binding_site_replay_rejects_root_and_inactive_domain_substitutions() {
 }
 
 fn check(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     indexed: &TableIndexedExpression,
     operators: &CheckedOperatorFacts,
@@ -157,7 +157,7 @@ fn unrelated_index_declaration_preserves_builtin_bounds_not_selected_authority()
         .collect::<Vec<_>>();
     for handle in handles {
         let selected = operators.uses.get_mut(handle);
-        selected.status = checked_trees::CheckedOperatorResolutionStatus::Missing;
+        selected.status = crate::checked_trees::CheckedOperatorResolutionStatus::Missing;
         selected.selected_operator_symbol = symbols::SymbolHandle::invalid();
         selected.candidate_count = 0;
         selected.candidates = arena::HandleSpan::default();

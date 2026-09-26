@@ -12,12 +12,12 @@ use super::place_observations::{
     member_root_producer_count, place_observation_root_visible,
 };
 use super::relocation_rewrites::scalar_case_result_contained;
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::{
-    OptimizationNode, OptimizerCycleComponent, PsiOptimizationFunction, PsiProvenance,
-};
 use semantic_vocabulary::{PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    OptimizationNode, OptimizerCycleComponent, PsiOptimizationFunction, PsiProvenance,
+};
 
 /// Scalar-constant leaf nodes are one operation class admitted for
 /// loop-invariant motion out of a cyclic component. They read no values,

@@ -22,11 +22,10 @@ use optimization_core::{
     OptimizedAbstractPlanProjectionIdentity, PostAllocationOptimizationManifestIdentity,
     PrePhysicalOptimizationManifestIdentity,
 };
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity,
     PostAllocationOptimizationManifestError,
 };
-use selected_instructions::{LiveRangeIdentity, LivenessIdentity, SelectedInstructionPlanIdentity};
 use selected_instructions_to_selected_instructions::{
     OptimizedAllocationLegalityCustodyError, OptimizedSelectedReanalysisError,
     StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
@@ -34,6 +33,9 @@ use selected_instructions_to_selected_instructions::{
     ValidatedFixedViewCopies, ValidatedLiveRanges, ValidatedLiveness,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::{
+    LiveRangeIdentity, LivenessIdentity, SelectedInstructionPlanIdentity,
+};
 use terminal_psi::TerminalPsiIdentity;
 
 pub fn stage_optimized_register_homes(
@@ -143,7 +145,7 @@ impl StagedOptimizedRegisterHomes {
     }
     pub const fn register_environment(
         &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+    ) -> &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment{
         self.legality.register_environment()
     }
     /// The governing optimizer selections admitted with the retained stage.
@@ -196,7 +198,7 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
     manifest: PrePhysicalOptimizationManifestIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
-    register_environment: register_model::TargetRegisterEnvironmentIdentity,
+    register_environment: target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity,
     allocator_availability: AllocatorAvailabilityIdentity,
     selected: SelectedInstructionPlanIdentity,
     liveness: LivenessIdentity,
@@ -233,7 +235,10 @@ impl StagedOptimizedRegisterHomeCustodyReceipt {
     pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
         self.fuel_schedule
     }
-    pub const fn register_environment(self) -> register_model::TargetRegisterEnvironmentIdentity {
+    pub const fn register_environment(
+        self,
+    ) -> target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity
+    {
         self.register_environment
     }
     pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
@@ -307,7 +312,7 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
     }
     pub const fn register_environment(
         &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+    ) -> &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment{
         self.reanalysis.register_environment()
     }
     /// The governing optimizer selections admitted with the retained stage.

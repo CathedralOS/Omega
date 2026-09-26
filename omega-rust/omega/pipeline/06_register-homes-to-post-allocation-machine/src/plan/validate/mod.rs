@@ -9,18 +9,18 @@ mod instruction;
 mod ordinary;
 mod roots;
 
-use register_model::{
-    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog,
-};
 use selected_instructions_to_register_homes::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedPostAllocationOptimizationManifest,
     ValidatedRegisterHomes, ValidatedSelectedAnalysis,
 };
+use target_operations_to_selected_instructions::register_model::{
+    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
+    ValidatedRegisterConstraintCatalog,
+};
 
 use super::post_allocation_receipt;
+use crate::physical_instructions::{PostAllocationMachinePlan, post_allocation_machine_identity};
 use crate::{PostAllocationMachineError, ValidatedPostAllocationMachinePlan};
-use physical_instructions::{PostAllocationMachinePlan, post_allocation_machine_identity};
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 
 /// Independently reconstruct and admit a proposed post-allocation plan.

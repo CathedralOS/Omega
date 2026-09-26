@@ -1,7 +1,9 @@
 use super::parse_typed_trees;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use typed_trees::{TypedTrees, expression::ExpressionNode, statement::StatementNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    TypedTrees, expression::ExpressionNode, statement::StatementNode,
+};
 
 fn check(source: &str, accepted: bool) {
     check_program(parse_typed_trees(source), accepted, source);
@@ -235,9 +237,9 @@ fn result_carrier_spelling_cannot_authorize_a_nominal_type() {
     let nominal = program.data_definitions()[0].symbol;
     program.type_reference_table.substitute_node(
         reference,
-        typed_trees::types::TypeReferenceNode::Named {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
             symbol: nominal,
-            name: typed_trees::name::Identifier::generated_static("u64"),
+            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated_static("u64"),
         },
     );
     let diagnostics = lower_typed_trees(program, &CheckingRequest::settled())

@@ -11,12 +11,12 @@ use crate::unit::{
     integer_landing_scalar_type, integer_value, lookup_type_id, lower_structural_path,
     operation_id, terminal_scalar_type, unsupported, value_id,
 };
-use checked_trees::{
-    CheckedBooleanExpression, CheckedScalarExpression, CheckedStructuralScalarFieldStorePlan,
-};
 use terminal_psi::{
     MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralParameterDeclaration, ValueDeclaration,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedStructuralScalarFieldStorePlan,
 };
 
 /// The caller's retained field store before its selection: the constant, then
@@ -117,7 +117,7 @@ pub(crate) fn lower_caller_store_operations(
 }
 
 pub(crate) fn lower_realization_operations(
-    stores: &[checked_trees::CheckedStructuralScalarFieldStorePlan],
+    stores: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan],
     expression: &CheckedScalarExpression,
     expected: semantic_vocabulary::ScalarType,
     parameter: &StructuralParameterDeclaration,
@@ -236,7 +236,7 @@ fn validate_realization_return_boolean(
 }
 
 fn lower_realization_store_operations(
-    stores: &[checked_trees::CheckedStructuralScalarFieldStorePlan],
+    stores: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan],
     parameter: &StructuralParameterDeclaration,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     next_operation: &mut u64,
@@ -266,7 +266,7 @@ fn lower_realization_store_operations(
 }
 
 fn lower_realization_store_operation(
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan,
     statement_index: usize,
     parameter: &StructuralParameterDeclaration,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -363,10 +363,6 @@ mod tests {
         StructuralParameterDeclaration, lower_realization_operations,
     };
     use crate::terminal_identities::{place_id, structural_field_id, structural_type_id, value_id};
-    use checked_trees::{
-        CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-        CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
-    };
     use language_core::BindingRelevance;
     use numerics::arithmetic::ArithmeticDomain;
     use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
@@ -374,6 +370,10 @@ mod tests {
     use terminal_psi::{
         StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
         StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+        CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
     };
 
     fn i32_type() -> ScalarType {

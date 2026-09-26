@@ -5,17 +5,20 @@ use crate::checks::termination::progress::lineage::places;
 use crate::checks::termination::progress::lineage::resolve_subject_lineage;
 use crate::tests::front_end::checked_program;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program(source)
 }
 
-fn field(program: &typed_trees::TypedTrees, path: &str) -> SymbolHandle {
+fn field(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    path: &str,
+) -> SymbolHandle {
     program
         .data_definitions()
         .iter()
         .flat_map(|data| program.data_members(data))
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field)
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
                 if program.symbols.display_path(field.symbol, "::") == path =>
             {
                 Some(field.symbol)
@@ -26,9 +29,9 @@ fn field(program: &typed_trees::TypedTrees, path: &str) -> SymbolHandle {
 }
 
 fn machine<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     name: &str,
-) -> &'program typed_trees::machine::Machine {
+) -> &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine {
     program
         .machines()
         .iter()
@@ -36,7 +39,11 @@ fn machine<'program>(
         .expect("fixture machine")
 }
 
-fn parameter(program: &typed_trees::TypedTrees, state_index: usize, name: &str) -> SymbolHandle {
+fn parameter(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state_index: usize,
+    name: &str,
+) -> SymbolHandle {
     let walk = machine(program, "walk");
     let state = &program.machine_states(walk)[state_index];
     program

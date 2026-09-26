@@ -53,11 +53,11 @@ fn reborrow_access_source(parent: &str, child: &str) -> String {
     )
 }
 
-fn symbolic_adjacency() -> checked_trees::CheckedTrees {
+fn symbolic_adjacency() -> crate::checked_trees::CheckedTrees {
     checked_program(SYMBOLIC_ADJACENCY)
 }
 
-fn direct_read_and_mutable_modes() -> checked_trees::CheckedTrees {
+fn direct_read_and_mutable_modes() -> crate::checked_trees::CheckedTrees {
     checked_program(
         r#"
         data Main { readable: i32; mutable: i32; }
@@ -80,7 +80,7 @@ fn direct_read_and_mutable_modes() -> checked_trees::CheckedTrees {
     )
 }
 
-fn direct_reborrow_chain() -> checked_trees::CheckedTrees {
+fn direct_reborrow_chain() -> crate::checked_trees::CheckedTrees {
     checked_program(
         r#"
         data Cell { value: i32; }
@@ -107,8 +107,8 @@ fn direct_reborrow_chain() -> checked_trees::CheckedTrees {
 }
 
 fn main_reborrow_loans(
-    checked: &checked_trees::CheckedTrees,
-) -> Vec<arena::Handle<checked_trees::BorrowLoanFact>> {
+    checked: &crate::checked_trees::CheckedTrees,
+) -> Vec<arena::Handle<crate::checked_trees::BorrowLoanFact>> {
     let state = checked
         .facts
         .borrow
@@ -127,7 +127,7 @@ fn main_reborrow_loans(
         .collect()
 }
 
-fn mutable_parent_write_only_child_restored_use() -> checked_trees::CheckedTrees {
+fn mutable_parent_write_only_child_restored_use() -> crate::checked_trees::CheckedTrees {
     checked_program(
         r#"
         data Cell { value: i32; }
@@ -143,7 +143,7 @@ fn mutable_parent_write_only_child_restored_use() -> checked_trees::CheckedTrees
     )
 }
 
-fn mutable_parent_sole_shared_child_restored_use() -> checked_trees::CheckedTrees {
+fn mutable_parent_sole_shared_child_restored_use() -> crate::checked_trees::CheckedTrees {
     checked_program(
         r#"
         data Main { value: i32; }
@@ -159,7 +159,7 @@ fn mutable_parent_sole_shared_child_restored_use() -> checked_trees::CheckedTree
     )
 }
 
-fn mutable_parent_two_shared_children_restored_use() -> checked_trees::CheckedTrees {
+fn mutable_parent_two_shared_children_restored_use() -> crate::checked_trees::CheckedTrees {
     checked_program(
         r#"
         data Main { value: i32; }
@@ -176,7 +176,7 @@ fn mutable_parent_two_shared_children_restored_use() -> checked_trees::CheckedTr
     )
 }
 
-fn mutable_parent_three_shared_children_restored_use() -> checked_trees::CheckedTrees {
+fn mutable_parent_three_shared_children_restored_use() -> crate::checked_trees::CheckedTrees {
     checked_program(
         r#"
         data Main { value: i32; }
@@ -194,7 +194,7 @@ fn mutable_parent_three_shared_children_restored_use() -> checked_trees::Checked
     )
 }
 
-fn sequential_reborrows() -> checked_trees::CheckedTrees {
+fn sequential_reborrows() -> crate::checked_trees::CheckedTrees {
     checked_program(
         r#"
         data Main { value: i32; }

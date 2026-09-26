@@ -1,9 +1,7 @@
 //! Source-produced whole borrowed receiver calls through canonical Terminal admission.
 
-use checked_trees::{
-    CheckedCallScalarArgument, CheckedScalarExpression, CheckedStructuralAccess,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_interpreter::AcceptTerminalEffects;
@@ -12,12 +10,14 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
 };
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_psi::{
     OperationKind, OperationResult, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape, TerminalMachineResult, Terminator,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedCallScalarArgument, CheckedScalarExpression, CheckedStructuralAccess,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan,
 };
 
 #[path = "receiver_call_source/forwarding.rs"]
@@ -35,7 +35,7 @@ mod aliases;
 mod cyclic;
 
 fn unit_plan<'a>(
-    checked: &'a checked_trees::CheckedTrees,
+    checked: &'a typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     name: &str,
 ) -> &'a CheckedUnitEffectMachinePlan {
     let machine = checked
@@ -149,7 +149,7 @@ fn assert_receiver_call(access: StructuralAccess, from_parameter: bool, self_cal
             assert_eq!(callee_scalar.source_position, 1);
             assert_eq!(
                 caller_scalar.primitive_type,
-                typed_trees::types::PrimitiveType::U16
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16
             );
             assert_eq!(callee_scalar.primitive_type, caller_scalar.primitive_type);
             assert!(matches!(
@@ -157,7 +157,7 @@ fn assert_receiver_call(access: StructuralAccess, from_parameter: bool, self_cal
                 [CheckedCallScalarArgument::Pure(
                     CheckedScalarExpression::Parameter {
                         position: 0,
-                        primitive_type: typed_trees::types::PrimitiveType::U16,
+                        primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16,
                     }
                 )]
             ));
@@ -167,15 +167,16 @@ fn assert_receiver_call(access: StructuralAccess, from_parameter: bool, self_cal
             assert!(scalar_arguments.is_empty());
         }
 
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name(caller_name),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("receiver call reaches canonical Terminal production")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name(caller_name),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("receiver call reaches canonical Terminal production")
+            .into_artifact();
         drop(checked);
         let module = terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("reload canonical receiver call semantics");
@@ -188,8 +189,9 @@ fn assert_receiver_call(access: StructuralAccess, from_parameter: bool, self_cal
         let profile = proof_admission::AdmissionProfile::default();
         let verified = terminal_verifier::verify_module(&module, &proof, &profile)
             .expect("decoded receiver call independently verifies");
-        let certificate = terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry)
-            .expect("receiver call and store have fixed fuel");
+        let certificate =
+            omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry)
+                .expect("receiver call and store have fixed fuel");
         let caller = module
             .machines
             .iter()

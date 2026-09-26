@@ -28,7 +28,8 @@ fn aggregate_assignment_frames_require_exact_array_context() {
     ] {
         let source = source.replace("$ELEMENTS", elements);
         let typed = typed_program(&source);
-        let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+        let resolver =
+            crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
         let machine = typed
             .machines()
             .iter()
@@ -135,7 +136,7 @@ fn finite_mixed_assignment_shapes_retain_all_leaf_effects() {
         &literal.replace("compute(second)", "recursive_compute(second)"),
     );
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
     for (name, expected) in [
         (
             "Main::assigned",
@@ -1014,7 +1015,7 @@ fn transparent_returned_place_accepts_complete_indexed_target_calls() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for (name, expected_paths) in [
         ("Main::index_target_result", vec!["self.cells"]),
@@ -1955,7 +1956,7 @@ fn transparent_returned_place_accepts_finite_value_call_assignments() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for (name, expected_paths) in [
         (

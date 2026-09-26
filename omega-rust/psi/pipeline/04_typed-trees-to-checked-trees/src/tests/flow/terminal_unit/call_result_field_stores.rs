@@ -64,15 +64,15 @@ fn record_result_stores_into_the_receiver_field() {
     assert_eq!(moved.binding_ordinal, 1);
     assert_eq!(source.source_parameter_index(), Some(0));
     assert!(matches!(source.path.as_slice(),
-        [checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
+        [crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
             if identity == "slot"));
     assert_eq!(destination.source_parameter_index(), Some(0));
     assert!(matches!(destination.path.as_slice(),
-        [checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
+        [crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
             if identity == "slot"));
     assert!(matches!(
         value.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: 0
         }
     ));
@@ -84,7 +84,7 @@ fn record_result_stores_into_the_receiver_field() {
     };
     assert!(matches!(
         discard.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: 1
         }
     ));

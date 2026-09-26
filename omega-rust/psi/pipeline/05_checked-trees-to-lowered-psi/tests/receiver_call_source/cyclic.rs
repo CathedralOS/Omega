@@ -4,11 +4,11 @@ use super::{
     IntegerSign, IntegerType, IntegerValue, OperationKind, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue,
 };
-use terminal_interpreter::AcceptTerminalEffects;
-use terminal_interpreter::TerminalStructuralInputs;
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 const SOURCE: &str = r#"
 boundary trait Observe { machine record(value: u64) reaches Observe; }
 data Child { value: u64; }
@@ -38,15 +38,16 @@ machine Root::enter(&mut self) reaches Observe {
 
 fn produce(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("projected looping callee and caller continuation publish")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("projected looping callee and caller continuation publish")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -131,7 +132,7 @@ fn erased_observed_receiver_is_rejected_after_checking() {
     assert_eq!(plan.structural_parameters.len(), 1);
     plan.structural_parameters.clear();
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("Root::enter")
         )
@@ -200,20 +201,19 @@ fn natural_rank_subject_measure_and_carrier_cannot_be_substituted() {
             "missing" => plan.natural_ranks.clear(),
             "measure" => {
                 plan.natural_ranks[0].measure =
-                    checked_trees::CheckedNaturalRankMeasure::ByteSequenceLength
+                    typed_trees_to_checked_trees::checked_trees::CheckedNaturalRankMeasure::ByteSequenceLength
             }
-            "carrier" => {
-                plan.natural_ranks[0].measure =
-                    checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
-                        primitive_type: typed_trees::types::PrimitiveType::U32,
-                    }
-            }
+            "carrier" => plan.natural_ranks[0].measure =
+                typed_trees_to_checked_trees::checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
+                    primitive_type:
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32,
+                },
             "subject" => plan.natural_ranks[0].parameter = symbols::SymbolHandle::invalid(),
             "position" => plan.natural_ranks[0].parameter_position = 0,
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("Root::enter")
             )
@@ -389,7 +389,7 @@ fn distance_rank_bound_cannot_be_redirected_in_the_checked_plan() {
             .find(|plan| !plan.natural_ranks.is_empty())
             .unwrap();
         let rank = &mut plan.natural_ranks[0];
-        let checked_trees::CheckedNaturalRankMeasure::UnsignedDistance {
+        let typed_trees_to_checked_trees::checked_trees::CheckedNaturalRankMeasure::UnsignedDistance {
             upper,
             upper_position,
             ..
@@ -401,13 +401,14 @@ fn distance_rank_bound_cannot_be_redirected_in_the_checked_plan() {
             "upper" => *upper = symbols::SymbolHandle::invalid(),
             "position" => *upper_position = rank.parameter_position,
             _ => {
-                rank.measure = checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
-                    primitive_type: typed_trees::types::PrimitiveType::U64,
+                rank.measure = typed_trees_to_checked_trees::checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
+                    primitive_type:
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U64,
                 }
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("Root::enter")
             )

@@ -9,23 +9,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
-    CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
-    CheckedComposedUnitControlTerminatorPlan, CheckedIntegerComparisonKind,
-    CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalSignatureEligibility, CheckedTrees,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
-};
+use crate::lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
     ServiceReachInterface, ServiceReachPlan, ServiceReachRowId, ServiceReachSummary,
 };
-use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, DomainSemanticId, EdgeId, IntegerSign, IntegerType,
     IntegerValue, MachineId, ObligationId, PlaceId, Proposition, QualifiedScalarType, ScalarTerm,
@@ -50,6 +38,18 @@ use terminal_psi::{
     program_local_root_introduction_compatibility_report_identity,
 };
 use terminal_verifier::ProofBundle;
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
+    CheckedComposedUnitControlTerminatorPlan, CheckedIntegerComparisonKind,
+    CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+};
 
 use crate::emission::boolean_control::{
     boolean_decision_block_count, emit_reserved_boolean_tuple_stage_blocks,

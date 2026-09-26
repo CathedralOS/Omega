@@ -221,8 +221,9 @@ pub(crate) fn lower_evidence_term_ids(
         if forwarding.machine_symbol != selected_machine {
             continue;
         }
-        if let checked_trees::EvidenceAssignmentSource::Forwarded { term: source } =
-            &forwarding.source
+        if let typed_trees_to_checked_trees::checked_trees::EvidenceAssignmentSource::Forwarded {
+            term: source,
+        } = &forwarding.source
         {
             let output = usize::try_from(forwarding.output.arena_index() - 1)
                 .expect("arena indices fit the host address space");
@@ -253,7 +254,7 @@ pub(crate) fn lower_evidence_term_ids(
     let mut roots = BTreeMap::<usize, (u8, usize)>::new();
     for (handle, term) in checked.facts.proof.evidence_terms.iter() {
         if term.owner
-            != (checked_trees::ContractProofFactOwner::Machine {
+            != (typed_trees_to_checked_trees::checked_trees::ContractProofFactOwner::Machine {
                 machine_symbol: selected_machine,
             })
         {
@@ -263,8 +264,10 @@ pub(crate) fn lower_evidence_term_ids(
             .expect("arena indices fit the host address space");
         let root = evidence_term_root(&mut parents, index);
         let lane_key = match term.kind {
-            checked_trees::ContractProofFactKind::Requires => (0_u8, term.lane_position),
-            checked_trees::ContractProofFactKind::Ensures
+            typed_trees_to_checked_trees::checked_trees::ContractProofFactKind::Requires => {
+                (0_u8, term.lane_position)
+            }
+            typed_trees_to_checked_trees::checked_trees::ContractProofFactKind::Ensures
                 if guarded_terms.contains(
                     &usize::try_from(handle.arena_index() - 1)
                         .expect("arena indices fit the host address space"),
@@ -272,7 +275,9 @@ pub(crate) fn lower_evidence_term_ids(
             {
                 (2_u8, term.lane_position)
             }
-            checked_trees::ContractProofFactKind::Ensures => (1_u8, term.lane_position),
+            typed_trees_to_checked_trees::checked_trees::ContractProofFactKind::Ensures => {
+                (1_u8, term.lane_position)
+            }
         };
         roots
             .entry(root)
@@ -456,7 +461,7 @@ pub(crate) fn lower_evidence_terms(
 
 pub(crate) fn lower_evidence_interface(
     checked: &CheckedTrees,
-    interface: &checked_trees::CheckedEvidenceInterfaceIdentity,
+    interface: &typed_trees_to_checked_trees::checked_trees::CheckedEvidenceInterfaceIdentity,
 ) -> Result<EvidenceInterfaceIdentity, LoweringError> {
     let mut requirements = interface
         .requirements
@@ -498,7 +503,7 @@ pub(crate) fn lower_evidence_contract_lanes(
         .iter()
         .filter_map(|(handle, term)| {
             (term.owner
-                == checked_trees::ContractProofFactOwner::Machine {
+                == typed_trees_to_checked_trees::checked_trees::ContractProofFactOwner::Machine {
                     machine_symbol: selected_machine,
                 }
                 && !guarded_terms.contains(
@@ -519,10 +524,12 @@ pub(crate) fn lower_evidence_contract_lanes(
                         "selected terminal contract lane has no evidence-term identity",
                     ))?;
             let kind = match term.kind {
-                checked_trees::ContractProofFactKind::Requires => {
+                typed_trees_to_checked_trees::checked_trees::ContractProofFactKind::Requires => {
                     EvidenceContractLaneKind::Requires
                 }
-                checked_trees::ContractProofFactKind::Ensures => EvidenceContractLaneKind::Ensures,
+                typed_trees_to_checked_trees::checked_trees::ContractProofFactKind::Ensures => {
+                    EvidenceContractLaneKind::Ensures
+                }
             };
             Ok(EvidenceContractLane {
                 machine: terminal_machine,

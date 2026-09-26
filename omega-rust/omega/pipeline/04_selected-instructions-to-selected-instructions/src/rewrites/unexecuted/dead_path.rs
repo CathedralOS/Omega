@@ -61,8 +61,8 @@
 //! the one it observed at its original position.
 use std::collections::{BTreeSet, VecDeque};
 
-use register_model::RegisterUnitId;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_model::RegisterUnitId;
+use target_operations_to_selected_instructions::{
     SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
     SelectedStructuralTransport, SelectedSuccessor, SelectedValueTransport, VirtualRegisterId,
 };
@@ -215,13 +215,14 @@ fn edge_registers(
             SelectedStructuralTransport::WholeValue { argument, .. }
             | SelectedStructuralTransport::Descriptor { argument, .. }
             | SelectedStructuralTransport::Address {
-                base: selected_instructions::SelectedAddressBase::Register(argument),
+                base:
+                    target_operations_to_selected_instructions::SelectedAddressBase::Register(argument),
                 ..
             } => {
                 reads.insert(argument);
             }
             SelectedStructuralTransport::Address {
-                base: selected_instructions::SelectedAddressBase::Local(_),
+                base: target_operations_to_selected_instructions::SelectedAddressBase::Local(_),
                 ..
             }
             | SelectedStructuralTransport::Unused => {}

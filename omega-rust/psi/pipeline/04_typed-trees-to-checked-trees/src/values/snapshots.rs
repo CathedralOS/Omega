@@ -1,12 +1,12 @@
 //! Shared lookup of current assignment values. Storage invalidation owns their
 //! lifetime; neither a local initializer nor a nonliteral expression is replayed.
 
+use crate::fact_plan::{FactContext, FactPayload, FactPlace, FactPlan, PlaceRoot, ScalarValue};
 use crate::flow::{
     CanonicalPlace, canonical_place_from_semantic_place, canonical_place_from_symbol,
     normalized_event_place_root,
 };
-use facts::{FactContext, FactPayload, FactPlace, FactPlan, PlaceRoot, ScalarValue};
-use typed_trees::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
 };
@@ -15,7 +15,8 @@ use typed_trees::{
 /// Bindings use dense scalar positions; structural paths use authored parameters.
 pub(crate) struct PlaceScalarValues<'a, Resolve> {
     pub program: &'a TypedTrees,
-    pub parameters: &'a [typed_trees::signature::StateParameter],
+    pub parameters:
+        &'a [symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     pub symbols: &'a [symbols::SymbolHandle],
     pub value_at_place: Resolve,
 }
@@ -34,7 +35,7 @@ impl<Resolve: FnMut(&CanonicalPlace) -> Option<ScalarValue>> super::ScalarValueS
     fn structural_field(
         &mut self,
         parameter_position: u32,
-        path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        path: &[crate::checked_trees::CheckedStructuralPredicatePathSegment],
     ) -> Option<ScalarValue> {
         if path.is_empty() {
             return None;
@@ -135,8 +136,8 @@ pub(crate) fn integer_bounds_at_place<'a>(
     semantic: &FactPlan,
     contexts: impl IntoIterator<Item = &'a FactContext>,
     subject: &CanonicalPlace,
-) -> Option<facts::IntegerRange> {
-    let mut retained: Option<facts::IntegerRange> = None;
+) -> Option<crate::fact_plan::IntegerRange> {
+    let mut retained: Option<crate::fact_plan::IntegerRange> = None;
     for payload in payloads_at_place(program, semantic, contexts, subject) {
         let incoming = match payload {
             FactPayload::AssignedIntegerBounds { bounds }
@@ -148,7 +149,7 @@ pub(crate) fn integer_bounds_at_place<'a>(
                 let ScalarValue::Integer(value) = semantic.scalar_values.get(value) else {
                     return None;
                 };
-                facts::IntegerRange {
+                crate::fact_plan::IntegerRange {
                     minimum: value.clone(),
                     maximum: value.clone(),
                 }
@@ -161,7 +162,7 @@ pub(crate) fn integer_bounds_at_place<'a>(
                     return None;
                 };
                 let value = literal.value_bignum()?;
-                facts::IntegerRange {
+                crate::fact_plan::IntegerRange {
                     minimum: value.clone(),
                     maximum: value,
                 }
@@ -172,7 +173,7 @@ pub(crate) fn integer_bounds_at_place<'a>(
             return None;
         }
         retained = Some(match retained {
-            Some(previous) => facts::IntegerRange {
+            Some(previous) => crate::fact_plan::IntegerRange {
                 minimum: previous.minimum.min(incoming.minimum),
                 maximum: previous.maximum.max(incoming.maximum),
             },
@@ -262,12 +263,12 @@ mod tests {
         ExpressionHandle, ExpressionNode, FactPayload, FactPlace, FactPlan, PlaceRoot, ScalarValue,
         TypedTrees,
     };
+    use crate::fact_plan::{Fact, FactOrigin, ProgramPoint};
     use crate::flow::CanonicalPlace;
     use crate::flow::canonical_place_from_symbol;
     use crate::values::integer_bounds_at_place;
     use crate::values::literal_at_place;
     use crate::values::scalar_value_at_place;
-    use facts::{Fact, FactOrigin, ProgramPoint};
 
     #[test]
     fn byte_literals_reject_unknown_and_conflicting_live_snapshots() {
@@ -329,10 +330,12 @@ mod tests {
             let place = semantic.append_symbol_place(symbol);
             let mut references = Default::default();
             for (minimum, maximum) in [(65, 70), (75, 80)] {
-                let bounds = semantic.integer_ranges.append(facts::IntegerRange {
-                    minimum: numerics::bignum::BigInt::from_u64(minimum),
-                    maximum: numerics::bignum::BigInt::from_u64(maximum),
-                });
+                let bounds = semantic
+                    .integer_ranges
+                    .append(crate::fact_plan::IntegerRange {
+                        minimum: numerics::bignum::BigInt::from_u64(minimum),
+                        maximum: numerics::bignum::BigInt::from_u64(maximum),
+                    });
                 let fact = semantic.append_fact(Fact {
                     place: FactPlace::Place(place),
                     point: ProgramPoint::default(),
@@ -368,10 +371,12 @@ mod tests {
             let mut semantic = FactPlan::default();
             let place = semantic.append_symbol_place(symbol);
             let mut references = Default::default();
-            let bounds = semantic.integer_ranges.append(facts::IntegerRange {
-                minimum: numerics::bignum::BigInt::from_u64(endpoints.0),
-                maximum: numerics::bignum::BigInt::from_u64(endpoints.1),
-            });
+            let bounds = semantic
+                .integer_ranges
+                .append(crate::fact_plan::IntegerRange {
+                    minimum: numerics::bignum::BigInt::from_u64(endpoints.0),
+                    maximum: numerics::bignum::BigInt::from_u64(endpoints.1),
+                });
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(place),
                 point: ProgramPoint::default(),
@@ -408,10 +413,12 @@ mod tests {
                 payload: FactPayload::AssignedScalarValue { value },
             });
             semantic.append_ref(&mut references, fact);
-            let bounds = semantic.integer_ranges.append(facts::IntegerRange {
-                minimum: numerics::bignum::BigInt::from_u64(7),
-                maximum: numerics::bignum::BigInt::from_u64(7),
-            });
+            let bounds = semantic
+                .integer_ranges
+                .append(crate::fact_plan::IntegerRange {
+                    minimum: numerics::bignum::BigInt::from_u64(7),
+                    maximum: numerics::bignum::BigInt::from_u64(7),
+                });
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(place),
                 point: ProgramPoint::default(),
@@ -438,7 +445,7 @@ mod tests {
     fn call_provenance_requires_its_own_snapshot_and_conflicts_still_reject() {
         let mut program = TypedTrees::default();
         let call = program.expression_table.insert(ExpressionNode::Call(
-            typed_trees::expression::TableCallExpression {
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression {
                 receiver: Default::default(),
                 target_symbol: Default::default(),
                 target: Default::default(),

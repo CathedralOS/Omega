@@ -7,7 +7,7 @@ use language_semantics::{
     PermissionProvenance,
 };
 
-fn source(boundary: bool, following: &str) -> checked_trees::CheckedTrees {
+fn source(boundary: bool, following: &str) -> crate::checked_trees::CheckedTrees {
     let (producer, parameters, argument, reach) = if boundary {
         (
             "boundary trait Factory { machine create() -> Token reaches Factory; }",
@@ -94,13 +94,13 @@ fn anonymous_shared_permissions_retain_then_discard_exact_expression_owner() {
         };
         assert_eq!(
             argument.source,
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: 0
             }
         );
         assert_eq!(
             argument.access,
-            checked_trees::CheckedStructuralAccess::SharedBorrow
+            crate::checked_trees::CheckedStructuralAccess::SharedBorrow
         );
         assert!(argument.path.is_empty());
         let events = checked
@@ -112,7 +112,7 @@ fn anonymous_shared_permissions_retain_then_discard_exact_expression_owner() {
             .map(|(_, event)| event)
             .filter(|event| {
                 event.machine_symbol == machine
-                    && matches!(event.root, facts::PlaceRoot::Expression(_))
+                    && matches!(event.root, crate::fact_plan::PlaceRoot::Expression(_))
             })
             .collect::<Vec<_>>();
         let [establish, borrow, discard] = events.as_slice() else {
@@ -228,7 +228,7 @@ fn anonymous_shared_permissions_reject_missing_changed_and_late_custody() {
             .iter()
             .filter(|(_, event)| {
                 event.machine_symbol == machine
-                    && matches!(event.root, facts::PlaceRoot::Expression(_))
+                    && matches!(event.root, crate::fact_plan::PlaceRoot::Expression(_))
             })
             .map(|(handle, event)| (handle, event.clone()))
             .collect::<Vec<_>>();
@@ -251,7 +251,9 @@ fn anonymous_shared_permissions_reject_missing_changed_and_late_custody() {
                     "duplicate" => {
                         permissions.insert(event.clone());
                     }
-                    "root" => permissions.get_mut(handle).root = facts::PlaceRoot::Unknown,
+                    "root" => {
+                        permissions.get_mut(handle).root = crate::fact_plan::PlaceRoot::Unknown
+                    }
                     "provenance" => {
                         permissions.get_mut(handle).provenance = PermissionProvenance::Unknown
                     }

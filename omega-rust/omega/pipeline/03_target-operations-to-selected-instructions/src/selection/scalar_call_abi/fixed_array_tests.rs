@@ -4,11 +4,11 @@ use super::{
     LegalizedScalarFunction, ScalarType, StructuralAccess, ValueId, ValueLocation, ValueShape,
     evaluate_call_plan,
 };
+use crate::legalized_operations::{LegalizedCallUnitParameter, LegalizedStructuralContract};
 use crate::selection::scalar_call_abi::register_argument_count;
 use crate::selection::scalar_call_abi::register_argument_order;
 use crate::selection::scalar_call_abi::unit_key;
 use crate::selection::scalar_call_abi::validate_borrowed_argument;
-use legalized_operations::{LegalizedCallUnitParameter, LegalizedStructuralContract};
 use semantic_vocabulary::{
     BlockId, IntegerType, MachineId, OperationId, PlaceId, StructuralTypeId,
 };
@@ -47,7 +47,7 @@ fn fixed_array_call(
     let source = LegalizedScalarFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
-        provenance: target_operations::TerminalPsiProvenance {
+        provenance: abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance {
             operations: Vec::new(),
             edges: Vec::new(),
         },
@@ -95,7 +95,7 @@ fn fixed_array_call(
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 },
-                target: target_operations::TargetStructuralParameter {
+                target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                     place,
                     structural_type: array_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
@@ -113,7 +113,7 @@ fn fixed_array_call(
     };
     let call = LegalizedScalarCall {
         structural_result: None,
-        source: legalized_operations::NativeCallOrigin::Authored,
+        source: crate::legalized_operations::NativeCallOrigin::Authored,
         callee: MachineId::new(2).unwrap(),
         arguments: vec![LegalizedScalarArgument::Structural {
             semantic: StructuralArgument {
@@ -121,7 +121,7 @@ fn fixed_array_call(
                 access: StructuralAccess::MutableBorrow,
                 path: Vec::new(),
             },
-            target: target_operations::TargetStructuralArgument {
+            target: abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
                 place,
                 access: StructuralAccess::MutableBorrow,
                 path: Vec::new(),
@@ -482,7 +482,7 @@ fn inline_stack_arrays_do_not_consume_call_register_operands() {
             target == target::NativeTarget::linux_x64()
         );
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let key = unit_key(&call, &environment).expect("existing ordinary call row");
         let row = environment.constraint(key).unwrap();
         assert_eq!(row.operands.len(), expected_registers);

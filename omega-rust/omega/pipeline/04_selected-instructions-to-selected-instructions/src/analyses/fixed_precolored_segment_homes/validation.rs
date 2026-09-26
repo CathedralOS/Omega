@@ -1,20 +1,20 @@
 use std::collections::BTreeSet;
 
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
 
+use crate::register_homes::{
+    FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePlan,
+    FixedPrecoloredSplitRequirementPolicy, fixed_precolored_segment_home_plan_identity,
+};
 use crate::{
     FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
     ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
     ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
     ValidatedLiveRanges,
-};
-use register_homes::{
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePlan,
-    FixedPrecoloredSplitRequirementPolicy, fixed_precolored_segment_home_plan_identity,
 };
 
 #[allow(clippy::too_many_arguments)]

@@ -6,6 +6,12 @@
 //! interface exposure but have their own authorization occurrence kind: they
 //! do not publish a private issuer for ordinary consumer selection.
 
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::domain::ProofFact;
+use crate::symbol_resolved_trees::expression::ExpressionNode;
+use crate::symbol_resolved_trees::name::DiagnosticName;
+use crate::symbol_resolved_trees::signature::{SignatureContract, SignatureContractKind};
+use crate::symbol_resolved_trees::types::TypeReference;
 use diagnostics::Diagnostic;
 use language_semantics::DomainEstablishmentRoute;
 use language_semantics::declaration_selection::{
@@ -13,12 +19,6 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as SelectionKind, AuthoredDeclarationSelectionRecordError,
 };
 use source::{SourceSpan, Span};
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::domain::ProofFact;
-use symbol_resolved_trees::expression::ExpressionNode;
-use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::signature::{SignatureContract, SignatureContractKind};
-use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolHandle;
 
 use crate::selection::signature_free_requirements::{
@@ -76,7 +76,7 @@ fn record_route_selection_once(
     kind: SelectionKind,
     symbol: SymbolHandle,
 ) -> Result<(), Diagnostic> {
-    use symbol_resolved_trees::AuthoredDeclarationSelectionTarget;
+    use crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget;
 
     let retained = program
         .authored_declaration_selections()
@@ -247,7 +247,7 @@ fn collect_authored_requirement_routes(
 /// authority it does not declare.
 fn machine_authorizes_domain_subject(
     program: &SymbolResolvedTrees,
-    machine: &symbol_resolved_trees::machine::Machine,
+    machine: &crate::symbol_resolved_trees::machine::Machine,
     domain_symbol: SymbolHandle,
 ) -> bool {
     if ensured_result_domain_symbols(program, program.machine_contracts(machine))
@@ -290,7 +290,7 @@ fn selection_diagnostic(error: AuthoredDeclarationSelectionRecordError) -> Diagn
 
 fn requirement_authorizes_domain_subject(
     program: &SymbolResolvedTrees,
-    requirement: &symbol_resolved_trees::signature::StateSignature,
+    requirement: &crate::symbol_resolved_trees::signature::StateSignature,
     domain_symbol: SymbolHandle,
     permits_external_root_parameters: bool,
 ) -> bool {
@@ -369,7 +369,7 @@ fn collect_type_reference_domain_symbols(
         .constraints
         .span_or_empty(constrained.constraints)
     {
-        let symbol_resolved_trees::types::TypeConstraint::Domain(name) = constraint else {
+        let crate::symbol_resolved_trees::types::TypeConstraint::Domain(name) = constraint else {
             continue;
         };
         let matched = program
@@ -435,8 +435,10 @@ fn collect_member_domain_symbols(
     ancestors.push(data_symbol);
     for member in program.data_members(data.storage.members) {
         let fields = match member {
-            symbol_resolved_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            symbol_resolved_trees::data::DataMember::Variant(variant) => {
+            crate::symbol_resolved_trees::data::DataMember::Field(field) => {
+                std::slice::from_ref(field)
+            }
+            crate::symbol_resolved_trees::data::DataMember::Variant(variant) => {
                 program.data_payload_fields(variant.payload)
             }
         };
@@ -485,7 +487,7 @@ fn ensured_result_domain_symbols(
 /// establish into them — so they stay caller premises here.
 fn ensured_mutable_parameter_domain_symbols(
     program: &SymbolResolvedTrees,
-    requirement: &symbol_resolved_trees::signature::StateSignature,
+    requirement: &crate::symbol_resolved_trees::signature::StateSignature,
 ) -> Vec<SymbolHandle> {
     let mut domains = Vec::new();
     for contract in program
@@ -593,7 +595,7 @@ fn atomic_domain_symbols(
 fn domain_definition(
     program: &SymbolResolvedTrees,
     symbol: SymbolHandle,
-) -> Option<&symbol_resolved_trees::domain::DomainDefinition> {
+) -> Option<&crate::symbol_resolved_trees::domain::DomainDefinition> {
     program
         .domain_definitions
         .iter()
@@ -602,7 +604,7 @@ fn domain_definition(
 
 fn expression_is_bare_result(
     program: &SymbolResolvedTrees,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
 ) -> bool {
     let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(expression)
     else {

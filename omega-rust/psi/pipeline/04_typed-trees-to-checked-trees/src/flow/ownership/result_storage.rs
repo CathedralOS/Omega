@@ -1,16 +1,18 @@
 //! Storage contained in a by-value call result. This does not classify the
 //! origins of references stored in that result or discharge its permissions.
+use crate::checked_trees::expression::ExpressionNode;
 use crate::flow::CanonicalPlace;
 use crate::flow::project_type_reference_from_segments;
-use checked_trees::expression::ExpressionNode;
-use typed_trees::data::DataMember;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(super) fn is_private_result_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     place: &CanonicalPlace,
 ) -> bool {
-    let facts::PlaceRoot::Expression(expression) = place.root else {
+    let crate::fact_plan::PlaceRoot::Expression(expression) = place.root else {
         return false;
     };
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
@@ -59,7 +61,8 @@ pub(super) fn is_private_result_place(
                     base_symbol: symbol,
                     ..
                 },
-                facts::PlaceSegment::Case { .. } | facts::PlaceSegment::Field { .. },
+                crate::fact_plan::PlaceSegment::Case { .. }
+                | crate::fact_plan::PlaceSegment::Field { .. },
             ) => {
                 let mut definitions = program
                     .data_definitions()
@@ -73,7 +76,7 @@ pub(super) fn is_private_result_place(
                 }
                 let members = program.data_members(definition);
                 match segment {
-                    facts::PlaceSegment::Case { variant } => {
+                    crate::fact_plan::PlaceSegment::Case { variant } => {
                         if selected_variant.is_some() || !members.iter().any(|member| {
                             matches!(member, DataMember::Variant(candidate) if candidate.symbol == *variant)
                         }) {
@@ -82,7 +85,7 @@ pub(super) fn is_private_result_place(
                         selected_variant = Some(*variant);
                         continue;
                     }
-                    facts::PlaceSegment::Field { symbol } => {
+                    crate::fact_plan::PlaceSegment::Field { symbol } => {
                         if !symbol.is_valid()
                             || !members.iter().any(|member| match member {
                                 DataMember::Field(field) => {
@@ -106,7 +109,8 @@ pub(super) fn is_private_result_place(
             }
             (
                 TypeReferenceNode::FixedArray { .. },
-                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. },
+                crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                | crate::fact_plan::PlaceSegment::Index { .. },
             ) if selected_variant.is_none() => {}
             // A reference/slice traversal leaves the result's own storage.
             // Unknown types and selectors are not proof of a private place.
@@ -123,7 +127,7 @@ pub(super) fn is_private_result_place(
 }
 
 fn unconstrained_type(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     while let TypeReferenceNode::Constrained { base_type, .. } =

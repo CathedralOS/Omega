@@ -31,7 +31,7 @@ fn generic_boundary_receiver_preserves_disjoint_caller_facts() {
         .iter()
         .find(|machine| machine.name.as_str() == "Main::inspect")
         .unwrap();
-    let frame = validation::CallFrameResolver::new(&checked.typed)
+    let frame = crate::validation::CallFrameResolver::new(&checked.typed)
         .unwrap()
         .inferred_state_write_frame(machine, &checked.typed.machine_states(machine)[0]);
     let mut paths = frame
@@ -99,7 +99,7 @@ fn generic_boundary_shadowed_method_binder_preserves_disjoint_facts() {
         .iter()
         .find(|machine| machine.name.as_str() == "Main::inspect")
         .unwrap();
-    let mut paths = validation::CallFrameResolver::new(&checked.typed)
+    let mut paths = crate::validation::CallFrameResolver::new(&checked.typed)
         .unwrap()
         .inferred_state_write_frame(machine, &checked.typed.machine_states(machine)[0])
         .into_complete_paths()
@@ -212,7 +212,7 @@ fn requirement_receiver_calls_reach_checked_trees_with_exact_frames() {
             .find(|machine| machine.name.as_str() == "Main::inspect")
             .expect("caller");
         let state = &typed.machine_states(machine)[0];
-        let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
         let mut actual = resolver
             .inferred_state_write_frame(machine, state)
             .into_complete_paths();

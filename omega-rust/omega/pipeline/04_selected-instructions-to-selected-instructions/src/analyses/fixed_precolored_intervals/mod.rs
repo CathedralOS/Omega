@@ -7,15 +7,15 @@ mod compute;
 mod replay;
 mod validate;
 
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::FixedPrecoloredIntervalPolicy;
-use register_homes::{
+use crate::register_homes::FixedPrecoloredIntervalPolicy;
+use crate::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlan,
     FixedPrecoloredIntervalPlanIdentity,
 };
-use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::LiveRangeIdentity;
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::LiveRangeIdentity;
+use target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity;
 pub use validate::validate_fixed_precolored_intervals;
 
 pub fn analyze_fixed_precolored_intervals(

@@ -1,0 +1,55 @@
+use super::{Encoder, PackageReviewEncodingError};
+use crate::package_evidence::encoding::encode::membership::{
+    Observer, PackagePolicyMembershipError,
+};
+
+impl<'identity> Encoder<'identity> {
+    pub(in crate::package_evidence::encoding::encode) fn policy_membership(
+        observer: &'identity mut dyn Observer,
+    ) -> Self {
+        // usize::MAX collapses to the shared policy recovery byte ceiling.
+        // Membership re-encodes the canonical baseline, so a package with
+        // hundreds of nominal identities can exceed any smaller bound.
+        Self {
+            membership: Some(observer),
+            ..Self::policy_bounded(usize::MAX)
+        }
+    }
+
+    pub(in crate::package_evidence::encoding) fn membership_error(
+        &self,
+    ) -> Option<PackagePolicyMembershipError> {
+        self.membership_error
+    }
+
+    pub(super) fn record_membership_result(
+        &mut self,
+        result: Result<(), PackagePolicyMembershipError>,
+    ) {
+        if self.membership_error.is_none() {
+            self.membership_error = result.err();
+        }
+    }
+
+    pub(crate) fn observe_type_identity(
+        &mut self,
+        identity: &str,
+    ) -> Result<(), PackageReviewEncodingError> {
+        if let Some(observer) = &mut self.membership {
+            let result = observer.type_identity(identity);
+            self.record_membership_result(result);
+        }
+        self.check()
+    }
+
+    pub(crate) fn observe_nominal_path(
+        &mut self,
+        path: &str,
+    ) -> Result<(), PackageReviewEncodingError> {
+        if let Some(observer) = &mut self.membership {
+            let result = observer.nominal_path(path);
+            self.record_membership_result(result);
+        }
+        self.check()
+    }
+}

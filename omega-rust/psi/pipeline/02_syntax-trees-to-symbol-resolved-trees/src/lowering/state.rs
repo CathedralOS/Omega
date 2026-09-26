@@ -10,16 +10,16 @@ use crate::lowering::domain::lower_proof_facts;
 use crate::lowering::statement::lower_statement_handle;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
-use arena::{Handle, HandleSpan};
-use diagnostics::Diagnostic;
-use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::signature::{
+use crate::symbol_resolved_trees::name::DiagnosticName;
+use crate::symbol_resolved_trees::signature::{
     SignatureContract, SignatureContractKind, StateParameter, StateSignature, StateSignatureStorage,
 };
-use symbol_resolved_trees::state::{State, StateStorage};
-use symbol_resolved_trees::statement::Statement;
+use crate::symbol_resolved_trees::state::{State, StateStorage};
+use crate::symbol_resolved_trees::statement::Statement;
+use arena::{Handle, HandleSpan};
+use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_state_node(
     lowerer: &mut Lowerer,
@@ -238,13 +238,13 @@ pub(crate) fn lower_state_signature_parts(
                 parameters,
                 native_callback_parameters: native_callback_parameters
                     .iter()
-                    .map(
-                        |parameter| symbol_resolved_trees::signature::NativeCallbackParameter {
+                    .map(|parameter| {
+                        crate::symbol_resolved_trees::signature::NativeCallbackParameter {
                             name: crate::lowering::name::lower_name(&parameter.name),
                             binder: crate::lowering::name::lower_name(&parameter.binder),
                             native_ordinal: parameter.native_ordinal,
-                        },
-                    )
+                        }
+                    })
                     .collect(),
                 return_type,
                 invokes,
@@ -274,7 +274,7 @@ pub(crate) fn lower_signature_invokes(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     invokes: HandleSpan<syntax::identifier::Identifier>,
-) -> HandleSpan<symbol_resolved_trees::name::DiagnosticName> {
+) -> HandleSpan<crate::symbol_resolved_trees::name::DiagnosticName> {
     let mut span = HandleSpan::empty();
     for binding in syntax_trees.items.identifier_path_members(invokes) {
         lowerer
@@ -290,7 +290,7 @@ pub(crate) fn lower_signature_invokes(
 pub(crate) fn lower_service_reach_names(
     syntax_trees: &SyntaxTrees,
     service_reaches: HandleSpan<syntax::identifier::Identifier>,
-) -> Vec<symbol_resolved_trees::name::DiagnosticName> {
+) -> Vec<crate::symbol_resolved_trees::name::DiagnosticName> {
     syntax_trees
         .items
         .identifier_path_members(service_reaches)
@@ -311,7 +311,7 @@ pub(crate) fn lower_machine_signature_contracts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
-    states: HandleSpan<Handle<symbol_resolved_trees::state::State>>,
+    states: HandleSpan<Handle<crate::symbol_resolved_trees::state::State>>,
 ) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
     let has_outcome_rows = syntax_trees
         .items
@@ -337,8 +337,10 @@ pub(crate) fn lower_machine_signature_contracts(
             Diagnostic::error("outcome-specific ensures requires a machine result state")
         })?;
     let result_data_name = match root_state.return_type.as_ref() {
-        Some(symbol_resolved_trees::types::TypeReference::Named { name, .. }) => name,
-        Some(symbol_resolved_trees::types::TypeReference::Generic(generic)) => &generic.base_name,
+        Some(crate::symbol_resolved_trees::types::TypeReference::Named { name, .. }) => name,
+        Some(crate::symbol_resolved_trees::types::TypeReference::Generic(generic)) => {
+            &generic.base_name
+        }
         _ => {
             return Err(Diagnostic::error(
                 "outcome-specific ensures requires a declared nominal sum result type",
@@ -374,10 +376,10 @@ pub(crate) fn lower_machine_signature_contracts(
         .data_members(data.members)
         .iter()
         .filter_map(|member| match member {
-            symbol_resolved_trees::data::DataMember::Variant(variant) => {
+            crate::symbol_resolved_trees::data::DataMember::Variant(variant) => {
                 Some(variant.name.to_string())
             }
-            symbol_resolved_trees::data::DataMember::Field(_) => None,
+            crate::symbol_resolved_trees::data::DataMember::Field(_) => None,
         })
         .collect::<Vec<_>>();
     if variants.is_empty() {
@@ -457,10 +459,10 @@ fn lower_signature_contracts_with_result_sum(
                 SignatureContractKind::Crashes {
                     cause: match cause {
                         syntax::item::CrashCause::Trap => {
-                            symbol_resolved_trees::signature::CrashCause::Trap
+                            crate::symbol_resolved_trees::signature::CrashCause::Trap
                         }
                         syntax::item::CrashCause::Abort => {
-                            symbol_resolved_trees::signature::CrashCause::Abort
+                            crate::symbol_resolved_trees::signature::CrashCause::Abort
                         }
                     },
                 },
@@ -655,14 +657,14 @@ pub(crate) fn lower_state_parameter(
 /// pointer slot rather than fold flat.
 fn reference_struct_parameter_names(
     lowerer: &Lowerer,
-    parameters: &HandleSpan<symbol_resolved_trees::signature::StateParameter>,
+    parameters: &HandleSpan<crate::symbol_resolved_trees::signature::StateParameter>,
 ) -> Vec<String> {
     lowerer
         .symbol_resolved_trees
         .state_parameters(*parameters)
         .iter()
         .filter_map(|parameter| {
-            let symbol_resolved_trees::types::TypeReference::Reference(reference) =
+            let crate::symbol_resolved_trees::types::TypeReference::Reference(reference) =
                 &parameter.type_reference
             else {
                 return None;
@@ -674,7 +676,7 @@ fn reference_struct_parameter_names(
                 lowerer
                     .symbol_resolved_trees
                     .child_type_reference(reference.referee),
-                symbol_resolved_trees::types::TypeReference::Named { .. }
+                crate::symbol_resolved_trees::types::TypeReference::Named { .. }
             )
             .then(|| parameter.name.as_str().to_string())
         })

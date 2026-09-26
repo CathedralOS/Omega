@@ -2,14 +2,14 @@
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use checked_trees::CheckedProviderAttachmentRequirementPlan;
-use checked_trees::CheckedTrees;
-use checked_trees::CheckedUnitEffectOperationPlan;
-use checked_trees::CheckedUnitStructuralPathSegment;
-use checked_trees::data::DataMember;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::CheckedProviderAttachmentRequirementPlan;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment;
+use typed_trees_to_checked_trees::checked_trees::data::DataMember;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
 
 pub(in crate::unit::attached_unit) fn validate_call_source(
     checked: &CheckedTrees,
@@ -80,10 +80,10 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
     let mut carrier = field.type_reference;
     loop {
         match checked.type_reference_table.type_reference(carrier) {
-            checked_trees::types::TypeReferenceNode::Constrained {
+            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained {
                 base_type: inner, ..
             } => carrier = *inner,
-            checked_trees::types::TypeReferenceNode::Reference {
+            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
                 referee: inner,
                 access: language_core::ReferenceAccess::Mutable,
                 ..
@@ -99,7 +99,7 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
     let authored =
         crate::emission::call_source_custody::authored::locate_source(checked, state, *coordinate)?;
     match authored.source_site {
-        Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
+        Some(typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Statement(_)) => {
             let Some(StatementNode::Call(call)) = checked
                 .statement_table
                 .statements(source.statement_nodes)
@@ -121,7 +121,9 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
                 );
             }
         }
-        Some(checked_trees::NominalMachineUseSite::Expression(expression)) => {
+        Some(typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
+            expression,
+        )) => {
             let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
                 return unsupported("provider field call lost its authored expression");
             };

@@ -1,0 +1,442 @@
+//! The register facts each target declares: its physical register model,
+//! constraint catalog and conservative baseline reservation profile.
+
+use crate::isa_aarch64::{
+    AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64,
+    AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH,
+    AARCH64_COPY_I64, AARCH64_DARWIN_CALL, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT,
+    AARCH64_MATERIALIZE_I64, AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
+    aarch64_physical_register_model, aarch64_register_constraint_catalog,
+};
+use crate::isa_x86_64::{
+    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
+    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN,
+    X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
+    X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
+    x86_64_physical_register_model, x86_64_register_constraint_catalog,
+};
+use crate::register_model::{
+    PhysicalRegisterModel, RegisterConstraintCatalog, RegisterConstraintKey,
+    RegisterReservationProfile, TargetRegisterEnvironmentConstraintKeys,
+    ValidatedPhysicalRegisterModel,
+};
+use crate::selected_instructions::SelectedConstraintKeys;
+use target::{Architecture, NativeTarget, ObjectFormat};
+
+pub(super) fn target_physical_register_model(target: NativeTarget) -> PhysicalRegisterModel {
+    match target.architecture {
+        Architecture::X86_64 => x86_64_physical_register_model(),
+        Architecture::Aarch64 => aarch64_physical_register_model(),
+    }
+}
+
+pub(super) fn target_constraint_catalog(
+    target: NativeTarget,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> RegisterConstraintCatalog {
+    match target.architecture {
+        Architecture::X86_64 => x86_64_register_constraint_catalog(physical),
+        Architecture::Aarch64 => aarch64_register_constraint_catalog(physical),
+    }
+}
+
+pub(super) fn conservative_baseline_reservation_profile(
+    target: NativeTarget,
+    physical: &PhysicalRegisterModel,
+) -> RegisterReservationProfile {
+    let mut active_overlays = physical
+        .reservations
+        .iter()
+        .filter(|overlay| {
+            overlay.name != "darwin.aarch64.platform" || target.object_format == ObjectFormat::MachO
+        })
+        .map(|overlay| overlay.name.clone())
+        .collect::<Vec<_>>();
+    active_overlays.sort();
+    RegisterReservationProfile {
+        name: "omega.conservative-baseline-v1".into(),
+        active_overlays,
+    }
+}
+
+pub(super) fn selected_environment_keys(
+    keys: SelectedConstraintKeys,
+) -> TargetRegisterEnvironmentConstraintKeys {
+    TargetRegisterEnvironmentConstraintKeys {
+        crash: keys.crash,
+        load64: keys.load64,
+        load8: keys.load8,
+        load16: keys.load16,
+        load32: keys.load32,
+        load_packed: keys.load_packed,
+        store_packed: keys.store_packed,
+        load8_indexed: keys.load8_indexed,
+        copy_bytes: keys.copy_bytes,
+        store: keys.store,
+        address_offset: keys.address_offset,
+        store64: keys.store64,
+        frame_address: keys.frame_address,
+        hosted_read_byte: keys.hosted_read_byte,
+        hosted_write_byte_i32: keys.hosted_write_byte_i32,
+        save_floating_control: keys.save_floating_control,
+        restore_floating_control: keys.restore_floating_control,
+        hosted_exit_process_i32: keys.hosted_exit_process_i32,
+        call_unit: keys.call_unit,
+        call_scalar: keys.call_scalar,
+        call_aggregate: keys.call_aggregate,
+        call_normalized_foreign: keys.call_normalized_foreign,
+        return_aggregate: keys.return_aggregate,
+        materialize_i64: keys.materialize_i64,
+        materialize_boolean: keys.materialize_boolean,
+        copy_i64: keys.copy_i64,
+        float32_to_bits: keys.float32_to_bits,
+        float64_to_bits: keys.float64_to_bits,
+        bits_to_float32: keys.bits_to_float32,
+        bits_to_float64: keys.bits_to_float64,
+        call_unit_mixed: keys.call_unit_mixed,
+        add_i64: keys.add_i64,
+        add_i64_immediate: keys.add_i64_immediate,
+        subtract_i64: keys.subtract_i64,
+        multiply_i64: keys.multiply_i64,
+        saturating_subtract_unsigned: keys.saturating_subtract_unsigned,
+        saturating_add_u64: keys.saturating_add_u64,
+        divide_u64: keys.divide_u64,
+        remainder_u64: keys.remainder_u64,
+        remainder_i64: keys.remainder_i64,
+        divide_i64: keys.divide_i64,
+        shift_i64: keys.shift_i64,
+        saturating_add_clamped: keys.saturating_add_clamped,
+        saturating_subtract_clamped: keys.saturating_subtract_clamped,
+        saturating_divide_signed: keys.saturating_divide_signed,
+        saturating_multiply_clamped: keys.saturating_multiply_clamped,
+        saturating_multiply_u64: keys.saturating_multiply_u64,
+        trapping_binary: keys.trapping_binary,
+        trapping_fixed_pair: keys.trapping_fixed_pair,
+        trapping_shift: keys.trapping_shift,
+        trapping_convert: keys.trapping_convert,
+        subtract_i64_immediate: keys.subtract_i64_immediate,
+        compare_i64_zero: keys.compare_i64_zero,
+        compare_i64: keys.compare_i64,
+        compare_i64_immediate: keys.compare_i64_immediate,
+        conditional_branch: keys.conditional_branch,
+        jump: keys.jump,
+        return_float: keys.return_float.clone(),
+        return_i64: keys.return_i64,
+        return_unit: keys.return_unit,
+    }
+}
+
+pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
+    match (target.architecture, target.object_format) {
+        (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
+            crash: crate::isa_x86_64::X86_64_CRASH,
+            call_aggregate: crate::isa_x86_64::x86_64_system_v_aggregate_call_keys()
+                .into_iter()
+                .chain(crate::isa_x86_64::x86_64_system_v_mixed_aggregate_call_keys())
+                .chain(crate::isa_x86_64::x86_64_indirect_aggregate_call_keys(
+                    false,
+                ))
+                .collect(),
+            return_aggregate: crate::isa_x86_64::x86_64_system_v_aggregate_return_keys(),
+            hosted_read_byte: (target == NativeTarget::linux_x64())
+                .then_some(crate::isa_x86_64::X86_64_HOSTED_READ_BYTE),
+            hosted_write_byte_i32: Some(crate::isa_x86_64::X86_64_HOSTED_WRITE_BYTE_I32),
+            hosted_exit_process_i32: (target == NativeTarget::linux_x64())
+                .then_some(crate::isa_x86_64::X86_64_HOSTED_EXIT_PROCESS_I32),
+            load64: Some(crate::isa_x86_64::X86_64_LOAD64),
+            load8: Some(crate::isa_x86_64::X86_64_LOAD8),
+            load16: Some(crate::isa_x86_64::X86_64_LOAD16),
+            load32: Some(crate::isa_x86_64::X86_64_LOAD32),
+            load_packed: Some(crate::isa_x86_64::X86_64_LOAD_PACKED),
+            store_packed: Some(crate::isa_x86_64::X86_64_STORE_PACKED),
+            load8_indexed: Some(crate::isa_x86_64::X86_64_LOAD8_INDEXED),
+            copy_bytes: Some(crate::isa_x86_64::X86_64_COPY_BYTES),
+            save_floating_control: Some(crate::isa_x86_64::X86_64_SAVE_FLOATING_CONTROL),
+            restore_floating_control: Some(crate::isa_x86_64::X86_64_RESTORE_FLOATING_CONTROL),
+            store: Some(crate::isa_x86_64::X86_64_STORE),
+            address_offset: Some(crate::isa_x86_64::X86_64_ADDRESS_OFFSET),
+            store64: Some(crate::isa_x86_64::X86_64_STORE64),
+            frame_address: Some(crate::isa_x86_64::X86_64_FRAME_ADDRESS),
+            call_unit: crate::isa_x86_64::x86_64_system_v_register_unit_call_keys(),
+            call_unit_mixed: crate::isa_x86_64::x86_64_system_v_mixed_unit_call_keys(),
+            call_scalar: crate::isa_x86_64::x86_64_system_v_register_call_keys()
+                .into_iter()
+                .chain(crate::isa_x86_64::x86_64_float_scalar_call_keys(false))
+                .collect(),
+            call_normalized_foreign:
+                crate::isa_x86_64::x86_64_system_v_normalized_foreign_call_keys(),
+            materialize_i64: X86_64_MATERIALIZE_I64,
+            materialize_boolean: crate::isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
+            copy_i64: X86_64_COPY_I64,
+            float32_to_bits: Some(crate::isa_x86_64::X86_64_FLOAT32_TO_BITS),
+            float64_to_bits: Some(crate::isa_x86_64::X86_64_FLOAT64_TO_BITS),
+            bits_to_float32: Some(crate::isa_x86_64::X86_64_BITS_TO_FLOAT32),
+            bits_to_float64: Some(crate::isa_x86_64::X86_64_BITS_TO_FLOAT64),
+            add_i64: X86_64_ADD_I64,
+            add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
+            subtract_i64: X86_64_SUBTRACT_I64,
+            multiply_i64: crate::isa_x86_64::X86_64_MULTIPLY_I64,
+            saturating_subtract_unsigned: crate::isa_x86_64::X86_64_SATURATING_SUBTRACT_UNSIGNED,
+            saturating_add_u64: crate::isa_x86_64::X86_64_SATURATING_ADD_U64,
+            divide_u64: crate::isa_x86_64::X86_64_DIVIDE_U64,
+            remainder_u64: crate::isa_x86_64::X86_64_REMAINDER_U64,
+            remainder_i64: crate::isa_x86_64::X86_64_REMAINDER_I64,
+            divide_i64: crate::isa_x86_64::X86_64_DIVIDE_I64,
+            shift_i64: crate::isa_x86_64::X86_64_SHIFT_I64,
+            saturating_add_clamped: crate::isa_x86_64::X86_64_SATURATING_ADD_CLAMPED,
+            saturating_subtract_clamped: crate::isa_x86_64::X86_64_SATURATING_SUBTRACT_CLAMPED,
+            saturating_divide_signed: crate::isa_x86_64::X86_64_SATURATING_DIVIDE_SIGNED,
+            saturating_multiply_clamped: crate::isa_x86_64::X86_64_SATURATING_MULTIPLY_CLAMPED,
+            saturating_multiply_u64: crate::isa_x86_64::X86_64_SATURATING_MULTIPLY_U64,
+            trapping_binary: crate::isa_x86_64::X86_64_TRAPPING_BINARY,
+            trapping_fixed_pair: crate::isa_x86_64::X86_64_TRAPPING_FIXED_PAIR,
+            trapping_shift: crate::isa_x86_64::X86_64_TRAPPING_SHIFT,
+            trapping_convert: crate::isa_x86_64::X86_64_TRAPPING_CONVERT,
+            subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
+            compare_i64_zero: X86_64_COMPARE_I64_ZERO,
+            compare_i64: crate::isa_x86_64::X86_64_COMPARE_I64,
+            compare_i64_immediate: crate::isa_x86_64::X86_64_COMPARE_I64_IMMEDIATE,
+            conditional_branch: X86_64_CONDITIONAL_BRANCH,
+            jump: crate::isa_x86_64::X86_64_JUMP,
+            return_i64: X86_64_SYSTEM_V_RETURN,
+            return_float: crate::isa_x86_64::x86_64_float_scalar_return_keys(false),
+            return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
+        }),
+        (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
+            crash: crate::isa_x86_64::X86_64_CRASH,
+            call_aggregate: crate::isa_x86_64::x86_64_microsoft_aggregate_call_keys()
+                .into_iter()
+                .chain(crate::isa_x86_64::x86_64_microsoft_mixed_aggregate_call_keys())
+                .chain(crate::isa_x86_64::x86_64_indirect_aggregate_call_keys(true))
+                .collect(),
+            return_aggregate: crate::isa_x86_64::x86_64_microsoft_aggregate_return_keys(),
+            hosted_read_byte: None,
+            hosted_write_byte_i32: None,
+            hosted_exit_process_i32: None,
+            load64: Some(crate::isa_x86_64::X86_64_LOAD64),
+            load8: Some(crate::isa_x86_64::X86_64_LOAD8),
+            load16: Some(crate::isa_x86_64::X86_64_LOAD16),
+            load32: Some(crate::isa_x86_64::X86_64_LOAD32),
+            load_packed: Some(crate::isa_x86_64::X86_64_LOAD_PACKED),
+            store_packed: Some(crate::isa_x86_64::X86_64_STORE_PACKED),
+            load8_indexed: Some(crate::isa_x86_64::X86_64_LOAD8_INDEXED),
+            copy_bytes: Some(crate::isa_x86_64::X86_64_COPY_BYTES),
+            save_floating_control: Some(crate::isa_x86_64::X86_64_SAVE_FLOATING_CONTROL),
+            restore_floating_control: Some(crate::isa_x86_64::X86_64_RESTORE_FLOATING_CONTROL),
+            store: Some(crate::isa_x86_64::X86_64_STORE),
+            address_offset: Some(crate::isa_x86_64::X86_64_ADDRESS_OFFSET),
+            store64: Some(crate::isa_x86_64::X86_64_STORE64),
+            frame_address: Some(crate::isa_x86_64::X86_64_FRAME_ADDRESS),
+            call_unit: crate::isa_x86_64::x86_64_microsoft_register_unit_call_keys(),
+            call_unit_mixed: crate::isa_x86_64::x86_64_microsoft_mixed_unit_call_keys(),
+            call_scalar: crate::isa_x86_64::x86_64_microsoft_register_call_keys()
+                .into_iter()
+                .chain(crate::isa_x86_64::x86_64_float_scalar_call_keys(true))
+                .collect(),
+            call_normalized_foreign:
+                crate::isa_x86_64::x86_64_microsoft_normalized_foreign_call_keys(),
+            materialize_i64: X86_64_MATERIALIZE_I64,
+            materialize_boolean: crate::isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
+            copy_i64: X86_64_COPY_I64,
+            float32_to_bits: Some(crate::isa_x86_64::X86_64_FLOAT32_TO_BITS),
+            float64_to_bits: Some(crate::isa_x86_64::X86_64_FLOAT64_TO_BITS),
+            bits_to_float32: Some(crate::isa_x86_64::X86_64_BITS_TO_FLOAT32),
+            bits_to_float64: Some(crate::isa_x86_64::X86_64_BITS_TO_FLOAT64),
+            add_i64: X86_64_ADD_I64,
+            add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
+            subtract_i64: X86_64_SUBTRACT_I64,
+            multiply_i64: crate::isa_x86_64::X86_64_MULTIPLY_I64,
+            saturating_subtract_unsigned: crate::isa_x86_64::X86_64_SATURATING_SUBTRACT_UNSIGNED,
+            saturating_add_u64: crate::isa_x86_64::X86_64_SATURATING_ADD_U64,
+            divide_u64: crate::isa_x86_64::X86_64_DIVIDE_U64,
+            remainder_u64: crate::isa_x86_64::X86_64_REMAINDER_U64,
+            remainder_i64: crate::isa_x86_64::X86_64_REMAINDER_I64,
+            divide_i64: crate::isa_x86_64::X86_64_DIVIDE_I64,
+            shift_i64: crate::isa_x86_64::X86_64_SHIFT_I64,
+            saturating_add_clamped: crate::isa_x86_64::X86_64_SATURATING_ADD_CLAMPED,
+            saturating_subtract_clamped: crate::isa_x86_64::X86_64_SATURATING_SUBTRACT_CLAMPED,
+            saturating_divide_signed: crate::isa_x86_64::X86_64_SATURATING_DIVIDE_SIGNED,
+            saturating_multiply_clamped: crate::isa_x86_64::X86_64_SATURATING_MULTIPLY_CLAMPED,
+            saturating_multiply_u64: crate::isa_x86_64::X86_64_SATURATING_MULTIPLY_U64,
+            trapping_binary: crate::isa_x86_64::X86_64_TRAPPING_BINARY,
+            trapping_fixed_pair: crate::isa_x86_64::X86_64_TRAPPING_FIXED_PAIR,
+            trapping_shift: crate::isa_x86_64::X86_64_TRAPPING_SHIFT,
+            trapping_convert: crate::isa_x86_64::X86_64_TRAPPING_CONVERT,
+            subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
+            compare_i64_zero: X86_64_COMPARE_I64_ZERO,
+            compare_i64: crate::isa_x86_64::X86_64_COMPARE_I64,
+            compare_i64_immediate: crate::isa_x86_64::X86_64_COMPARE_I64_IMMEDIATE,
+            conditional_branch: X86_64_CONDITIONAL_BRANCH,
+            jump: crate::isa_x86_64::X86_64_JUMP,
+            return_i64: X86_64_MICROSOFT_RETURN,
+            return_float: crate::isa_x86_64::x86_64_float_scalar_return_keys(true),
+            return_unit: X86_64_MICROSOFT_RETURN_UNIT,
+        }),
+        (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
+            crash: crate::isa_aarch64::AARCH64_CRASH,
+            call_aggregate: crate::isa_aarch64::aarch64_register_aggregate_call_keys(false)
+                .into_iter()
+                .chain(crate::isa_aarch64::aarch64_mixed_aggregate_call_keys(false))
+                .chain(crate::isa_aarch64::aarch64_indirect_aggregate_call_keys(
+                    false,
+                ))
+                .collect(),
+            return_aggregate: crate::isa_aarch64::aarch64_register_aggregate_return_keys(false),
+            hosted_read_byte: (target == NativeTarget::linux_arm64())
+                .then_some(crate::isa_aarch64::AARCH64_HOSTED_READ_BYTE),
+            hosted_write_byte_i32: (target == NativeTarget::linux_arm64())
+                .then_some(crate::isa_aarch64::AARCH64_HOSTED_WRITE_BYTE_I32),
+            hosted_exit_process_i32: (target == NativeTarget::linux_arm64())
+                .then_some(crate::isa_aarch64::AARCH64_HOSTED_EXIT_PROCESS_I32),
+            load64: Some(crate::isa_aarch64::AARCH64_LOAD64),
+            load8: Some(crate::isa_aarch64::AARCH64_LOAD8),
+            load16: Some(crate::isa_aarch64::AARCH64_LOAD16),
+            load32: Some(crate::isa_aarch64::AARCH64_LOAD32),
+            load_packed: Some(crate::isa_aarch64::AARCH64_LOAD_PACKED),
+            store_packed: Some(crate::isa_aarch64::AARCH64_STORE_PACKED),
+            load8_indexed: Some(crate::isa_aarch64::AARCH64_LOAD8_INDEXED),
+            copy_bytes: Some(crate::isa_aarch64::AARCH64_COPY_BYTES),
+            save_floating_control: Some(crate::isa_aarch64::AARCH64_SAVE_FLOATING_CONTROL),
+            restore_floating_control: Some(crate::isa_aarch64::AARCH64_RESTORE_FLOATING_CONTROL),
+            store: Some(crate::isa_aarch64::AARCH64_STORE),
+            address_offset: Some(crate::isa_aarch64::AARCH64_ADDRESS_OFFSET),
+            store64: Some(crate::isa_aarch64::AARCH64_STORE64),
+            frame_address: Some(crate::isa_aarch64::AARCH64_FRAME_ADDRESS),
+            call_unit: crate::isa_aarch64::aarch64_aapcs64_register_unit_call_keys(),
+            call_unit_mixed: crate::isa_aarch64::aarch64_aapcs64_mixed_unit_call_keys(),
+            call_scalar: crate::isa_aarch64::aarch64_aapcs64_register_call_keys()
+                .into_iter()
+                .chain(crate::isa_aarch64::aarch64_float_scalar_call_keys(false))
+                .collect(),
+            call_normalized_foreign:
+                crate::isa_aarch64::aarch64_aapcs64_normalized_foreign_call_keys(),
+            materialize_i64: AARCH64_MATERIALIZE_I64,
+            materialize_boolean: crate::isa_aarch64::AARCH64_MATERIALIZE_BOOLEAN,
+            copy_i64: AARCH64_COPY_I64,
+            float32_to_bits: Some(crate::isa_aarch64::AARCH64_FLOAT32_TO_BITS),
+            float64_to_bits: Some(crate::isa_aarch64::AARCH64_FLOAT64_TO_BITS),
+            bits_to_float32: Some(crate::isa_aarch64::AARCH64_BITS_TO_FLOAT32),
+            bits_to_float64: Some(crate::isa_aarch64::AARCH64_BITS_TO_FLOAT64),
+            add_i64: AARCH64_ADD_I64,
+            add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
+            subtract_i64: AARCH64_SUBTRACT_I64,
+            multiply_i64: crate::isa_aarch64::AARCH64_MULTIPLY_I64,
+            saturating_subtract_unsigned: crate::isa_aarch64::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
+            saturating_add_u64: crate::isa_aarch64::AARCH64_SATURATING_ADD_U64,
+            divide_u64: crate::isa_aarch64::AARCH64_DIVIDE_U64,
+            remainder_u64: crate::isa_aarch64::AARCH64_REMAINDER_U64,
+            remainder_i64: crate::isa_aarch64::AARCH64_REMAINDER_I64,
+            divide_i64: crate::isa_aarch64::AARCH64_DIVIDE_I64,
+            shift_i64: crate::isa_aarch64::AARCH64_SHIFT_I64,
+            saturating_add_clamped: crate::isa_aarch64::AARCH64_SATURATING_ADD_CLAMPED,
+            saturating_subtract_clamped: crate::isa_aarch64::AARCH64_SATURATING_SUBTRACT_CLAMPED,
+            saturating_divide_signed: crate::isa_aarch64::AARCH64_SATURATING_DIVIDE_SIGNED,
+            saturating_multiply_clamped: crate::isa_aarch64::AARCH64_SATURATING_MULTIPLY_CLAMPED,
+            saturating_multiply_u64: crate::isa_aarch64::AARCH64_SATURATING_MULTIPLY_U64,
+            trapping_binary: crate::isa_aarch64::AARCH64_TRAPPING_BINARY,
+            trapping_fixed_pair: crate::isa_aarch64::AARCH64_TRAPPING_FIXED_PAIR,
+            trapping_shift: crate::isa_aarch64::AARCH64_TRAPPING_SHIFT,
+            trapping_convert: crate::isa_aarch64::AARCH64_TRAPPING_CONVERT,
+            subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
+            compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
+            compare_i64: crate::isa_aarch64::AARCH64_COMPARE_I64,
+            compare_i64_immediate: crate::isa_aarch64::AARCH64_COMPARE_I64_IMMEDIATE,
+            conditional_branch: AARCH64_CONDITIONAL_BRANCH,
+            jump: crate::isa_aarch64::AARCH64_JUMP,
+            return_i64: AARCH64_AAPCS64_RETURN,
+            return_float: crate::isa_aarch64::aarch64_float_scalar_return_keys(false),
+            return_unit: AARCH64_AAPCS64_RETURN_UNIT,
+        }),
+        (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
+            crash: crate::isa_aarch64::AARCH64_CRASH,
+            call_aggregate: crate::isa_aarch64::aarch64_register_aggregate_call_keys(true)
+                .into_iter()
+                .chain(crate::isa_aarch64::aarch64_mixed_aggregate_call_keys(true))
+                .chain(crate::isa_aarch64::aarch64_indirect_aggregate_call_keys(
+                    true,
+                ))
+                .collect(),
+            return_aggregate: crate::isa_aarch64::aarch64_register_aggregate_return_keys(true),
+            hosted_read_byte: (target == NativeTarget::macos_arm64())
+                .then_some(crate::isa_aarch64::AARCH64_DARWIN_HOSTED_READ_BYTE),
+            hosted_write_byte_i32: (target == NativeTarget::macos_arm64())
+                .then_some(crate::isa_aarch64::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32),
+            hosted_exit_process_i32: (target == NativeTarget::macos_arm64())
+                .then_some(crate::isa_aarch64::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32),
+            load64: Some(crate::isa_aarch64::AARCH64_LOAD64),
+            load8: Some(crate::isa_aarch64::AARCH64_LOAD8),
+            load16: Some(crate::isa_aarch64::AARCH64_LOAD16),
+            load32: Some(crate::isa_aarch64::AARCH64_LOAD32),
+            load_packed: Some(crate::isa_aarch64::AARCH64_LOAD_PACKED),
+            store_packed: Some(crate::isa_aarch64::AARCH64_STORE_PACKED),
+            load8_indexed: Some(crate::isa_aarch64::AARCH64_LOAD8_INDEXED),
+            copy_bytes: Some(crate::isa_aarch64::AARCH64_COPY_BYTES),
+            save_floating_control: Some(crate::isa_aarch64::AARCH64_SAVE_FLOATING_CONTROL),
+            restore_floating_control: Some(crate::isa_aarch64::AARCH64_RESTORE_FLOATING_CONTROL),
+            store: Some(crate::isa_aarch64::AARCH64_STORE),
+            address_offset: Some(crate::isa_aarch64::AARCH64_ADDRESS_OFFSET),
+            store64: Some(crate::isa_aarch64::AARCH64_STORE64),
+            frame_address: Some(crate::isa_aarch64::AARCH64_FRAME_ADDRESS),
+            call_unit: crate::isa_aarch64::aarch64_darwin_register_unit_call_keys(),
+            call_unit_mixed: crate::isa_aarch64::aarch64_darwin_mixed_unit_call_keys(),
+            call_scalar: crate::isa_aarch64::aarch64_darwin_register_call_keys()
+                .into_iter()
+                .chain(crate::isa_aarch64::aarch64_float_scalar_call_keys(true))
+                .collect(),
+            call_normalized_foreign:
+                crate::isa_aarch64::aarch64_darwin_normalized_foreign_call_keys(),
+            materialize_i64: AARCH64_MATERIALIZE_I64,
+            materialize_boolean: crate::isa_aarch64::AARCH64_MATERIALIZE_BOOLEAN,
+            copy_i64: AARCH64_COPY_I64,
+            float32_to_bits: Some(crate::isa_aarch64::AARCH64_FLOAT32_TO_BITS),
+            float64_to_bits: Some(crate::isa_aarch64::AARCH64_FLOAT64_TO_BITS),
+            bits_to_float32: Some(crate::isa_aarch64::AARCH64_BITS_TO_FLOAT32),
+            bits_to_float64: Some(crate::isa_aarch64::AARCH64_BITS_TO_FLOAT64),
+            add_i64: AARCH64_ADD_I64,
+            add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
+            subtract_i64: AARCH64_SUBTRACT_I64,
+            multiply_i64: crate::isa_aarch64::AARCH64_MULTIPLY_I64,
+            saturating_subtract_unsigned: crate::isa_aarch64::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
+            saturating_add_u64: crate::isa_aarch64::AARCH64_SATURATING_ADD_U64,
+            divide_u64: crate::isa_aarch64::AARCH64_DIVIDE_U64,
+            remainder_u64: crate::isa_aarch64::AARCH64_REMAINDER_U64,
+            remainder_i64: crate::isa_aarch64::AARCH64_REMAINDER_I64,
+            divide_i64: crate::isa_aarch64::AARCH64_DIVIDE_I64,
+            shift_i64: crate::isa_aarch64::AARCH64_SHIFT_I64,
+            saturating_add_clamped: crate::isa_aarch64::AARCH64_SATURATING_ADD_CLAMPED,
+            saturating_subtract_clamped: crate::isa_aarch64::AARCH64_SATURATING_SUBTRACT_CLAMPED,
+            saturating_divide_signed: crate::isa_aarch64::AARCH64_SATURATING_DIVIDE_SIGNED,
+            saturating_multiply_clamped: crate::isa_aarch64::AARCH64_SATURATING_MULTIPLY_CLAMPED,
+            saturating_multiply_u64: crate::isa_aarch64::AARCH64_SATURATING_MULTIPLY_U64,
+            trapping_binary: crate::isa_aarch64::AARCH64_TRAPPING_BINARY,
+            trapping_fixed_pair: crate::isa_aarch64::AARCH64_TRAPPING_FIXED_PAIR,
+            trapping_shift: crate::isa_aarch64::AARCH64_TRAPPING_SHIFT,
+            trapping_convert: crate::isa_aarch64::AARCH64_TRAPPING_CONVERT,
+            subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
+            compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
+            compare_i64: crate::isa_aarch64::AARCH64_COMPARE_I64,
+            compare_i64_immediate: crate::isa_aarch64::AARCH64_COMPARE_I64_IMMEDIATE,
+            conditional_branch: AARCH64_CONDITIONAL_BRANCH,
+            jump: crate::isa_aarch64::AARCH64_JUMP,
+            return_i64: AARCH64_DARWIN_RETURN,
+            return_float: crate::isa_aarch64::aarch64_float_scalar_return_keys(true),
+            return_unit: AARCH64_DARWIN_RETURN_UNIT,
+        }),
+        _ => None,
+    }
+}
+
+/// Exact scalar-call ABI row selected by one native target. General selected
+/// call lowering is not implemented yet; this mapping makes the future entry
+/// explicit without adding call authority to the current selected CFG.
+pub(super) const fn scalar_call_constraint_key(
+    target: NativeTarget,
+) -> Option<RegisterConstraintKey> {
+    match (target.architecture, target.object_format) {
+        (Architecture::X86_64, ObjectFormat::Elf) => Some(X86_64_SYSTEM_V_CALL),
+        (Architecture::X86_64, ObjectFormat::Coff) => Some(X86_64_MICROSOFT_CALL),
+        (Architecture::Aarch64, ObjectFormat::Elf) => Some(AARCH64_AAPCS64_CALL),
+        (Architecture::Aarch64, ObjectFormat::MachO) => Some(AARCH64_DARWIN_CALL),
+        _ => None,
+    }
+}

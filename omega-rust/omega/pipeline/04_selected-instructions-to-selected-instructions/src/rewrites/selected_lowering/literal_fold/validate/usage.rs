@@ -1,6 +1,6 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::RegisterOperandAccess;
-use selected_instructions::SelectedInstructionKind;
+use target_operations_to_selected_instructions::SelectedInstructionKind;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
 
 use crate::rewrites::block_edges::terminator_successors;
 use crate::{FunctionLiteralFold, LiteralFoldError, ValidatedSelectedAnalysis};

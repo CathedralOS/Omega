@@ -137,7 +137,7 @@ pub(in crate::legalization) fn read(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<(
     semantic_vocabulary::OperationId,
-    abstract_operations::AbstractResult,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractResult,
     terminal_psi::StructuralArgument,
     semantic_vocabulary::StructuralFieldId,
 )> {
@@ -184,7 +184,7 @@ pub(in crate::legalization) fn read(
             field,
         } => (
             *psi_operation,
-            abstract_operations::AbstractResult {
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                 value: *result,
                 scalar_type: ScalarType::Boolean,
             },

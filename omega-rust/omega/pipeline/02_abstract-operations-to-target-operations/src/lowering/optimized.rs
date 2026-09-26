@@ -1,7 +1,7 @@
+use crate::target_operations::TargetOperationPlan;
 use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use std::sync::Arc;
 use target::NativeTarget;
-use target_operations::TargetOperationPlan;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
 use crate::{

@@ -53,16 +53,20 @@ fn whole_parameter_stores_into_a_sum_field() {
     assert!(plan.carrier_path.is_empty());
     assert!(matches!(
         plan.destination,
-        checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position: 0 }
+        crate::checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+            position: 0
+        }
     ));
     assert!(matches!(
         plan.value.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 }
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: 1
+        }
     ));
     assert!(plan.value.path.is_empty());
     assert_eq!(
         plan.value.access,
-        checked_trees::CheckedStructuralAccess::Owned
+        crate::checked_trees::CheckedStructuralAccess::Owned
     );
 }
 

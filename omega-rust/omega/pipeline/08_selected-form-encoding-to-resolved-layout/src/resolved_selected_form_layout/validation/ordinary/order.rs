@@ -1,7 +1,9 @@
 //! Independently reconstruct canonical fallthrough adjacency and complete coverage.
 use super::super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
-use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedTerminator};
 use std::collections::BTreeMap;
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedTerminator,
+};
 
 pub(super) fn derive(
     function: &SelectedFunction,

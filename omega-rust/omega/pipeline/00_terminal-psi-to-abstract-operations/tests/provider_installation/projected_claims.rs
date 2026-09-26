@@ -92,7 +92,7 @@ fn projected_provider_replay_rejects_path_receipt_and_provider_substitution() {
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
 
     let mut path_tamper = plan.clone();
-    let abstract_operations::AbstractOperation::BoundaryCall {
+    let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BoundaryCall {
         structural_arguments,
         ..
     } = &mut path_tamper.functions[0].operations[0]
@@ -106,7 +106,7 @@ fn projected_provider_replay_rejects_path_receipt_and_provider_substitution() {
     ));
 
     let mut receipt_tamper = plan.clone();
-    let abstract_operations::AbstractOperation::BoundaryCall {
+    let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BoundaryCall {
         completion_receipts,
         ..
     } = &mut receipt_tamper.functions[0].operations[0]

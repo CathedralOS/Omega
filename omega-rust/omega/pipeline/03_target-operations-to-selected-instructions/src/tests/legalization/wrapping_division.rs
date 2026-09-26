@@ -3,11 +3,13 @@
 //! zero, so each row carries the exact accepted nonzero-divisor fact, and
 //! replay rejects the sibling division family, swapped operands, and any
 //! other obligation or fact.
-use abstract_operations::AbstractOperation;
-use legalized_operations::{LegalizedExactIntegerOperator, LegalizedScalarInstructionKind};
+use crate::legalized_operations::{LegalizedExactIntegerOperator, LegalizedScalarInstructionKind};
 use optimization_core::AcceptedObligationFactIdentity;
-use optimization_unit::{AcceptedObligationFact, attach_accepted_obligation_facts};
 use semantic_vocabulary::{IntegerSign, IntegerType, ObligationId, OperationId, ScalarType};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    AcceptedObligationFact, attach_accepted_obligation_facts,
+};
 
 use super::saturating_arithmetic::{binary_inputs, hosted_targets, value};
 use crate::{legalize_target_operations, validate_legalized_operations};

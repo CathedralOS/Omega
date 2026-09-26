@@ -72,13 +72,13 @@ fn scalar_boundary_wrapper_retains_reordered_scalar_formals_and_actuals() {
     };
     assert!(matches!(
         &scalar_arguments[0],
-        checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Parameter {
+        crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Parameter {
             position: 1,
             primitive_type: PrimitiveType::I32
         })
     ));
     assert!(
-        matches!(&scalar_arguments[1], checked_trees::CheckedCallScalarArgument::Pure(
+        matches!(&scalar_arguments[1], crate::checked_trees::CheckedCallScalarArgument::Pure(
         CheckedScalarExpression::Boolean(expression)
     ) if matches!(expression.as_ref(), CheckedBooleanExpression::Parameter { position: 0 }))
     );
@@ -154,7 +154,7 @@ fn scalar_boundary_wrapper_partitions_interleaved_structural_signature() {
     assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
     assert!(matches!(
         &scalar_arguments[1],
-        checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Parameter {
+        crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Parameter {
             position: 1,
             primitive_type: PrimitiveType::I32
         })
@@ -200,7 +200,9 @@ fn scalar_boundary_wrapper_does_not_erase_scalar_requirements() {
             .unwrap()
             .closed_scalar_values
             .requires(),
-        [Some(checked_trees::ClosedScalarContractValue::Predicate(_))]
+        [Some(
+            crate::checked_trees::ClosedScalarContractValue::Predicate(_)
+        )]
     ));
     // Exact `+`/`-`/`*` arithmetic is closed contract vocabulary; a bitwise
     // operand is not.
@@ -246,10 +248,9 @@ fn mixed_scalar_boundary_wrapper_retains_implicit_range_in_dense_namespace() {
         .closed_scalar_values
         .requires();
     let [
-        Some(checked_trees::ClosedScalarContractValue::Predicate(CheckedBooleanExpression::And {
-            left,
-            right,
-        })),
+        Some(crate::checked_trees::ClosedScalarContractValue::Predicate(
+            CheckedBooleanExpression::And { left, right },
+        )),
     ] = requirements
     else {
         panic!("one complete retained range: {requirements:?}")
@@ -290,7 +291,7 @@ fn mixed_scalar_boundary_wrapper_retains_implicit_range_in_dense_namespace() {
         .closed_scalar_values
         .requires();
     let [
-        Some(checked_trees::ClosedScalarContractValue::Predicate(
+        Some(crate::checked_trees::ClosedScalarContractValue::Predicate(
             CheckedBooleanExpression::IntegerComparison { left, right, .. },
         )),
         Some(_),
@@ -327,7 +328,7 @@ fn scalar_parameter_range_collector_keeps_unsupported_endpoint_rows() {
         .iter_mut()
         .find(|contract| contract.machine == target)
         .unwrap();
-    contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+    contract.closed_scalar_values = crate::checked_trees::ClosedScalarValueContractPlan::new(
         Vec::new(),
         contract.closed_scalar_values.ensures().to_vec(),
         contract.closed_scalar_values.has_crash_clauses(),
@@ -357,7 +358,12 @@ fn scalar_parameter_range_collector_keeps_unsupported_endpoint_rows() {
         panic!("authored parameter range")
     };
     let constraints = *constraints;
-    let [typed_trees::types::TypeConstraintNode::Range { maximum, .. }] = checked
+    let [
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range {
+            maximum,
+            ..
+        },
+    ] = checked
         .typed
         .type_reference_table
         .constraints_mut(constraints)
@@ -704,7 +710,7 @@ fn scalar_boundary_wrapper_consumes_existing_constructed_local_kinds() {
             assert!(matches!(
                 &caller.operations[0],
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    result: checked_trees::CheckedUnitStructuralResultBindingPlan {
+                    result: crate::checked_trees::CheckedUnitStructuralResultBindingPlan {
                         statement_index: 0,
                         binding_ordinal: 0,
                         ..
@@ -771,7 +777,7 @@ fn scalar_boundary_wrapper_consumes_existing_constructed_local_kinds() {
         ] if result.statement_index == 0 && result.binding_ordinal == 0
             && coordinate.statement_index == 1 && structural_arguments.len() == 1
             && structural_arguments[0].source_structural_result_binding_ordinal() == Some(0)
-            && structural_arguments[0].access == checked_trees::CheckedStructuralAccess::Owned
+            && structural_arguments[0].access == crate::checked_trees::CheckedStructuralAccess::Owned
             && structural_arguments[0].path.is_empty() && claim_transfers.is_empty()
             && trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty()));
     }

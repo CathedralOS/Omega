@@ -21,28 +21,34 @@ pub(crate) struct DiscoveredMoveEvent {
     /// and production destinations have no expression; their source names the
     /// statement/call instead. Equal places at different occurrences are not
     /// interchangeable reads or moves.
-    pub(crate) expression: typed_trees::expression::ExpressionHandle,
-    pub(crate) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
-    pub(crate) root: facts::PlaceRoot,
-    pub(crate) segments: HandleSpan<facts::PlaceSegment>,
+    pub(crate) expression:
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    pub(crate) source_arm:
+        arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMatchArm>,
+    pub(crate) root: crate::fact_plan::PlaceRoot,
+    pub(crate) segments: HandleSpan<crate::fact_plan::PlaceSegment>,
 }
 
 pub(crate) struct DirectMoveEventSink<'segments> {
-    segments: &'segments mut arena::Arena<facts::PlaceSegment>,
-    pub(super) operators: &'segments checked_trees::CheckedOperatorFacts,
-    pub(super) machine: &'segments typed_trees::machine::Machine,
-    pub(super) state: &'segments typed_trees::state::State,
+    segments: &'segments mut arena::Arena<crate::fact_plan::PlaceSegment>,
+    pub(super) operators: &'segments crate::checked_trees::CheckedOperatorFacts,
+    pub(super) machine:
+        &'segments symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    pub(super) state: &'segments symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     events: Vec<DiscoveredMoveEvent>,
-    proof_only: Option<std::sync::Arc<typed_trees::proof_only::ProofOnlyClassification>>,
-    pub(super) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
+    proof_only: Option<
+        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
+    >,
+    pub(super) source_arm:
+        arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMatchArm>,
 }
 
 impl<'segments> DirectMoveEventSink<'segments> {
     pub(crate) fn new(
-        segments: &'segments mut arena::Arena<facts::PlaceSegment>,
-        operators: &'segments checked_trees::CheckedOperatorFacts,
-        machine: &'segments typed_trees::machine::Machine,
-        state: &'segments typed_trees::state::State,
+        segments: &'segments mut arena::Arena<crate::fact_plan::PlaceSegment>,
+        operators: &'segments crate::checked_trees::CheckedOperatorFacts,
+        machine: &'segments symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &'segments symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     ) -> Self {
         Self {
             segments,
@@ -63,19 +69,20 @@ impl<'segments> DirectMoveEventSink<'segments> {
 impl DirectMoveEventSink<'_> {
     pub(super) fn proof_only(
         &mut self,
-        program: &typed_trees::TypedTrees,
-    ) -> &typed_trees::proof_only::ProofOnlyClassification {
-        &**self
-            .proof_only
-            .get_or_insert_with(|| validation::proof_only_classification(program))
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ) -> &symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification
+    {
+        self.proof_only.get_or_insert_with(|| {
+            symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(program)
+        })
     }
 
     fn append_move_event(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         place: CanonicalPlace,
         source: FlowOwnershipEventSource,
-        expression: typed_trees::expression::ExpressionHandle,
+        expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     ) {
         self.events.push(DiscoveredMoveEvent {
             source,
@@ -88,11 +95,11 @@ impl DirectMoveEventSink<'_> {
 }
 
 pub(in crate::flow::ownership) fn append_move_event_for_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
     place: CanonicalPlace,
     source: FlowOwnershipEventSource,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) {
     sink.append_move_event(program, place, source, expression);
 }
@@ -105,10 +112,10 @@ pub(in crate::flow::ownership) fn append_move_event_for_place(
 /// so the permission producer could not publish a durable root for it. The
 /// machine symbol is the durable identity of the `self` instance.
 pub(crate) fn normalized_event_place_root(
-    program: &typed_trees::TypedTrees,
-    root: facts::PlaceRoot,
-) -> facts::PlaceRoot {
-    let facts::PlaceRoot::Symbol(symbol) = root else {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    root: crate::fact_plan::PlaceRoot,
+) -> crate::fact_plan::PlaceRoot {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = root else {
         return root;
     };
 
@@ -136,7 +143,7 @@ pub(crate) fn normalized_event_place_root(
                 .iter()
                 .any(|parameter| parameter.is_self && parameter.symbol == symbol)
     }) {
-        facts::PlaceRoot::Symbol(machine.symbol)
+        crate::fact_plan::PlaceRoot::Symbol(machine.symbol)
     } else {
         root
     }
@@ -146,15 +153,21 @@ pub(crate) fn normalized_event_place_root(
 mod tests {
     use super::SymbolHandle;
     use crate::flow::normalized_event_place_root;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::{
+        machine::Machine, signature::StateParameter, state::State,
+    };
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
-    use typed_trees::{machine::Machine, signature::StateParameter, state::State};
 
     fn program_with_self_parameter(
         machine_parent: bool,
         parameter_kind: SymbolKind,
         is_self: bool,
         stored_in_foreign_machine: bool,
-    ) -> (typed_trees::TypedTrees, SymbolHandle, SymbolHandle) {
+    ) -> (
+        symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        SymbolHandle,
+        SymbolHandle,
+    ) {
         let mut symbols = SymbolTableBuilder::new();
         let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Borrowed("root"));
         let machines = symbols.insert_children(
@@ -185,7 +198,7 @@ mod tests {
                 .next()
                 .expect("state parameter")
         };
-        let mut program = typed_trees::TypedTrees {
+        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
             symbols: symbols.finish(),
             ..Default::default()
         };
@@ -220,8 +233,11 @@ mod tests {
             let (program, machine, parameter) =
                 program_with_self_parameter(machine_parent, SymbolKind::Parameter, true, false);
             assert_eq!(
-                normalized_event_place_root(&program, facts::PlaceRoot::Symbol(parameter)),
-                facts::PlaceRoot::Symbol(machine)
+                normalized_event_place_root(
+                    &program,
+                    crate::fact_plan::PlaceRoot::Symbol(parameter)
+                ),
+                crate::fact_plan::PlaceRoot::Symbol(machine)
             );
         }
     }
@@ -236,7 +252,7 @@ mod tests {
         ] {
             let (program, _, parameter) =
                 program_with_self_parameter(false, kind, is_self, foreign);
-            let root = facts::PlaceRoot::Symbol(parameter);
+            let root = crate::fact_plan::PlaceRoot::Symbol(parameter);
             assert_eq!(normalized_event_place_root(&program, root), root);
         }
         let (program, machine, parameter) =
@@ -246,12 +262,12 @@ mod tests {
             machine,
             SymbolHandle::from_parts(parameter.arena_index(), parameter.generation() + 1),
         ] {
-            let root = facts::PlaceRoot::Symbol(symbol);
+            let root = crate::fact_plan::PlaceRoot::Symbol(symbol);
             assert_eq!(normalized_event_place_root(&program, root), root);
         }
         assert_eq!(
-            normalized_event_place_root(&program, facts::PlaceRoot::Unknown),
-            facts::PlaceRoot::Unknown
+            normalized_event_place_root(&program, crate::fact_plan::PlaceRoot::Unknown),
+            crate::fact_plan::PlaceRoot::Unknown
         );
     }
 }

@@ -146,7 +146,7 @@ fn store_cannot_resurrect_a_moved_local_from_its_declaration() {
 
 #[test]
 fn store_replay_rejects_substituted_local_and_field_custody() {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedStructuralScalarFieldStoreDestination, CheckedUnitEffectOperationPlan,
     };
     let (checked, _, _, _) = support::publish(SOURCE, "changed");
@@ -191,11 +191,9 @@ fn store_replay_rejects_substituted_local_and_field_custody() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            checked_trees::statement::StatementNode::LocalData(local)
-                if local.name.as_str() == "snapshot" =>
-            {
-                Some(local.symbol)
-            }
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+                local,
+            ) if local.name.as_str() == "snapshot" => Some(local.symbol),
             _ => None,
         })
         .unwrap();

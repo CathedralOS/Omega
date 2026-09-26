@@ -9,10 +9,10 @@ use super::{
     structural_type_id, terminal_scalar_type, unsupported,
 };
 fn reference_access(
-    access: checked_trees::CheckedStructuralAccess,
+    access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess,
 ) -> Result<StructuralAccess, LoweringError> {
     match access {
-        checked_trees::CheckedStructuralAccess::MutableBorrow => {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => {
             Ok(StructuralAccess::MutableBorrow)
         }
         _ => unsupported("stored reference access is outside retained mutable custody"),
@@ -30,38 +30,38 @@ pub(crate) fn terminal_structural_field_type(
 }
 
 pub(crate) fn terminal_byte_sequence_carrier(
-    carrier: checked_trees::CheckedByteSequenceCarrier,
+    carrier: typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceCarrier,
 ) -> ByteSequenceCarrier {
     match carrier {
         // The access crosses with the carrier. Collapsing it here would hand
         // Terminal a shared view for every authored `&mut [u8]`, which is what
         // left the verifier unable to check a byte store's authority.
-        checked_trees::CheckedByteSequenceCarrier::BorrowedView { access } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceCarrier::BorrowedView { access } => {
             ByteSequenceCarrier::BorrowedView {
                 access: access.map(|access| match access {
-                    checked_trees::CheckedStructuralAccess::Owned => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned => {
                         terminal_psi::StructuralAccess::Owned
                     }
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => {
                         terminal_psi::StructuralAccess::SharedBorrow
                     }
-                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => {
                         terminal_psi::StructuralAccess::MutableBorrow
                     }
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
                         terminal_psi::StructuralAccess::WriteOnlyBorrow
                     }
                 }),
             }
         }
-        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } => {
             ByteSequenceCarrier::BoundedOwned { capacity }
         }
     }
 }
 
 pub(crate) fn lower_mixed_fields(
-    fields: &[checked_trees::CheckedUnitStructuralFieldPlan],
+    fields: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralFieldPlan],
     type_ids: &[(String, StructuralTypeId)],
     next_field: &mut u64,
 ) -> Result<Vec<StructuralFieldDeclaration>, LoweringError> {
@@ -108,7 +108,7 @@ pub(crate) fn lower_mixed_fields(
 }
 
 pub(crate) fn lower_mixed_cases(
-    cases: &[checked_trees::CheckedUnitStructuralCasePlan],
+    cases: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralCasePlan],
     type_ids: &[(String, StructuralTypeId)],
     next_field: &mut u64,
     next_case: &mut u64,
@@ -453,7 +453,7 @@ pub(crate) fn retain_additional_structural_types(
 }
 
 pub(crate) fn lower_structural_type_plans(
-    plans: &[checked_trees::CheckedUnitStructuralTypePlan],
+    plans: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan],
 ) -> Result<
     (
         Vec<StructuralTypeDeclaration>,

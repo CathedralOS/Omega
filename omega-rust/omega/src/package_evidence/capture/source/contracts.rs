@@ -1,0 +1,71 @@
+use crate::package_evidence::capture::PackageReviewInput;
+use crate::package_evidence::capture::source::ProjectedNestedSourceLocation;
+use crate::package_evidence::record::PackageReviewSourceLocationRole;
+use diagnostics::Diagnostic;
+
+fn proof_fact_handle_at(
+    facts: arena::HandleSpan<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+    offset: u32,
+) -> arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact> {
+    arena::Handle::from_parts(
+        facts
+            .start()
+            .arena_index()
+            .checked_add(offset)
+            .expect("proof fact handle index overflow"),
+        facts.start().generation(),
+    )
+}
+
+pub(crate) fn project_required_proof_fact_source_locations(
+    compilation: &PackageReviewInput<'_>,
+    facts: arena::HandleSpan<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+    subject: &str,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let mut locations = Vec::with_capacity(facts.len());
+    for offset in 0..facts.count() {
+        let source_span = compilation
+            .proof_fact_source_span(proof_fact_handle_at(facts, offset))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "{subject} fact has no exact authored source custody"
+                ))]
+            })?;
+        locations.push(ProjectedNestedSourceLocation {
+            source_span,
+            role: PackageReviewSourceLocationRole::ProofFact,
+        });
+    }
+    Ok(locations)
+}
+
+pub(crate) fn project_contract_source_locations(
+    compilation: &PackageReviewInput<'_>,
+    contracts: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let mut locations = Vec::new();
+    for contract in contracts {
+        if let Some(source_span) = contract.keyword_source_span {
+            locations.push(ProjectedNestedSourceLocation {
+                source_span,
+                role: PackageReviewSourceLocationRole::ContractClause,
+            });
+        }
+        for offset in 0..contract.facts.count() {
+            let fact = proof_fact_handle_at(contract.facts, offset);
+            match compilation.proof_fact_source_span(fact) {
+                Some(source_span) => locations.push(ProjectedNestedSourceLocation {
+                    source_span,
+                    role: PackageReviewSourceLocationRole::ProofFact,
+                }),
+                None if contract.keyword_source_span.is_some() => {
+                    return Err(vec![Diagnostic::error(
+                        "authored package-review contract fact has no exact source custody",
+                    )]);
+                }
+                None => {}
+            }
+        }
+    }
+    Ok(locations)
+}

@@ -10,20 +10,20 @@ use super::{
     SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
-use crate::selection::construction::scalar_graph::row;
-use crate::selection::construction::scalar_graph::structural;
-use calling_conventions::ValueLocation;
-use legalized_operations::LegalizedScalarInstruction;
-use selected_instructions::{
+use crate::legalized_operations::LegalizedScalarInstruction;
+use crate::selected_instructions::{
     LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessRole,
     SelectedNormalizedForeignCall,
 };
+use crate::selection::construction::scalar_graph::row;
+use crate::selection::construction::scalar_graph::structural;
+use abstract_operations_to_target_operations::calling_conventions::ValueLocation;
 
 pub(super) fn emit(
     function: usize,
     source: &LegalizedScalarFunction,
     operation: &LegalizedScalarInstruction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedScalarInstructionKind::NormalizedForeignCall(call) = &operation.kind else {
@@ -153,26 +153,25 @@ pub(super) fn emit(
                     stack_byte_offset, ..
                 },
             ] => {
-                let slot = selected_instructions::OutgoingArgumentSlotId {
-                    role: selected_instructions::OutgoingArgumentSlotRole::Argument,
+                let slot = crate::selected_instructions::OutgoingArgumentSlotId {
+                    role: crate::selected_instructions::OutgoingArgumentSlotRole::Argument,
                     operation: operation.operation,
                     argument_index: argument_index
                         .try_into()
                         .map_err(|_| SelectedInstructionError::custody())?,
                 };
-                builder
-                    .transport
-                    .slots
-                    .push(selected_instructions::SelectedOutgoingArgumentSlot {
+                builder.transport.slots.push(
+                    crate::selected_instructions::SelectedOutgoingArgumentSlot {
                         id: slot,
                         byte_size: 8,
                         alignment: 8,
                         abi_stack_byte_offset: *stack_byte_offset,
-                    });
+                    },
+                );
                 builder
                     .transport
                     .memory
-                    .push(selected_instructions::SelectedMemoryAccess {
+                    .push(crate::selected_instructions::SelectedMemoryAccess {
                         instruction: SelectedInstructionId(
                             builder
                                 .instructions
@@ -180,7 +179,7 @@ pub(super) fn emit(
                                 .try_into()
                                 .map_err(|_| SelectedInstructionError::custody())?,
                         ),
-                        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                        origin: crate::selected_instructions::SelectedMemoryAccessOrigin::Operation(
                             operation.operation,
                         ),
                         place: argument.place,
@@ -190,7 +189,7 @@ pub(super) fn emit(
                     });
                 builder.emit(
                     SelectedInstructionKind::Store64 {
-                        slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
+                        slot: crate::selected_instructions::FrameStorageSlotId::Outgoing(slot),
                         byte_offset: 0,
                     },
                     builder
@@ -215,7 +214,7 @@ pub(super) fn emit(
             call.binding.boundary_entry_plan.call.parameters[*position as usize]
                 .shape
                 .class
-                == calling_conventions::ValueClass::Float,
+                == abstract_operations_to_target_operations::calling_conventions::ValueClass::Float,
             *position,
         )
     });

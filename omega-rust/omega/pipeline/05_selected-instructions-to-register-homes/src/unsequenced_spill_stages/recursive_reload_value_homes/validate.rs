@@ -1,10 +1,10 @@
 //! Independent replay comparison and complete-home receipt sealing.
 
-use register_model::{
+use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::unsequenced_spill_stages::{
     RecursiveReloadValueHomeError, RecursiveReloadValueHomePlan, RecursiveReloadValueHomeReceipt,

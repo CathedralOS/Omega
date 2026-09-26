@@ -1,8 +1,8 @@
 //! A semantic register without physical requirements needs no manufactured home.
 
 use crate::RegisterHomeError;
-use register_homes::VirtualRegisterAllocationLegality;
-use selected_instructions::{FunctionLiveRanges, VirtualLiveRange};
+use selected_instructions_to_selected_instructions::register_homes::VirtualRegisterAllocationLegality;
+use target_operations_to_selected_instructions::{FunctionLiveRanges, VirtualLiveRange};
 
 /// This checks facts, not placement. Producer and replay construct their own
 /// home rosters after rejecting empty rows that still carry physical obligations.

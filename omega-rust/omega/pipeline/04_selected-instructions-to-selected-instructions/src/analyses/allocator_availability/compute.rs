@@ -1,14 +1,14 @@
 use std::collections::BTreeSet;
 
-use register_model::{
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
-use target::NativeTarget;
 
 use crate::AllocatorAvailabilityError;
-use register_homes::{
+use crate::register_homes::{
     AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, RegisterClassAvailability,
 };
 
@@ -63,15 +63,19 @@ fn admitted_views(
     physical: &ValidatedPhysicalRegisterModel,
     reservations: &ValidatedRegisterReservationProfile,
     policy: &AllocatorAvailabilityPolicy,
-) -> Result<BTreeSet<register_model::RegisterViewId>, AllocatorAvailabilityError> {
-    let is_environment_allocatable = |view: &register_model::RegisterView| {
-        view.allocatable
-            && view
-                .units
-                .iter()
-                .chain(&view.write_units)
-                .all(|unit| !reservations.reserved_units().contains(unit))
-    };
+) -> Result<
+    BTreeSet<target_operations_to_selected_instructions::register_model::RegisterViewId>,
+    AllocatorAvailabilityError,
+> {
+    let is_environment_allocatable =
+        |view: &target_operations_to_selected_instructions::register_model::RegisterView| {
+            view.allocatable
+                && view
+                    .units
+                    .iter()
+                    .chain(&view.write_units)
+                    .all(|unit| !reservations.reserved_units().contains(unit))
+        };
     match policy {
         AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1 => Ok(physical
             .model()

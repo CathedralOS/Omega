@@ -11,28 +11,28 @@ use crate::values::scalar::expression_plans::ScalarLocal;
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use crate::values::scalar::semantic_casts;
 use crate::values::scalar_expression_type;
-use checked_trees::CheckedBooleanExpression;
-use checked_trees::CheckedOperatorFacts;
-use checked_trees::CheckedOperatorResolutionStatus;
-use checked_trees::CheckedScalarExpression;
-use checked_trees::CheckedScalarExpressionPlans;
-use checked_trees::CheckedScalarExpressionRole;
-use checked_trees::{
+use crate::checked_trees::CheckedBooleanExpression;
+use crate::checked_trees::CheckedOperatorFacts;
+use crate::checked_trees::CheckedOperatorResolutionStatus;
+use crate::checked_trees::CheckedScalarExpression;
+use crate::checked_trees::CheckedScalarExpressionPlans;
+use crate::checked_trees::CheckedScalarExpressionRole;
+use crate::checked_trees::{
     CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarComputationPlans, CheckedScalarComputationRoot, FlowFacts, ProofFacts,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::BinaryOperator;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::expression::UnaryOperator;
-use typed_trees::signature::StateParameter;
-use typed_trees::statement::StatementNode;
-use typed_trees::statement::TransitionTargetNode;
-use typed_trees::types::PrimitiveType;
-use typed_trees::types::TypeReferenceNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::UnaryOperator;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 
 mod call_arguments;
 mod cases;
@@ -49,7 +49,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
-    borrow: &checked_trees::BorrowFacts,
+    borrow: &crate::checked_trees::BorrowFacts,
     proof: &ProofFacts,
     pure: &CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -70,16 +70,16 @@ pub(crate) fn build_checked_value_computation_plans(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
-    borrow: &checked_trees::BorrowFacts,
+    borrow: &crate::checked_trees::BorrowFacts,
     proof: &ProofFacts,
     pure: &CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> (
     CheckedScalarComputationPlans,
-    checked_trees::CheckedStructuralValuePlans,
+    crate::checked_trees::CheckedStructuralValuePlans,
 ) {
     let mut plans = CheckedScalarComputationPlans::default();
-    let mut structural_values = checked_trees::CheckedStructuralValuePlans::default();
+    let mut structural_values = crate::checked_trees::CheckedStructuralValuePlans::default();
     for machine in program.machines() {
         // Existing named-output emission joins statement binding positions.
         // It must not silently reinterpret computation-local call positions.
@@ -168,7 +168,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             expected,
                         )
                         // A copyable `Unrestricted` leaf under a shared borrow
-                        // is the same admission shape — the copy op observes
+                        // is the same admission shape â€” the copy op observes
                         // where the case fan-out cannot reconstruct payloads.
                         || structural_values::is_copied_place_value(
                             program,
@@ -210,7 +210,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 {
                     structural_values
                         .roots
-                        .append(checked_trees::CheckedStructuralValueRoot {
+                        .append(crate::checked_trees::CheckedStructuralValueRoot {
                             machine: machine.symbol,
                             state: state.symbol,
                             statement_ordinal,
@@ -237,7 +237,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             pure,
                             statement_ordinal,
                             CheckedScalarExpressionRole::ArrayElement {
-                                source: checked_trees::CheckedArrayConstructionSource::Statement,
+                                source: crate::checked_trees::CheckedArrayConstructionSource::Statement,
                                 element_ordinal,
                             },
                             element,
@@ -453,7 +453,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     {
                         structural_values
                             .roots
-                            .append(checked_trees::CheckedStructuralValueRoot {
+                            .append(crate::checked_trees::CheckedStructuralValueRoot {
                                 machine: machine.symbol,
                                 state: state.symbol,
                                 statement_ordinal,
@@ -583,7 +583,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 let StatementNode::Transition(transition) = statement else {
                     continue;
                 };
-                if let typed_trees::statement::TransitionGuardNode::When(expression) =
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(expression) =
                     transition.guard
                 {
                     builder.record_root(
@@ -600,7 +600,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     if !target.is_valid() {
                         continue;
                     }
-                    if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                    if transition.exit == symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionExit::Ordinary
                         && let TransitionTargetNode::Value(expression) =
                             program.statement_table.transition_target(target)
                         && program
@@ -615,7 +615,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     {
                         structural_values
                             .roots
-                            .append(checked_trees::CheckedStructuralValueRoot {
+                            .append(crate::checked_trees::CheckedStructuralValueRoot {
                                 machine: machine.symbol,
                                 state: state.symbol,
                                 statement_ordinal,
@@ -624,7 +624,7 @@ pub(crate) fn build_checked_value_computation_plans(
                                 root,
                             });
                     }
-                    if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                    if transition.exit == symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionExit::Ordinary
                         && let TransitionTargetNode::Value(expression) =
                             program.statement_table.transition_target(target)
                         && let Some(result_type) =
@@ -713,7 +713,7 @@ struct Builder<'program, 'plans> {
     program: &'program TypedTrees,
     operators: &'program CheckedOperatorFacts,
     flow: &'program FlowFacts,
-    borrow: &'program checked_trees::BorrowFacts,
+    borrow: &'program crate::checked_trees::BorrowFacts,
     exact_integer_casts: &'program [validation::ExactIntegerCastFact],
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -844,11 +844,11 @@ impl Builder<'_, '_> {
                     self.program
                         .type_reference_table
                         .type_reference(cast.target_type),
-                    typed_trees::types::TypeReferenceNode::Named { .. }
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { .. }
                 )
                 || cast.domain != ArithmeticDomain::Exact
                 || !cast.semantic_domain_id.is_valid()
-                || !crate::facts::domain_is_vacuous(
+                || !crate::crate::fact_plan::domain_is_vacuous(
                     self.program,
                     cast.semantic_domain_symbol,
                     &mut Vec::new(),
@@ -876,7 +876,7 @@ impl Builder<'_, '_> {
         if expected_type == PrimitiveType::Bool
             && let Some(operator_use) = self.comparison_use(
                 expression,
-                checked_trees::CheckedOperatorOccurrence::Expression,
+                crate::checked_trees::CheckedOperatorOccurrence::Expression,
             )
             && let Some(primitive) = self.selected_comparison_primitive(operator_use)
         {
@@ -1034,7 +1034,7 @@ impl Builder<'_, '_> {
                                 return None;
                             }
                             structural_arguments.push(
-                                checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                                crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(
                                     case,
                                 ),
                             );
@@ -1069,7 +1069,7 @@ impl Builder<'_, '_> {
                             }
                             let elements = self.plans.operands.insert_many(elements);
                             structural_arguments.push(
-                                checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                                crate::checked_trees::CheckedScalarComputationStructuralArgument::Array {
                                     expression: *argument,
                                     type_reference: parameter.type_reference,
                                     elements,
@@ -1103,7 +1103,7 @@ impl Builder<'_, '_> {
                             )
                         });
                         structural_arguments.push(
-                            checked_trees::CheckedScalarComputationStructuralArgument::Place(
+                            crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(
                                 argument_plan?,
                             ),
                         );
@@ -1136,7 +1136,7 @@ impl Builder<'_, '_> {
                 // A known skipped RHS has no FlowCallFact and must not need one.
                 if let CheckedScalarComputationKind::Value(value) =
                     &self.plans.nodes.get(condition).kind
-                    && let Some(facts::ScalarValue::Boolean(value)) =
+                    && let Some(crate::fact_plan::ScalarValue::Boolean(value)) =
                         crate::values::evaluate_checked_scalar(value, &mut |_| None)
                 {
                     return if value == evaluate_when {
@@ -1236,7 +1236,7 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
         target: SymbolHandle,
-    ) -> Option<(arena::Handle<checked_trees::FlowCallFact>, u32)> {
+    ) -> Option<(arena::Handle<crate::checked_trees::FlowCallFact>, u32)> {
         let state = self.flow.control.states.iter().find_map(|(_, state)| {
             (state.machine_symbol == self.machine && state.state_symbol == self.state)
                 .then_some(state)

@@ -1,11 +1,11 @@
+use crate::register_homes::{
+    FixedPrecoloredIntervalPolicy, FixedPrecoloredSourceSegmentOpening,
+    FixedPrecoloredSplitRequirementPlan, fixed_precolored_split_requirement_plan_identity,
+};
 use crate::{
     FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
     ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
     ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges,
-};
-use register_homes::{
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredSourceSegmentOpening,
-    FixedPrecoloredSplitRequirementPlan, fixed_precolored_split_requirement_plan_identity,
 };
 
 pub fn validate_fixed_precolored_split_requirements(

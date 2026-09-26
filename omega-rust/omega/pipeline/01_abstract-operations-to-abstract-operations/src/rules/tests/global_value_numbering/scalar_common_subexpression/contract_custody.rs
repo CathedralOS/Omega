@@ -18,8 +18,10 @@ use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
     OptimizationValidatorIdentity,
 };
-use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_dominating_scalar_common_subexpression_candidate,
     validate_local_scalar_common_subexpression_candidate,
     validate_phi_translated_scalar_common_subexpression_candidate,
@@ -132,7 +134,10 @@ fn cases() -> Vec<Case> {
 fn validate(
     case: &Case,
     candidate: &PsiRewriteCandidate,
-) -> Result<optimization_unit_semantics::ValidatedPsiRewrite, OptimizationUnitValidationError> {
+) -> Result<
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::ValidatedPsiRewrite,
+    OptimizationUnitValidationError,
+> {
     match case.route {
         ValidationRoute::SameBlock => {
             validate_local_scalar_common_subexpression_candidate(&case.unit, candidate)

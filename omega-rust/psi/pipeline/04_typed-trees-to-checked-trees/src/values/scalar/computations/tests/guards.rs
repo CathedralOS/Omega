@@ -5,7 +5,7 @@ use super::{
 use crate::values::build_checked_scalar_computation_plans;
 use crate::values::scalar::computations::tests::checked_source;
 
-fn guard_program(expression: &str) -> checked_trees::CheckedTrees {
+fn guard_program(expression: &str) -> crate::checked_trees::CheckedTrees {
     checked_source(
         &format!(
             "machine inner(input: bool) -> bool {{ input }}
@@ -18,7 +18,7 @@ fn guard_program(expression: &str) -> checked_trees::CheckedTrees {
     )
 }
 
-fn guard_root(checked: &checked_trees::CheckedTrees) -> &CheckedScalarComputationRoot {
+fn guard_root(checked: &crate::checked_trees::CheckedTrees) -> &CheckedScalarComputationRoot {
     let machine = checked
         .machines()
         .iter()
@@ -36,7 +36,10 @@ fn guard_root(checked: &checked_trees::CheckedTrees) -> &CheckedScalarComputatio
     else {
         panic!("authored transition");
     };
-    let typed_trees::statement::TransitionGuardNode::When(expression) = transition.guard else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(
+        expression,
+    ) = transition.guard
+    else {
         panic!("authored guard");
     };
     let node = checked
@@ -50,7 +53,7 @@ fn guard_root(checked: &checked_trees::CheckedTrees) -> &CheckedScalarComputatio
     root
 }
 
-fn guard_nodes(checked: &checked_trees::CheckedTrees) -> Vec<&CheckedScalarComputation> {
+fn guard_nodes(checked: &crate::checked_trees::CheckedTrees) -> Vec<&CheckedScalarComputation> {
     let plans = &checked.facts.values.scalar_computations;
     let mut pending = vec![guard_root(checked).root];
     let mut nodes = Vec::new();
@@ -60,12 +63,13 @@ fn guard_nodes(checked: &checked_trees::CheckedTrees) -> Vec<&CheckedScalarCompu
             CheckedScalarComputationKind::StructuralField { .. } => {}
             CheckedScalarComputationKind::CaseMembership {
                 subject:
-                    checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
-                    | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+                    crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
+                    | crate::checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
                 ..
             } => {}
             CheckedScalarComputationKind::CaseMembership {
-                subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                subject:
+                    crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                 ..
             } => {
                 pending.extend(
@@ -101,7 +105,8 @@ fn guard_nodes(checked: &checked_trees::CheckedTrees) -> Vec<&CheckedScalarCompu
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in plans.dispatch_arms.span_or_empty(*arms) {
-                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
+                    if let crate::checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                        arm.pattern
                     {
                         pending.push(pattern);
                     }
@@ -255,7 +260,7 @@ fn scalar_computations_retain_lone_call_guard_binding() {
         .unwrap();
     assert!(matches!(
         graph.states[0].bindings[0].value,
-        checked_trees::CheckedScalarBindingValue::Computation
+        crate::checked_trees::CheckedScalarBindingValue::Computation
     ));
 }
 

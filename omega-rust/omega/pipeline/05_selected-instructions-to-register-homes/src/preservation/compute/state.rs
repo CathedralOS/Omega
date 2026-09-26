@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::{RegisterOperandAccess, RegisterUnitId, ValidatedPhysicalRegisterModel};
-use selected_instructions::{SelectedBlockId, SelectedInstruction};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, RegisterUnitId, ValidatedPhysicalRegisterModel,
+};
+use target_operations_to_selected_instructions::{SelectedBlockId, SelectedInstruction};
 
 use super::super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedUnitRequirement,

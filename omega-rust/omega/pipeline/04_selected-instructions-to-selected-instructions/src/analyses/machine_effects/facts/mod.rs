@@ -4,22 +4,22 @@ mod compute;
 mod validate;
 
 pub(crate) use compute::machine_semantic_kind;
-pub use selected_instructions::{
+pub use target_operations_to_selected_instructions::{
     PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
 };
 pub use validate::validate_pre_allocation_machine_effects;
 
 use crate::ValidatedSelectedAnalysis;
-use register_model::{
+use std::sync::Arc;
+use target_operations_to_selected_instructions::ValidatedMachineEffectCatalog;
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
-use selected_instructions::ValidatedMachineEffectCatalog;
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     MachineEffectCatalogIdentity, SelectedInstructionId, SelectedInstructionPlanIdentity,
 };
-use std::sync::Arc;
 
 /// Compute and independently reconstruct the complete pre-allocation effect
 /// sidecar. This grants no transformation, home, emission, or publication

@@ -1,20 +1,23 @@
 //! Exact alternative-selection fixtures.
 
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     RegisterClassId, RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel,
     validate_physical_register_model,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineLatencyKnowledge, MachineSizeKnowledge, VirtualRegisterId,
 };
 
-use physical_instructions::PhysicalOperandFootprint;
+use crate::physical_instructions::PhysicalOperandFootprint;
 
 use super::alternative::choose;
 
 fn physical() -> ValidatedPhysicalRegisterModel {
-    validate_physical_register_model(isa_x86_64::x86_64_physical_register_model()).unwrap()
+    validate_physical_register_model(
+        target_operations_to_selected_instructions::isa_x86_64::x86_64_physical_register_model(),
+    )
+    .unwrap()
 }
 
 fn view(physical: &ValidatedPhysicalRegisterModel, name: &str) -> RegisterViewId {
@@ -48,7 +51,10 @@ fn alternative(variant: u32, applicability: MachineAlternativeApplicability) -> 
         applicability,
         size: MachineSizeKnowledge::ExactBytes(3),
         latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-        encoded: selected_instructions::MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]),
+        encoded: target_operations_to_selected_instructions::MachineEncodedEffects::fallthrough_v1(
+            vec![0, 1],
+            vec![2],
+        ),
     }
 }
 
@@ -133,7 +139,10 @@ fn x86_lea_add_accepts_r12_as_a_rex_extended_sib_index() {
             maximum_bytes: Some(5),
         },
         latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-        encoded: selected_instructions::MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]),
+        encoded: target_operations_to_selected_instructions::MachineEncodedEffects::fallthrough_v1(
+            vec![0, 1],
+            vec![2],
+        ),
     };
     let operands = [operand(0, r12), operand(1, r12), operand(2, rax)];
     assert_eq!(

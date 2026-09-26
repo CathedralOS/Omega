@@ -1,16 +1,20 @@
 //! Source-produced bounded byte fields presented to an external boundary.
 use super::lower_machine;
-use crate::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_interpreter::TerminalStructuralInputs;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 mod checked_provider;
-use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalStructuralValue,
 };
 use terminal_psi::OperationKind;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+};
 
 const INPUT_SOURCE: &str = r#"
         domain [u8; 3]::Utf8 requires valid_utf8(self);
@@ -32,15 +36,18 @@ const INPUT_SOURCE: &str = r#"
 
 fn start(source: &str) -> (terminal_psi::TerminalModule, TerminalExecution) {
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Record::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Record::run",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

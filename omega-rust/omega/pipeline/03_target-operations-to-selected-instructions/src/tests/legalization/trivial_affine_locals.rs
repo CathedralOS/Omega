@@ -1,26 +1,28 @@
 //! An empty-record affine local passed whole to an owned parameter: the
 //! establishment realizes no storage, and the call names it as the zero-byte
 //! argument's producer.
+use crate::legalized_operations::LegalizedScalarInstructionKind;
 use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_selected_instructions,
 };
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan,
-};
 use abstract_operations_to_target_operations::TargetLoweringRequest;
-use legalized_operations::LegalizedScalarInstructionKind;
+use abstract_operations_to_target_operations::target_operations::{
+    TargetStructuralArgumentSource, TargetUnitOperation,
+};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId, StructuralPlaceKind,
     StructuralTypeId,
 };
 use target::NativeTarget;
-use target_operations::{TargetStructuralArgumentSource, TargetUnitOperation};
 use terminal_psi::{
     SemanticFingerprint, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan,
 };
 
 fn empty() -> StructuralTypeDeclaration {
@@ -137,16 +139,16 @@ fn fixture(
     native: NativeTarget,
 ) -> (
     AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let source = source();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("the empty local is an owned affine call source");
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &source,
@@ -186,7 +188,7 @@ fn empty_local_transfers_as_a_zero_byte_owned_argument() {
                 ))
         );
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,

@@ -5,8 +5,8 @@ use crate::validation::{
     OptimizedAbstractPlanProjectionError, PrePhysicalOptimizationManifestError,
 };
 use optimization_core::OptimizationCandidateIdentity;
-use optimization_unit_semantics::OptimizationUnitValidationError;
 use semantic_vocabulary::MachineId;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppliedDecisionCustodyAxis {

@@ -1,10 +1,10 @@
 use crate::resolution::ResolutionRequest;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 
 fn resolve(texts: &[&str]) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     let mut sources = SourceMap::default();
@@ -70,7 +70,7 @@ fn module_closed_conformance_rows_retain_the_exact_declaring_trait() {
         .iter()
         .next()
         .expect("one conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed implementation retained");

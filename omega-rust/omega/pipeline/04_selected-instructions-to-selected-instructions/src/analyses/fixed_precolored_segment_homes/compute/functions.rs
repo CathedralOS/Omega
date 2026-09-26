@@ -1,10 +1,10 @@
-use register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
 use crate::FixedPrecoloredSegmentHomeError;
-use register_homes::{
+use crate::register_homes::{
     FunctionFixedPrecoloredSegmentHomes, FunctionFixedPrecoloredSplitRequirements,
 };
-use selected_instructions::FunctionLiveRanges;
+use target_operations_to_selected_instructions::FunctionLiveRanges;
 
 use super::{conflicts, domains, placement, work::Work};
 

@@ -60,7 +60,7 @@ pub(super) fn propose(
 
 fn destination(
     function: &PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     counted: &UnsignedCountdownLoopSummary,
 ) -> Result<CountdownInvariantConstantDestination, CountdownInvariantConstantPlacementAnalysisError>
 {
@@ -112,7 +112,7 @@ fn destination(
 
 fn consumer(
     function: &PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     constant: &CountdownInvariantIntegerConstant,
 ) -> Result<CountdownInvariantConstantConsumer, CountdownInvariantConstantPlacementAnalysisError> {

@@ -2,11 +2,11 @@ use crate::diagnostics::parse_error::ParseError;
 use crate::diagnostics::render_diagnostic as diagnostics;
 use crate::input::delimited::find_top_level_punctuation;
 use crate::input::literals::{parse_integer_literal, validate_float_literal};
+use crate::syntax_trees::identifier::Identifier;
 use arena::{Handle, HandleSpan};
 use numerics::literals::IntegerLiteral;
 use source::{SourceId, SourceSpan, SourceText, Span};
-use syntax_trees::identifier::Identifier;
-use tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenText};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenText};
 
 pub(crate) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'source>), ParseError>;
 

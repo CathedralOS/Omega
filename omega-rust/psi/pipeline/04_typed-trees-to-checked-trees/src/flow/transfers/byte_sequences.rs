@@ -2,34 +2,34 @@
 //! The destination retains a materialized-value fact, not expressions that
 //! would read the mutable operands again at a later contract boundary.
 use super::PlaceHandle;
+use crate::checked_trees::FlowSemanticContextRef;
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::fact_plan::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
 use crate::flow::normalize_attached_place_root;
 use crate::flow::normalized_event_place_root;
 use crate::flow::transfers::contextual_expression_place;
 use arena::HandleSpan;
-use checked_trees::FlowSemanticContextRef;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
-};
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_concatenated_predicates(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     contexts: &FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
     expression: ExpressionHandle,
     destination: PlaceHandle,
     point: ProgramPoint,
-    references: &mut HandleSpan<facts::FactRef>,
+    references: &mut HandleSpan<crate::fact_plan::FactRef>,
 ) {
     if !matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Binary(binary)
-            if binary.operator == typed_trees::expression::BinaryOperator::Add
+            if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Add
     ) {
         return;
     }
@@ -48,7 +48,10 @@ pub(super) fn append_concatenated_predicates(
     for domain in program.domain_definitions() {
         // Concatenation proves a byte predicate, never a routed qualification.
         if !domain.establishment_routes.is_empty()
-            || !typed_trees::domain::index_parameters(program, domain).is_empty()
+            || !symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
+                program, domain,
+            )
+            .is_empty()
             || domain.alias.is_some()
             || !domain.predicate_body.is_present()
             || !crate::facts::field_domain::domain_is_concat_preserving(program, domain.symbol)
@@ -80,7 +83,7 @@ pub(super) fn append_concatenated_predicates(
 }
 
 fn value_proves_predicate(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     active: &[Fact],
     expression: ExpressionHandle,
@@ -93,7 +96,8 @@ fn value_proves_predicate(
         return true;
     }
     if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
-        && binary.operator == typed_trees::expression::BinaryOperator::Add
+        && binary.operator
+            == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Add
     {
         return value_proves_predicate(program, semantic, active, binary.left, domain, point)
             && value_proves_predicate(program, semantic, active, binary.right, domain, point);
@@ -163,7 +167,7 @@ fn value_proves_predicate(
 /// class the previous store left behind.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_element_replacement_predicates(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     contexts: &mut FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
@@ -172,10 +176,10 @@ pub(super) fn append_element_replacement_predicates(
     statement_index: usize,
     target: ExpressionHandle,
     source_expression: ExpressionHandle,
-    scalar_value: Option<&facts::ScalarValue>,
-    integer_bounds: Option<&facts::IntegerRange>,
+    scalar_value: Option<&crate::fact_plan::ScalarValue>,
+    integer_bounds: Option<&crate::fact_plan::IntegerRange>,
     point: ProgramPoint,
-    references: &mut HandleSpan<facts::FactRef>,
+    references: &mut HandleSpan<crate::fact_plan::FactRef>,
 ) {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
         return;
@@ -212,16 +216,16 @@ pub(super) fn append_element_replacement_predicates(
         .all(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::Field { .. }
-                    | facts::PlaceSegment::Case { .. }
-                    | facts::PlaceSegment::FixedIndex { .. }
+                crate::fact_plan::PlaceSegment::Field { .. }
+                    | crate::fact_plan::PlaceSegment::Case { .. }
+                    | crate::fact_plan::PlaceSegment::FixedIndex { .. }
             )
         })
     {
         return;
     }
     let byte = match scalar_value {
-        Some(facts::ScalarValue::Integer(value)) => {
+        Some(crate::fact_plan::ScalarValue::Integer(value)) => {
             value.to_i64().and_then(|value| u8::try_from(value).ok())
         }
         _ => None,
@@ -277,7 +281,7 @@ pub(super) fn append_element_replacement_predicates(
     let carrier_ceiling: Vec<crate::facts::field_domain::ByteSequencePredicate> = canonical_carrier
         .as_ref()
         .and_then(|place| {
-            (place.root == facts::PlaceRoot::Symbol(machine_symbol)).then(|| {
+            (place.root == crate::fact_plan::PlaceRoot::Symbol(machine_symbol)).then(|| {
                 crate::flow::state_values::field_predicate_ceiling(
                     contexts,
                     state_symbol,
@@ -315,7 +319,7 @@ pub(super) fn append_element_replacement_predicates(
     let ascii_stored = stored_in(crate::facts::field_domain::ByteSequencePredicate::AsciiOnly);
     if let Some(carrier_place) = canonical_carrier
         .as_ref()
-        .filter(|place| place.root == facts::PlaceRoot::Symbol(machine_symbol))
+        .filter(|place| place.root == crate::fact_plan::PlaceRoot::Symbol(machine_symbol))
     {
         // The byte side of this store alone -- no carrier premise -- is what
         // the outgoing edges could deliver for the carrier if the state's
@@ -403,7 +407,7 @@ pub(super) fn append_element_replacement_predicates(
 // Read captured scalar values without replaying mutable operand expressions.
 #[allow(clippy::too_many_arguments)]
 fn replacement_byte(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     contexts: &FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
@@ -428,7 +432,7 @@ fn replacement_byte(
         )?;
         let subject =
             canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
-        let facts::ScalarValue::Integer(value) = crate::values::scalar_value_at_place(
+        let crate::fact_plan::ScalarValue::Integer(value) = crate::values::scalar_value_at_place(
             program,
             semantic,
             contexts
@@ -451,7 +455,7 @@ fn replacement_byte(
 /// exact literal snapshot, an already-proved per-byte class, or a declared
 /// domain whose own predicate implies it.
 fn carrier_proves_predicate(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &FactPlan,
     active: &[Fact],
     machine_symbol: SymbolHandle,
@@ -508,7 +512,7 @@ fn carrier_proves_predicate(
 }
 
 fn index_free_membership(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: symbols::SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
@@ -518,7 +522,10 @@ fn index_free_membership(
         .iter()
         .find(|domain| domain.symbol == symbol)
         .is_some_and(|domain| {
-            typed_trees::domain::index_parameters(program, domain).is_empty()
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
+                program, domain,
+            )
+            .is_empty()
                 && (!semantic_domain.is_valid() || semantic_domain == domain.semantic_id)
         })
 }

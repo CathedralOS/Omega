@@ -32,7 +32,7 @@ fn borrowed_case_getter_retains_ordered_refined_scalar_returns() {
         .scalar_control
         .as_ref()
         .expect("ordered scalar result owner");
-    let checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } =
+    let crate::checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } =
         &control.terminator
     else {
         panic!("ordered guards");
@@ -77,7 +77,7 @@ fn ordered_scalar_guards_retain_explicit_fallback() {
         .iter()
         .find(|plan| plan.machine == machine)
         .expect("ordinary guarded scalar body");
-    let checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } =
+    let crate::checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } =
         &plan.scalar_control.as_ref().unwrap().terminator
     else {
         panic!("ordered guards");
@@ -91,7 +91,7 @@ fn ordered_scalar_guards_retain_explicit_fallback() {
         .unwrap();
     assert_eq!(arms.len(), 2);
     assert!(
-        matches!(fallback, Some(checked_trees::CheckedScalarBranchDestination::Return { statement_ordinal, is_continuation: false }) if *statement_ordinal == arms[1].guard_statement_ordinal + 1)
+        matches!(fallback, Some(crate::checked_trees::CheckedScalarBranchDestination::Return { statement_ordinal, is_continuation: false }) if *statement_ordinal == arms[1].guard_statement_ordinal + 1)
     );
 }
 
@@ -230,12 +230,12 @@ fn guarded_payloadless_identity_call_rejects_static_requirement_dispatch() {
         .flat_map(|machine| checked.machine_states(machine))
         .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
         .filter_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local) => Some(local.initial_value),
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) => Some(local.initial_value),
             _ => None,
         })
         .filter_map(
             |expression| match checked.expression_table.expression(expression) {
-                typed_trees::expression::ExpressionNode::Call(call) => Some(call),
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => Some(call),
                 _ => None,
             },
         )
@@ -281,15 +281,16 @@ fn exact_payloadless_case_return_keeps_its_ordinary_unit_plan() {
 
     let machine = machine_named(&checked, "choose");
     assert!(
-        checked_trees::CheckedReturnPlan::for_machine(&checked.facts.flow, machine).is_none(),
+        crate::checked_trees::CheckedReturnPlan::for_machine(&checked.facts.flow, machine)
+            .is_none(),
         "a zero-input case constructor has no return family of its own"
     );
-    let Some(checked_trees::CheckedUnitPlan::ComposedControl(plan)) =
-        checked_trees::CheckedUnitPlan::for_machine(&checked.facts.flow, machine)
+    let Some(crate::checked_trees::CheckedUnitPlan::ComposedControl(plan)) =
+        crate::checked_trees::CheckedUnitPlan::for_machine(&checked.facts.flow, machine)
     else {
         panic!("the zero-input case constructor keeps the ordinary composed Unit plan")
     };
-    let checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result else {
+    let crate::checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result else {
         panic!("the constructed case is the plan's structural result")
     };
     assert_eq!(result.multiplicity, Multiplicity::Unrestricted);
@@ -302,7 +303,7 @@ fn exact_payloadless_case_return_keeps_its_ordinary_unit_plan() {
     // The case is an ordinary structural value establishment followed by the
     // structural return of that one binding.
     let [
-        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+        crate::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             result: established,
             calls,
             ..
@@ -313,7 +314,7 @@ fn exact_payloadless_case_return_keeps_its_ordinary_unit_plan() {
     };
     assert!(calls.is_empty());
     assert_eq!(established.type_identity, result.type_identity);
-    let checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural {
+    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural {
         result: returned,
     } = &state.terminator
     else {
@@ -321,7 +322,7 @@ fn exact_payloadless_case_return_keeps_its_ordinary_unit_plan() {
     };
     assert_eq!(
         returned.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: established.binding_ordinal,
         }
     );
@@ -363,13 +364,14 @@ fn guarded_payloadless_case_return_keeps_its_ordinary_unit_plan() {
     );
     let machine = machine_named(&checked, "guarded");
     assert!(
-        checked_trees::CheckedReturnPlan::for_machine(&checked.facts.flow, machine).is_none(),
+        crate::checked_trees::CheckedReturnPlan::for_machine(&checked.facts.flow, machine)
+            .is_none(),
         "result-case guarantees do not select a return family"
     );
     assert!(
         matches!(
-            checked_trees::CheckedUnitPlan::for_machine(&checked.facts.flow, machine),
-            Some(checked_trees::CheckedUnitPlan::ComposedControl(_))
+            crate::checked_trees::CheckedUnitPlan::for_machine(&checked.facts.flow, machine),
+            Some(crate::checked_trees::CheckedUnitPlan::ComposedControl(_))
         ),
         "result-case guarantees keep the ordinary composed Unit plan"
     );
@@ -397,7 +399,7 @@ fn nested_structural_record_result_keeps_composed_plan() {
         .terminal_unit_effects
         .composed_for_machine(machine_named(&checked, "choose_boxed"))
         .expect("a record result with a nested structural carrier stays composed");
-    let checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result else {
+    let crate::checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result else {
         panic!("the nested record result stays structural");
     };
     assert!(
@@ -437,7 +439,7 @@ fn structural_payload_sum_result_keeps_composed_plan() {
         .terminal_unit_effects
         .composed_for_machine(machine_named(&checked, "choose_outcome"))
         .expect("a sum result with a structural payload case stays composed");
-    let checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result else {
+    let crate::checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result else {
         panic!("the structural-payload sum result stays structural");
     };
     assert!(
@@ -453,7 +455,8 @@ fn structural_payload_sum_result_keeps_composed_plan() {
         .terminal_unit_effects
         .composed_for_machine(machine_named(&checked, "choose_valued"))
         .expect("a structural case payload stays composed");
-    let checked_trees::CheckedControlResultPlan::Structural(valued_result) = &valued_plan.result
+    let crate::checked_trees::CheckedControlResultPlan::Structural(valued_result) =
+        &valued_plan.result
     else {
         panic!("the case-payload result stays structural");
     };
@@ -582,7 +585,7 @@ fn mutable_byte_view_member_record_result_still_declines() {
     assert!(
         matches!(
             stage,
-            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. })
+            Some(crate::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. })
                 if phase == "state graph: result signature"
         ),
         "a mutable byte-view member still declines at result signature, got {stage:?}"
@@ -638,7 +641,7 @@ fn view_member_result_machines_advance_past_signature() {
         assert!(
             !matches!(
                 stage,
-                Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. })
+                Some(crate::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. })
                     if phase == "state graph: result signature"
             ),
             "{name} still declines at result signature: {stage:?}"
@@ -705,7 +708,7 @@ fn addr_member_parameter_projection_still_declines() {
     assert!(
         matches!(
             stage,
-            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. })
+            Some(crate::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. })
                 if phase == "statement sequence: unsupported statement kind"
         ),
         "an addr member read still declines the statement sequence, got {stage:?}"

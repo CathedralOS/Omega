@@ -5,14 +5,14 @@ use super::{
     VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(in crate::selection) fn entry(
     source: &LegalizedScalarFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let Some(placement) = source.call_plan.result.as_ref() else {
@@ -25,7 +25,7 @@ pub(in crate::selection) fn entry(
         return Ok(());
     };
     if source.call_plan.policy
-        != calling_conventions::CallingPolicy::native_for_target(environment.target())
+        != abstract_operations_to_target_operations::calling_conventions::CallingPolicy::native_for_target(environment.target())
     {
         return Err(invalid());
     }
@@ -135,11 +135,11 @@ pub(in crate::selection) fn finish_call(
 
 pub(in crate::selection) fn returned(
     source: &LegalizedScalarFunction,
-    block: &legalized_operations::LegalizedScalarBlock,
-    returned: &legalized_operations::LegalizedScalarReturn,
+    block: &crate::legalized_operations::LegalizedScalarBlock,
+    returned: &crate::legalized_operations::LegalizedScalarReturn,
     place: PlaceId,
     input: VirtualRegisterId,
-    placement: &calling_conventions::ValuePlacement,
+    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let destination = source
@@ -175,8 +175,8 @@ pub(in crate::selection) fn returned(
     }
     let returned_pointer = matches!(
         source.call_plan.policy,
-        calling_conventions::CallingPolicy::MicrosoftX64
-            | calling_conventions::CallingPolicy::SystemVAMD64
+        abstract_operations_to_target_operations::calling_conventions::CallingPolicy::MicrosoftX64
+            | abstract_operations_to_target_operations::calling_conventions::CallingPolicy::SystemVAMD64
     );
     // The ABI return use must not pin the retained pointer across earlier calls.
     let pointer = if returned_pointer {

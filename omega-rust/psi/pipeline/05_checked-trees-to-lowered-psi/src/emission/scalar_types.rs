@@ -1,8 +1,8 @@
 //! Scalar types and integer values for primitives.
 
 use crate::lowering_error::{LoweringError, unsupported};
-use checked_trees::types::PrimitiveType;
 use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, ScalarType};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
 
 pub(crate) fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringError> {
     if primitive == PrimitiveType::Addr {

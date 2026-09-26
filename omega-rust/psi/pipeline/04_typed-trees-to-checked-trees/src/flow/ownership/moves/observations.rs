@@ -1,17 +1,17 @@
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowOwnershipEventSource;
 use crate::flow::expression_type_reference_in_state;
 use crate::flow::ownership::DirectMoveEventSink;
 use crate::flow::ownership::append_move_events_for_expression;
 use crate::flow::ownership::moves::operator_call_ownership_policy;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use language_core::ReferenceAccess;
 use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 
 /// Observing a place evaluates its address and calls, without moving the place.
 pub(in crate::flow::ownership) fn append(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
     state: SymbolHandle,
     statement: usize,
@@ -60,7 +60,7 @@ pub(in crate::flow::ownership) fn append(
 /// The result of a consuming collection operator is fresh, not a projection
 /// that could transfer that same collection a second time.
 pub(super) fn append_indexed_operands(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
     state: SymbolHandle,
     statement: usize,
@@ -68,7 +68,11 @@ pub(super) fn append_indexed_operands(
     source: FlowOwnershipEventSource,
 ) -> Option<bool> {
     let operator_symbol = selected_operator(sink, state, statement, expression)?;
-    let operator = typed_trees::operator::declaration_by_symbol(program, operator_symbol)?;
+    let operator =
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+            program,
+            operator_symbol,
+        )?;
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -115,8 +119,8 @@ pub(super) fn selected_operator(
 ) -> Option<SymbolHandle> {
     sink.operators.resolved_uses().find_map(|operator_use| {
         (operator_use.expression == expression
-            && operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-            && matches!(operator_use.origin, checked_trees::CheckedValueOrigin::StateStatement {
+            && operator_use.occurrence == crate::checked_trees::CheckedOperatorOccurrence::Expression
+            && matches!(operator_use.origin, crate::checked_trees::CheckedValueOrigin::StateStatement {
                 state_symbol, statement_index, ..
             } if state_symbol == state && statement_index == statement))
         .then_some(operator_use.selected_operator_symbol)
@@ -129,11 +133,11 @@ pub(super) fn selected_operator(
 /// element views are claimed here: `as_view`/`bytes` view a text carrier, not
 /// collection storage whose elements this lane could keep observed.
 pub(super) fn append_builtin_collection_view(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
     state: SymbolHandle,
     statement: usize,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     source: FlowOwnershipEventSource,
 ) -> bool {
     if !matches!(
@@ -155,14 +159,14 @@ pub(super) fn append_builtin_collection_view(
             return false;
         }
         match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
                 reference = *referee
             }
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type
             }
-            typed_trees::types::TypeReferenceNode::FixedArray { .. }
-            | typed_trees::types::TypeReferenceNode::Slice { .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { .. } => {
                 append(program, sink, state, statement, call.receiver, source);
                 return true;
             }
@@ -201,13 +205,13 @@ pub(super) fn append_builtin_collection_view(
 /// its move-and-restore window outside the service-seam case, so forged or
 /// custody-carrying paths still reject.
 pub(super) fn detached_borrowed_copy_admitted(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state: SymbolHandle,
     statement: usize,
     place: &CanonicalPlace,
     source: FlowOwnershipEventSource,
 ) -> bool {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
         return false;
     };
     let Some(projected) =
@@ -263,11 +267,12 @@ pub(super) fn detached_borrowed_copy_admitted(
         && place.segments.iter().any(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
+                crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                    | crate::fact_plan::PlaceSegment::Index { .. }
             )
         })
     {
-        return validation::has_stable_observable_contents(program, projected);
+        return crate::validation::has_stable_observable_contents(program, projected);
     }
     // A service-receiver invocation detaches its stable arguments at the ABI
     // seam; the caller's custody stays whole. The seam's copy carries runtime
@@ -277,7 +282,7 @@ pub(super) fn detached_borrowed_copy_admitted(
         return false;
     };
     call_target_is_service_signature(program, target_symbol)
-        && validation::has_service_seam_contents(program, projected)
+        && crate::validation::has_service_seam_contents(program, projected)
 }
 
 /// Whether `target_symbol` names a machine signature of a `boundary` trait —
@@ -293,7 +298,7 @@ pub(super) fn detached_borrowed_copy_admitted(
 /// rejects an invocation that would span the hole). Requirement slots and
 /// machine parameters resolve to provider contracts the same way.
 fn call_target_is_service_signature(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
 ) -> bool {
     // A trait-bound machine parameter reuses its bound trait's signature
@@ -312,12 +317,12 @@ fn call_target_is_service_signature(
 
 /// The access of a possibly-constrained reference type.
 fn reference_access(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Option<ReferenceAccess> {
     match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { access, .. } => Some(*access),
-        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { access, .. } => Some(*access),
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             reference_access(program, *base_type)
         }
         _ => None,

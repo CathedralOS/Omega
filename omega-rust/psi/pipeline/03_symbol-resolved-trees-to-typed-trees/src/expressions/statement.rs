@@ -23,9 +23,9 @@ mod transitions;
 
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_handle_from_table;
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 use self::arguments::lower_statement_expression;
 use self::calls::lower_call_statement;

@@ -1,15 +1,19 @@
 //! Installed checked providers write the caller's fixed extent, not replacement storage.
 use super::{CheckedTrees, byte_sequence_write, lower_machine};
-use crate::TerminalMachineSelection;
-use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalStructuralByteArrayValue, TerminalStructuralValue,
     admit_provider_installation_from_artifact,
 };
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::StructuralPathSegment;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+};
 
 const PROVIDER: &str = r#"
     data ReadResult { case Empty; case Bytes(count: u64); }
@@ -50,19 +54,18 @@ fn checked_array_caller(field: bool) -> CheckedTrees {
 fn fixed_array_boundary_provider_publishes_whole_root_and_record_field() {
     for field in [false, true] {
         let checked = checked_array_caller(field);
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name(if field {
-                "Root::run"
-            } else {
-                "run"
-            }),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("fixed-array boundary call retains the exact writable range")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                    if field { "Root::run" } else { "run" },
+                ),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("fixed-array boundary call retains the exact writable range")
+            .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
         terminal_verifier::verify_module(
@@ -84,19 +87,18 @@ fn fixed_array_boundary_provider_publishes_whole_root_and_record_field() {
 fn fixed_array_boundary_provider_writes_original_storage_across_every_fuel_pause() {
     for field in [false, true] {
         let checked = checked_array_caller(field);
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name(if field {
-                "Root::run"
-            } else {
-                "run"
-            }),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                    if field { "Root::run" } else { "run" },
+                ),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap()
+            .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let [candidate] = module.provider_candidates.as_slice() else {
             panic!("one checked provider")
@@ -224,15 +226,16 @@ fn fixed_array_boundary_provider_writes_original_storage_across_every_fuel_pause
 #[test]
 fn fixed_array_boundary_provider_rejects_missing_initialization_and_installation() {
     let checked = checked_array_caller(false);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let candidate = &module.provider_candidates[0];
     let profile = proof_admission::AdmissionProfile::default();
@@ -333,9 +336,11 @@ fn fixed_array_boundary_provider_rejects_missing_initialization_and_installation
 #[test]
 fn fixed_array_boundary_provider_replays_exact_field_and_mutable_access() {
     let checked = checked_array_caller(true);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &checked,
-        terminal_production::TerminalMachineSelection::Name("Root::run"),
+        lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+            "Root::run",
+        ),
     )
     .produce(TerminalProductionCustody::artifact_only(
         &mut TerminalProductionTimings::default(),
@@ -366,7 +371,8 @@ fn fixed_array_boundary_provider_replays_exact_field_and_mutable_access() {
             panic!("authored boundary read")
         };
         if change_access {
-            structural_arguments[0].access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+            structural_arguments[0].access =
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow;
         } else {
             structural_arguments[0].path =
                 vec![CheckedUnitStructuralPathSegment::Field("other".into())];

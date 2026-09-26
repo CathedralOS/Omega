@@ -1,4 +1,4 @@
-use symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::super::top_level::next_child_of_kind;
@@ -26,7 +26,7 @@ pub(super) fn assign_mathematical_symbols(
             .flatten();
         for binder in binders.span_mut_or_empty(definition.binders) {
             let kind = match binder.kind {
-                symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                     SymbolKind::MachineParameter
                 }
                 _ => SymbolKind::TypeParameter,

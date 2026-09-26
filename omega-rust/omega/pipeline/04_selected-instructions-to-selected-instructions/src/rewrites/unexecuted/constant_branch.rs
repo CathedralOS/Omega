@@ -65,8 +65,10 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::{
+    SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+};
 
 pub use rewrite::fold_selected_constant_branch;
 pub use validation::validate_constant_branch_fold;

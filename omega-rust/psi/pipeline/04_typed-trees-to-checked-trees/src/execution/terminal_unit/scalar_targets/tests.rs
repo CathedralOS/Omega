@@ -49,9 +49,9 @@ fn ordered_array_locals_retain_conditional_scalar_completion() {
         );
         assert!(matches!(
             plan.scalar_control.as_ref().unwrap().terminator,
-            checked_trees::CheckedScalarStateTerminator::Conditional {
-                when_true: checked_trees::CheckedScalarBranchDestination::Return { .. },
-                when_false: checked_trees::CheckedScalarBranchDestination::Return { .. },
+            crate::checked_trees::CheckedScalarStateTerminator::Conditional {
+                when_true: crate::checked_trees::CheckedScalarBranchDestination::Return { .. },
+                when_false: crate::checked_trees::CheckedScalarBranchDestination::Return { .. },
                 ..
             }
         ));
@@ -80,7 +80,7 @@ fn ordered_array_locals_retain_conditional_scalar_completion() {
             .filter(|argument| {
                 matches!(
                     argument.source,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+                    crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
                 )
             })
             .collect::<Vec<_>>();
@@ -89,12 +89,12 @@ fn ordered_array_locals_retain_conditional_scalar_completion() {
     }
 }
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
-fn machine_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
+fn machine_symbol(checked: &crate::checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
     checked
         .machines()
         .iter()
@@ -444,7 +444,7 @@ fn ordered_scalar_targets_retain_exact_signatures_across_candidate_order() {
             "fingerprint" => candidates[position].contract_report_fingerprint = 0,
             "commitment" => {
                 candidates[position].contract_commitment =
-                    checked_trees::MachineContractCommitment::from_digest([0; 32])
+                    crate::checked_trees::MachineContractCommitment::from_digest([0; 32])
             }
             _ => unreachable!(),
         }

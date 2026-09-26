@@ -3,17 +3,17 @@ use crate::{
     legalize_target_operations, select_instructions, validate_legalized_operations,
     validate_selected_instructions,
 };
-use abstract_operations::{
-    AbstractBlockEntry, AbstractOperation, AbstractParameter, AbstractSuccessor, ValueBinding,
+use abstract_operations_to_target_operations::target_operations::{
+    TargetBooleanExpression, TargetControlTerminator, TargetUnitOperation,
+    TargetUnitScalarArgumentSource,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
     ScalarType, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{
-    TargetBooleanExpression, TargetControlTerminator, TargetUnitOperation,
-    TargetUnitScalarArgumentSource,
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractOperation, AbstractParameter, AbstractSuccessor, ValueBinding,
 };
 
 fn block(identity: u64) -> BlockId {
@@ -83,9 +83,9 @@ fn fixture(
     native: NativeTarget,
     bits: u16,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = super::unit_graph::fixture(native);
     source.functions[1].parameters[0].scalar_type = integer();
@@ -188,7 +188,7 @@ fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -209,7 +209,7 @@ fn typed_unit_transfers_select_and_replay_on_all_hosted_targets() {
             let legal = legalize_target_operations(&target, &source, &unit).unwrap();
             validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
             let environment =
-                register_environment::baseline_target_register_environment(native).unwrap();
+                crate::register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = crate::selection_constraints(&legal, &environment);
             let selected = select_instructions(
                 &legal,
@@ -229,8 +229,8 @@ fn typed_unit_transfers_select_and_replay_on_all_hosted_targets() {
             for mutation in 0..3 {
                 let mut changed = selected.plan().clone();
                 let bridge = changed.functions[0].blocks.iter_mut().find(|block|
-                    matches!(block.origin, selected_instructions::SelectedBlockOrigin::EdgeTransfer { edge: transfer, .. } if transfer == edge(12))).expect("prepared edge");
-                let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+                    matches!(block.origin, crate::selected_instructions::SelectedBlockOrigin::EdgeTransfer { edge: transfer, .. } if transfer == edge(12))).expect("prepared edge");
+                let crate::selected_instructions::SelectedTerminator::Jump { successor, .. } =
                     &mut bridge.terminator
                 else {
                     panic!("jump");
@@ -238,7 +238,7 @@ fn typed_unit_transfers_select_and_replay_on_all_hosted_targets() {
                 match mutation {
                     0 => {
                         successor.bindings[0].transport =
-                            selected_instructions::SelectedValueTransport::Unused
+                            crate::selected_instructions::SelectedValueTransport::Unused
                     }
                     1 => successor.bindings.swap(0, 1),
                     _ => successor.bindings[1].semantic.argument = value(101),
@@ -346,14 +346,15 @@ fn crash_declaring_unit_calls_select_and_replay_their_continuation_roster() {
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
     validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
-    let environment = register_environment::baseline_target_register_environment(native).unwrap();
+    let environment =
+        crate::register_environment::baseline_target_register_environment(native).unwrap();
     let constraints = crate::selection_constraints(&legal, &environment);
     let selected = select_instructions(
         &legal,
@@ -389,7 +390,7 @@ fn crash_declaring_unit_calls_select_and_replay_their_continuation_roster() {
         .flat_map(|function| function.blocks.iter_mut())
         .flat_map(|block| block.instructions.iter_mut())
         .find_map(|instruction| {
-            if let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+            if let crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) =
                 &mut instruction.kind
             {
                 Some(call)
@@ -442,7 +443,7 @@ fn computed_comparison_branch_and_edge_arguments_retain_materialized_value() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
@@ -450,7 +451,7 @@ fn computed_comparison_branch_and_edge_arguments_retain_materialized_value() {
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -476,7 +477,7 @@ fn computed_comparison_branch_and_edge_arguments_retain_materialized_value() {
             .any(|row| {
                 matches!(
                     row.kind,
-                    selected_instructions::SelectedInstructionKind::MaterializeBooleanU64LessThan
+                    crate::selected_instructions::SelectedInstructionKind::MaterializeBooleanU64LessThan
                 )
             });
         assert_eq!(materializes, transfer_comparison);

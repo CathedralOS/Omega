@@ -1,8 +1,8 @@
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::StateHandle;
+use crate::syntax_trees::statement::StatementHandle;
 use arena::HandleSpan;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::StateHandle;
-use syntax_trees::statement::StatementHandle;
 
 /// MR2's rewrite walk (see the call site above): for each state, when the
 /// LAST statement is a bare terminal expression that IS a self-entry call,
@@ -14,15 +14,15 @@ pub(crate) fn rewrite_terminal_tail_self_calls(
     entry_callable: &Identifier,
     receiver_must_be_self: bool,
 ) {
-    use syntax_trees::expression::ExpressionNode;
-    use syntax_trees::statement::{
+    use crate::syntax_trees::expression::ExpressionNode;
+    use crate::syntax_trees::statement::{
         StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode,
     };
 
     // Phase 1 (reads): collect the rewrite sites.
     let mut sites: Vec<(
         StatementHandle,
-        Vec<syntax_trees::expression::ExpressionHandle>,
+        Vec<crate::syntax_trees::expression::ExpressionHandle>,
         source::SourceSpan,
     )> = Vec::new();
     for state_handle in syntax_trees.items.state_handles(states).to_vec() {
@@ -86,7 +86,7 @@ pub(crate) fn rewrite_terminal_tail_self_calls(
             statement_handle,
             StatementNode::Transition(TableTransition {
                 target,
-                continuation: syntax_trees::statement::TransitionTargetHandle::invalid(),
+                continuation: crate::syntax_trees::statement::TransitionTargetHandle::invalid(),
                 guard: TransitionGuardNode::Always,
                 proof_selectors: HandleSpan::empty(),
                 exit: Default::default(),

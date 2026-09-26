@@ -1,18 +1,18 @@
+use crate::checked_trees::DomainFacts;
+use crate::fact_plan::{Fact, FactPayload, FactPlan};
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_semantic_place;
 use crate::flow::canonical_place_joined_segments_may_overlap;
 use crate::flow::canonical_place_segments_may_overlap;
-use checked_trees::DomainFacts;
-use facts::{Fact, FactPayload, FactPlan};
 
 pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &FactPlan,
     domain_dependencies: &'a DomainFacts,
     fact: &Fact,
-    fact_place: facts::PlaceHandle,
+    fact_place: crate::fact_plan::PlaceHandle,
     mutated_places: &'b [CanonicalPlace],
-) -> Option<(&'b CanonicalPlace, &'a [facts::PlaceSegment])> {
+) -> Option<(&'b CanonicalPlace, &'a [crate::fact_plan::PlaceSegment])> {
     let place = semantic.places.get(fact_place);
     let fact_canonical_place = canonical_place_from_semantic_place(program, semantic, place)?;
 
@@ -50,12 +50,12 @@ pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
 }
 
 fn domain_membership_matching_dependency<'a>(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     domain_dependencies: &'a DomainFacts,
     fact: &Fact,
     fact_place: &CanonicalPlace,
     mutated_place: &CanonicalPlace,
-) -> Option<&'a [facts::PlaceSegment]> {
+) -> Option<&'a [crate::fact_plan::PlaceSegment]> {
     let domain_symbol = match fact.payload {
         FactPayload::DomainMembership { domain_symbol, .. }
         | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
@@ -97,9 +97,9 @@ fn domain_membership_matching_dependency<'a>(
 }
 
 fn canonical_place_roots_match(
-    program: &typed_trees::TypedTrees,
-    left: facts::PlaceRoot,
-    right: facts::PlaceRoot,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    left: crate::fact_plan::PlaceRoot,
+    right: crate::fact_plan::PlaceRoot,
 ) -> bool {
     crate::flow::normalized_event_place_root(program, left)
         == crate::flow::normalized_event_place_root(program, right)

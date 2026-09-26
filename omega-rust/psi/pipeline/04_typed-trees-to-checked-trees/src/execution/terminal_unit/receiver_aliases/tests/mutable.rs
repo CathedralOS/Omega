@@ -25,7 +25,7 @@ fn mutable_root_cannot_widen_its_write_only_child() {
     }
 }
 
-fn chain() -> checked_trees::CheckedTrees {
+fn chain() -> crate::checked_trees::CheckedTrees {
     fixture(
         "mut",
         "let parent: &mut [Record; 2] = &mut records;
@@ -42,7 +42,7 @@ fn mutable_prefixes_retain_access_and_attenuate_at_the_selected_child() {
     assert_eq!(aliases.len(), 3);
     assert_eq!(
         aliases[2].segments,
-        [facts::PlaceSegment::FixedIndex { index: 1 }]
+        [crate::fact_plan::PlaceSegment::FixedIndex { index: 1 }]
     );
     let resources = &checked.facts.borrow;
     let parent = resources
@@ -85,8 +85,8 @@ fn mutable_alias_can_project_fields_before_fixed_indexes() {
     assert!(matches!(
         aliases[2].segments.as_slice(),
         [
-            facts::PlaceSegment::Field { .. },
-            facts::PlaceSegment::FixedIndex { index: 1 }
+            crate::fact_plan::PlaceSegment::Field { .. },
+            crate::fact_plan::PlaceSegment::FixedIndex { index: 1 }
         ]
     ));
 }

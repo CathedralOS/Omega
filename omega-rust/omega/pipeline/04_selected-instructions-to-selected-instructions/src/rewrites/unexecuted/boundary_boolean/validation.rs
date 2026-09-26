@@ -16,14 +16,16 @@
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
+use semantic_vocabulary::IntegerValue;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess,
+};
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedInstructionProvenance, SelectedOperand, VirtualRegisterId,
 };
-use semantic_vocabulary::IntegerValue;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{BoundaryBooleanError, BoundaryBooleanReceipt, ValidatedBoundaryBoolean};
 use crate::ValidatedSelectedAnalysis;
@@ -529,23 +531,23 @@ mod independence_tests {
     use std::sync::Arc;
 
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-    use optimization_unit::ValueDefinitionSite;
-    use register_environment::{
-        ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
-    };
-    use register_model::RegisterInstructionConstraint;
-    use selected_instructions::{
-        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-        SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-        SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-    };
     use semantic_vocabulary::{
         BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
         ScalarType, ValueId,
     };
     use target::NativeTarget;
+    use target_operations_to_selected_instructions::register_environment::{
+        ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
+    };
+    use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
     use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+    use target_operations_to_selected_instructions::{
+        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+        SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
+        SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    };
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+    use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
     use super::{
         BoundaryBooleanError, BoundaryBooleanReceipt, ValidatedBoundaryBoolean,

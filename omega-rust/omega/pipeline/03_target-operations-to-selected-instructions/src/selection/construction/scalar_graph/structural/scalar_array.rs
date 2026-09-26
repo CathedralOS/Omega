@@ -4,9 +4,9 @@ use super::{
     SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(super) fn establish(
     source: &LegalizedScalarFunction,

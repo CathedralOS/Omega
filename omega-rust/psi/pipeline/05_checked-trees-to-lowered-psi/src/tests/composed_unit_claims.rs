@@ -1,13 +1,13 @@
 //! Claim-bearing composed Unit control and independent corruption replay.
 
-use super::{CheckedTrees, LoweringError, lower_machine};
-use crate::TerminalMachineSelection;
-use checked_trees::CheckedUnitEffectOperationPlan;
+use super::{CheckedTrees, lower_machine};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralMultiplicity, StructuralPlaceDeclaration, Terminator,
 };
-fn checked_composed_claim() -> checked_trees::CheckedTrees {
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
+fn checked_composed_claim() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
             pub data Receipt [linear] { value: u64; }
@@ -161,7 +161,7 @@ fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
         assert!(
             matches!(
                 lower_machine(checked, TerminalMachineSelection::Name("Root::enter")),
-                Err(LoweringError::Unsupported(_))
+                Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
             ),
             "{corruption}"
         );
@@ -169,13 +169,13 @@ fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
 
     let mut edge = baseline.clone();
     let plan = &mut edge.facts.flow.terminal_unit_effects.composed_machines[0];
-    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
+    let typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
         &mut plan.states[0].terminator
     else {
         unreachable!()
     };
     when_true.transfers[0].source =
-        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
     rejects(&edge, "edge parameter");
 
     let mut claim = baseline.clone();

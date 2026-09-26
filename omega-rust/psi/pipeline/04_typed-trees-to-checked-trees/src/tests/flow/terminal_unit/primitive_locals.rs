@@ -2,9 +2,11 @@ use super::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralTypeShape, PrimitiveType,
 };
+use crate::checked_trees::{
+    CheckedPrimitiveStoreDestination, CheckedUnitStructuralArgumentSourcePlan,
+};
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{CheckedPrimitiveStoreDestination, CheckedUnitStructuralArgumentSourcePlan};
 
 const SOURCE: &str = r#"
     machine reset(value: &mut u64) -> u64 { value = 0; 7 }
@@ -47,10 +49,12 @@ fn primitive_local_borrow_and_later_read_keep_the_authored_storage() {
             statement_index: 2,
             destination: CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             value:
-                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::StorageRead {
-                    symbol: read_symbol,
-                    primitive_type: PrimitiveType::U64,
-                }),
+                crate::checked_trees::CheckedCallScalarArgument::Pure(
+                    CheckedScalarExpression::StorageRead {
+                        symbol: read_symbol,
+                        primitive_type: PrimitiveType::U64,
+                    },
+                ),
         },
         CheckedUnitEffectOperationPlan::Complete {
             statement_index: 3, ..
@@ -79,10 +83,16 @@ fn primitive_local_borrow_and_later_read_keep_the_authored_storage() {
         .typed
         .statement_table
         .statements(state.statement_nodes);
-    let typed_trees::statement::StatementNode::LocalData(local) = &statements[0] else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        local,
+    ) = &statements[0]
+    else {
         panic!("local");
     };
-    let typed_trees::statement::StatementNode::LocalData(returned) = &statements[1] else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        returned,
+    ) = &statements[1]
+    else {
         panic!("returned local");
     };
     assert_eq!(*symbol, local.symbol);
@@ -109,7 +119,7 @@ fn primitive_local_borrow_and_later_read_keep_the_authored_storage() {
     );
     assert_eq!(
         structural_arguments[0].access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
+        crate::checked_trees::CheckedStructuralAccess::MutableBorrow
     );
     assert_eq!(&structural_arguments[0].type_identity, type_identity);
     assert!(structural_arguments[0].path.is_empty());
@@ -174,10 +184,12 @@ fn primitive_local_mutations_preserve_input_snapshot_and_returned_binding_namesp
         CheckedUnitEffectOperationPlan::EstablishScalarLocal {
             result: snapshot,
             value:
-                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::StorageRead {
-                    symbol: snapshot_symbol,
-                    primitive_type: PrimitiveType::U64,
-                }),
+                crate::checked_trees::CheckedCallScalarArgument::Pure(
+                    CheckedScalarExpression::StorageRead {
+                        symbol: snapshot_symbol,
+                        primitive_type: PrimitiveType::U64,
+                    },
+                ),
         },
         CheckedUnitEffectOperationPlan::ScalarCall {
             result: returned,
@@ -193,7 +205,7 @@ fn primitive_local_mutations_preserve_input_snapshot_and_returned_binding_namesp
                     symbol: written_symbol,
                 },
             value:
-                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
+                crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 2,
                     primitive_type: PrimitiveType::U64,
                 }),
@@ -201,16 +213,18 @@ fn primitive_local_mutations_preserve_input_snapshot_and_returned_binding_namesp
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 4,
             value:
-                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::StorageRead {
-                    symbol: read_symbol,
-                    primitive_type: PrimitiveType::U64,
-                }),
+                crate::checked_trees::CheckedCallScalarArgument::Pure(
+                    CheckedScalarExpression::StorageRead {
+                        symbol: read_symbol,
+                        primitive_type: PrimitiveType::U64,
+                    },
+                ),
             ..
         },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 5,
             value:
-                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
+                crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 1,
                     primitive_type: PrimitiveType::U64,
                 }),
@@ -219,7 +233,7 @@ fn primitive_local_mutations_preserve_input_snapshot_and_returned_binding_namesp
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 6,
             value:
-                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
+                crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 2,
                     primitive_type: PrimitiveType::U64,
                 }),
@@ -239,11 +253,11 @@ fn primitive_local_mutations_preserve_input_snapshot_and_returned_binding_namesp
     assert_eq!((returned.statement_index, returned.binding_ordinal), (2, 1));
     assert_eq!(
         structural_arguments[0].access,
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     );
     assert!(matches!(
         scalar_arguments.as_slice(),
-        [checked_trees::CheckedCallScalarArgument::Pure(
+        [crate::checked_trees::CheckedCallScalarArgument::Pure(
             CheckedScalarExpression::Parameter { position: 0, .. }
         )]
     ));
@@ -280,7 +294,9 @@ fn primitive_local_boolean_storage_reads_and_writes_use_the_same_symbol() {
     };
     let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         value:
-            checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(expression)),
+            crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(
+                expression,
+            )),
         ..
     } = &plan.operations[2]
     else {
@@ -428,10 +444,12 @@ fn primitive_local_store_sequence_without_calls_retains_parameter_store() {
             statement_index: 2,
             destination: CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             value:
-                checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::StorageRead {
-                    symbol: read,
-                    primitive_type: PrimitiveType::U64,
-                }),
+                crate::checked_trees::CheckedCallScalarArgument::Pure(
+                    CheckedScalarExpression::StorageRead {
+                        symbol: read,
+                        primitive_type: PrimitiveType::U64,
+                    },
+                ),
         },
         CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
@@ -482,7 +500,7 @@ fn primitive_local_rejects_missing_or_substituted_borrow_events() {
             0 => changed.borrow.calls.get_mut(call_handle).accesses = arena::HandleSpan::empty(),
             1 => {
                 changed.borrow.argument_accesses.get_mut(access).kind =
-                    checked_trees::BorrowAccessKind::Read
+                    crate::checked_trees::BorrowAccessKind::Read
             }
             2 => changed.borrow.argument_accesses.get_mut(access).root_symbol = caller,
             3 => changed.borrow.calls.get_mut(call_handle).call_ordinal = 1,
@@ -602,7 +620,7 @@ fn computed_primitive_assignment_keeps_exact_rhs_and_destination() {
     assert!(matches!(
         &plan.operations[0],
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            value: checked_trees::CheckedCallScalarArgument::Pure(_),
+            value: crate::checked_trees::CheckedCallScalarArgument::Pure(_),
             ..
         }
     ));
@@ -610,7 +628,7 @@ fn computed_primitive_assignment_keeps_exact_rhs_and_destination() {
         path: store_path,
         statement_index: 1,
         destination: CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-        value: checked_trees::CheckedCallScalarArgument::Computation(value),
+        value: crate::checked_trees::CheckedCallScalarArgument::Computation(value),
     } = &plan.operations[1]
     else {
         panic!("exact computed store");
@@ -694,7 +712,7 @@ fn actual_nested_record_observer_retains_final_computed_assignment() {
         operation,
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 11,
-            value: checked_trees::CheckedCallScalarArgument::Computation(_),
+            value: crate::checked_trees::CheckedCallScalarArgument::Computation(_),
             ..
         }
     )));
@@ -718,7 +736,7 @@ fn computed_primitive_assignment_retains_rhs_calls() {
     assert!(matches!(
         &plan.operations[0],
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            value: checked_trees::CheckedCallScalarArgument::Computation(_),
+            value: crate::checked_trees::CheckedCallScalarArgument::Computation(_),
             ..
         }
     ));
@@ -742,12 +760,12 @@ fn pure_scalar_builtin_call_in_a_local_initializer_selects_between_operands() {
     let [
         CheckedUnitEffectOperationPlan::EstablishScalarLocal {
             result:
-                checked_trees::CheckedUnitScalarResultBindingPlan {
+                crate::checked_trees::CheckedUnitScalarResultBindingPlan {
                     statement_index: 0,
                     binding_ordinal: 0,
                     primitive_type: PrimitiveType::U64,
                 },
-            value: checked_trees::CheckedCallScalarArgument::Computation(root),
+            value: crate::checked_trees::CheckedCallScalarArgument::Computation(root),
         },
         _,
         CheckedUnitEffectOperationPlan::Complete { .. },
@@ -769,13 +787,16 @@ fn pure_scalar_builtin_call_in_a_local_initializer_selects_between_operands() {
         .typed
         .statement_table
         .statements(state.statement_nodes);
-    let typed_trees::statement::StatementNode::LocalData(local) = &statements[0] else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        local,
+    ) = &statements[0]
+    else {
         panic!("local initializer statement");
     };
     let plans = &checked.facts.values.scalar_computations;
     let node = plans.nodes.get(*root);
     assert_eq!(node.primitive_type, PrimitiveType::U64);
-    let checked_trees::CheckedScalarComputationKind::Select {
+    let crate::checked_trees::CheckedScalarComputationKind::Select {
         source_expression,
         condition,
         when_true,
@@ -789,7 +810,7 @@ fn pure_scalar_builtin_call_in_a_local_initializer_selects_between_operands() {
     };
     assert_eq!(*source_expression, local.initial_value);
     let condition = plans.nodes.get(*condition);
-    let checked_trees::CheckedScalarComputationKind::Apply {
+    let crate::checked_trees::CheckedScalarComputationKind::Apply {
         source_expression: application_source,
         operands,
         ..

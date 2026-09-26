@@ -7,17 +7,17 @@ use crate::rules::tests::fixtures::dead_scalar_elimination::{
 };
 use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::exact_cast_unit;
 use crate::{RuleAnalysisView, RuleProposalError, compute_analysis};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::AnalysisKind;
-use optimization_unit::{
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationFact, PsiRewriteCandidate, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_dead_scalar_node_candidate,
     validate_psi_optimization_unit,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 
 #[test]
 fn proof_check_elision_binds_accepted_evidence_and_retains_its_catalog() {

@@ -41,6 +41,9 @@
 //! — and `terminal_identities` and `lowering_error` carry the identity and
 //! failure vocabulary every producer shares.
 
+// The produced IR.
+pub mod lowered_psi;
+
 // The entrance.
 mod machine_lowering;
 

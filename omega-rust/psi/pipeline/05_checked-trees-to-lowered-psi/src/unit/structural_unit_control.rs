@@ -43,7 +43,7 @@ pub(crate) fn lower_structural_unit_control_machine(
             // and never joins the affine discard frontier. Bound it the same
             // way the composed route binds receivers.
             let admitted = if parameter.is_self {
-                parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                parameter.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
                     && parameter.multiplicity == Multiplicity::Unrestricted
                     && parameter.qualifications.is_empty()
                     && parameter.fused_service_erasure.is_none()
@@ -279,10 +279,10 @@ pub(crate) fn lower_structural_unit_control_machine(
                 .enumerate()
             {
                 let source_index = usize::try_from(match argument.source {
-                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                         index,
                     } => index,
-                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
                         return Err(LoweringError::Unsupported(
                             "specialized scalar successor does not support checked expressions",
                         ));
@@ -316,7 +316,7 @@ pub(crate) fn lower_structural_unit_control_machine(
             let mut target = vec![None; target_arity];
             let mut used_sources = BTreeSet::new();
             for transfer in transfers {
-                let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                let typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                     index: source_parameter_index,
                 } = transfer.source
                 else {
@@ -460,7 +460,7 @@ pub(crate) fn lower_structural_unit_control_machine(
                     arguments: scalar_arguments
                         .iter()
                         .map(|argument| {
-                            let checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: source_position } = argument.source else {
+                            let typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: source_position } = argument.source else {
                                 return unsupported("specialized scalar successor does not support checked expressions");
                             };
                             state_scalar_parameters[index]
@@ -507,7 +507,7 @@ pub(crate) fn lower_structural_unit_control_machine(
                         "structural Unit conditional names an unknown scalar guard",
                     ))?;
                 let lower_successor =
-                    |successor: &checked_trees::CheckedStructuralControlSuccessorPlan,
+                    |successor: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlSuccessorPlan,
                      edge: EdgeId|
                      -> Result<SuccessorEdge, LoweringError> {
                         Ok(SuccessorEdge {
@@ -525,7 +525,7 @@ pub(crate) fn lower_structural_unit_control_machine(
                                 .scalar_arguments
                                 .iter()
                                 .map(|argument| {
-                                    let checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: source_position } = argument.source else {
+                                    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: source_position } = argument.source else {
                                         return unsupported("specialized scalar successor does not support checked expressions");
                                     };
                                     source_scalar_parameters
@@ -706,11 +706,11 @@ fn lower_ranked_structural_unit_countdown(
     {
         return unsupported("ranked structural Unit covered edge coordinate");
     }
-    let checked_trees::CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
+    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
         scalar_parameter_index,
         primitive_type,
     } = covered.guard;
-    let checked_trees::CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
+    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
         argument_ordinal,
         source_scalar_parameter_index,
         target_scalar_parameter_index,
@@ -724,7 +724,7 @@ fn lower_ranked_structural_unit_countdown(
         || argument_ordinal != rank_parameter_plan.source_position
         || when_true.scalar_arguments[0].argument_ordinal != argument_ordinal
         || when_true.scalar_arguments[0].source
-            != (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+            != (typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                 index: source_scalar_parameter_index,
             })
         || when_true.scalar_arguments[0].target_scalar_parameter_index
@@ -1001,9 +1001,9 @@ fn lower_ranked_structural_unit_countdown(
 }
 
 fn validate_ranked_structural_transfers(
-    source: &checked_trees::CheckedStructuralUnitControlStatePlan,
-    target: &checked_trees::CheckedStructuralUnitControlStatePlan,
-    successor: &checked_trees::CheckedStructuralControlSuccessorPlan,
+    source: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan,
+    target: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralUnitControlStatePlan,
+    successor: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlSuccessorPlan,
 ) -> Result<(), LoweringError> {
     if successor.transfers.len() != target.structural_parameters.len()
         || successor
@@ -1012,7 +1012,7 @@ fn validate_ranked_structural_transfers(
             .enumerate()
             .any(|(index, transfer)| {
                 !matches!(transfer.source,
-                    checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: source_index }
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: source_index }
                         if usize::try_from(source_index).ok() == Some(index))
                     || usize::try_from(transfer.target_parameter_index).ok() != Some(index)
                     || source.structural_parameters.get(index)

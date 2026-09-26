@@ -5,14 +5,14 @@
 //! spans that carrier. Unsupported bounds or policies must not become raw scalars.
 //! Endpoint intersection precedes conversion to the signed or unsigned carrier.
 
-use checked_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
-use checked_trees::{CheckedTrees, CheckedUnitStructuralFieldType};
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{BoundedIntegerType, IntegerValue, ScalarType};
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
+use typed_trees_to_checked_trees::checked_trees::{CheckedTrees, CheckedUnitStructuralFieldType};
 
 pub(super) fn reconstruct(
     checked: &CheckedTrees,
@@ -52,8 +52,8 @@ pub(super) fn reconstruct(
                             end_inclusive,
                         } => {
                             let minimum =
-                                validation::closed_integer_range_bound(&checked.typed, *minimum)?;
-                            let maximum = validation::closed_integer_range_maximum(
+                                typed_trees_to_checked_trees::validation::closed_integer_range_bound(&checked.typed, *minimum)?;
+                            let maximum = typed_trees_to_checked_trees::validation::closed_integer_range_maximum(
                                 &checked.typed,
                                 *maximum,
                                 *end_inclusive,

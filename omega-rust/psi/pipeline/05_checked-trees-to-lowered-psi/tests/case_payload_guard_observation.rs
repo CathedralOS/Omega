@@ -3,12 +3,12 @@
 //! only as a parameter of the `StructuralCase` successor for `Move`, in the
 //! guard and in the selected edge's argument alike.
 
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_interpreter::{
     AcceptTerminalEffects, TerminalEffect, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralInputs,
-};
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
 fn source(message: &str) -> String {
@@ -36,9 +36,9 @@ fn source(message: &str) -> String {
 }
 
 fn produce(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
 ) -> Result<terminal_codec::CanonicalTerminalArtifact, String> {
-    terminal_production::TerminalProductionRequest::new(
+    lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         checked,
         TerminalMachineSelection::Name("Main::main"),
     )

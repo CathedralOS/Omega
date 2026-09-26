@@ -27,14 +27,16 @@
 
 use std::collections::BTreeSet;
 
-use register_model::{RegisterInstructionConstraint, RegisterUnitId};
-use selected_instructions::{
+use semantic_vocabulary::IntegerValue;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
     MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, SelectedInstructionKind,
 };
-use semantic_vocabulary::IntegerValue;
 
 use crate::analyses::machine_effects::machine_semantic_kind;
 use crate::rewrites::unexecuted::peepholes::condition_flow::ConditionOperandResolution;

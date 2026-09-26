@@ -1,0 +1,610 @@
+//! Object-container and executable-image output: the emission entry.
+//!
+//! [`emit_executable_image`] is the single entry: the object's contents and
+//! the caller's [`ExecutableImageEmissionRequest`] select the direct writer
+//! (ELF, Mach-O or PE over a static image, owned here) or the dynamic ELF
+//! lane (`dynamic_elf`), and [`validate_executable_image`] replays that
+//! selection. The direct lane retains the sealed terminal-Psi image carrier
+//! and invokes independent final-image replay before returning. Nothing here
+//! constructs machine code or installation authority.
+
+use crate::image::{EmittedImageOutput, FinalImageInput, emitted_direct_executable_output};
+use crate::object_file::{
+    ObjectContainerInput, ObjectContainerOutput, emit_omega_object_container,
+};
+use diagnostics::Diagnostic;
+use target::{Architecture, NativeTarget, NormalizedElfInterpreterPlan, ObjectFormat};
+use terminal_psi::TerminalPsiIdentity;
+
+use super::dynamic_elf::{
+    DynamicElfOrchestrationError, RequestedDynamicElfImage, emit_dynamic_elf_image,
+    validate_requested_dynamic_elf_image,
+};
+use super::final_image_validation::validate_terminal_image;
+use super::{
+    ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectCompilerPrivateFunction,
+    ObjectFunction, ObjectPortEffect,
+};
+
+/// Exact image-emission inputs selected outside the source-free object owner.
+///
+/// A normalized interpreter is consumed only when the object itself retains
+/// versioned ELF imports.  Supplying one cannot force an otherwise direct
+/// image through the dynamic ELF path, and omitting one cannot make an
+/// unresolved ELF import fall back to the direct writer.
+#[derive(Debug, Clone)]
+pub enum ExecutableImageEmissionRequest {
+    Direct {
+        subsystem: u16,
+        /// The build-bound Mach-O CodeDirectory signing identity
+        /// (wiki/spec/build/macos_application.md). `None` selects the
+        /// validated executable leaf as the ad-hoc label; the ELF and PE
+        /// writers do not interpret this value.
+        code_signature_identifier: Option<String>,
+    },
+    DynamicElf {
+        interpreter: NormalizedElfInterpreterPlan,
+    },
+}
+
+impl ExecutableImageEmissionRequest {
+    pub const fn direct(subsystem: u16) -> Self {
+        Self::Direct {
+            subsystem,
+            code_signature_identifier: None,
+        }
+    }
+
+    /// Bind `code_signature_identifier` as the Mach-O CodeDirectory identity.
+    /// The caller supplies the build-validated authored application
+    /// identifier; emission writes it verbatim and rejects an empty string
+    /// rather than silently falling back to the leaf.
+    pub fn with_code_signature_identifier(self, code_signature_identifier: Option<String>) -> Self {
+        match self {
+            Self::Direct { subsystem, .. } => Self::Direct {
+                subsystem,
+                code_signature_identifier,
+            },
+            Self::DynamicElf { .. } => self,
+        }
+    }
+
+    /// The identity a direct request binds into Mach-O signing, if any.
+    pub fn code_signature_identifier(&self) -> Option<&str> {
+        match self {
+            Self::Direct {
+                code_signature_identifier,
+                ..
+            } => code_signature_identifier.as_deref(),
+            Self::DynamicElf { .. } => None,
+        }
+    }
+
+    pub const fn dynamic_elf(interpreter: NormalizedElfInterpreterPlan) -> Self {
+        Self::DynamicElf { interpreter }
+    }
+}
+
+/// Result of the image-bound request router.
+///
+/// Dynamic ELF output deliberately remains distinct from [`crate::image_emission::ExecutableImage`]
+/// and therefore cannot enter installation or publication APIs.
+#[derive(Debug)]
+#[must_use = "requested image emission retains its exact authority boundary"]
+pub enum RequestedExecutableImage {
+    Direct(ExecutableImage),
+    DynamicElf(RequestedDynamicElfImage),
+}
+
+impl RequestedExecutableImage {
+    pub const fn output(&self) -> &EmittedImageOutput {
+        match self {
+            Self::Direct(image) => image.output(),
+            Self::DynamicElf(image) => image.output(),
+        }
+    }
+}
+
+/// Rejected image-bound request with any consumed dynamic-loader input intact.
+#[derive(Debug)]
+#[must_use = "requested image-emission rejection may retain loader custody"]
+pub enum RequestedExecutableImageError {
+    MissingDynamicElfInterpreter {
+        target: target::NativeTarget,
+        subsystem: u16,
+        diagnostic: Diagnostic,
+    },
+    UnexpectedDynamicElfInterpreter {
+        interpreter: NormalizedElfInterpreterPlan,
+        diagnostic: Diagnostic,
+    },
+    Direct(Diagnostic),
+    DynamicElf(Box<DynamicElfOrchestrationError>),
+}
+
+impl RequestedExecutableImageError {
+    pub const fn diagnostic(&self) -> &Diagnostic {
+        match self {
+            Self::MissingDynamicElfInterpreter { diagnostic, .. }
+            | Self::UnexpectedDynamicElfInterpreter { diagnostic, .. }
+            | Self::Direct(diagnostic) => diagnostic,
+            Self::DynamicElf(error) => error.diagnostic(),
+        }
+    }
+
+    pub fn into_unexpected_interpreter(self) -> Option<NormalizedElfInterpreterPlan> {
+        match self {
+            Self::UnexpectedDynamicElfInterpreter { interpreter, .. } => Some(interpreter),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for RequestedExecutableImageError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic().fmt(formatter)
+    }
+}
+
+impl std::error::Error for RequestedExecutableImageError {}
+
+/// Emit one executable image: the single entry. The object's contents select
+/// the only justified path -- an import-bearing ELF object requires the
+/// request's normalized interpreter and takes the dynamic ELF lane
+/// (`dynamic_elf`), producing non-installable custody; every other object
+/// must omit that input and takes the direct writer
+/// ([`emit_direct_executable_image_signed`]). A request that disagrees with
+/// the object is refused with the consumed loader input intact.
+pub fn emit_executable_image(
+    artifact: &ObjectArtifact,
+    request: ExecutableImageEmissionRequest,
+) -> Result<RequestedExecutableImage, Box<RequestedExecutableImageError>> {
+    let has_normalized_imports = !artifact.object().layout.normalized_imports.is_empty();
+    let requires_dynamic_elf =
+        artifact.target().object_format == ObjectFormat::Elf && has_normalized_imports;
+    match (requires_dynamic_elf, request) {
+        (true, ExecutableImageEmissionRequest::DynamicElf { interpreter }) => {
+            emit_dynamic_elf_image(artifact, interpreter)
+                .map(|emission| {
+                    RequestedExecutableImage::DynamicElf(RequestedDynamicElfImage {
+                        artifact: artifact.clone(),
+                        emission,
+                    })
+                })
+                .map_err(|error| Box::new(RequestedExecutableImageError::DynamicElf(error)))
+        }
+        (true, ExecutableImageEmissionRequest::Direct { subsystem, .. }) => Err(Box::new(
+            RequestedExecutableImageError::MissingDynamicElfInterpreter {
+                target: artifact.target(),
+                subsystem,
+                diagnostic: Diagnostic::error(
+                    "import-bearing ELF image emission requires an exact normalized interpreter input",
+                ),
+            },
+        )),
+        (false, ExecutableImageEmissionRequest::DynamicElf { interpreter }) => Err(Box::new(
+            RequestedExecutableImageError::UnexpectedDynamicElfInterpreter {
+                interpreter,
+                diagnostic: Diagnostic::error(
+                    "a normalized ELF interpreter cannot select the dynamic writer without normalized ELF imports",
+                ),
+            },
+        )),
+        (
+            false,
+            ExecutableImageEmissionRequest::Direct {
+                subsystem,
+                code_signature_identifier,
+            },
+        ) => emit_direct_executable_image_signed(
+            artifact,
+            subsystem,
+            code_signature_identifier.as_deref(),
+        )
+        .map(RequestedExecutableImage::Direct)
+        .map_err(|diagnostic| Box::new(RequestedExecutableImageError::Direct(diagnostic))),
+    }
+}
+
+/// Independently replay the selected image path without collapsing dynamic
+/// output into installable custody: the direct lane through
+/// [`validate_direct_executable_image`], the dynamic lane through
+/// `dynamic_elf::validate_requested_dynamic_elf_image`.
+pub fn validate_executable_image(
+    artifact: &ObjectArtifact,
+    image: &RequestedExecutableImage,
+) -> Result<(), Diagnostic> {
+    let has_normalized_imports = !artifact.object().layout.normalized_imports.is_empty();
+    match image {
+        RequestedExecutableImage::Direct(image) => {
+            if artifact.target().object_format == ObjectFormat::Elf && has_normalized_imports {
+                return Err(Diagnostic::error(
+                    "import-bearing ELF object was substituted into direct image custody",
+                ));
+            }
+            validate_direct_executable_image(artifact, image)
+        }
+        RequestedExecutableImage::DynamicElf(image) => {
+            validate_requested_dynamic_elf_image(artifact, image)
+        }
+    }
+}
+
+fn validate_x86_scalar_fma_provider(artifact: &ObjectArtifact) -> Result<(), Diagnostic> {
+    let fragments = artifact
+        .functions
+        .iter()
+        .flat_map(|function| function.x86_scalar_fma.iter())
+        .collect::<Vec<_>>();
+    if fragments.is_empty() {
+        if artifact.x86_scalar_fma_provider.is_some() {
+            return Err(Diagnostic::error(
+                "x86 scalar FMA provider admission has no retained instruction custody",
+            ));
+        }
+        return Ok(());
+    }
+    let provider = artifact.x86_scalar_fma_provider.ok_or_else(|| {
+        Diagnostic::error(
+            "x86 scalar FMA feature requirements have no admitted executable provider",
+        )
+    })?;
+    if !provider.has_canonical_identity()
+        || Some(provider.profile()) != artifact.x86_feature_profile
+        || provider.profile().native_target() != artifact.target
+    {
+        return Err(Diagnostic::error(
+            "x86 scalar FMA executable provider admission does not match its exact object target",
+        ));
+    }
+    for fragment in fragments {
+        let slot = match fragment.format {
+            post_allocation_machine_to_selected_form_encoding::machine_code::X86ScalarFmaFormat::Binary32 => target::X86ScalarFmaSlot::Binary32,
+            post_allocation_machine_to_selected_form_encoding::machine_code::X86ScalarFmaFormat::Binary64 => target::X86ScalarFmaSlot::Binary64,
+        };
+        if !provider.admits(fragment.requirement, slot) {
+            return Err(Diagnostic::error(format!(
+                "x86 scalar FMA provider does not admit exact generic slot `{}`",
+                slot.requirement_identity(),
+            )));
+        }
+    }
+    Ok(())
+}
+
+pub fn emit_object_container(artifact: &ObjectArtifact) -> ObjectContainer {
+    ObjectContainer {
+        psi: artifact.psi,
+        output: emit_omega_object_container(ObjectContainerInput {
+            target: artifact.target,
+            object: &artifact.object,
+            relocations: &artifact.relocations,
+            text_bytes: &artifact.text_bytes,
+            data_bytes: artifact.data_bytes(),
+        }),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectContainer {
+    pub psi: TerminalPsiIdentity,
+    pub output: ObjectContainerOutput,
+}
+
+pub fn can_emit_executable_image(target: NativeTarget) -> bool {
+    target.pointer_size == 8
+        && target.pointer_alignment == 8
+        && matches!(
+            (target.object_format, target.architecture),
+            (ObjectFormat::Elf, Architecture::Aarch64)
+                | (ObjectFormat::Elf, Architecture::X86_64)
+                | (ObjectFormat::MachO, Architecture::Aarch64)
+                | (ObjectFormat::MachO, Architecture::X86_64)
+                | (ObjectFormat::Coff, Architecture::X86_64)
+        )
+}
+
+/// Emit and validate one direct executable image: the static lane
+/// [`emit_executable_image`] takes for an object without normalized ELF
+/// imports.
+///
+/// The direct lane admits typed internal calls and exactly retained imports
+/// supported by its target writer. Final-text mutation outside their
+/// architecture-specific immediate bits, unaccounted imports or thunks,
+/// overlapping/missing function spans, and unclassified executable bytes are
+/// hard failures.
+///
+/// This entry carries no bound signing identity: Mach-O output falls back to
+/// the validated executable leaf as its ad-hoc CodeDirectory label. The
+/// build-bound identity enters only through
+/// [`crate::image_emission::ExecutableImageEmissionRequest::Direct`]
+/// (wiki/spec/build/macos_application.md).
+pub fn emit_direct_executable_image(
+    artifact: &ObjectArtifact,
+    subsystem: u16,
+) -> Result<ExecutableImage, Diagnostic> {
+    emit_direct_executable_image_signed(artifact, subsystem, None)
+}
+
+/// `code_signature_identifier` is the build-bound Mach-O signing identity
+/// carried by the image request. It is written verbatim into the emitted
+/// CodeDirectory and participates in `LC_CODE_SIGNATURE` extent planning, so
+/// it is fixed before any load command is emitted.
+pub(crate) fn emit_direct_executable_image_signed(
+    artifact: &ObjectArtifact,
+    subsystem: u16,
+    code_signature_identifier: Option<&str>,
+) -> Result<ExecutableImage, Diagnostic> {
+    super::function_fragments::replay::validate(artifact)?;
+    validate_x86_scalar_fma_provider(artifact)?;
+    if !can_emit_executable_image(artifact.target) {
+        return Err(Diagnostic::error(format!(
+            "cannot emit terminal-Psi executable image for {:?}",
+            artifact.target
+        )));
+    }
+    let prepared_entry = super::hosted_unit_entry::prepare(artifact)?;
+    let (object, text_bytes, relocations, entry_shim) = prepared_entry.as_ref().map_or(
+        (
+            &artifact.object,
+            artifact.text_bytes.as_slice(),
+            &artifact.relocations,
+            None,
+        ),
+        |prepared| {
+            (
+                &prepared.object,
+                prepared.text.as_slice(),
+                &prepared.relocations,
+                Some(prepared.shim),
+            )
+        },
+    );
+    let image = crate::image::build_final_image(FinalImageInput {
+        target: artifact.target,
+        object,
+        relocations,
+        text_bytes,
+        data_bytes: artifact.data_bytes(),
+    });
+    let final_image_symbol_digest = crate::image::final_image_symbol_digest(&image);
+    let output = match (artifact.target.object_format, artifact.target.architecture) {
+        (ObjectFormat::Elf, Architecture::Aarch64) => {
+            crate::image_elf::emit_elf_aarch64_executable(image)
+        }
+        (ObjectFormat::Elf, Architecture::X86_64) => {
+            crate::image_elf::emit_elf_x86_64_executable(image)
+        }
+        (ObjectFormat::MachO, Architecture::Aarch64) => match code_signature_identifier {
+            Some(identifier) => {
+                crate::image_macho::emit_macho_aarch64_executable_signed(image, identifier)
+            }
+            None => crate::image_macho::emit_macho_aarch64_executable(image),
+        },
+        (ObjectFormat::MachO, Architecture::X86_64) => match code_signature_identifier {
+            Some(identifier) => {
+                crate::image_macho::emit_macho_x86_64_executable_signed(image, identifier)
+            }
+            None => crate::image_macho::emit_macho_x86_64_executable(image),
+        },
+        (ObjectFormat::Coff, Architecture::X86_64) => {
+            crate::image_pe::emit_pe_x86_64_executable(image, subsystem)
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "cannot emit terminal-Psi executable image for {:?}",
+                artifact.target
+            )));
+        }
+    }?;
+    let mut output = emitted_direct_executable_output(output);
+    let text_validation = validate_terminal_image(
+        artifact,
+        object,
+        relocations,
+        text_bytes,
+        entry_shim,
+        &output,
+    )?;
+    output.compiler_function_validation =
+        super::function_fragments::reporting::summarize(artifact, &output, &text_validation)?;
+    output.compiler_text_validation = Some(text_validation);
+    Ok(ExecutableImage {
+        psi: artifact.psi,
+        target: artifact.target,
+        x86_scalar_fma_provider: artifact.x86_scalar_fma_provider,
+        subsystem: matches!(artifact.target.object_format, ObjectFormat::Coff).then_some(subsystem),
+        functions: artifact.functions.clone(),
+        private_functions: artifact.private_functions.clone(),
+        dynamic_conformance_tables: artifact.dynamic_conformance_tables.clone(),
+        forwarded_dynamic_descriptor_adapters: artifact
+            .forwarded_dynamic_descriptor_adapters
+            .clone(),
+        forwarded_dynamic_descriptor_tables: artifact.forwarded_dynamic_descriptor_tables.clone(),
+        semantic_code_attribution: artifact.semantic_code_attribution.clone(),
+        port_effects: artifact.port_effects.clone(),
+        boundary_settlements: artifact.boundary_settlements.clone(),
+        foreign_calls: artifact.foreign_calls.clone(),
+        final_image_symbol_digest,
+        output,
+    })
+}
+
+/// Independently replay the complete object-to-executable-image join retained
+/// by a source-free native artifact.
+///
+/// This repeats final-text relocation-envelope validation and requires the
+/// recomputed evidence to equal the evidence sealed by image construction.
+pub fn validate_direct_executable_image(
+    artifact: &ObjectArtifact,
+    image: &ExecutableImage,
+) -> Result<(), Diagnostic> {
+    super::function_fragments::replay::validate(artifact)?;
+    validate_x86_scalar_fma_provider(artifact)?;
+    if artifact.psi() != image.psi()
+        || artifact.target() != image.target()
+        || artifact.x86_scalar_fma_provider() != image.x86_scalar_fma_provider()
+        || artifact.functions() != image.functions()
+        || artifact.private_functions() != image.private_functions()
+        || artifact.dynamic_conformance_tables() != image.dynamic_conformance_tables()
+        || artifact.forwarded_dynamic_descriptor_adapters()
+            != image.forwarded_dynamic_descriptor_adapters()
+        || artifact.forwarded_dynamic_descriptor_tables()
+            != image.forwarded_dynamic_descriptor_tables()
+        || artifact.semantic_code_attribution() != image.semantic_code_attribution()
+        || artifact.port_effects() != image.port_effects()
+        || artifact.boundary_settlements() != image.boundary_settlements()
+        || !crate::image_emission::object_artifact::image_foreign_calls_match_object(
+            artifact,
+            image.foreign_calls(),
+        )
+    {
+        return Err(Diagnostic::error(
+            "terminal object and executable image have different semantic or evidence identity",
+        ));
+    }
+    let prepared_entry = super::hosted_unit_entry::prepare(artifact)?;
+    let (object, text_bytes, relocations, entry_shim) = prepared_entry.as_ref().map_or(
+        (
+            artifact.object(),
+            artifact.text_bytes(),
+            artifact.relocations(),
+            None,
+        ),
+        |prepared| {
+            (
+                &prepared.object,
+                prepared.text.as_slice(),
+                &prepared.relocations,
+                Some(prepared.shim),
+            )
+        },
+    );
+    let replayed_final_image = crate::image::build_final_image(FinalImageInput {
+        target: artifact.target(),
+        object,
+        relocations,
+        text_bytes,
+        data_bytes: artifact.data_bytes(),
+    });
+    if image.final_image_symbol_digest
+        != crate::image::final_image_symbol_digest(&replayed_final_image)
+    {
+        return Err(Diagnostic::error(
+            "terminal executable image symbol evidence does not match its exact object entry/data-symbol table",
+        ));
+    }
+    let recomputed = validate_terminal_image(
+        artifact,
+        object,
+        relocations,
+        text_bytes,
+        entry_shim,
+        image.output(),
+    )?;
+    let function_validation =
+        super::function_fragments::reporting::summarize(artifact, image.output(), &recomputed)?;
+    if image.output().compiler_text_validation != Some(recomputed) {
+        return Err(Diagnostic::error(
+            "terminal executable image retained stale final-text validation evidence",
+        ));
+    }
+    if image.output().compiler_function_validation != function_validation {
+        return Err(Diagnostic::error(
+            "terminal executable image retained stale compiler-function validation evidence",
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutableImage {
+    psi: TerminalPsiIdentity,
+    target: NativeTarget,
+    x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    subsystem: Option<u16>,
+    functions: Vec<ObjectFunction>,
+    private_functions: Vec<ObjectCompilerPrivateFunction>,
+    dynamic_conformance_tables: Vec<super::ObjectDynamicConformanceTable>,
+    forwarded_dynamic_descriptor_adapters: Vec<super::ObjectForwardedDynamicDescriptorAdapter>,
+    forwarded_dynamic_descriptor_tables: Vec<super::ObjectForwardedDynamicDescriptorTable>,
+    semantic_code_attribution: Vec<ObjectCodeAttribution>,
+    port_effects: Vec<ObjectPortEffect>,
+    boundary_settlements: Vec<ObjectBoundarySettlement>,
+    foreign_calls: Vec<super::ObjectForeignCall>,
+    final_image_symbol_digest: crate::image::FinalImageSymbolDigest,
+    output: EmittedImageOutput,
+}
+
+impl ExecutableImage {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn output_mut_for_test(&mut self) -> &mut EmittedImageOutput {
+        &mut self.output
+    }
+
+    pub const fn psi(&self) -> TerminalPsiIdentity {
+        self.psi
+    }
+
+    pub const fn target(&self) -> NativeTarget {
+        self.target
+    }
+
+    pub const fn x86_scalar_fma_provider(&self) -> Option<target::AdmittedX86ScalarFmaProvider> {
+        self.x86_scalar_fma_provider
+    }
+
+    /// PE/COFF subsystem selected by the writer. Other formats carry no
+    /// subsystem fact because the argument is not interpreted by their writer.
+    pub const fn subsystem(&self) -> Option<u16> {
+        self.subsystem
+    }
+
+    pub const fn output(&self) -> &EmittedImageOutput {
+        &self.output
+    }
+
+    pub fn boundary_settlements(&self) -> &[ObjectBoundarySettlement] {
+        &self.boundary_settlements
+    }
+
+    pub fn foreign_calls(&self) -> &[super::ObjectForeignCall] {
+        &self.foreign_calls
+    }
+
+    pub fn functions(&self) -> &[ObjectFunction] {
+        &self.functions
+    }
+
+    pub fn private_functions(&self) -> &[ObjectCompilerPrivateFunction] {
+        &self.private_functions
+    }
+
+    pub fn dynamic_conformance_tables(&self) -> &[super::ObjectDynamicConformanceTable] {
+        &self.dynamic_conformance_tables
+    }
+
+    pub fn forwarded_dynamic_descriptor_adapters(
+        &self,
+    ) -> &[super::ObjectForwardedDynamicDescriptorAdapter] {
+        &self.forwarded_dynamic_descriptor_adapters
+    }
+
+    pub fn forwarded_dynamic_descriptor_tables(
+        &self,
+    ) -> &[super::ObjectForwardedDynamicDescriptorTable] {
+        &self.forwarded_dynamic_descriptor_tables
+    }
+
+    pub fn port_effects(&self) -> &[ObjectPortEffect] {
+        &self.port_effects
+    }
+
+    pub fn semantic_code_attribution(&self) -> &[ObjectCodeAttribution] {
+        &self.semantic_code_attribution
+    }
+
+    pub const fn final_image_symbol_digest(&self) -> crate::image::FinalImageSymbolDigest {
+        self.final_image_symbol_digest
+    }
+}

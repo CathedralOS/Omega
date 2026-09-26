@@ -2,13 +2,15 @@
 
 use super::intrinsic_calls::exact_build_prelude_data;
 use language_semantics::declaration_selection::BuildOperation;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, StaticMachineArgument,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
 pub(crate) fn provider_selection_expressions(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
     let mut expressions = Vec::new();
     for state in program.machine_states(machine) {
@@ -56,7 +58,7 @@ pub(crate) fn exact_mutable_build_receiver(
     }
     crate::flow::expression_place_type_reference(program, receiver, &[]).is_some_and(|reference| {
         matches!(program.type_reference_table.type_reference(reference),
-            typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
                 if *access == language_semantics::ReferenceAccess::Mutable
                     && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
     })
@@ -64,12 +66,12 @@ pub(crate) fn exact_mutable_build_receiver(
 
 pub(crate) fn exact_mutable_build_statement_receiver(
     program: &TypedTrees,
-    call: &typed_trees::statement::TableCall,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
 ) -> bool {
     super::operator_targets::type_reference_for_symbol(program, call.receiver_symbol)
         .is_some_and(|reference| {
             matches!(program.type_reference_table.type_reference(reference),
-                typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
                     if *access == language_semantics::ReferenceAccess::Mutable
                         && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
         })
@@ -143,8 +145,8 @@ pub(crate) fn resolve_product_operand(
 mod tests {
     use super::is_build_provider_selection;
     use crate::tests::front_end::typed_program_from_source_map;
-    use typed_trees::TypedTrees;
-    use typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
     fn fixture(text: &str, toolchain: bool) -> TypedTrees {
         let mut sources = source::SourceMap::default();
@@ -201,7 +203,7 @@ mod tests {
             );
             crate::authored_selections::bind_pre_specialization_authored_selections(&mut program)
                 .expect("exact Build operation binds before source validation");
-            let result = validation::validate_program(&program);
+            let result = crate::validation::validate_program(&program);
             if accepted {
                 result.expect("admitted Unit operation is a valid standalone statement");
             } else {
@@ -223,20 +225,20 @@ mod tests {
         );
         crate::authored_selections::finalize_checked_authored_selections(
             &mut program,
-            &checked_trees::CheckFacts::default(),
+            &crate::checked_trees::CheckFacts::default(),
         )
         .expect("call and both static operands must retain finalizable custody");
         let operands = program
             .authored_declaration_selections()
             .iter()
             .filter(|selection| {
-                selection.kind() == typed_trees::AuthoredDeclarationSelectionKind::StaticArgument
+                selection.kind() == symbol_resolved_trees_to_typed_trees::typed_trees::AuthoredDeclarationSelectionKind::StaticArgument
             })
             .collect::<Vec<_>>();
         assert_eq!(operands.len(), 2);
         assert!(operands.iter().all(|selection| matches!(
             selection.target(),
-            typed_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
+            symbol_resolved_trees_to_typed_trees::typed_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
         )));
     }
 

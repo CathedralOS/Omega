@@ -18,8 +18,10 @@ use super::{
     lower_unit_closure, machine_id, obligation_id, place_id, unique_unit_machine, unsupported,
 };
 use crate::unit::attached_unit::bodies::UnitPlans;
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralParameterPlan};
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedStructuralAccess, CheckedUnitStructuralParameterPlan,
+};
 mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;

@@ -1,10 +1,10 @@
 //! Verified scalar-array construction retains exact payloads through current IR.
 
-use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_psi_to_abstract_operations::{build_verified_psi_optimization_unit, lower_artifact};
 
 #[test]
@@ -130,7 +130,7 @@ fn assert_array_retention(source: &str, entry: &str) {
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
     .expect("reconstruct optimizer unit from canonical input");
-    optimization_unit_semantics::validate_psi_optimization_unit(unit.unit())
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(unit.unit())
         .expect("independent current-IR array validation");
     for (function_position, function) in unit.unit().functions.iter().enumerate() {
         for (block_position, block) in function.blocks.iter().enumerate() {
@@ -162,9 +162,9 @@ fn assert_array_retention(source: &str, entry: &str) {
                     _ => terminal_psi::StructuralAccess::Owned,
                 };
                 changed.identity =
-                    optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+                    terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
                 assert!(
-                    optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err(),
+                    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err(),
                     "array result cannot excuse an incorrect argument access"
                 );
             }

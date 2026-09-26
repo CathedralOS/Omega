@@ -64,7 +64,7 @@ pub(crate) fn authored_postorder(
             (false, assignment.value)
         }
         StatementNode::Expression(expression)
-            if validation::unit_statement_call_is_supported(
+            if typed_trees_to_checked_trees::validation::unit_statement_call_is_supported(
                 &checked.typed,
                 machine,
                 state,
@@ -111,7 +111,7 @@ pub(crate) fn authored_postorder(
                     && (!direct_argument
                         || checked.type_multiplicity(signature.return_type)
                             != language_semantics::Multiplicity::Affine
-                        || !validation::has_plain_owned_contents(
+                        || !typed_trees_to_checked_trees::validation::has_plain_owned_contents(
                             &checked.typed,
                             signature.return_type,
                         ))
@@ -208,7 +208,7 @@ pub(crate) fn authored_postorder(
                     return unsupported("nested dispatch has a stale authored arm span");
                 }
                 for arm in arms {
-                    if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    if let typed_trees_to_checked_trees::checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         children.push((pattern, false, None));
                     }
                     // The selected arm produces the match result directly: a
@@ -291,7 +291,10 @@ fn validate_static_receiver(
         return unsupported("nested call root has no exact nonself receiver identity");
     }
     if let Some((_, qualifier)) =
-        validation::exact_compiler_intrinsic_boundary_requirement(&checked.typed, target)
+        typed_trees_to_checked_trees::validation::exact_compiler_intrinsic_boundary_requirement(
+            &checked.typed,
+            target,
+        )
     {
         if !has_receiver || receiver == qualifier {
             return Ok(());

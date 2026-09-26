@@ -1,11 +1,11 @@
 //! Replay-local source-chain and environment reconstruction.
 
-use register_model::{
+use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
     target_register_environment_identity,
 };
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeError, GeneralizedReloadValueHomePolicy,

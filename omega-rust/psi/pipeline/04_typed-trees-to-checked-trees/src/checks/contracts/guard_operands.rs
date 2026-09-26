@@ -10,12 +10,14 @@
 //! question from the checked write frames of the operand calls: it grants
 //! nothing and consults no source shape.
 
-use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use facts::{FactPayload, PlaceRoot};
+use crate::checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
+use crate::fact_plan::{FactPayload, PlaceRoot};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::signature::StateParameter;
-use typed_trees::statement::TransitionTargetHandle;
 
 use super::assembly::expression_reads_overlapping_place;
 
@@ -34,14 +36,14 @@ enum RequirementRead {
 /// An operand call whose write frame the checked facts cannot bound is
 /// treated as writing everything.
 pub(super) fn requirement_reads_survive_earlier_operand_writes(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     arguments: &[ExpressionHandle],
     target_parameters: &[StateParameter],
     mentioned: &[SymbolHandle],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     let reads = requirement_reads(arguments, target_parameters, mentioned);
     if reads.is_empty() {
@@ -140,7 +142,7 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
         // namespace; an unknown coordinate may overlap any element.
         for write in &mut writes {
             for segment in &mut write.segments {
-                if let facts::PlaceSegment::Index { expression } = segment {
+                if let crate::fact_plan::PlaceSegment::Index { expression } = segment {
                     *expression = ExpressionHandle::invalid();
                 }
             }
@@ -177,7 +179,7 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
 
 /// The symbols a boolean contract expression names at its roots.
 pub(super) fn boolean_requirement_mentions(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Vec<SymbolHandle> {
     let mut mentioned = Vec::new();
@@ -191,9 +193,9 @@ pub(super) fn boolean_requirement_mentions(
 /// the caller subject and names no target parameter, so mentioning it could
 /// never locate the operand position the requirement actually reads.
 pub(super) fn fact_requirement_mentions(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     _facts: &CheckFacts,
-    fact: &facts::Fact,
+    fact: &crate::fact_plan::Fact,
 ) -> Vec<SymbolHandle> {
     match fact.payload {
         FactPayload::ContractBooleanExpression { expression, .. } => {
@@ -245,7 +247,7 @@ fn requirement_reads(
 }
 
 fn collect_root_mentions(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     mentioned: &mut Vec<SymbolHandle>,
 ) {
@@ -284,7 +286,7 @@ fn collect_root_mentions(
         ExpressionNode::Match(dispatch) => {
             recurse(dispatch.subject);
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     recurse(pattern);
                 }
                 recurse(arm.value);
@@ -316,7 +318,7 @@ fn collect_root_mentions(
 
 /// Whether `needle` occurs anywhere inside `expression`.
 fn expression_contains(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     needle: ExpressionHandle,
 ) -> bool {
@@ -349,7 +351,7 @@ fn expression_contains(
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
-                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern) if recurse(pattern))
+                        matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) if recurse(pattern))
                             || recurse(arm.value)
                     })
         }

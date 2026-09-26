@@ -1,9 +1,9 @@
 use crate::authored_selections::is_boundary_acceptance_marker;
 use crate::borrow::calls::BorrowCallCollection;
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::lookup::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target,
 };
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn collect_expression_borrow_calls(
     collection: &mut BorrowCallCollection<'_>,
@@ -19,7 +19,7 @@ pub(super) fn collect_expression_borrow_calls(
                 .expression_table
                 .match_arms(dispatch.arms)
             {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     collect_expression_borrow_calls(collection, pattern);
                 }
                 collect_expression_borrow_calls(collection, arm.value);

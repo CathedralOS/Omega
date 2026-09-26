@@ -58,8 +58,8 @@ use support::node_elision_accounting;
 #[cfg(test)]
 pub(crate) mod tests;
 
-use optimization::PsiOptimizationSelections;
 use optimization_core::OptimizationSelections;
+use terminal_codec::optimization::PsiOptimizationSelections;
 
 use crate::{OrderedRuleRegistry, RuleRegistryError};
 

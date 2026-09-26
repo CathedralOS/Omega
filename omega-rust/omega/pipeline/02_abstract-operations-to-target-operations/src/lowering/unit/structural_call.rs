@@ -7,20 +7,22 @@ use super::super::structural_layout::{
 };
 use super::super::structural_signature::StructuralCallSignature;
 use crate::LoweringError;
+use crate::calling_conventions::{ValuePlacement, ValueShape};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
-use calling_conventions::{ValuePlacement, ValueShape};
+use crate::target_operations::{
+    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TerminalPsiProvenance,
+};
 use semantic_vocabulary::{
     IeeeFloatFormat, MachineId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
-use target_operations::{
-    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TerminalPsiProvenance,
-};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation,
 };
 
 #[derive(Debug, Clone)]
@@ -44,7 +46,7 @@ pub(in crate::lowering) fn lower_structural_unit_call(
     scalar_aliases: &BTreeMap<ValueId, ValueId>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
     ieee_float_constants: &BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
-    boolean_parameters: &BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
+    boolean_parameters: &BTreeMap<ValueId, crate::target_operations::TargetScalarBlockValue>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     operations: &mut Vec<TargetUnitOperation>,
@@ -243,11 +245,11 @@ pub(in crate::lowering) fn lower_structural_unit_call(
         })
         .collect::<Result<Vec<_>, _>>()?;
     operations.push(TargetUnitOperation::Call {
-        origin: target_operations::NativeCallOrigin::Authored,
+        origin: crate::target_operations::NativeCallOrigin::Authored,
         psi_operation: *psi_operation,
         callee: *callee,
         call_plan: callee_plan,
-        result: target_operations::TargetCallResult::Unit,
+        result: crate::target_operations::TargetCallResult::Unit,
         scalar_arguments,
         arguments,
         claim_transfers: claim_transfers.clone(),
@@ -318,7 +320,7 @@ pub(in crate::lowering) fn lower_structural_argument(
         .get(&argument.place)
         .map(|(producer, structural_type)| {
             (
-                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                crate::target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                     psi_operation: *producer,
                 },
                 *structural_type,

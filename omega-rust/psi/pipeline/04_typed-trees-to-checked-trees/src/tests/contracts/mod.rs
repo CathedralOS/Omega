@@ -1,7 +1,7 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
-use typed_trees::proposition::ProofSubstitutions;
+use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions;
 
 mod anonymous_array_landing;
 mod anonymous_integer_exits;
@@ -47,7 +47,9 @@ mod total_specification_arithmetic;
 mod transition_exits;
 mod where_field_bounds;
 
-fn parse_typed_trees(source: &str) -> typed_trees::TypedTrees {
+fn parse_typed_trees(
+    source: &str,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     // The source loader supplies these canonical core declarations in real
     // compilations. This single-source unit harness installs the same service
     // identities directly so checked-asm rows exercise normalized reach.
@@ -61,7 +63,9 @@ fn parse_typed_trees(source: &str) -> typed_trees::TypedTrees {
 /// settled fused-service erasure authorizations
 /// `bind_fixture_fused_service_erasures` supplies — without one an authored
 /// `Binding<R>` field stays unshaped and the machine's unit plan fails closed.
-fn parse_typed_trees_with_service(source: &str) -> typed_trees::TypedTrees {
+fn parse_typed_trees_with_service(
+    source: &str,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let mut typed = crate::tests::front_end::typed_program_with_core_service(&format!(
         "boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}"
     ));
@@ -88,11 +92,9 @@ fn outcome_specific_guarantee_reaches_separate_checked_carrier() {
         .data_members(outcome)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Variant(variant)
-                if variant.name.as_str() == "Success" =>
-            {
-                Some(variant)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) if variant.name.as_str() == "Success" => Some(variant),
             _ => None,
         })
         .expect("Success case");
@@ -479,7 +481,9 @@ fn outcome_specific_selected_term_is_available_from_saved_immutable_call() {
         .find(|machine| machine.name.as_str() == "caller")
         .and_then(|machine| checked.machine_states(machine).first())
         .expect("caller entry state");
-    let typed_trees::statement::StatementNode::LocalData(saved) = &checked
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        saved,
+    ) = &checked
         .statement_table
         .statements(caller_state.statement_nodes)[arm.result_call_statement_index]
     else {
@@ -502,7 +506,7 @@ fn outcome_specific_selected_term_is_available_from_saved_immutable_call() {
         checked
             .facts
             .semantic
-            .contexts_at_point(facts::ProgramPoint::Statement {
+            .contexts_at_point(crate::fact_plan::ProgramPoint::Statement {
                 machine_symbol: arm.caller_machine_symbol,
                 state_symbol: arm.caller_state_symbol,
                 statement_index: arm.statement_index,
@@ -510,9 +514,9 @@ fn outcome_specific_selected_term_is_available_from_saved_immutable_call() {
             .flat_map(|context| context.facts())
             .any(|fact| matches!(
                 fact.place,
-                facts::FactPlace::Place(place)
+                crate::fact_plan::FactPlace::Place(place)
                     if checked.facts.semantic.places.get(place).root
-                        == facts::PlaceRoot::Symbol(saved.symbol)
+                        == crate::fact_plan::PlaceRoot::Symbol(saved.symbol)
             )),
         "the saved result occurrence must root the guarded validity context"
     );
@@ -571,19 +575,21 @@ fn outcome_specific_indexed_validity_retains_collection_and_index() {
     let root_names = checked
         .facts
         .semantic
-        .contexts_at_point(facts::ProgramPoint::Statement {
+        .contexts_at_point(crate::fact_plan::ProgramPoint::Statement {
             machine_symbol: arm.caller_machine_symbol,
             state_symbol: arm.caller_state_symbol,
             statement_index: arm.statement_index,
         })
         .flat_map(|context| context.facts())
         .filter_map(|fact| match fact.place {
-            facts::FactPlace::Place(place) => match checked.facts.semantic.places.get(place).root {
-                facts::PlaceRoot::Symbol(symbol) => {
-                    Some(crate::labels::symbol_name(&checked, symbol))
+            crate::fact_plan::FactPlace::Place(place) => {
+                match checked.facts.semantic.places.get(place).root {
+                    crate::fact_plan::PlaceRoot::Symbol(symbol) => {
+                        Some(crate::labels::symbol_name(&checked, symbol))
+                    }
+                    _ => None,
                 }
-                _ => None,
-            },
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -708,7 +714,7 @@ fn outcome_specific_validity_invalidates_only_on_referenced_writes() {
             .any(|event| {
                 matches!(
                     checked.facts.semantic.facts.get(event.fact).payload,
-                    facts::FactPayload::ContractPropositionApplication { fact, .. }
+                    crate::fact_plan::FactPayload::ContractPropositionApplication { fact, .. }
                         if fact == guarantee
                 )
             });
@@ -799,24 +805,23 @@ fn outcome_specific_validity_contexts_do_not_couple_independent_rows() {
         .iter()
         .find_map(|(_, call)| (call.target_symbol == consume.symbol).then_some(call))
         .expect("consume call flow");
-    let invalidated = checked
-        .facts
-        .flow
-        .invalidations
-        .events
-        .span_or_empty(call.invalidations)
-        .iter()
-        .filter_map(
-            |event| match checked.facts.semantic.facts.get(event.fact).payload {
-                facts::FactPayload::ContractPropositionApplication { fact, .. }
-                    if guarantee_facts.contains(&fact) =>
-                {
-                    Some(fact)
-                }
-                _ => None,
-            },
-        )
-        .collect::<Vec<_>>();
+    let invalidated =
+        checked
+            .facts
+            .flow
+            .invalidations
+            .events
+            .span_or_empty(call.invalidations)
+            .iter()
+            .filter_map(
+                |event| match checked.facts.semantic.facts.get(event.fact).payload {
+                    crate::fact_plan::FactPayload::ContractPropositionApplication {
+                        fact, ..
+                    } if guarantee_facts.contains(&fact) => Some(fact),
+                    _ => None,
+                },
+            )
+            .collect::<Vec<_>>();
     assert!(invalidated.contains(&guarantee_facts[0]));
     assert!(
         !invalidated.contains(&guarantee_facts[1]),
@@ -881,7 +886,7 @@ fn outcome_specific_fact_and_term_do_not_leak_to_sibling_arm() {
         .filter(|(_, statement)| {
             matches!(
                 statement,
-                typed_trees::statement::StatementNode::Transition(_)
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(_)
             )
         })
         .map(|(index, _)| index)
@@ -891,14 +896,14 @@ fn outcome_specific_fact_and_term_do_not_leak_to_sibling_arm() {
         checked
             .facts
             .semantic
-            .contexts_at_point(facts::ProgramPoint::Statement {
+            .contexts_at_point(crate::fact_plan::ProgramPoint::Statement {
                 machine_symbol: arm.caller_machine_symbol,
                 state_symbol: arm.caller_state_symbol,
                 statement_index: sibling,
             })
             .all(|context| context.facts().all(|fact| !matches!(
                 fact.payload,
-                facts::FactPayload::ContractPropositionApplication { fact, .. }
+                crate::fact_plan::FactPayload::ContractPropositionApplication { fact, .. }
                     if fact == guarantee
             ))),
         "matching-case guarantee must not be materialized at the sibling coordinate"
@@ -1051,8 +1056,11 @@ fn constructor_proof_labels_rejoin_selected_owners_and_retained_case_names() {
             .find(|machine| machine.name.as_str() == name)
             .unwrap();
         let state = &program.machine_states(machine)[0];
-        let [typed_trees::statement::StatementNode::Expression(expression)] =
-            program.statement_table.statements(state.statement_nodes)
+        let [
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(
+                expression,
+            ),
+        ] = program.statement_table.statements(state.statement_nodes)
         else {
             panic!("one constructor result");
         };
@@ -1061,12 +1069,12 @@ fn constructor_proof_labels_rejoin_selected_owners_and_retained_case_names() {
     let first = returned("first");
     let second = returned("second");
     let original = program.render_proof_expression(first, ProofSubstitutions::None);
-    let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(first).clone()
     else {
         panic!("normalized constructor");
     };
-    let typed_trees::expression::ExpressionNode::StructLiteral(other) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(other) =
         program.expression_table.expression_mut(second)
     else {
         panic!("normalized constructor");
@@ -1094,12 +1102,14 @@ fn constructor_proof_labels_rejoin_selected_owners_and_retained_case_names() {
         .expression_table
         .push_name_path_member_symbol(&mut member_symbols, case);
     *program.expression_table.expression_mut(first) =
-        typed_trees::expression::ExpressionNode::Name(typed_trees::expression::TableNamePath {
-            members,
-            member_symbols,
-            head_symbol: literal.type_symbol,
-            symbol: case,
-        });
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath {
+                members,
+                member_symbols,
+                head_symbol: literal.type_symbol,
+                symbol: case,
+            },
+        );
     assert_eq!(
         original,
         program.render_proof_expression(first, ProofSubstitutions::None),

@@ -1,5 +1,5 @@
 use crate::{validate_post_allocation_optimization_manifest, validate_register_homes};
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     PostAllocationSelectedTransformation, RecoveryClassificationPolicy, SpillChoicePolicy,
 };
 use selected_instructions_to_selected_instructions::{

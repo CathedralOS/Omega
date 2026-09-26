@@ -1,11 +1,11 @@
 //! Terminal debug-map presentation.
 
-use checked_trees::CheckedTerminalMachineDebugPlan;
 use terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
     TerminalDebugMap, source_digest, terminal_psi_identity, validate_debug_map,
 };
 use terminal_psi::TerminalModule;
+use typed_trees_to_checked_trees::checked_trees::CheckedTerminalMachineDebugPlan;
 
 use crate::lowering_error::LoweringError;
 

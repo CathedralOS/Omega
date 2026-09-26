@@ -17,6 +17,7 @@ mod reborrow_drafts;
 mod resource_reconstruction;
 mod retained_validation;
 
+use crate::checked_trees::CheckFacts;
 use crate::checks::borrows::resources::certificate_planning::{
     plan_reborrow_containment_certificates, plan_reborrow_restored_call_uses,
     plan_resource_installation,
@@ -32,7 +33,6 @@ use crate::checks::borrows::resources::retained_validation::{
     validate_retained_containment_certificates, validate_retained_disposition_events,
     validate_retained_restored_call_uses,
 };
-use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 
 // The transient-call-argument check in `calls::writability` shares the
@@ -42,7 +42,7 @@ pub(super) use retained_validation::invalid_reborrow_attenuation_diagnostic;
 /// Populate the checked-only direct-root and direct-reborrow resource closures
 /// before ordinary checked-fact replay.
 pub(super) fn initialize_checked_direct_borrow_resources(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -80,7 +80,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
 /// and flow-lifetime ledgers, then transactionally rebuild both arenas with
 /// remapped typed parent handles. The rows never participate in admission.
 pub(super) fn replay_checked_direct_borrow_resources(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {

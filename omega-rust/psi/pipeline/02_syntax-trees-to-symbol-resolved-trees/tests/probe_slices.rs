@@ -6,12 +6,12 @@
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 use std::{path::PathBuf, sync::Arc};
-use symbol_resolved_trees::SymbolResolvedTrees;
-use syntax_trees::SyntaxTrees;
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     GenericDataRequest, normalize_generic_data,
 };
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 
 fn lower_multi(sources: &[(&str, &str)]) -> Result<SymbolResolvedTrees, String> {
     let mut map = SourceMap::default();
@@ -134,12 +134,17 @@ fn unmoduled_algebra_carrier_keeps_its_generic_spelling_on_real_sources() {
         .iter()
         .find(|definition| definition.name.as_str() == "Holder")
         .expect("Holder");
-    let [symbol_resolved_trees::data::DataMember::Field(field)] =
-        program.data_members(holder.members)
+    let [
+        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
+            field,
+        ),
+    ] = program.data_members(holder.members)
     else {
         panic!("one field")
     };
-    let symbol_resolved_trees::types::TypeReference::Generic(application) = &field.type_reference
+    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
+        application,
+    ) = &field.type_reference
     else {
         panic!("the exempt application keeps its authored generic spelling")
     };

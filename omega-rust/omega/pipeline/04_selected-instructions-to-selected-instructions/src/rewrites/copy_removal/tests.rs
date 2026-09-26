@@ -1,7 +1,12 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::{EffectLink, ValueDefinitionSite};
-use register_environment::baseline_target_register_environment;
-use selected_instructions::{
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
+    ObligationId, OperationId, PlaceId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedCallContract,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
@@ -10,16 +15,11 @@ use selected_instructions::{
     SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
-    ObligationId, OperationId, PlaceId, ScalarType, ValueId,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{
     CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint, TerminalPsiIdentity,
     VocabularyMarker,
 };
+use terminal_psi_to_abstract_operations::optimization_unit::{EffectLink, ValueDefinitionSite};
 
 use super::{
     CopyRemovalError, CopyRemovalReceipt, ValidatedCopyRemoval, remove_selected_copy,
@@ -44,7 +44,7 @@ const SPARE: VirtualRegisterId = VirtualRegisterId(4);
 
 fn register(
     id: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -59,7 +59,7 @@ fn register(
 
 fn copy_instruction(
     id: SelectedInstructionId,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     input: VirtualRegisterId,
     output: VirtualRegisterId,
 ) -> SelectedInstruction {
@@ -182,7 +182,7 @@ fn fixture(target: NativeTarget) -> ValidatedCopyRemoval {
 
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedCopyRemoval {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(target);
@@ -198,7 +198,7 @@ fn mutated(
 
 fn remove(
     source: &ValidatedCopyRemoval,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedCopyRemoval, CopyRemovalError> {
     remove_selected_copy(source, 0, COPY, environment, budget())
 }
@@ -231,7 +231,7 @@ fn successor(block: u32) -> SelectedSuccessor {
 /// An empty trailing block for edge-surface fixtures.
 fn trailing_block(
     id: u32,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> SelectedBlock {
     let terminal_row = environment
         .constraint(environment.selected_keys().return_unit)
@@ -530,7 +530,7 @@ fn destination_mentions_outside_the_admitted_surface_reject() {
     // A `UseDef` on the destination is a second definition.
     let rewriting_use = mutated(target, |function, _| {
         function.blocks[0].instructions[2].operands[0].access =
-            register_model::RegisterOperandAccess::UseDef;
+            target_operations_to_selected_instructions::register_model::RegisterOperandAccess::UseDef;
     });
     assert_eq!(
         remove(&rewriting_use, &environment).unwrap_err(),
@@ -551,7 +551,9 @@ fn destination_mentions_outside_the_admitted_surface_reject() {
         (
             "fixed view",
             Box::new(|operand: &mut SelectedOperand| {
-                operand.fixed_view = Some(register_model::RegisterViewId(0));
+                operand.fixed_view = Some(
+                    target_operations_to_selected_instructions::register_model::RegisterViewId(0),
+                );
             }) as Box<dyn FnOnce(&mut SelectedOperand)>,
         ),
         (
@@ -565,7 +567,10 @@ fn destination_mentions_outside_the_admitted_surface_reject() {
         (
             "foreign class",
             Box::new(|operand: &mut SelectedOperand| {
-                operand.class = register_model::RegisterClassId(u16::MAX);
+                operand.class =
+                    target_operations_to_selected_instructions::register_model::RegisterClassId(
+                        u16::MAX,
+                    );
             }),
         ),
     ] {
@@ -603,7 +608,7 @@ fn edge_and_storage_mentions_reject() {
             .unwrap();
         let mut edge = successor(1);
         edge.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(6).unwrap(),
                 argument: ValueId::new(3).unwrap(),
                 scalar_type,
@@ -630,7 +635,7 @@ fn edge_and_storage_mentions_reject() {
             .unwrap();
         let mut edge = successor(1);
         edge.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(3).unwrap(),
                 argument: ValueId::new(6).unwrap(),
                 scalar_type,
@@ -682,9 +687,9 @@ fn edge_and_storage_mentions_reject() {
     // An instruction-carried frame slot naming the destination.
     let frame_slot = mutated(target, |function, _| {
         function.blocks[0].instructions[2].kind = SelectedInstructionKind::Store64 {
-            slot: selected_instructions::FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
-                register: COPIED,
-            }),
+            slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                LocalStorageSlotId::Spill { register: COPIED },
+            ),
             byte_offset: 0,
         };
     });
@@ -751,7 +756,7 @@ fn copy_instruction_shape_rejects() {
     );
     let writing_input = mutated(target, |function, _| {
         function.blocks[0].instructions[1].operands[0].access =
-            register_model::RegisterOperandAccess::Def;
+            target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def;
     });
     assert_eq!(
         remove(&writing_input, &environment).unwrap_err(),
@@ -761,7 +766,9 @@ fn copy_instruction_shape_rejects() {
         (
             "fixed view",
             Box::new(|operand: &mut SelectedOperand| {
-                operand.fixed_view = Some(register_model::RegisterViewId(0));
+                operand.fixed_view = Some(
+                    target_operations_to_selected_instructions::register_model::RegisterViewId(0),
+                );
             }) as Box<dyn FnOnce(&mut SelectedOperand)>,
         ),
         (
@@ -790,13 +797,15 @@ fn copy_instruction_shape_rejects() {
         let edited = mutated(target, |function, _| {
             let instruction = &mut function.blocks[0].instructions[1];
             match field {
-                0 => instruction
-                    .implicit_uses
-                    .push(register_model::RegisterUnitId(0)),
-                1 => instruction
-                    .implicit_defs
-                    .push(register_model::RegisterUnitId(0)),
-                _ => instruction.clobbers.push(register_model::RegisterUnitId(0)),
+                0 => instruction.implicit_uses.push(
+                    target_operations_to_selected_instructions::register_model::RegisterUnitId(0),
+                ),
+                1 => instruction.implicit_defs.push(
+                    target_operations_to_selected_instructions::register_model::RegisterUnitId(0),
+                ),
+                _ => instruction.clobbers.push(
+                    target_operations_to_selected_instructions::register_model::RegisterUnitId(0),
+                ),
             }
         });
         assert_eq!(
@@ -870,7 +879,9 @@ fn register_contract_rejects() {
         (
             "live-in fixed view",
             Box::new(|register: &mut VirtualRegister| {
-                register.entry_fixed_view = Some(register_model::RegisterViewId(0));
+                register.entry_fixed_view = Some(
+                    target_operations_to_selected_instructions::register_model::RegisterViewId(0),
+                );
             }),
         ),
         (
@@ -882,7 +893,10 @@ fn register_contract_rejects() {
         (
             "foreign class",
             Box::new(|register: &mut VirtualRegister| {
-                register.class = register_model::RegisterClassId(u16::MAX);
+                register.class =
+                    target_operations_to_selected_instructions::register_model::RegisterClassId(
+                        u16::MAX,
+                    );
             }),
         ),
     ] {
@@ -915,8 +929,8 @@ fn constraint_row_mismatches_reject() {
         CopyRemovalError::ConstraintMismatch
     );
     let unknown_row = mutated(target, |function, _| {
-        function.blocks[0].instructions[1].constraint = register_model::RegisterConstraintKey {
-            family: register_model::RegisterConstraintFamily::Instruction,
+        function.blocks[0].instructions[1].constraint = target_operations_to_selected_instructions::register_model::RegisterConstraintKey {
+            family: target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Instruction,
             variant: u32::MAX,
         };
     });
@@ -927,8 +941,10 @@ fn constraint_row_mismatches_reject() {
     // A roster class the row does not declare: both registers carry the same
     // foreign class, so only the row comparison can observe it.
     let wrong_class = mutated(target, |function, _| {
-        function.virtual_registers[1].class = register_model::RegisterClassId(u16::MAX);
-        function.virtual_registers[2].class = register_model::RegisterClassId(u16::MAX);
+        function.virtual_registers[1].class =
+            target_operations_to_selected_instructions::register_model::RegisterClassId(u16::MAX);
+        function.virtual_registers[2].class =
+            target_operations_to_selected_instructions::register_model::RegisterClassId(u16::MAX);
     });
     assert_eq!(
         remove(&wrong_class, &environment).unwrap_err(),
@@ -960,18 +976,18 @@ fn instruction_surface_rows_reject() {
         function.calls.push(SelectedCallContract {
             instruction: COPY,
             operation: OperationId::new(41).unwrap(),
-            call: legalized_operations::LegalizedScalarCall {
-                source: legalized_operations::NativeCallOrigin::Authored,
+            call: target_operations_to_selected_instructions::legalized_operations::LegalizedScalarCall {
+                source: target_operations_to_selected_instructions::legalized_operations::NativeCallOrigin::Authored,
                 callee: MachineId::new(42).unwrap(),
-                call_plan: calling_conventions::CallPlan {
-                    policy: calling_conventions::CallingPolicy::MicrosoftX64,
+                call_plan: abstract_operations_to_target_operations::calling_conventions::CallPlan {
+                    policy: abstract_operations_to_target_operations::calling_conventions::CallingPolicy::MicrosoftX64,
                     parameters: Vec::new(),
                     result: None,
                     callback_materializations: Vec::new(),
-                    ordinary_clobbers: calling_conventions::RegisterSet::new(std::iter::empty()),
+                    ordinary_clobbers: abstract_operations_to_target_operations::calling_conventions::RegisterSet::new(std::iter::empty()),
                     stack_alignment: 16,
                     shadow_bytes: 0,
-                    entry_control: calling_conventions::EntryControl::CallReturn,
+                    entry_control: abstract_operations_to_target_operations::calling_conventions::EntryControl::CallReturn,
                 },
                 arguments: Vec::new(),
                 result_placement: None,
@@ -1057,7 +1073,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             .unwrap();
         let mut edge = successor(1);
         edge.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(6).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(

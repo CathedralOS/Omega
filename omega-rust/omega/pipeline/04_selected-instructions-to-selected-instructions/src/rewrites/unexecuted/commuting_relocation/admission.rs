@@ -8,8 +8,8 @@
 //! barrier anywhere in the window, and no boundary settlement inside its
 //! span.
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::SelectedInstructionId;
+use target_operations_to_selected_instructions::SelectedInstructionId;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::CommutingRelocationError;
 use crate::ValidatedSelectedAnalysis;

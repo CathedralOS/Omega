@@ -4,15 +4,15 @@
 use super::super::{Error, PsiOptimizationUnit};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarInstructionKind,
 };
 use semantic_vocabulary::ScalarType;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 pub(super) fn project_integer_exact_cast(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::IntegerExactCast {
@@ -36,7 +36,7 @@ pub(super) fn project_integer_exact_cast(
             })
             .ok_or(Error::custody())?;
         if !optimized.facts.iter().any(|fact| matches!(fact,
-        optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+        terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
         if referenced == obligation && support == psi_operation)) {
         return Err(Error::custody());
     }
@@ -55,8 +55,8 @@ pub(super) fn project_integer_exact_cast(
 /// result. Node admission already rejected every non-carrier width as an
 /// unsupported family, so a missing carrier here is a custody mismatch.
 pub(super) fn project_saturating_integer_arithmetic(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let (scalar_type, left, right) = match &node.operation {
         AbstractOperation::SaturatingIntegerAdd {
@@ -112,8 +112,8 @@ pub(super) fn project_saturating_integer_arithmetic(
 /// no obligation: the realized check is the policy. A conversion also keeps
 /// its operand's exact declared carrier beside the form's source sign.
 pub(super) fn project_trapping_integer(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::TrappingInteger {
         scalar_type,
@@ -154,8 +154,8 @@ pub(super) fn project_trapping_integer(
 }
 
 pub(super) fn project_saturating_integer_divide(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::SaturatingIntegerDivide {
@@ -195,8 +195,8 @@ pub(super) fn project_saturating_integer_divide(
 /// adds no clamp; the accepted nonzero-divisor fact stays with the
 /// instruction because saturating does not define a zero divisor.
 pub(super) fn project_saturating_integer_remainder(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::SaturatingIntegerRemainder {
@@ -231,7 +231,7 @@ pub(super) fn project_saturating_integer_remainder(
 /// The single accepted fact discharging this operation's divisor obligation,
 /// which the optimized function must also reference from the operation.
 fn accepted_nonzero_divisor_fact(
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     psi_operation: semantic_vocabulary::OperationId,
     obligation: semantic_vocabulary::ObligationId,
@@ -244,7 +244,7 @@ fn accepted_nonzero_divisor_fact(
     let fact = facts.next().ok_or(Error::custody())?;
     if facts.next().is_some()
         || !optimized.facts.iter().any(|fact| matches!(fact,
-            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+            terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
             if *referenced == obligation && *support == psi_operation))
     {
         return Err(Error::custody());
@@ -257,8 +257,8 @@ fn accepted_nonzero_divisor_fact(
 /// division by zero: the accepted nonzero-divisor fact stays with the
 /// instruction.
 pub(super) fn project_wrapping_integer_remainder(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::WrappingIntegerRemainder {
@@ -287,8 +287,8 @@ pub(super) fn project_wrapping_integer_remainder(
 /// Division by zero stays the accepted obligation carried by the
 /// instruction.
 pub(super) fn project_wrapping_integer_divide(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::WrappingIntegerDivide {
@@ -314,7 +314,7 @@ pub(super) fn project_wrapping_integer_divide(
 /// Node admission already refused every carrier wrapping division is not
 /// realized for, so a carrier or operand type disagreement here is custody.
 fn wrapping_division_operands(
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     scalar_type: semantic_vocabulary::IntegerType,
     left: semantic_vocabulary::ValueId,
     right: semantic_vocabulary::ValueId,
@@ -335,8 +335,8 @@ fn wrapping_division_operands(
 /// exact forms retain the accepted in-range fact discharging the shift
 /// obligation, matching every other proof-bearing operation.
 pub(super) fn project_shift(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let (psi_operation, value_type, count_type, value, count) = match &node.operation {
@@ -404,7 +404,7 @@ pub(super) fn project_shift(
                         })
                         .ok_or(Error::custody())?;
                     if !optimized.facts.iter().any(|fact| matches!(fact,
-                            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                            terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                             if referenced == obligation && *support == psi_operation)) {
                         return Err(Error::custody());
                     }
@@ -428,7 +428,7 @@ pub(super) fn project_shift(
                         })
                         .ok_or(Error::custody())?;
                     if !optimized.facts.iter().any(|fact| matches!(fact,
-                            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                            terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                             if referenced == obligation && *support == psi_operation)) {
                         return Err(Error::custody());
                     }
@@ -441,8 +441,8 @@ pub(super) fn project_shift(
 }
 
 pub(super) fn project_exact_integer_add(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let (AbstractOperation::ExactIntegerAdd {
@@ -494,7 +494,7 @@ pub(super) fn project_exact_integer_add(
             })
             .ok_or(Error::custody())?;
         if !optimized.facts.iter().any(|fact| matches!(fact,
-                optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                 if referenced == obligation && support == psi_operation)) {
                 return Err(Error::custody());
             }
@@ -526,8 +526,8 @@ pub(super) fn project_exact_integer_add(
 }
 
 pub(super) fn project_boolean_equal(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let (AbstractOperation::BooleanEqual { left, right, .. }
     | AbstractOperation::IntegerEqual { left, right, .. }

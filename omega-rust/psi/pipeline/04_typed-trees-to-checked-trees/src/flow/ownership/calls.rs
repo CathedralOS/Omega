@@ -1,3 +1,5 @@
+use crate::checked_trees::BorrowCallFact;
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowOwnershipEventSource;
 use crate::flow::canonical_place_from_expression_in_state;
@@ -9,8 +11,6 @@ use crate::flow::ownership::type_requires_ownership;
 use crate::semantic::calls::CallSite;
 use crate::semantic::calls::call_site_argument_expressions;
 use crate::semantic::calls::find_call_site;
-use checked_trees::BorrowCallFact;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 pub(crate) use crate::semantic::calls::call_target_parameters;
@@ -23,11 +23,11 @@ pub(crate) use crate::semantic::calls::call_target_parameters;
 /// classification must use the same distinction so the latter does not
 /// mistake a terminal method consume for an ordinary transfer.
 pub(crate) fn owned_method_receiver_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &CallSite<'_>,
-    declared_parameters: &[typed_trees::signature::StateParameter],
+    declared_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     fallback_receiver_symbol: SymbolHandle,
 ) -> Option<CanonicalPlace> {
     let arguments = call_site_argument_expressions(program, call_site);
@@ -57,10 +57,10 @@ pub(crate) fn owned_method_receiver_place(
 }
 
 pub(in crate::flow) fn append_call_ownership_events(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     borrow_call: &BorrowCallFact,
 ) {
     let Some(call_site) = find_call_site(
@@ -90,7 +90,7 @@ pub(in crate::flow) fn append_call_ownership_events(
                 .any(|target_state| target_state.symbol == borrow_call.target_symbol)
         })
         .is_some_and(|target| sink.proof_only(program).is_proof_machine(program, target));
-    let parameter_transfers = |parameter: &typed_trees::signature::StateParameter| {
+    let parameter_transfers = |parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter| {
         type_requires_ownership(program, parameter.type_reference)
             // Mathematical applications and citations read their affine
             // operands. Erasure does not discharge linear Type custody,
@@ -160,7 +160,7 @@ pub(in crate::flow) fn append_call_ownership_events(
                 program,
                 sink,
                 CanonicalPlace {
-                    root: facts::PlaceRoot::Expression(*argument),
+                    root: crate::fact_plan::PlaceRoot::Expression(*argument),
                     segments: Vec::new(),
                 },
                 source,
@@ -181,11 +181,11 @@ pub(in crate::flow) fn append_call_ownership_events(
 }
 
 fn affine_call_result_type(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     expression: ExpressionHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -205,9 +205,9 @@ fn affine_call_result_type(
     // Linear/conditional results still need their explicit claim mapping.
     (matches!(
         program.type_reference_table.type_reference(result),
-        typed_trees::types::TypeReferenceNode::Named { .. }
-            | typed_trees::types::TypeReferenceNode::Generic { .. }
-            | typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { .. }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic { .. }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
     ) && program.type_multiplicity(result) == language_semantics::Multiplicity::Affine
         && !crate::checks::type_carries_linear_obligation(program, result))
     .then_some(result)
@@ -218,8 +218,8 @@ fn affine_call_result_type(
 /// validity claim cannot bypass an outstanding view merely because the target
 /// is bodyless.
 pub(crate) fn owned_call_operand_places(
-    program: &typed_trees::TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,

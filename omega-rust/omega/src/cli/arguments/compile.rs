@@ -1,6 +1,6 @@
 use super::option_value;
-use compiler::OptimizationRollback;
-use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
+use omega::compiler::OptimizationRollback;
+use omega::package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
 use std::path::PathBuf;
 
 #[cfg(test)]

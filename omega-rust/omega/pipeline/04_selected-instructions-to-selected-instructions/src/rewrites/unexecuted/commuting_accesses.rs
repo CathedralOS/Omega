@@ -13,7 +13,7 @@
 //! through `ranges_disjoint`, and a local-slot row reaches a place's bytes
 //! exactly when the slot is that place's own storage. This audit applies
 //! the same reading symmetrically between two rows.
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     SelectedFunction, SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessRole,
 };
 use terminal_psi::StructuralPlaceDeclaration;
@@ -94,7 +94,7 @@ pub(super) fn commutes(
 /// order.
 pub(super) fn window_rows<'function>(
     function: &'function SelectedFunction,
-    window: &[selected_instructions::SelectedInstruction],
+    window: &[target_operations_to_selected_instructions::SelectedInstruction],
 ) -> Vec<Vec<&'function SelectedMemoryAccess>> {
     window
         .iter()

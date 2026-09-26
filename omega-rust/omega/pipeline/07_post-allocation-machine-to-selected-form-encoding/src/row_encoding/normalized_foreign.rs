@@ -1,19 +1,19 @@
-use isa_aarch64::{
+use register_homes_to_post_allocation_machine::PostAllocationMachineInstruction;
+use target::{Architecture, NativeTarget};
+use target_operations_to_selected_instructions::isa_aarch64::{
     Aarch64NormalizedForeignCallFixupKind, Aarch64NormalizedForeignCallFixupState,
     encode_aarch64_selected_normalized_foreign_call_template,
 };
-use isa_x86_64::{
+use target_operations_to_selected_instructions::isa_x86_64::{
     X86_64NormalizedForeignCallFixupKind, X86_64NormalizedForeignCallFixupState,
     encode_x86_64_selected_normalized_foreign_call_template,
 };
-use physical_instructions::PostAllocationMachineInstruction;
-use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
-use target::{Architecture, NativeTarget};
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 
 use super::{validate_operand_footprint, validate_size};
 use crate::OptimizedSelectedFormEncodingError;
-use machine_code::{
+use crate::machine_code::{
     SelectedFormDecodedFootprint, SelectedFormEncodingState,
     SelectedFormNormalizedForeignCallFixup, SelectedFormNormalizedForeignCallFixupKind,
     SelectedFormNormalizedForeignCallFixupState,
@@ -136,7 +136,7 @@ pub(super) fn encode(
 
 fn decoded_footprint(
     machine: &PostAllocationMachineInstruction,
-    effects: &selected_instructions::MachineEncodedEffects,
+    effects: &target_operations_to_selected_instructions::MachineEncodedEffects,
 ) -> Result<SelectedFormDecodedFootprint, OptimizedSelectedFormEncodingError> {
     let resolve = |operand: u16| {
         machine

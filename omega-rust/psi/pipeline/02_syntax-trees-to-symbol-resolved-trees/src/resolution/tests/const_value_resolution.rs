@@ -1,11 +1,11 @@
 use crate::resolution::ResolutionRequest;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::domain::ProofFact;
+use crate::symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::symbol_resolved_trees::signature::SignatureContract;
+use crate::symbol_resolved_trees::state::State;
+use crate::symbol_resolved_trees::statement::{StatementNode, TableLocalData};
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::domain::ProofFact;
-use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
-use symbol_resolved_trees::signature::SignatureContract;
-use symbol_resolved_trees::state::State;
-use symbol_resolved_trees::statement::{StatementNode, TableLocalData};
 use symbols::SymbolHandle;
 use tokens_to_syntax_trees::parse_syntax_trees;
 

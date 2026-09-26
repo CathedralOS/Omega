@@ -8,14 +8,19 @@ version.workspace = true
 name = "register_homes_to_post_allocation_machine"
 path = "src/lib.rs"
 
+[features]
+test-support = []
+
 [dependencies]
-physical-instructions = { path = "../../representations/physical-instructions" }
+target-operations-to-selected-instructions = { path = "../03_target-operations-to-selected-instructions" }
+selected-instructions-to-selected-instructions = { path = "../04_selected-instructions-to-selected-instructions" }
+target = { path = "../../../psi/target" }
+sha2 = "0.10.9"
 selected-instructions-to-register-homes = { path = "../05_selected-instructions-to-register-homes" }
-register-environment = { path = "../../backend/register-environment" }
-optimization-core = { path = "../../representations/optimization-core" }
-register-model = { path = "../../representations/register-model" }
-selected-instructions = { path = "../../representations/selected-instructions" }
+optimization-core = { path = "../../../psi/optimization-core" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 
 [dev-dependencies]
-isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
+target-operations-to-selected-instructions = { path = "../03_target-operations-to-selected-instructions" }
+abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
+terminal-psi = { path = "../../../psi/terminal-psi" }

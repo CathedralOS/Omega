@@ -3,9 +3,13 @@ use super::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
     encode_module, encode_proof_section, execute,
 };
-use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionGuardNode,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarComputationKind, CheckedScalarExpressionRole,
+};
 
 fn dispatch(predicate: &str, when_true: &str, when_false: &str, form: usize) -> String {
     match form {
@@ -16,7 +20,11 @@ fn dispatch(predicate: &str, when_true: &str, when_false: &str, form: usize) -> 
     }
 }
 
-fn assert_guard_roots(checked: &checked_trees::CheckedTrees, names: &[&str], state_count: usize) {
+fn assert_guard_roots(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    names: &[&str],
+    state_count: usize,
+) {
     let machine = checked
         .typed
         .machines()
@@ -64,7 +72,7 @@ fn assert_guard_roots(checked: &checked_trees::CheckedTrees, names: &[&str], sta
                             node.authored_root, expression,
                             "root belongs to exact source When"
                         );
-                        assert_eq!(node.primitive_type, typed_trees::types::PrimitiveType::Bool);
+                        assert_eq!(node.primitive_type, symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool);
                     }
                 }
                 _ => {}
@@ -461,7 +469,7 @@ fn computed_guard_custody_mutations_reject_before_publication() {
             6 => plans.nodes.get_mut(root.root).authored_root = arena::Handle::invalid(),
             7 => {
                 plans.nodes.get_mut(root.root).primitive_type =
-                    typed_trees::types::PrimitiveType::U8
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8
             }
             8 | 9 => {
                 let StatementNode::Transition(transition) = &mut changed
@@ -509,7 +517,7 @@ fn computed_guard_custody_mutations_reject_before_publication() {
                 else {
                     panic!("authored transition");
                 };
-                let typed_trees::statement::TransitionTargetNode::Value(expression) = checked
+                let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) = checked
                     .typed
                     .statement_table
                     .transition_target(transition.target)

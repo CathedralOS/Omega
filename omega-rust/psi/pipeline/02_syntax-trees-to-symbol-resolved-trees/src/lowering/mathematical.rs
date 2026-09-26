@@ -14,13 +14,13 @@ use crate::lowering::expression::lower_expression_into_table;
 use crate::lowering::name::lower_name;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
-use diagnostics::Diagnostic;
-use symbol_resolved_trees::mathematical::{
+use crate::symbol_resolved_trees::mathematical::{
     MathematicalBody, MathematicalDefinition, MathematicalParameter, MathematicalType,
     MathematicalTypeHandle,
 };
+use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 /// Translate every parsed mathematical declaration into the resolved carrier,
 /// in authored order, after the ordinary root items. Symbols stay invalid

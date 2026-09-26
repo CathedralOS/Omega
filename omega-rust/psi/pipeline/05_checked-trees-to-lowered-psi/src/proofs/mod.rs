@@ -9,15 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
-    CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedIntegerBinaryKind,
-    CheckedIntegerComparisonKind, CheckedPropositionBinderArgumentKind,
-    CheckedPropositionBinderKind, CheckedPropositionEvidence, CheckedScalarExpression,
-    CheckedTrees, CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, ContentIdentityReshuffleFact,
-    ContentPartitionCompositionFact,
-};
+use crate::lowered_psi::LoweredPsi;
 use language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity, ContentArithmeticOperator,
     ContentConservationEquation, ContentConservationOwnerKind, ContentConservationPlan,
@@ -29,7 +21,6 @@ use language_semantics::content::{
     ContentStructuralPlace as CheckedContentStructuralPlace, conservation_report_fingerprint,
 };
 use language_semantics::{PermissionClaimIdentity, SemanticDomainId};
-use lowered_psi::LoweredPsi;
 use proof_admission::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
@@ -61,6 +52,15 @@ use terminal_psi::{
 use terminal_verifier::{
     EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
     ObligationEvidence,
+};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedIntegerBinaryKind,
+    CheckedIntegerComparisonKind, CheckedPropositionBinderArgumentKind,
+    CheckedPropositionBinderKind, CheckedPropositionEvidence, CheckedScalarExpression,
+    CheckedTrees, CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, ContentIdentityReshuffleFact,
+    ContentPartitionCompositionFact,
 };
 
 use crate::emission::scalar_types::{

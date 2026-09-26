@@ -1,8 +1,8 @@
+use crate::symbol_resolved_trees::data::{TypeParameter, TypeParameterKind};
+use crate::symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use crate::symbol_resolved_trees::proposition::PropositionBody;
+use crate::symbol_resolved_trees::types::TypeReference;
 use arena::{Arena, HandleSpan};
-use symbol_resolved_trees::data::{TypeParameter, TypeParameterKind};
-use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use symbol_resolved_trees::proposition::PropositionBody;
-use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_struct_literal_symbols;
@@ -12,7 +12,7 @@ use super::lookup::{
 use super::targets::{assign_static_argument_symbols, resolve_free_machine_entry_state_symbol};
 
 pub(super) fn assign_proposition_expression_symbols(
-    program: &mut symbol_resolved_trees::SymbolResolvedTrees,
+    program: &mut crate::symbol_resolved_trees::SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
     let proposition_binders = &program.tables.declarations.proposition_binders;
@@ -100,7 +100,8 @@ pub(super) fn assign_expression_symbols(
         ExpressionNode::Match(dispatch) => {
             recurse!(dispatch.subject);
             for arm in expressions.match_arms(dispatch.arms).to_vec() {
-                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                if let crate::symbol_resolved_trees::expression::MatchPattern::Value(pattern) =
+                    arm.pattern
                 {
                     recurse!(pattern);
                 }

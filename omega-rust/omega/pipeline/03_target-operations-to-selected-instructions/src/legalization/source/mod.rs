@@ -1,9 +1,9 @@
 //! Optimizer module role: executable entrance. Canonical source-to-legal construction.
 
 use crate::LegalizationError;
-use abstract_operations::AbstractOperationPlan;
-use optimization_unit::PsiOptimizationUnit;
-use target_operations::TargetOperationPlan;
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 mod custody;
 mod ordinary_roster;
 #[cfg(test)]
@@ -14,7 +14,7 @@ mod scalar_graph;
 pub(crate) use publication_input::accepts as accepts_fragment_publication_input;
 
 pub(crate) struct SourceFunctionRosters {
-    pub scalar_functions: Vec<legalized_operations::LegalizedScalarFunction>,
+    pub scalar_functions: Vec<crate::legalized_operations::LegalizedScalarFunction>,
 }
 
 /// Validate common custody once, then place every target function in exactly

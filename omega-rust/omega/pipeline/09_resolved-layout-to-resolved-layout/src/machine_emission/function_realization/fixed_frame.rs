@@ -1,0 +1,196 @@
+//! Optimizer module role: executable entrance. Ordinary realization with exact fixed-frame custody.
+
+use super::assembly::{expected_fixed_frame_manifest, fixed_frame_custody};
+use super::carriers::{
+    StagedFixedFrameFunctionRelativeRealization,
+    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
+};
+use super::error::FunctionRelativeOptimizationRealizationError;
+use crate::machine_emission::exit_contract::stage_whole_function_exit_contract_for_layout;
+use crate::machine_emission::frame_layout::TargetFrameLayoutPolicy;
+use crate::{execute_resolved_layout_optimization, validate_resolved_layout_optimization};
+use optimization_core::{OptimizationExecutionPhase, OptimizationWorkBudget};
+use post_allocation_machine_to_selected_form_encoding::{
+    stage_optimized_layout_independent_selected_form_encoding,
+    validate_optimized_layout_independent_selected_form_encoding,
+};
+use register_homes_to_post_allocation_machine::{
+    StagedOptimizedPostAllocationMachinePlan,
+    validate_optimized_post_allocation_machine_plan_custody,
+};
+use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
+use selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
+
+pub fn stage_fixed_frame_function_relative_realization(
+    allocation: RetainedAllocation,
+    machine: StagedOptimizedPostAllocationMachinePlan,
+    budget: OptimizationWorkBudget,
+) -> Result<StagedFixedFrameFunctionRelativeRealization, FunctionRelativeOptimizationRealizationError>
+{
+    let current = allocation
+        .replay_allocation()
+        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+    let source = current.evidence().clone();
+    validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
+        .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+    let selected = current.selected();
+    let environment = current.register_environment();
+    let physical = environment.physical();
+    let frame = super::frame::stage_frame(
+        &current,
+        &machine,
+        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+        budget,
+    )?;
+    let encoding = stage_optimized_layout_independent_selected_form_encoding(
+        selected,
+        &machine,
+        physical,
+        Some(frame.layout().plan()),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    let baseline_layout =
+        stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
+            .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    let layout_optimization = execute_resolved_layout_optimization(
+        selected,
+        &machine,
+        physical,
+        &encoding,
+        &baseline_layout,
+        &current
+            .selections()
+            .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
+        current.budget_per_pass(),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
+    let exit_contract = stage_whole_function_exit_contract_for_layout(
+        selected,
+        &machine,
+        physical,
+        &encoding,
+        &baseline_layout,
+        &layout_optimization,
+        Some((frame.layout(), frame.protocol())),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
+    let manifest = expected_fixed_frame_manifest(
+        &current,
+        &machine,
+        &encoding,
+        &baseline_layout,
+        &layout_optimization,
+        frame.layout(),
+        frame.protocol(),
+        &exit_contract,
+    )?;
+    let custody = fixed_frame_custody(
+        source.clone(),
+        &machine,
+        frame.requirements(),
+        frame.storage(),
+        frame.layout(),
+        frame.protocol(),
+        &exit_contract,
+        &manifest,
+    );
+    let staged = StagedFixedFrameFunctionRelativeRealization {
+        allocation,
+        machine,
+        encoding,
+        baseline_layout,
+        layout_optimization,
+        frame,
+        exit_contract,
+        manifest,
+        custody,
+    };
+    validate_fixed_frame_function_relative_realization(&staged)?;
+    Ok(staged)
+}
+
+pub fn validate_fixed_frame_function_relative_realization(
+    staged: &StagedFixedFrameFunctionRelativeRealization,
+) -> Result<
+    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let current = staged
+        .allocation
+        .replay_allocation()
+        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+    let source = current.evidence().clone();
+    let machine =
+        validate_optimized_post_allocation_machine_plan_custody(&current, &staged.machine)
+            .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+    let selected = current.selected();
+    let environment = current.register_environment();
+    let physical = environment.physical();
+    validate_optimized_layout_independent_selected_form_encoding(
+        selected,
+        &staged.machine,
+        physical,
+        Some(staged.frame.layout().plan()),
+        &staged.encoding,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    validate_resolved_layout_optimization(
+        selected,
+        &staged.machine,
+        physical,
+        &staged.encoding,
+        &staged.baseline_layout,
+        &current
+            .selections()
+            .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
+        &staged.layout_optimization,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
+    super::frame::validate_frame(
+        &current,
+        &staged.machine,
+        &staged.frame,
+        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+    )?;
+    let frame = &staged.frame;
+    // Encoding, exact source selections, layout and frame were replayed above
+    // against these same immutable inputs. Only the exit record remains.
+    crate::machine_emission::exit_contract::validate_exit_record_for_replayed_layout(
+        selected,
+        &staged.machine,
+        physical,
+        &staged.encoding,
+        &staged.layout_optimization,
+        Some((frame.layout(), frame.protocol())),
+        &staged.exit_contract,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
+    let manifest = expected_fixed_frame_manifest(
+        &current,
+        &staged.machine,
+        &staged.encoding,
+        &staged.baseline_layout,
+        &staged.layout_optimization,
+        frame.layout(),
+        frame.protocol(),
+        &staged.exit_contract,
+    )?;
+    let custody = fixed_frame_custody(
+        source.clone(),
+        &staged.machine,
+        frame.requirements(),
+        frame.storage(),
+        frame.layout(),
+        frame.protocol(),
+        &staged.exit_contract,
+        &manifest,
+    );
+    if &source != staged.custody.source()
+        || machine != staged.machine.custody().clone()
+        || manifest.record != staged.manifest.record
+        || custody != staged.custody
+    {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    Ok(custody)
+}

@@ -132,12 +132,15 @@ fn scalar_graph_lowers_shared_view_call_transport() {
         let caller = &lowered.functions[0];
         let placement = caller.graph.parameters[0].placement.clone();
         for operation in &caller.graph.blocks[0].operations[..2] {
-            let target_operations::TargetUnitOperation::Call { arguments, .. } = operation else {
+            let crate::target_operations::TargetUnitOperation::Call { arguments, .. } = operation
+            else {
                 panic!("shared-view call");
             };
             assert_eq!(
                 arguments[0].source,
-                target_operations::TargetStructuralArgumentSource::Placement(placement.clone())
+                crate::target_operations::TargetStructuralArgumentSource::Placement(
+                    placement.clone()
+                )
             );
         }
     }
@@ -176,15 +179,16 @@ fn scalar_graph_lowers_literal_descriptor_calls() {
         let operations = &lowered.functions[0].graph.blocks[0].operations;
         assert!(matches!(
             operations[0],
-            target_operations::TargetUnitOperation::EstablishByteSequenceLiteral { .. }
+            crate::target_operations::TargetUnitOperation::EstablishByteSequenceLiteral { .. }
         ));
         for operation in &operations[1..3] {
-            let target_operations::TargetUnitOperation::Call { arguments, .. } = operation else {
+            let crate::target_operations::TargetUnitOperation::Call { arguments, .. } = operation
+            else {
                 panic!("literal view call");
             };
             assert_eq!(
                 arguments[0].source,
-                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                crate::target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                     psi_operation: OperationId::new(10).unwrap(),
                 }
             );

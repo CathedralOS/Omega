@@ -7,7 +7,7 @@ use language_semantics::{
     PermissionEventSource, PermissionProvenance,
 };
 
-fn source(boundary: bool) -> checked_trees::CheckedTrees {
+fn source(boundary: bool) -> crate::checked_trees::CheckedTrees {
     let (producer, parameters, expression, reach) = if boundary {
         (
             "boundary trait Factory { machine create() -> Pair reaches Factory; }",
@@ -63,7 +63,7 @@ fn anonymous_projection_permissions_name_exact_producer_and_residual() {
         let producer = calls.iter().find(|call| call.call_ordinal == 1).unwrap();
         let consumer = calls.iter().find(|call| call.call_ordinal == 0).unwrap();
         assert_eq!((producer.statement_index, consumer.statement_index), (0, 0));
-        let root = facts::PlaceRoot::Expression(producer.authored_expression);
+        let root = crate::fact_plan::PlaceRoot::Expression(producer.authored_expression);
         let rows = checked
             .facts
             .flow
@@ -113,7 +113,7 @@ fn anonymous_projection_permissions_name_exact_producer_and_residual() {
         }
         assert!(establish.segments.is_empty());
         for (event, name) in [(transfer, "right"), (discard, "left")] {
-            let [facts::PlaceSegment::Field { symbol }] = checked
+            let [crate::fact_plan::PlaceSegment::Field { symbol }] = checked
                 .facts
                 .flow
                 .ownership
@@ -123,7 +123,7 @@ fn anonymous_projection_permissions_name_exact_producer_and_residual() {
                 panic!("one exact field");
             };
             assert!(checked.typed.data_definitions().iter().flat_map(|data| checked.typed.data_members(data))
-                .any(|member| matches!(member, typed_trees::data::DataMember::Field(field) if field.symbol == *symbol && field.name.as_str() == name)));
+                .any(|member| matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) if field.symbol == *symbol && field.name.as_str() == name)));
         }
         assert_eq!(plan.machine.operations.len(), 3);
         assert!(matches!(
@@ -136,7 +136,7 @@ fn anonymous_projection_permissions_name_exact_producer_and_residual() {
         assert_eq!(plan.residual_affine_discards.len(), 1);
         assert_eq!(
             plan.residual_affine_discards[0].source,
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: 0
             }
         );
@@ -227,18 +227,18 @@ fn anonymous_projected_operands_share_one_consumer_continuation() {
     };
     assert_eq!(
         first_argument.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: 0
         }
     );
     assert_eq!(
         second_argument.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: 1
         }
     );
-    let field = |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| {
-        let [checked_trees::CheckedUnitStructuralPathSegment::Field(name)] =
+    let field = |argument: &crate::checked_trees::CheckedUnitStructuralArgumentPlan| {
+        let [crate::checked_trees::CheckedUnitStructuralPathSegment::Field(name)] =
             argument.path.as_slice()
         else {
             panic!("one exact field projection")
@@ -249,8 +249,8 @@ fn anonymous_projected_operands_share_one_consumer_continuation() {
     assert_eq!(field(second_argument), "left");
     // Residual rows keep reverse establishment order: the second producer's
     // temporary dies first, and each complement names its own owner.
-    let residual = |discard: &checked_trees::CheckedUnitPartialAffineDiscardPlan| {
-        let [checked_trees::CheckedUnitStructuralPathSegment::Field(name)] =
+    let residual = |discard: &crate::checked_trees::CheckedUnitPartialAffineDiscardPlan| {
+        let [crate::checked_trees::CheckedUnitStructuralPathSegment::Field(name)] =
             discard.path.as_slice()
         else {
             panic!("one exact residual field")
@@ -263,7 +263,7 @@ fn anonymous_projected_operands_share_one_consumer_continuation() {
     assert_eq!(
         residual(first_residual),
         (
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: 1
             },
             "right".into()
@@ -272,7 +272,7 @@ fn anonymous_projected_operands_share_one_consumer_continuation() {
     assert_eq!(
         residual(second_residual),
         (
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: 0
             },
             "left".into()
@@ -344,12 +344,14 @@ fn anonymous_projected_operand_shares_its_consumer_with_other_effects() {
     };
     assert_eq!(
         owned.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: 0
+        }
     );
     assert!(owned.path.is_empty());
     assert_eq!(
         projected.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: 0
         }
     );
@@ -380,7 +382,7 @@ fn anonymous_projection_permissions_cannot_be_removed_duplicated_or_rebound() {
             .iter()
             .filter(|(_, event)| {
                 event.machine_symbol == machine
-                    && matches!(event.root, facts::PlaceRoot::Expression(_))
+                    && matches!(event.root, crate::fact_plan::PlaceRoot::Expression(_))
             })
             .map(|(handle, event)| (handle, event.clone()))
             .collect::<Vec<_>>();
@@ -403,7 +405,9 @@ fn anonymous_projection_permissions_cannot_be_removed_duplicated_or_rebound() {
                     "duplicate" => {
                         permissions.insert(event.clone());
                     }
-                    "root" => permissions.get_mut(handle).root = facts::PlaceRoot::Unknown,
+                    "root" => {
+                        permissions.get_mut(handle).root = crate::fact_plan::PlaceRoot::Unknown
+                    }
                     "path" => {
                         permissions.get_mut(handle).segments = if event.segments.is_empty() {
                             original

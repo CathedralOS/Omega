@@ -6,6 +6,10 @@ use crate::{
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 use selected_instructions_to_selected_instructions::FixedViewCopyPolicy;
+#[cfg(feature = "test-support")]
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocatorAvailability, ValidatedFixedViewCopies, ValidatedPressureRematerialization,
+};
 
 #[cfg(test)]
 mod tests;
@@ -33,7 +37,81 @@ enum ReplayInputs {
 }
 
 impl RetainedAllocation {
-    pub fn program(&self) -> &register_homes::AllocatedProgram {
+    #[cfg(feature = "test-support")]
+    pub fn substitute_current_program_for_test(
+        &mut self,
+        program: selected_instructions_to_selected_instructions::register_homes::AllocatedProgram,
+    ) {
+        self.current.program = program;
+    }
+
+    #[cfg(feature = "test-support")]
+    pub fn fixed_view_copy_proof_for_test(&self) -> Option<&ValidatedFixedViewCopies> {
+        match &self.replay {
+            ReplayInputs::FixedView(source) => {
+                Some(source.reanalysis_stage().transformation_stage().copies())
+            }
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "test-support")]
+    pub fn rematerialization_availability_for_test(
+        &self,
+    ) -> Option<&ValidatedAllocatorAvailability> {
+        match &self.replay {
+            ReplayInputs::Rematerialization(source) => {
+                Some(source.source().allocator_availability())
+            }
+            _ => None,
+        }
+    }
+
+    /// Inspect exact rewrite proof details in cross-phase corruption controls.
+    /// Production consumers cannot use this to select a source-history route.
+    #[cfg(feature = "test-support")]
+    pub fn rematerialization_proof_for_test(&self) -> Option<&ValidatedPressureRematerialization> {
+        match &self.replay {
+            ReplayInputs::Rematerialization(source) => Some(source.rematerialization()),
+            _ => None,
+        }
+    }
+
+    /// Corrupt the recorded active-resident rematerialization prefix a
+    /// runtime-spill composition carries, so cross-phase controls prove
+    /// replay rejects the prefix before trusting its spill steps.
+    /// Returns `false` when the retained source has no such prefix.
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn corrupt_runtime_spill_active_resident_prefix_custody_for_test(&mut self) -> bool {
+        match &mut self.replay {
+            ReplayInputs::RuntimeSpill(source) => {
+                source.corrupt_active_resident_prefix_custody_for_test()
+            }
+            _ => false,
+        }
+    }
+
+    /// Re-run the full independent replay of the retained source rather than
+    /// the immutable-admission projection. Cross-phase corruption controls use
+    /// this to prove a mutated source is rejected by the same validation the
+    /// constructor ran.
+    #[cfg(feature = "test-support")]
+    pub fn fresh_source_replay_for_test(&self) -> Result<(), AllocationReplayError> {
+        match &self.replay {
+            ReplayInputs::RuntimeSpill(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::Baseline(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::FixedView(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::LiteralFolds(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::SelectedLowering(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::PreAllocation(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::Rematerialization(source) => source.replay_allocation().map(|_| ()),
+        }
+    }
+
+    pub fn program(
+        &self,
+    ) -> &selected_instructions_to_selected_instructions::register_homes::AllocatedProgram {
         &self.current.program
     }
 

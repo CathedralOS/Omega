@@ -1,7 +1,7 @@
 use crate::tests::front_end::typed_program;
 #[test]
 fn direct_frames_close_over_current_aliases_without_redirecting_prior_aliases() {
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
     let source = r#"
     data Cell { value: u64; }
     data Main { first: Cell; second: Cell; }
@@ -18,7 +18,7 @@ fn direct_frames_close_over_current_aliases_without_redirecting_prior_aliases() 
     }
     "#;
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
     let machine = typed
         .machines()
         .iter()
@@ -101,7 +101,7 @@ fn direct_alias_stores_invalidate_arithmetic_facts_in_both_spellings() {
              machine Main::run(&mut self) {{ {body} }}"
         );
         let typed = typed_program(&source);
-        match validation::validate_program(&typed) {
+        match crate::validation::validate_program(&typed) {
             Err(diagnostics)
                 if diagnostics.iter().any(|diagnostic| {
                     let message = diagnostic.to_string();
@@ -134,7 +134,7 @@ fn local_receiver_calls_invalidate_arithmetic_facts_on_caller_storage() {
             }}"
         );
         let typed = typed_program(&source);
-        let diagnostics = validation::validate_program(&typed)
+        let diagnostics = crate::validation::validate_program(&typed)
             .expect_err("stale zero cannot prove overflow safety");
         assert!(
             diagnostics.iter().any(|diagnostic| {
@@ -185,7 +185,7 @@ fn local_receiver_references_retain_caller_writes_and_returned_places() {
             machine Main::run(&mut self) {{ {body} }}"
         );
         let typed = typed_program(&source);
-        let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+        let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
         let machine = typed
             .machines()
             .iter()
@@ -227,7 +227,7 @@ fn computed_attached_arguments_exclude_the_receiver_parameter() {
     }
     "#;
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
     for name in ["Main::statement", "Main::expression"] {
         let machine = typed
             .machines()
@@ -272,7 +272,7 @@ fn computed_argument_siblings_keep_indexed_borrow_origins() {
     ] {
         let source = template.replace("$INDEX", index).replace("$VALUE", value);
         let typed = typed_program(&source);
-        let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+        let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
         let machine = typed
             .machines()
             .iter()
@@ -494,7 +494,7 @@ fn computed_call_arguments_preserve_every_write_and_reject_hostile_siblings() {
     // The negative cases deliberately include malformed value contexts. Frame
     // inference must not claim completeness before validation rejects them.
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
     for (name, _, complete, writes_other) in all_cases {
         let qualified_name = format!("Main::{name}");
         let machine = typed
@@ -534,7 +534,7 @@ fn member_projection_off_aggregate_call_result_lends_the_leaf_referents() {
     }
     "#;
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
     let machine = typed
         .machines()
         .iter()
@@ -563,7 +563,7 @@ fn aggregate_leaf_result_tail_lends_the_leaf_referents() {
     }
     "#;
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
     let machine = typed
         .machines()
         .iter()

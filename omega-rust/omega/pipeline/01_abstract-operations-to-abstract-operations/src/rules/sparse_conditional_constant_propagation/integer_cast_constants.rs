@@ -1,15 +1,15 @@
 //! The proof-certified exact integer-cast constant fold: the rule, and the
 //! traversal that joins a constant operand to its accepted cast obligation.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
-use optimization_unit::{
+use semantic_vocabulary::{MachineId, OperationId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
-use semantic_vocabulary::{MachineId, OperationId};
 
 use crate::rules::sparse_conditional_constant_propagation::{
     constant_evaluation_contract, integer_constant,

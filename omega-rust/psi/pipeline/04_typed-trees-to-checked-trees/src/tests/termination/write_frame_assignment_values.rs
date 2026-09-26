@@ -100,7 +100,7 @@ fn finite_call_trees_preserve_deep_effects_and_reject_hostile_siblings() {
         &nested("return_value", "recursive_value(other)"),
     );
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
     for (name, expected) in [
         ("Main::indexed", Some(vec!["self.cells", "self.value"])),
         ("Main::returned", Some(vec!["self.value"])),
@@ -1115,7 +1115,7 @@ fn transparent_returned_place_accepts_complete_indexed_statement_arguments() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for (name, expected_paths) in [
         (
@@ -1525,7 +1525,7 @@ fn transparent_returned_place_accepts_finite_isolated_scratch_values() {
     }
 
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in [
         "Main::nested_scratch_result",
@@ -1803,7 +1803,7 @@ fn mutable_slice_views_preserve_array_storage_origins() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in [
         "Main::direct_view",

@@ -3,13 +3,13 @@ use crate::execution::terminal_unit::types::{
     ShapeCollector, checked_state_contracts_supported, state_flow,
 };
 
+use crate::checked_trees::{CheckedScalarComputationKind, CheckedStructuralScalarFieldStoreValue};
 use crate::execution::terminal_unit::calls::{build_call_operation, structural_scalar_signature};
 use crate::execution::terminal_unit::control::build_checked_machine;
 use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
 use crate::tests::front_end::checked_program;
-use checked_trees::{CheckedScalarComputationKind, CheckedStructuralScalarFieldStoreValue};
 
-fn fixture() -> checked_trees::CheckedTrees {
+fn fixture() -> crate::checked_trees::CheckedTrees {
     let source = r#"
         machine narrow(value: u32) -> u8 { (value as u8 in Wrapping) as u8 }
         data Record { value: u8 in Wrapping; }
@@ -190,10 +190,13 @@ fn field_call_assignment_retains_original_root_and_scalar_parameter_namespace() 
     };
     assert!(matches!(
         plans.nodes.get(*argument).kind,
-        CheckedScalarComputationKind::Value(checked_trees::CheckedScalarExpression::Parameter {
-            position: 0,
-            primitive_type: typed_trees::types::PrimitiveType::U32,
-        })
+        CheckedScalarComputationKind::Value(
+            crate::checked_trees::CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type:
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32,
+            }
+        )
     ));
 }
 
@@ -234,8 +237,8 @@ fn trapping_binary_assignment_plans_its_trapping_source() {
     assert!(
         matches!(
             value,
-            checked_trees::CheckedScalarExpression::IntegerBinary {
-                kind: checked_trees::CheckedIntegerBinaryKind::TrappingAdd,
+            crate::checked_trees::CheckedScalarExpression::IntegerBinary {
+                kind: crate::checked_trees::CheckedIntegerBinaryKind::TrappingAdd,
                 ..
             }
         ),
@@ -303,7 +306,7 @@ fn field_call_assignment_rejects_missing_stale_and_substituted_root_custody() {
             4 => plans.nodes.get_mut(root.root).authored_root = arena::Handle::invalid(),
             5 => {
                 plans.nodes.get_mut(root.root).primitive_type =
-                    typed_trees::types::PrimitiveType::U32
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32
             }
             6 => {
                 plans.roots.append(root.clone());

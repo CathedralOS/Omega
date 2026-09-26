@@ -8,7 +8,7 @@ use crate::execution::terminal_unit::types::type_graph_requires_nominal_drop;
 /// operands still observe its original home before selected-edge cleanup.
 pub(super) fn permits_disposal(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     result: &CheckedUnitStructuralResultBindingPlan,
     successors: &[&CheckedStructuralControlSuccessorPlan],
     disposable_locals: &[SymbolHandle],
@@ -18,7 +18,7 @@ pub(super) fn permits_disposal(
 
 fn validate(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     result: &CheckedUnitStructuralResultBindingPlan,
     successors: &[&CheckedStructuralControlSuccessorPlan],
     disposable_locals: &[SymbolHandle],
@@ -34,7 +34,7 @@ fn validate(
     let expected_identity =
         if matches!(
             super::super::types::byte_sequence_carrier(program, local.type_reference, &[]),
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+            Some(crate::checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
         ) || super::super::types::borrowed_slice_view_element(program, local.type_reference, &[])
             .is_some()
         {
@@ -71,7 +71,7 @@ fn validate(
         // nominal-drop gates only bound results that hold storage. A borrowed
         // view's death is the end of the loan, not a disposal.
         || (result.multiplicity != Multiplicity::Unrestricted
-            && (!validation::has_plain_owned_contents_with_numeric_constraints(
+            && (!crate::validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 local.type_reference,
             ) || type_graph_requires_nominal_drop(program, local.type_reference)))
@@ -86,7 +86,7 @@ fn validate(
             return None;
         }
         let count = successor.transfers.iter().filter(|transfer| matches!(transfer.source,
-            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
+            crate::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
                 if binding_ordinal == result.binding_ordinal)).count();
         match count {
             0 => has_disposal_edge = true,

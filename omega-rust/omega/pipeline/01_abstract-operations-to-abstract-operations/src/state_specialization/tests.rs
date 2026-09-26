@@ -12,22 +12,22 @@ use crate::{
     AnalysisProduct, OptimizationRun, PsiOptimizationCommit, VerifiedPsiOptimizationSession,
     compute_analysis, optimize_abstract_operations, run_psi_pipeline,
 };
-use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_core::{
     AnalysisKind, Optimization, OptimizationSelections, OptimizationUnitIdentity,
     OptimizationWorkBudget,
 };
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
+use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, OptimizationEdge, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
     StateArgumentSpecializationRewrite, recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_state_argument_specialization_candidate,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
-use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 /// One shared dispatch state `choose` entered by an unconditional jump that
 /// binds a literal `true` and by the entry conditional's unfused arm that binds
@@ -386,11 +386,11 @@ fn constant_state_argument_edge_specializes_the_dispatch() {
     assert_eq!(
         fused.fuel,
         vec![
-            optimization_unit::FuelSettlement {
+            terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(incoming_edge.psi_edge),
                 units: 1,
             },
-            optimization_unit::FuelSettlement {
+            terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(taken_edge.psi_edge),
                 units: 1,
             },
@@ -439,7 +439,7 @@ fn constant_state_argument_edge_specializes_the_dispatch() {
     assert_eq!(record.output, output.identity);
     assert_eq!(record.provenance, commit.provenance);
     let mut expected = vec![
-        optimization_unit::ProvenanceRewrite {
+        terminal_psi_to_abstract_operations::optimization_unit::ProvenanceRewrite {
             input: PsiRealizationSite::Edge {
                 machine,
                 edge: incoming_edge.psi_edge,
@@ -451,7 +451,7 @@ fn constant_state_argument_edge_specializes_the_dispatch() {
             sources: incoming_edge.provenance.clone(),
             fuel: incoming_edge.fuel.clone(),
         },
-        optimization_unit::ProvenanceRewrite {
+        terminal_psi_to_abstract_operations::optimization_unit::ProvenanceRewrite {
             input: PsiRealizationSite::Edge {
                 machine,
                 edge: taken_edge.psi_edge,
@@ -463,7 +463,7 @@ fn constant_state_argument_edge_specializes_the_dispatch() {
             sources: taken_edge.provenance.clone(),
             fuel: taken_edge.fuel.clone(),
         },
-        optimization_unit::ProvenanceRewrite {
+        terminal_psi_to_abstract_operations::optimization_unit::ProvenanceRewrite {
             input: PsiRealizationSite::Edge {
                 machine,
                 edge: taken_edge.psi_edge,
@@ -630,11 +630,11 @@ fn conditional_arm_state_argument_edge_specializes_the_dispatch() {
     assert_eq!(
         fused_edge.fuel,
         vec![
-            optimization_unit::FuelSettlement {
+            terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(row.incoming_edge),
                 units: 1,
             },
-            optimization_unit::FuelSettlement {
+            terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(taken_edge.psi_edge),
                 units: 1,
             },
@@ -1749,11 +1749,11 @@ fn call_result_state_argument_specializes_the_dispatch() {
     assert_eq!(
         fused.fuel,
         vec![
-            optimization_unit::FuelSettlement {
+            terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(incoming_edge.psi_edge),
                 units: 1,
             },
-            optimization_unit::FuelSettlement {
+            terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(taken_edge.psi_edge),
                 units: 1,
             },
@@ -2064,16 +2064,18 @@ fn assert_frozen_dispatch_is_refused(
     let plan = StateArgumentSpecializationRewrite {
         machine,
         dispatch,
-        edges: vec![optimization_unit::SpecializedStateEdgeRow {
-            incoming_edge: incoming.psi_edge,
-            predecessor,
-            parameter,
-            argument: bound_argument(incoming, parameter),
-            constant,
-            taken_edge: taken_edge.psi_edge,
-            rejected_edge: rejected_edge.psi_edge,
-            resolved_target,
-        }],
+        edges: vec![
+            terminal_psi_to_abstract_operations::optimization_unit::SpecializedStateEdgeRow {
+                incoming_edge: incoming.psi_edge,
+                predecessor,
+                parameter,
+                argument: bound_argument(incoming, parameter),
+                constant,
+                taken_edge: taken_edge.psi_edge,
+                rejected_edge: rejected_edge.psi_edge,
+                resolved_target,
+            },
+        ],
     };
     let provenance = super::accounting::provenance_rows(function, &plan).expect("edges exist");
     let mut affected_blocks = vec![dispatch, predecessor.block];
@@ -2154,7 +2156,7 @@ fn assert_rejects_rows(
 
 /// The number of edges still entering `dispatch`.
 fn incoming_edge_count(
-    function: &optimization_unit::PsiOptimizationFunction,
+    function: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     dispatch: BlockId,
 ) -> usize {
     function
@@ -2168,7 +2170,7 @@ fn incoming_edge_count(
 
 /// The single successor edge of the `Jump` at `predecessor` after fusion.
 fn fused_jump_edge(
-    function: &optimization_unit::PsiOptimizationFunction,
+    function: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     predecessor: NodeLocation,
 ) -> &OptimizationEdge {
     function

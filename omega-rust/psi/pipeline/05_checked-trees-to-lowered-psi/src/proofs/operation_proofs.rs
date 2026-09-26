@@ -4,11 +4,11 @@ use super::LoweringError;
 use super::nonzero_divisor_certificate::{
     produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
 };
+use crate::lowered_psi::LoweredPsi;
 #[cfg(test)]
 use crate::machine_lowering::lower_machine;
 #[cfg(test)]
 use crate::terminal_identities::obligation_id;
-use lowered_psi::LoweredPsi;
 use proof_admission::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };

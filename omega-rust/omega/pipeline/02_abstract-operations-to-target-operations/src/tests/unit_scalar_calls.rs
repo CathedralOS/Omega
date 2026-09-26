@@ -131,14 +131,14 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
             TargetUnitOperation::Call {
                 psi_operation: first_operation,
                 call_plan: first_plan,
-                result: target_operations::TargetCallResult::Scalar(first_home),
+                result: crate::target_operations::TargetCallResult::Scalar(first_home),
                 scalar_arguments: first_arguments,
                 ..
             },
             TargetUnitOperation::Call {
                 psi_operation: second_operation,
                 call_plan: second_plan,
-                result: target_operations::TargetCallResult::Scalar(second_home),
+                result: crate::target_operations::TargetCallResult::Scalar(second_home),
                 scalar_arguments: second_arguments,
                 ..
             },
@@ -276,7 +276,7 @@ fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
             };
             assert_eq!(
                 arguments[0].source,
-                target_operations::TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+                crate::target_operations::TargetUnitScalarArgumentSource::IeeeFloatImmediate {
                     defining_operation: OperationId::new(10).unwrap(),
                     source_value: ValueId::new(10).unwrap(),
                     value: literal,
@@ -290,7 +290,7 @@ fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
                 panic!("second call")
             };
             assert!(
-                matches!(arguments[0].source, target_operations::TargetUnitScalarArgumentSource::Home(home)
+                matches!(arguments[0].source, crate::target_operations::TargetUnitScalarArgumentSource::Home(home)
                 if home.source_value == ValueId::new(11).unwrap() && home.scalar_type == scalar_type)
             );
             let mut missing = source.clone();

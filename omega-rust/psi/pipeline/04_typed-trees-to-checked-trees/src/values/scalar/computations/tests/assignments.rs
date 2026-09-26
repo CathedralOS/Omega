@@ -78,17 +78,17 @@ fn scalar_computations_keep_assignment_rhs_and_prior_storage_namespace() {
         .unwrap();
     assert_eq!(
         graph.states[0].bindings[2].destination,
-        checked_trees::CheckedScalarBindingDestination::StorageAssign {
+        crate::checked_trees::CheckedScalarBindingDestination::StorageAssign {
             symbol: current.symbol
         }
     );
     assert_eq!(
         graph.states[0].bindings[2].value,
-        checked_trees::CheckedScalarBindingValue::Computation
+        crate::checked_trees::CheckedScalarBindingValue::Computation
     );
     assert_eq!(
         graph.states[0].bindings[4].value,
-        checked_trees::CheckedScalarBindingValue::Expression
+        crate::checked_trees::CheckedScalarBindingValue::Expression
     );
     assert_eq!(
         checked.facts.values.scalar_expressions.expression_at(
@@ -160,7 +160,7 @@ fn scalar_computations_do_not_duplicate_pure_assignment_roots() {
     );
     assert_eq!(
         checked.facts.flow.terminal_scalar_graphs.machines[0].states[0].bindings[1].value,
-        checked_trees::CheckedScalarBindingValue::Expression
+        crate::checked_trees::CheckedScalarBindingValue::Expression
     );
 }
 

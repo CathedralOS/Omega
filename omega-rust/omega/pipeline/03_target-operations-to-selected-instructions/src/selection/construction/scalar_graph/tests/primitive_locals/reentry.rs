@@ -7,9 +7,9 @@ use super::{
     OperationId, PlaceId, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints,
     build,
 };
+use crate::legalized_operations::LegalizedScalarSuccessor;
+use crate::selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedBlockOrigin};
 use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
-use legalized_operations::LegalizedScalarSuccessor;
-use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedBlockOrigin};
 
 #[test]
 fn primitive_local_loop_reentry_rejects_missing_or_hoisted_initialization() {
@@ -58,7 +58,7 @@ fn primitive_local_loop_reentry_rejects_missing_or_hoisted_initialization() {
         });
         source.provenance.edges.push(EdgeId::new(2).unwrap());
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

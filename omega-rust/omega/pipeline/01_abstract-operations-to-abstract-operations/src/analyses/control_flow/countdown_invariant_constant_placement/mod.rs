@@ -1,17 +1,17 @@
 //! Optimizer module role: executable entrance. Exact countdown constant-placement coordination.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     ValueDefinitionSite, ValueUse, recompute_psi_optimization_unit_identity,
 };
 
 use crate::validation::ValidatedOptimizerCycleComponents;
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::optimization_unit::{
     CycleComponentEdge, CycleComponentId, OptimizerUnsignedCountdownRankingCertificate,
 };
-use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, ValueId};
 
 use super::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantRole,

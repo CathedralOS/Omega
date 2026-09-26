@@ -13,11 +13,11 @@ use crate::preparation::generic_data::EvaluatedConst;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use arena::HandleSpan;
-use syntax_trees::expression::ExpressionHandle;
-use syntax_trees::expression::StaticMachineArgument;
-use syntax_trees::item::CapabilityContract;
-use syntax_trees::item::Machine;
-use syntax_trees::item::ProofFact;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle;
+use tokens_to_syntax_trees::syntax_trees::expression::StaticMachineArgument;
+use tokens_to_syntax_trees::syntax_trees::item::CapabilityContract;
+use tokens_to_syntax_trees::syntax_trees::item::Machine;
+use tokens_to_syntax_trees::syntax_trees::item::ProofFact;
 
 pub(in crate::preparation::generic_data) fn replace_const_expression_names_from(
     syntax: &mut SyntaxTrees,

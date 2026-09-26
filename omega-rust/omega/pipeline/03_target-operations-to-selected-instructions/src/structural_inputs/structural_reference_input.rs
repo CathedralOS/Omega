@@ -1,7 +1,7 @@
 //! Input-only reconstruction of structural storage and borrowed-pointer geometry.
 //! Whole owned aggregates and borrowed referents share recursive payload layout;
 //! their callers independently check access, ownership and exact ABI placement.
-use calling_conventions::{
+use abstract_operations_to_target_operations::calling_conventions::{
     IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
@@ -80,7 +80,7 @@ pub(crate) struct RuntimeElement {
 /// elements, in path order: the same selector, obligation, stride and
 /// extent. The accepted certificate beside each was joined by legalization.
 pub(crate) fn runtime_indices_match(
-    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    indices: &[crate::legalized_operations::LegalizedRuntimeIndexOperand],
     elements: &[RuntimeElement],
 ) -> bool {
     indices.len() == elements.len()
@@ -625,7 +625,7 @@ fn shape_inner(
                 })
                 .collect::<Option<Vec<_>>>()?;
             Some(
-                calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
+                abstract_operations_to_target_operations::calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
                     .ok()?
                     .shape,
             )
@@ -651,7 +651,7 @@ fn shape_inner(
                 })
                 .collect::<Option<Vec<_>>>()?;
             Some(
-                calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
+                abstract_operations_to_target_operations::calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
                     .ok()?
                     .shape,
             )

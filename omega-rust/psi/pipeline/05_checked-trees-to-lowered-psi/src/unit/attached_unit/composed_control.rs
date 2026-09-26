@@ -31,11 +31,12 @@ pub(crate) use state_graph::live;
 /// state's operation buffer and the closure's published roster.
 #[derive(Default)]
 pub(in crate::unit::attached_unit) struct ComposedOccurrences {
-    pub(in crate::unit::attached_unit) source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
+    pub(in crate::unit::attached_unit) source_calls:
+        Vec<crate::lowered_psi::LoweredSourceCallOccurrence>,
     pub(in crate::unit::attached_unit) selected_ieee_float_comparisons:
-        Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
+        Vec<crate::lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(in crate::unit::attached_unit) selected_integer_comparisons:
-        Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+        Vec<crate::lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
 }
 
 impl ComposedOccurrences {
@@ -51,7 +52,7 @@ impl ComposedOccurrences {
 
 pub(crate) fn lower_composed_unit_control_machine(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
+    plan: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<SourceMappedLowered, LoweringError> {
     if !state_graph::has_shared_graph_custody(checked, plan) {
         return super::unsupported("composed Unit control has unsupported graph custody");

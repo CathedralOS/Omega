@@ -14,6 +14,15 @@
 mod phase;
 mod x86_branch_relaxation;
 
+pub mod image;
+pub mod image_elf;
+pub mod image_emission;
+pub mod image_macho;
+pub mod image_pe;
+pub mod machine_emission;
+pub mod native_artifact;
+pub mod object_file;
+
 pub use phase::{
     ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
     execute_resolved_layout_optimization, validate_resolved_layout_optimization,
@@ -27,3 +36,13 @@ pub use x86_branch_relaxation::{
     X86BranchRelaxationWorkAxis, stage_optimized_x86_branch_relaxation,
     validate_optimized_x86_branch_relaxation, x86_rel8_selected,
 };
+
+pub mod representation_selections;
+
+pub mod layout;
+
+pub mod runtime_abi;
+
+pub mod boundary_applications;
+
+pub mod program_entry_plan;

@@ -1,11 +1,11 @@
 //! Build dependent execution plans without publishing intermediate checked facts.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckFacts, CheckedBoundaryScalarReturnPlans, CheckedStructuralScalarReturnPlans,
     CheckedUnitEffectPlans,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 pub(crate) struct ExecutionPlans {
     pub boundary_returns: CheckedBoundaryScalarReturnPlans,
@@ -22,7 +22,7 @@ pub(crate) struct ExecutionPlans {
 pub(crate) fn build_execution_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> ExecutionPlans {
     let boundary_returns =
         crate::execution::terminal_unit::returns::build_checked_boundary_scalar_return_plans(

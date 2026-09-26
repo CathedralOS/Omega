@@ -3,7 +3,7 @@ use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode,
 };
-use checked_trees::{
+use crate::checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
@@ -12,14 +12,14 @@ impl Builder<'_, '_> {
     pub(super) fn local_scalar_record_field(
         &self,
         expression: ExpressionHandle,
-    ) -> Option<validation::LocalScalarRecordField> {
+    ) -> Option<crate::validation::LocalScalarRecordField> {
         if !matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Member(_)
         ) {
             return None;
         }
-        validation::local_scalar_record_field(
+        crate::validation::local_scalar_record_field(
             self.program,
             self.machine,
             self.state,
@@ -31,7 +31,7 @@ impl Builder<'_, '_> {
     pub(super) fn structural_field(
         &mut self,
         expression: ExpressionHandle,
-        field: validation::LocalScalarRecordField,
+        field: crate::validation::LocalScalarRecordField,
     ) -> CheckedScalarComputationHandle {
         self.insert(
             field.primitive_type,
@@ -44,7 +44,7 @@ impl Builder<'_, '_> {
                     path: field
                         .path
                         .into_iter()
-                        .map(checked_trees::CheckedUnitStructuralPathSegment::Field)
+                        .map(crate::checked_trees::CheckedUnitStructuralPathSegment::Field)
                         .collect(),
                     type_identity: self
                         .program

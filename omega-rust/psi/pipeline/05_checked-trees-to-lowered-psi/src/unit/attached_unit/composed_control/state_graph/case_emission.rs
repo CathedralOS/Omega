@@ -36,7 +36,9 @@ pub(super) fn prepare<'a>(
     else {
         return Ok(None);
     };
-    if subject.access != checked_trees::CheckedStructuralAccess::Owned || !subject.path.is_empty() {
+    if subject.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+        || !subject.path.is_empty()
+    {
         return unsupported("Unit graph case subject lacks owned custody");
     }
     let subject_position = match subject.source {
@@ -53,7 +55,7 @@ pub(super) fn prepare<'a>(
         _ => None,
     };
     let (place, structural_type) = match subject.source {
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             let parameter =
                 parameters
                     .get(parameter_index as usize)
@@ -68,7 +70,7 @@ pub(super) fn prepare<'a>(
             }
             (parameter.place, parameter.structural_type)
         }
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
         } => {
             let produced = result(state, binding_ordinal, operations)?;

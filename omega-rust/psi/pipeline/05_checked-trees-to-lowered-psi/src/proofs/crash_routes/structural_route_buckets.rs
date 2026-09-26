@@ -21,7 +21,7 @@ use crate::proofs::{
 };
 
 pub(crate) fn lower_structural_crash_route_buckets(
-    buckets: &[checked_trees::CrashRouteBucket],
+    buckets: &[typed_trees_to_checked_trees::checked_trees::CrashRouteBucket],
     scalar_parameters: &[ValueDeclaration],
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
@@ -40,10 +40,10 @@ pub(crate) fn lower_structural_crash_route_buckets(
                 .alternative_guards()
                 .iter()
                 .map(|guard| match guard {
-                    checked_trees::CrashRouteGuard::Truth => {
+                    typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Truth => {
                         Ok(terminal_psi::CrashRouteGuard::Truth)
                     }
-                    checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                    typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Predicate(predicate) => {
                         let proposition = if let Some(expression) = predicate.scalar_expression() {
                             let mut remaining = boolean_input_budget(expression)?;
                             terms.lower_proposition(
@@ -66,7 +66,7 @@ pub(crate) fn lower_structural_crash_route_buckets(
                                     &path
                                         .into_iter()
                                         .map(
-                                            checked_trees::CheckedStructuralPredicatePathSegment::Field,
+                                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field,
                                         )
                                         .collect::<Vec<_>>(),
                                     ScalarType::Boolean,
@@ -85,8 +85,8 @@ pub(crate) fn lower_structural_crash_route_buckets(
             alternatives.dedup();
             Ok(terminal_psi::CrashRouteBucket {
                 cause: match bucket.cause() {
-                    checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
-                    checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
+                    typed_trees_to_checked_trees::checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+                    typed_trees_to_checked_trees::checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
                 },
                 alternatives,
             })
@@ -596,10 +596,10 @@ impl RouteTerms<'_> {
             }
             return Ok(Proposition::IeeeFloatComparison {
                 kind: match kind {
-                    checked_trees::CheckedIeeeFloatComparisonKind::Equal => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedIeeeFloatComparisonKind::Equal => {
                         semantic_vocabulary::IeeeFloatComparisonKind::Equal
                     }
-                    checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
                         semantic_vocabulary::IeeeFloatComparisonKind::NotEqual
                     }
                 },
@@ -777,12 +777,17 @@ impl RouteTerms<'_> {
 }
 
 fn checked_member_path(
-    expression: &checked_trees::CrashPredicateExpression,
+    expression: &typed_trees_to_checked_trees::checked_trees::CrashPredicateExpression,
     path: &mut Vec<String>,
 ) -> Option<u32> {
     match expression {
-        checked_trees::CrashPredicateExpression::Parameter(position) => Some(*position),
-        checked_trees::CrashPredicateExpression::Member { receiver, member } => {
+        typed_trees_to_checked_trees::checked_trees::CrashPredicateExpression::Parameter(
+            position,
+        ) => Some(*position),
+        typed_trees_to_checked_trees::checked_trees::CrashPredicateExpression::Member {
+            receiver,
+            member,
+        } => {
             let parameter = checked_member_path(receiver, path)?;
             path.push(member.clone());
             Some(parameter)

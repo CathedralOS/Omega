@@ -17,11 +17,11 @@ pub(crate) fn build(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
-    machine: &typed_trees::machine::Machine,
-    entry: &typed_trees::state::State,
-    dynamic: &checked_trees::CheckedDynamicScalarCallPlan,
-    stored: Option<&checked_trees::DynamicDescriptorStorageFact>,
-) -> Option<checked_trees::CheckedDynamicUnitContinuationPlan> {
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    entry: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    dynamic: &crate::checked_trees::CheckedDynamicScalarCallPlan,
+    stored: Option<&crate::checked_trees::DynamicDescriptorStorageFact>,
+) -> Option<crate::checked_trees::CheckedDynamicUnitContinuationPlan> {
     if dynamic.caller_structural_scalar_field_store.is_some() {
         return None;
     }
@@ -193,7 +193,7 @@ pub(crate) fn build(
             ),
         ],
     )?;
-    Some(checked_trees::CheckedDynamicUnitContinuationPlan {
+    Some(crate::checked_trees::CheckedDynamicUnitContinuationPlan {
         guard,
         when_true: successors[0].clone(),
         when_false: successors[1].clone(),

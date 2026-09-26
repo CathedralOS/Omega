@@ -1,11 +1,13 @@
 use language_core::operator_spelling::OperatorSpelling;
 use language_semantics::declaration_selection::CollectionMeasure;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::operator::OperatorDefinition;
-use typed_trees::signature::SignatureContractKind;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Operand {

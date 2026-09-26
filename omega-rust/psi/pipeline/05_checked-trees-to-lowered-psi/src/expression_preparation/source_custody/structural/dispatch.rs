@@ -9,7 +9,7 @@ use super::{
     Replay, TypeReferenceHandle, unsupported, validate_operand,
 };
 use arena::HandleSpan;
-use checked_trees::CheckedStructuralDispatchArm;
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralDispatchArm;
 
 /// Replay one `Dispatch` node established at `expression` for `reference`.
 pub(super) fn validate(
@@ -42,8 +42,11 @@ pub(super) fn validate(
         dispatch.subject,
     )?;
     operand_roles.push(CheckedScalarExpressionRole::StructuralValueSubject { expression });
-    if validation::match_subject_primitive_type(&checked.typed, dispatch)
-        .is_some_and(|expected| expected != primitive)
+    if typed_trees_to_checked_trees::validation::match_subject_primitive_type(
+        &checked.typed,
+        dispatch,
+    )
+    .is_some_and(|expected| expected != primitive)
     {
         return unsupported("structural selection changed its subject carrier");
     }
@@ -127,7 +130,7 @@ pub(super) fn validate(
                             statement_index,
                         )?;
                     let selected = checked.facts.operators.uses.get(arm.equality_use);
-                    if selected.expression != expression || selected.occurrence != (checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm }) || !matches!(occurrence.meaning, crate::emission::selected_comparison::SelectedComparisonMeaning::IeeeFloat { comparison: semantic_vocabulary::IeeeFloatComparisonOperation::Equal, .. }) {
+                    if selected.expression != expression || selected.occurrence != (typed_trees_to_checked_trees::checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm }) || !matches!(occurrence.meaning, crate::emission::selected_comparison::SelectedComparisonMeaning::IeeeFloat { comparison: semantic_vocabulary::IeeeFloatComparisonOperation::Equal, .. }) {
                         return unsupported("structural pattern substituted selected equality");
                     }
                 } else if arm.equality_use.is_valid() {
@@ -138,8 +141,8 @@ pub(super) fn validate(
                         checked.expression_table.expression(*authored_pattern)
                 {
                     if !matches!(&checked.facts.values.scalar_computations.nodes.get(*pattern).kind,
-                        checked_trees::CheckedScalarComputationKind::Value(checked_trees::CheckedScalarExpression::Boolean(retained))
-                            if matches!(retained.as_ref(), checked_trees::CheckedBooleanExpression::Constant(retained) if retained == value))
+                        typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Value(typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Boolean(retained))
+                            if matches!(retained.as_ref(), typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Constant(retained) if retained == value))
                     {
                         return unsupported("structural selection changed a coverage literal");
                     }

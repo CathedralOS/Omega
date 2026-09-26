@@ -22,7 +22,7 @@ fn plan(source: &str, name: &str) -> Vec<CheckedUnitEffectOperationPlan> {
         .clone()
 }
 
-fn omission(source: &str, name: &str) -> checked_trees::CheckedUnitPlanOmissionStage {
+fn omission(source: &str, name: &str) -> crate::checked_trees::CheckedUnitPlanOmissionStage {
     let checked = checked(source);
     let machine = machine_named(&checked, name);
     let plans = &checked.facts.flow.terminal_unit_effects;
@@ -121,7 +121,7 @@ fn call_result_without_a_unit_shape_refuses_at_the_result_shape_phase() {
         assert!(
             matches!(
                 stage,
-                checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+                crate::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
                     phase: "statement sequence: local data: structural result shape",
                     statement_index: Some(0),
                     ..

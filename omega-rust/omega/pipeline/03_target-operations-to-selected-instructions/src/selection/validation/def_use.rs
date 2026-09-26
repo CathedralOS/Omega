@@ -1,13 +1,13 @@
 //! Selected SSA definitions, dominance, and explicit parallel edge transport.
 use super::integrity::terminator_instruction;
-use crate::selection::constraints::row;
-use crate::selection::model::SelectedInstructionError;
-use register_model::{RegisterOperandAccess, ValidatedRegisterConstraintCatalog};
-use selected_instructions::SelectedValueTransport;
-use selected_instructions::{
+use crate::register_model::{RegisterOperandAccess, ValidatedRegisterConstraintCatalog};
+use crate::selected_instructions::SelectedValueTransport;
+use crate::selected_instructions::{
     SelectedFunction, SelectedSuccessor, SelectedTerminator, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
+use crate::selection::constraints::row;
+use crate::selection::model::SelectedInstructionError;
 use semantic_vocabulary::ValueId;
 use std::collections::BTreeSet;
 
@@ -164,7 +164,7 @@ fn validate(
         }
         for successor in successors(&block.terminator) {
             if let Some(case) = &successor.structural_case {
-                use selected_instructions::SelectedCasePayloadTransport as Transport;
+                use crate::selected_instructions::SelectedCasePayloadTransport as Transport;
                 for payload in &case.payloads {
                     let semantic = payload.semantic.parameter;
                     let destination = function.virtual_registers.iter().find(|register| {
@@ -177,7 +177,7 @@ fn validate(
                         (Transport::Unmaterialized { parameter }, Some(destination))
                             if projected
                                 && successor.role
-                                    == selected_instructions::SelectedSuccessorRole::Semantic
+                                    == crate::selected_instructions::SelectedSuccessorRole::Semantic
                                 && destination.id == parameter
                                 && destination.scalar_type == semantic.scalar_type
                                 && destination.definition_site
@@ -194,7 +194,7 @@ fn validate(
                                 .get(argument.0 as usize)
                                 .ok_or_else(invalid)?;
                             if projected
-                                || successor.role != selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation
+                                || successor.role != crate::selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation
                                 || destination.id != parameter
                                 || destination.scalar_type != semantic.scalar_type
                                 || destination.definition_site != Some(semantic.definition_site)

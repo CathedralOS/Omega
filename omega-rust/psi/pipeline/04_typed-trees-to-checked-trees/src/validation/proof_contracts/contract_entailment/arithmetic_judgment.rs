@@ -1,0 +1,2676 @@
+use super::{
+    BTreeMap, BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER,
+    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
+    SymbolHandle, TypedTrees, proof_integer_expression, proof_nat_cast,
+};
+pub(super) enum Judgment {
+    Proven,
+    /// Disproved purely by folding both sides to constants.
+    ConstantFalse,
+    /// The visible requires facts prove the goal's negation.
+    Refuted,
+    Unknown {
+        goal_in_language: bool,
+    },
+}
+
+/// A monomial: atoms (by canonical display name) to powers. Empty = the
+/// constant monomial.
+type Monomial = BTreeMap<String, u32>;
+
+/// A polynomial: monomials to EXACT BigInt coefficients (math roster N2:
+/// coefficient arithmetic never overflows, so a provable goal never
+/// downgrades to "unknown" by width). Zero coefficients are never stored,
+/// so structural equality is polynomial identity.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(super) struct Polynomial {
+    pub(super) terms: BTreeMap<Monomial, BigInt>,
+}
+
+impl Polynomial {
+    pub(super) fn constant(value: BigInt) -> Self {
+        let mut polynomial = Self::default();
+        if !value.is_zero() {
+            polynomial.terms.insert(Monomial::new(), value);
+        }
+        polynomial
+    }
+
+    pub(super) fn atom(name: String) -> Self {
+        let mut monomial = Monomial::new();
+        monomial.insert(name, 1);
+        let mut polynomial = Self::default();
+        polynomial.terms.insert(monomial, BigInt::from_i64(1));
+        polynomial
+    }
+
+    pub(super) fn constant_value(&self) -> Option<BigInt> {
+        match self.terms.len() {
+            0 => Some(BigInt::zero()),
+            1 => self.terms.get(&Monomial::new()).cloned(),
+            _ => None,
+        }
+    }
+
+    pub(super) fn add(&self, other: &Self) -> Self {
+        let mut terms = self.terms.clone();
+        for (monomial, coefficient) in &other.terms {
+            let entry = terms.entry(monomial.clone()).or_insert_with(BigInt::zero);
+            *entry = entry.add(coefficient);
+            if entry.is_zero() {
+                terms.remove(monomial);
+            }
+        }
+        Self { terms }
+    }
+
+    fn neg(&self) -> Self {
+        let mut terms = BTreeMap::new();
+        for (monomial, coefficient) in &self.terms {
+            terms.insert(monomial.clone(), coefficient.negate());
+        }
+        Self { terms }
+    }
+
+    pub(super) fn sub(&self, other: &Self) -> Self {
+        self.add(&other.neg())
+    }
+
+    /// Coefficients are exact; the only remaining failure is monomial POWER
+    /// overflow (u32), which no writable program reaches.
+    pub(super) fn checked_mul(&self, other: &Self) -> Option<Self> {
+        let mut result = Self::default();
+        for (left_monomial, left_coefficient) in &self.terms {
+            for (right_monomial, right_coefficient) in &other.terms {
+                let coefficient = left_coefficient.mul(right_coefficient);
+                let mut monomial = left_monomial.clone();
+                for (atom, power) in right_monomial {
+                    let entry = monomial.entry(atom.clone()).or_insert(0);
+                    *entry = entry.checked_add(*power)?;
+                }
+                let entry = result
+                    .terms
+                    .entry(monomial.clone())
+                    .or_insert_with(BigInt::zero);
+                *entry = entry.add(&coefficient);
+                if entry.is_zero() {
+                    result.terms.remove(&monomial);
+                }
+            }
+        }
+        Some(result)
+    }
+
+    /// `(difference-of-two-unit-atoms, constant)`: `a - b + c` as
+    /// `Some((a, b, c))`. The shape the difference-bound matrix consumes.
+    fn as_atom_difference(&self) -> Option<(String, String, BigInt)> {
+        let mut positive = None;
+        let mut negative = None;
+        let mut constant = BigInt::zero();
+        for (monomial, coefficient) in &self.terms {
+            if monomial.is_empty() {
+                constant = coefficient.clone();
+                continue;
+            }
+            if monomial.len() != 1 || *monomial.values().next().unwrap() != 1 {
+                return None;
+            }
+            let atom = monomial.keys().next().unwrap().clone();
+            if *coefficient == BigInt::from_i64(1) && positive.is_none() {
+                positive = Some(atom);
+            } else if *coefficient == BigInt::from_i64(-1) && negative.is_none() {
+                negative = Some(atom);
+            } else {
+                return None;
+            }
+        }
+        Some((positive?, negative?, constant))
+    }
+
+    /// `(single-unit-atom, coefficient-sign, constant)` for bounds like
+    /// `a + c >= 0` / `-a + c >= 0`.
+    fn as_single_atom(&self) -> Option<(String, i64, BigInt)> {
+        let mut atom = None;
+        let mut coefficient_value = BigInt::zero();
+        let mut constant = BigInt::zero();
+        for (monomial, coefficient) in &self.terms {
+            if monomial.is_empty() {
+                constant = coefficient.clone();
+                continue;
+            }
+            if monomial.len() != 1 || *monomial.values().next().unwrap() != 1 || atom.is_some() {
+                return None;
+            }
+            atom = Some(monomial.keys().next().unwrap().clone());
+            coefficient_value = coefficient.clone();
+        }
+        let atom = atom?;
+        let sign = if coefficient_value == BigInt::from_i64(1) {
+            1
+        } else if coefficient_value == BigInt::from_i64(-1) {
+            -1
+        } else {
+            return None;
+        };
+        Some((atom, sign, constant))
+    }
+}
+
+/// An interval with optional (= unbounded) ends; end arithmetic is exact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Interval {
+    low: Option<BigInt>,
+    high: Option<BigInt>,
+}
+
+impl Interval {
+    fn unbounded() -> Self {
+        Self {
+            low: None,
+            high: None,
+        }
+    }
+
+    pub(super) fn constant(value: BigInt) -> Self {
+        Self {
+            low: Some(value.clone()),
+            high: Some(value),
+        }
+    }
+
+    pub(super) fn add(&self, other: &Self) -> Self {
+        Self {
+            low: match (&self.low, &other.low) {
+                (Some(a), Some(b)) => Some(a.add(b)),
+                _ => None,
+            },
+            high: match (&self.high, &other.high) {
+                (Some(a), Some(b)) => Some(a.add(b)),
+                _ => None,
+            },
+        }
+    }
+
+    fn scale(&self, factor: &BigInt) -> Self {
+        if factor.is_zero() {
+            return Self::constant(BigInt::zero());
+        }
+        let scaled_low = self.low.as_ref().map(|value| value.mul(factor));
+        let scaled_high = self.high.as_ref().map(|value| value.mul(factor));
+        if factor.is_negative() {
+            Self {
+                low: scaled_high,
+                high: scaled_low,
+            }
+        } else {
+            Self {
+                low: scaled_low,
+                high: scaled_high,
+            }
+        }
+    }
+
+    fn multiply(&self, other: &Self) -> Self {
+        // Scalar multiplication retains a one-sided bound. In particular,
+        // the monomial accumulator's initial 1 must not erase [0, +infinity).
+        if let (Some(low), Some(high)) = (&self.low, &self.high)
+            && low == high
+        {
+            return other.scale(low);
+        }
+        if let (Some(low), Some(high)) = (&other.low, &other.high)
+            && low == high
+        {
+            return self.scale(low);
+        }
+        // An unbounded end makes the product unbounded on the side it could
+        // extend; with all four ends finite the corner products are exact.
+        let (Some(self_low), Some(self_high), Some(other_low), Some(other_high)) =
+            (&self.low, &self.high, &other.low, &other.high)
+        else {
+            return Interval::unbounded();
+        };
+        let candidates = [
+            self_low.mul(other_low),
+            self_low.mul(other_high),
+            self_high.mul(other_low),
+            self_high.mul(other_high),
+        ];
+        Self {
+            low: candidates.iter().min().cloned(),
+            high: candidates.iter().max().cloned(),
+        }
+    }
+
+    /// `self` raised to `power`, treating repeated factors as CORRELATED:
+    /// an even power of any interval is non-negative, and the square of
+    /// `[lo, hi]` is exact rather than the independent product.
+    fn correlated_power(&self, power: u32) -> Self {
+        if power == 0 {
+            return Self::constant(BigInt::from_i64(1));
+        }
+        if power == 1 {
+            return self.clone();
+        }
+        let (Some(low), Some(high)) = (&self.low, &self.high) else {
+            // Unbounded base: an even power is still known non-negative.
+            return if power.is_multiple_of(2) {
+                Self {
+                    low: Some(BigInt::zero()),
+                    high: None,
+                }
+            } else {
+                Interval::unbounded()
+            };
+        };
+        let corner_low = pow(low, power);
+        let corner_high = pow(high, power);
+        if power % 2 == 1 {
+            return Self {
+                low: Some(corner_low),
+                high: Some(corner_high),
+            };
+        }
+        let max_corner = corner_low.clone().max(corner_high.clone());
+        let min_corner = if !low.is_negative() || high.is_negative() {
+            corner_low.min(corner_high)
+        } else {
+            // The base interval straddles zero: the even power bottoms at 0.
+            BigInt::zero()
+        };
+        Self {
+            low: Some(min_corner),
+            high: Some(max_corner),
+        }
+    }
+}
+
+fn pow(base: &BigInt, power: u32) -> BigInt {
+    let mut result = BigInt::from_i64(1);
+    for _ in 0..power {
+        result = result.mul(base);
+    }
+    result
+}
+
+/// `floor(value / 2^count)`: an exact `>>`'s mathematical value. The engine's
+/// `div_rem` truncates toward zero, so a negative nondivisible value drops
+/// one more -- `-3 >> 1` is `-2`, not the truncated quotient `-1`.
+fn floor_shift_right(value: &BigInt, count: u64) -> Option<BigInt> {
+    let divisor = BigInt::from_i64(1).shl_bits(count as usize);
+    let (quotient, remainder) = value.div_rem(&divisor)?;
+    Some(if remainder.is_negative() {
+        quotient.sub(&BigInt::from_i64(1))
+    } else {
+        quotient
+    })
+}
+
+/// The representable `[minimum, maximum]` of a `bits`-wide integer carrier,
+/// two's complement when `signed`. `bits` names a real machine width
+/// (8..=64), so the shifts below cannot fail.
+fn bitwise_carrier_bounds(bits: u32, signed: bool) -> (BigInt, BigInt) {
+    if signed {
+        let half = BigInt::from_i64(1).shl_bits((bits - 1) as usize);
+        (half.negate(), half.sub(&BigInt::from_i64(1)))
+    } else {
+        (
+            BigInt::zero(),
+            BigInt::from_i64(1)
+                .shl_bits(bits as usize)
+                .sub(&BigInt::from_i64(1)),
+        )
+    }
+}
+
+/// `left & right` inside a `bits`-wide two's-complement carrier. Each
+/// operand reduces modulo `2^bits` -- every real operand is already
+/// in-carrier, so the reduction is identity there and only keeps a spelled
+/// out-of-range constant total -- then the u64 magnitudes AND and the
+/// result reinterprets under `signed`.
+fn bitwise_and_constants(left: &BigInt, right: &BigInt, bits: u32, signed: bool) -> Option<BigInt> {
+    let modulus = BigInt::from_i64(1).shl_bits(bits as usize);
+    let reduce = |value: &BigInt| -> Option<u64> {
+        let (_, remainder) = value.div_rem(&modulus)?;
+        let reduced = if remainder.is_negative() {
+            remainder.add(&modulus)
+        } else {
+            remainder
+        };
+        reduced.to_u64()
+    };
+    let masked = reduce(left)? & reduce(right)?;
+    let value = BigInt::from_u64(masked);
+    // A signed carrier reinterprets the top bit; `bits <= 64` always, and
+    // for `bits == 64` that bit is position 63.
+    if signed && masked & (1u64 << (bits - 1).min(63)) != 0 {
+        Some(value.sub(&modulus))
+    } else {
+        Some(value)
+    }
+}
+
+/// The operands one opaque atom was minted from, retained so a later
+/// simultaneous substitution can re-mint the same shape under the
+/// transported operands rather than dropping the term.
+#[derive(Clone)]
+enum OpaqueTerm {
+    /// A truncating remainder keeps both inputs, including a runtime modulus;
+    /// equal result intervals do not establish conserved endpoint identity.
+    Remainder {
+        operand: Polynomial,
+        modulus: Polynomial,
+        /// The mint site's provenance gate for the single-quotient tight
+        /// interval; re-mints reuse it rather than re-deriving it.
+        tight_interval: bool,
+    },
+    /// A truncating quotient retains both inputs, not just the dividend:
+    /// a runtime divisor is an independently transported value too.
+    Quotient {
+        dividend: Polynomial,
+        divisor: Polynomial,
+    },
+    /// An exact left shift keeps both inputs and the shifted carrier's bit
+    /// width: the count's defined range `[0, count_bits)` bounds the factor,
+    /// and re-mints reuse the mint site's width rather than re-deriving it.
+    ShiftLeft {
+        value: Polynomial,
+        count: Polynomial,
+        count_bits: u32,
+    },
+    /// An exact right shift keeps the same inputs and width: the result is
+    /// `floor(value / 2^count)`, arithmetic (sign-filling) for a signed
+    /// value and logical for an unsigned one, so it never escapes the
+    /// shifted carrier. The F8 count obligation is identical to `<<`'s.
+    ShiftRight {
+        value: Polynomial,
+        count: Polynomial,
+        count_bits: u32,
+    },
+    /// An integer bitwise-AND keeps both inputs and the shared carrier's
+    /// shape (`bits` wide, two's complement when `signed`). The operation
+    /// is total -- every operand pairing lands inside that carrier -- so
+    /// the term carries no divisor/count-style side condition, only the
+    /// shape its interval reads sign corners from.
+    BitwiseAnd {
+        left: Polynomial,
+        right: Polynomial,
+        bits: u32,
+        signed: bool,
+    },
+}
+
+pub(super) struct Engine<'program> {
+    pub(super) program: &'program TypedTrees,
+    /// The machine this engine judges (entry-range hypotheses resolve
+    /// through it).
+    machine_symbol: SymbolHandle,
+    /// Canonical atom names for the machine's parameters.
+    pub(super) parameter_atoms: Vec<String>,
+    /// Authority-bearing adapters bind resolved symbols directly. When this
+    /// is `Some`, an unbound name is outside the language rather than falling
+    /// back to its display spelling.
+    strict_symbol_bindings: Option<Vec<(SymbolHandle, Polynomial)>>,
+    strict_symbol_bindings_valid: bool,
+    /// Only the exact-meaning call adapter licenses widening while capturing
+    /// actuals. Other strict readers (ranges and saved locals) have not checked
+    /// operand arithmetic and must retain their existing cast refusal.
+    exact_argument_widening: bool,
+    /// The synthetic guarantee `result` has no resolved symbol. A scoped
+    /// roster may bind it to the exact term an exit returns; without a
+    /// binding the name stays outside a strict engine's language.
+    strict_result_binding: Option<Polynomial>,
+    /// Exact numeric projections and quotient occurrences installed by the
+    /// owning strict query after checking builtin meaning and source custody.
+    strict_projections: Vec<(ExpressionHandle, Polynomial)>,
+    /// Declaration-owned reserved self occurrences, isolated per scoped roster.
+    strict_domain_self: Vec<(ExpressionHandle, Polynomial)>,
+    /// A formation query has exact symbol bindings and admits only total
+    /// mathematical arithmetic. It must not inherit the legacy proof
+    /// machine adapter's interpretation of arbitrary executable operators.
+    proof_integer_formation: bool,
+    /// Policy-safe normalization is required by the new embedding lane.
+    /// The pre-existing raw wrapping induction producer is migrated
+    /// separately; unrelated machines must not select a different prover.
+    integer_embedding_policy: bool,
+    /// Parameters whose primitive type is unsigned carry an implicit `>= 0`.
+    unsigned_atoms: Vec<String>,
+    /// Directed substitutions from requires equations (`atom := polynomial`),
+    /// applied to fixpoint during normalization.
+    pub(super) substitutions: BTreeMap<String, Polynomial>,
+    /// Lower bounds: each entry means `polynomial >= bound`.
+    bounds: Vec<(Polynomial, BigInt)>,
+    /// Exact integer disequalities retained by strict adapters. A nonzero
+    /// difference has no sign; it can establish disequality, not an order bound.
+    nonzero_differences: Vec<Polynomial>,
+    /// Derived bounds for truncating integer quotient, remainder, and shift
+    /// atoms.
+    arithmetic_intervals: BTreeMap<String, Interval>,
+    /// Opaque quotient/remainder/shift atoms this engine minted, in mint
+    /// order with each term's operands. An outer term's operand atoms were
+    /// necessarily minted earlier, so one ordered pass transports nested
+    /// terms innermost-first.
+    opaque_terms: Vec<(String, OpaqueTerm)>,
+    /// Difference-bound matrix over atoms + the virtual ZERO atom:
+    /// `matrix[a][b]` = best known lower bound of `a - b`.
+    matrix: BTreeMap<String, BTreeMap<String, BigInt>>,
+    pub(super) requires_unsatisfiable: bool,
+}
+
+const ZERO_ATOM: &str = "\u{0}zero";
+const SUBSTITUTION_ROUNDS: usize = 8;
+
+impl<'program> Engine<'program> {
+    pub(super) fn new(program: &'program TypedTrees, machine: &Machine) -> Self {
+        let mut parameter_atoms = Vec::new();
+        let mut unsigned_atoms = Vec::new();
+        for state in program.machine_states(machine) {
+            for parameter in program.state_parameters(state) {
+                if parameter.is_self {
+                    continue;
+                }
+                let name = parameter.name.as_str().to_owned();
+                if !parameter_atoms.contains(&name) {
+                    let primitive = program
+                        .type_reference_table
+                        .primitive_type(parameter.type_reference);
+                    // `is_signed_integer` is false exactly for the unsigned
+                    // integer primitives (floats/bool/string report true), so
+                    // this marks precisely the `>= 0` carriers.
+                    if let Some(primitive) = primitive
+                        && !primitive.is_signed_integer()
+                    {
+                        unsigned_atoms.push(name.clone());
+                    }
+                    parameter_atoms.push(name);
+                }
+            }
+        }
+        Self {
+            program,
+            machine_symbol: machine.symbol,
+            parameter_atoms,
+            strict_symbol_bindings: None,
+            strict_symbol_bindings_valid: true,
+            exact_argument_widening: false,
+            strict_result_binding: None,
+            strict_projections: Vec::new(),
+            strict_domain_self: Vec::new(),
+            proof_integer_formation: false,
+            integer_embedding_policy:
+                crate::validation::proof_contracts::proof_embeddings::machine_contains_integer_embedding(
+                    program, machine,
+                ),
+            unsigned_atoms,
+            substitutions: BTreeMap::new(),
+            bounds: Vec::new(),
+            nonzero_differences: Vec::new(),
+            arithmetic_intervals: BTreeMap::new(),
+            opaque_terms: Vec::new(),
+            matrix: BTreeMap::new(),
+            requires_unsatisfiable: false,
+        }
+    }
+
+    pub(super) fn strict_with_symbol_bindings(
+        program: &'program TypedTrees,
+        machine: &Machine,
+        bindings: &[StrictArithmeticSymbolBinding],
+    ) -> Self {
+        let mut engine = Self::new(program, machine);
+        engine.parameter_atoms.clear();
+        engine.unsigned_atoms.clear();
+        let mut resolved = Vec::with_capacity(bindings.len());
+        for binding in bindings {
+            let polynomial = match &binding.value {
+                StrictArithmeticBindingValue::Atom { identity, unsigned } => {
+                    if !engine.parameter_atoms.contains(identity) {
+                        engine.parameter_atoms.push(identity.clone());
+                    }
+                    if *unsigned && !engine.unsigned_atoms.contains(identity) {
+                        engine.unsigned_atoms.push(identity.clone());
+                    }
+                    Polynomial::atom(identity.clone())
+                }
+                StrictArithmeticBindingValue::Integer(value) => Polynomial::constant(value.clone()),
+            };
+            if let Some((_, existing)) = resolved
+                .iter()
+                .find(|(symbol, _)| *symbol == binding.symbol)
+            {
+                if existing != &polynomial {
+                    // A contradictory binding set must invalidate even a
+                    // constant-only goal, not degrade to an empty table.
+                    engine.strict_symbol_bindings_valid = false;
+                    return engine;
+                }
+                continue;
+            }
+            resolved.push((binding.symbol, polynomial));
+        }
+        engine.strict_symbol_bindings = Some(resolved);
+        engine
+    }
+
+    pub(super) fn strict_symbol_bindings_are_valid(&self) -> bool {
+        self.strict_symbol_bindings_valid
+    }
+
+    /// Register a private atom of a scoped roster. Unsigned atoms carry the
+    /// same implicit `>= 0` as unsigned parameters; the matrix seeds it on the
+    /// next hypothesis installation.
+    fn declare_atom(&mut self, identity: &str, unsigned: bool) {
+        if !self.parameter_atoms.iter().any(|atom| atom == identity) {
+            self.parameter_atoms.push(identity.to_owned());
+        }
+        if unsigned && !self.unsigned_atoms.iter().any(|atom| atom == identity) {
+            self.unsigned_atoms.push(identity.to_owned());
+        }
+    }
+
+    /// Replace the strict symbol, result and projection tables with one scoped
+    /// roster. Every bound term is read under its own nested roster, so
+    /// no term can see the roster it is bound into. Declared atoms, installed
+    /// hypotheses and bounds persist: the rosters of one implication share
+    /// each atom by identity. Returns false for an invalid symbol, a binder
+    /// bound twice to different values, or a term outside the language.
+    pub(super) fn install_scoped_bindings(
+        &mut self,
+        bindings: &[super::ScopedArithmeticBinding],
+    ) -> bool {
+        use super::{ScopedArithmeticBinder, ScopedArithmeticValue};
+        if !self.strict_symbol_bindings_valid {
+            return false;
+        }
+        self.strict_projections.clear();
+        self.strict_domain_self.clear();
+        let mut symbols: Vec<(SymbolHandle, Polynomial)> = Vec::with_capacity(bindings.len());
+        let mut projections = Vec::new();
+        let mut domain_self = Vec::new();
+        let mut result = None;
+        for binding in bindings {
+            let polynomial = match &binding.value {
+                ScopedArithmeticValue::Atom { identity, unsigned } => {
+                    self.declare_atom(identity, *unsigned);
+                    Polynomial::atom(identity.clone())
+                }
+                ScopedArithmeticValue::Integer(value) => Polynomial::constant(value.clone()),
+                ScopedArithmeticValue::Term(term) => {
+                    if !self.install_scoped_bindings(&term.bindings) {
+                        return false;
+                    }
+                    let Some(polynomial) = self.normalize(term.expression) else {
+                        return false;
+                    };
+                    polynomial
+                }
+            };
+            match binding.binder {
+                ScopedArithmeticBinder::Symbol(symbol) => {
+                    if !symbol.is_valid() {
+                        return false;
+                    }
+                    if let Some((_, existing)) =
+                        symbols.iter().find(|(candidate, _)| *candidate == symbol)
+                    {
+                        if *existing != polynomial {
+                            return false;
+                        }
+                        continue;
+                    }
+                    symbols.push((symbol, polynomial));
+                }
+                ScopedArithmeticBinder::Result => {
+                    if result
+                        .as_ref()
+                        .is_some_and(|existing| *existing != polynomial)
+                    {
+                        return false;
+                    }
+                    result = Some(polynomial);
+                }
+                ScopedArithmeticBinder::Projection(expression) => {
+                    projections.push((expression, polynomial));
+                }
+                ScopedArithmeticBinder::DomainSelf(expression) => {
+                    if !self
+                        .program
+                        .expression_table
+                        .expression_is_valid(expression)
+                    {
+                        return false;
+                    }
+                    let ExpressionNode::Name(path) =
+                        self.program.expression_table.expression(expression)
+                    else {
+                        return false;
+                    };
+                    if path.symbol.is_valid()
+                        || path.head_symbol.is_valid()
+                        || self
+                            .program
+                            .expression_table
+                            .name_path_member_symbols(path.member_symbols)
+                            .iter()
+                            .any(|symbol| symbol.is_valid())
+                        || !matches!(
+                            self.program.expression_table.name_path_members(path.members),
+                            [member] if member.is_self_receiver()
+                        )
+                    {
+                        return false;
+                    }
+                    if let Some((_, existing)) = domain_self
+                        .iter()
+                        .find(|(candidate, _)| *candidate == expression)
+                    {
+                        if *existing != polynomial {
+                            return false;
+                        }
+                    } else {
+                        domain_self.push((expression, polynomial));
+                    }
+                }
+            }
+        }
+        self.strict_symbol_bindings = Some(symbols);
+        self.strict_result_binding = result;
+        // Nested terms installed their own occurrence tables. Publish only
+        // this roster, including when it has no occurrence bindings at all.
+        self.strict_projections.clear();
+        self.strict_domain_self = domain_self;
+        for (expression, polynomial) in projections {
+            if !self.bind_strict_projection(expression, polynomial) {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub(super) fn bind_strict_projection(
+        &mut self,
+        expression: ExpressionHandle,
+        value: Polynomial,
+    ) -> bool {
+        if !matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Member(_)
+        ) {
+            return false;
+        }
+        self.bind_strict_occurrence(expression, value)
+    }
+
+    /// The rank-range owner has checked selected Exact integer meaning; the
+    /// bound mathematical term does not excuse its separate formation proof.
+    pub(super) fn bind_strict_integer_division(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<()> {
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let dividend = self.normalize(binary.left)?;
+        let divisor = self.normalize(binary.right)?;
+        let value = match binary.operator {
+            BinaryOperator::Divide => self.integer_quotient(dividend, divisor)?,
+            BinaryOperator::Modulo => self.integer_remainder(dividend, divisor, true)?,
+            _ => return None,
+        };
+        self.bind_strict_occurrence(expression, value).then_some(())
+    }
+
+    /// The rank-range owner has checked the selected Exact integer meaning and
+    /// supplies the shifted carrier's width; the bound mathematical term does
+    /// not excuse the endpoint's separate count-within-width and
+    /// representability proofs.
+    pub(super) fn bind_strict_integer_shift(
+        &mut self,
+        expression: ExpressionHandle,
+        count_bits: u32,
+    ) -> Option<()> {
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let value = self.normalize(binary.left)?;
+        let count = self.normalize(binary.right)?;
+        let value = match binary.operator {
+            BinaryOperator::ShiftLeft => self.integer_shift_left(value, count, count_bits)?,
+            BinaryOperator::ShiftRight => self.integer_shift_right(value, count, count_bits)?,
+            _ => return None,
+        };
+        self.bind_strict_occurrence(expression, value).then_some(())
+    }
+
+    /// The rank-range owner has checked the selected builtin integer
+    /// meaning and supplies the shared carrier's shape; the bound
+    /// mathematical term does not excuse the endpoint's own operand
+    /// agreement and landing proofs. `a & b` is total inside its carrier,
+    /// so unlike division or a shift it attaches no operand obligation of
+    /// its own.
+    pub(super) fn bind_strict_integer_bitwise_and(
+        &mut self,
+        expression: ExpressionHandle,
+        bits: u32,
+        signed: bool,
+    ) -> Option<()> {
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let left = self.normalize(binary.left)?;
+        let right = self.normalize(binary.right)?;
+        let value = match binary.operator {
+            BinaryOperator::BitwiseAnd => self.integer_bitwise_and(left, right, bits, signed)?,
+            _ => return None,
+        };
+        self.bind_strict_occurrence(expression, value).then_some(())
+    }
+
+    fn bind_strict_occurrence(&mut self, expression: ExpressionHandle, value: Polynomial) -> bool {
+        if self.strict_symbol_bindings.is_none()
+            || !self.strict_symbol_bindings_valid
+            || !self
+                .program
+                .expression_table
+                .expression_is_valid(expression)
+        {
+            return false;
+        }
+        if let Some((_, existing)) = self
+            .strict_projections
+            .iter()
+            .find(|(candidate, _)| *candidate == expression)
+        {
+            return *existing == value;
+        }
+        self.strict_projections.push((expression, value));
+        true
+    }
+
+    /// The caller establishes exact builtin operand meaning and live captures.
+    /// Widenings are transparent only while those actuals are normalized; a
+    /// strict symbol namespace alone does not license this reading elsewhere.
+    /// Every actual resolves in the caller's namespace before any formal is
+    /// bound, and a formal named twice must receive one polynomial.
+    pub(super) fn exact_argument_values(
+        &mut self,
+        arguments: &[StrictArithmeticExpressionBinding],
+    ) -> Option<Vec<(SymbolHandle, Polynomial)>> {
+        if !self.strict_symbol_bindings_valid || self.strict_symbol_bindings.is_none() {
+            return None;
+        }
+        self.exact_argument_widening = true;
+        let resolved = arguments
+            .iter()
+            .map(|argument| {
+                argument.symbol.is_valid().then_some(())?;
+                Some((argument.symbol, self.normalize(argument.expression)?))
+            })
+            .collect::<Option<Vec<_>>>();
+        self.exact_argument_widening = false;
+        let mut formals: Vec<(SymbolHandle, Polynomial)> = Vec::new();
+        for (symbol, polynomial) in resolved? {
+            match formals.iter().find(|(candidate, _)| *candidate == symbol) {
+                Some((_, existing)) if *existing != polynomial => return None,
+                Some(_) => {}
+                None => formals.push((symbol, polynomial)),
+            }
+        }
+        Some(formals)
+    }
+
+    /// The goal is the callee's clause, so each formal denotes its actual.
+    /// A self-call's formals are the caller's own parameter symbols: they
+    /// shadow those bindings here, after the caller's hypotheses were
+    /// normalized under the caller's meaning.
+    pub(super) fn bind_goal_formals(&mut self, formals: Vec<(SymbolHandle, Polynomial)>) {
+        let Some(bindings) = &mut self.strict_symbol_bindings else {
+            return;
+        };
+        for (symbol, polynomial) in formals {
+            match bindings
+                .iter_mut()
+                .find(|(candidate, _)| *candidate == symbol)
+            {
+                Some((_, existing)) => *existing = polynomial,
+                None => bindings.push((symbol, polynomial)),
+            }
+        }
+    }
+
+    pub(super) fn bind_strict_arguments(
+        &mut self,
+        arguments: &[StrictArithmeticExpressionBinding],
+    ) -> bool {
+        if !self.strict_symbol_bindings_valid || self.strict_symbol_bindings.is_none() {
+            return false;
+        }
+        // Resolve every actual before extending the table: callee formals are
+        // not caller values, even when another argument binds them first.
+        let Some(resolved) = arguments
+            .iter()
+            .map(|argument| {
+                argument.symbol.is_valid().then_some(())?;
+                Some((argument.symbol, self.normalize(argument.expression)?))
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        let Some(bindings) = &mut self.strict_symbol_bindings else {
+            return false;
+        };
+        for (symbol, polynomial) in resolved {
+            if let Some((_, existing)) = bindings.iter().find(|(candidate, _)| *candidate == symbol)
+            {
+                if existing != &polynomial {
+                    return false;
+                }
+            } else {
+                bindings.push((symbol, polynomial));
+            }
+        }
+        true
+    }
+
+    /// Record the term an opaque atom was minted from. One atom string names
+    /// one canonical operand, so a repeated mint keeps the first entry.
+    fn register_opaque_term(&mut self, atom: String, term: OpaqueTerm) {
+        if self.opaque_terms.iter().any(|(minted, _)| *minted == atom) {
+            return;
+        }
+        self.opaque_terms.push((atom, term));
+    }
+
+    /// The interval a truncating remainder atom takes from its operand's:
+    /// `(-|modulus|, |modulus|)` clamped by the operand's own sign, tightening
+    /// monotonically when the operand's whole range shares one quotient and
+    /// the mint site admitted that reading.
+    fn remainder_interval(
+        &self,
+        operand: &Polynomial,
+        modulus: &Polynomial,
+        tight_interval: bool,
+    ) -> Interval {
+        let modulus = self.substituted(modulus);
+        if let Some(constant) = modulus.constant_value() {
+            if constant.is_zero() {
+                return Interval::unbounded();
+            }
+            return self.constant_remainder_interval(operand, &constant, tight_interval);
+        }
+        let operand_interval = self.polynomial_interval(&self.substituted(operand));
+        let divisor_interval = self.polynomial_interval(&modulus);
+        // Truncation keeps the dividend's sign and never increases its
+        // magnitude. A bounded runtime divisor additionally gives |r| < |d|.
+        // Nonzero and machine-width formation remain separate obligations.
+        let magnitude = divisor_interval
+            .low
+            .zip(divisor_interval.high)
+            .map(|(low, high)| {
+                low.abs()
+                    .max(high.abs())
+                    .sub(&BigInt::from_i64(1))
+                    .max(BigInt::zero())
+            });
+        let low = operand_interval.low.map(|value| value.min(BigInt::zero()));
+        let high = operand_interval.high.map(|value| value.max(BigInt::zero()));
+        Interval {
+            low: match (&magnitude, low) {
+                (Some(magnitude), Some(low)) => Some(low.max(magnitude.negate())),
+                (Some(magnitude), None) => Some(magnitude.negate()),
+                (None, low) => low,
+            },
+            high: match (magnitude, high) {
+                (Some(magnitude), Some(high)) => Some(high.min(magnitude)),
+                (Some(magnitude), None) => Some(magnitude),
+                (None, high) => high,
+            },
+        }
+    }
+
+    fn constant_remainder_interval(
+        &self,
+        operand: &Polynomial,
+        modulus: &BigInt,
+        tight_interval: bool,
+    ) -> Interval {
+        let magnitude = modulus.abs().sub(&BigInt::from_i64(1));
+        let operand_interval = self.polynomial_interval(&self.substituted(operand));
+        if tight_interval
+            && let (Some(low), Some(high)) = (&operand_interval.low, &operand_interval.high)
+            && let (Some((low_quotient, low_remainder)), Some((high_quotient, high_remainder))) =
+                (low.div_rem(modulus), high.div_rem(modulus))
+            && low_quotient == high_quotient
+        {
+            // A constant quotient makes remainder increase with the
+            // dividend, including when the divisor is negative.
+            return Interval {
+                low: Some(low_remainder),
+                high: Some(high_remainder),
+            };
+        }
+        Interval {
+            low: Some(operand_interval.low.map_or_else(
+                || magnitude.negate(),
+                |minimum| minimum.min(BigInt::zero()).max(magnitude.negate()),
+            )),
+            high: Some(operand_interval.high.map_or_else(
+                || magnitude.clone(),
+                |maximum| maximum.max(BigInt::zero()).min(magnitude.clone()),
+            )),
+        }
+    }
+
+    /// The interval a truncating quotient atom takes from its dividend's.
+    fn quotient_interval(&self, dividend: &Polynomial, divisor: &Polynomial) -> Interval {
+        let dividend_interval = self.polynomial_interval(&self.substituted(dividend));
+        let divisor = self.substituted(divisor);
+        if let Some(divisor) = divisor.constant_value() {
+            return Self::constant_quotient_interval(dividend_interval, &divisor);
+        }
+        let divisor_interval = self.polynomial_interval(&divisor);
+        Self::bounded_quotient_interval(&dividend_interval, &divisor_interval)
+    }
+
+    fn constant_quotient_interval(dividend: Interval, divisor: &BigInt) -> Interval {
+        let quotient_bound = |bound: Option<BigInt>| {
+            bound.and_then(|value| value.div_rem(divisor).map(|(quotient, _)| quotient))
+        };
+        if divisor.is_negative() {
+            Interval {
+                low: quotient_bound(dividend.high),
+                high: quotient_bound(dividend.low),
+            }
+        } else {
+            Interval {
+                low: quotient_bound(dividend.low),
+                high: quotient_bound(dividend.high),
+            }
+        }
+    }
+
+    fn bounded_quotient_interval(dividend: &Interval, divisor: &Interval) -> Interval {
+        let (Some(dividend_low), Some(dividend_high)) = (&dividend.low, &dividend.high) else {
+            return Interval::unbounded();
+        };
+        // On a rectangle whose denominator has one strict sign, real
+        // division reaches its extrema at corners. Truncation toward zero
+        // is monotone, so the same corners bound the integer quotient.
+        // A zero-inclusive interval supplies no quotient bounds, even if an
+        // enclosing polynomial cancels the opaque term.
+        if !divisor
+            .low
+            .as_ref()
+            .is_some_and(|low| low > &BigInt::zero())
+            && !divisor
+                .high
+                .as_ref()
+                .is_some_and(|high| high < &BigInt::zero())
+        {
+            return Interval::unbounded();
+        }
+        // When the denominator extends to infinity on its admitted side,
+        // the quotient tends to zero. Include that limit, not an invented
+        // finite cap or the source carrier's analysis-window approximation.
+        let corner = |numerator: &BigInt, denominator: &Option<BigInt>| match denominator {
+            Some(denominator) => numerator.div_rem(denominator).map(|(quotient, _)| quotient),
+            None => Some(BigInt::zero()),
+        };
+        let [
+            Some(low_low),
+            Some(low_high),
+            Some(high_low),
+            Some(high_high),
+        ] = [
+            corner(dividend_low, &divisor.low),
+            corner(dividend_low, &divisor.high),
+            corner(dividend_high, &divisor.low),
+            corner(dividend_high, &divisor.high),
+        ]
+        else {
+            return Interval::unbounded();
+        };
+        let quotients = [low_low, low_high, high_low, high_high];
+        Interval {
+            low: quotients.iter().min().cloned(),
+            high: quotients.iter().max().cloned(),
+        }
+    }
+
+    /// The interval an exact left-shift atom takes from its operands':
+    /// `value * 2^count` over the count's DEFINED range `[0, count_bits)`.
+    /// A count at or beyond the shifted carrier's width produces no value,
+    /// so the interval clamps the authored count interval to the defined
+    /// range instead of growing the result past any legal evaluation. The
+    /// F8 count obligation is judged separately; this interval only covers
+    /// evaluations that produce one.
+    fn shift_left_interval(
+        &self,
+        value: &Polynomial,
+        count: &Polynomial,
+        count_bits: u32,
+    ) -> Interval {
+        let value_interval = self.polynomial_interval(&self.substituted(value));
+        let count_interval = self.polynomial_interval(&self.substituted(count));
+        let maximum_count = BigInt::from_u64(u64::from(count_bits - 1));
+        let low_count = count_interval
+            .low
+            .unwrap_or_else(BigInt::zero)
+            .max(BigInt::zero());
+        let high_count = count_interval
+            .high
+            .unwrap_or_else(|| maximum_count.clone())
+            .min(maximum_count);
+        if low_count > high_count {
+            return Interval::unbounded();
+        }
+        // Both ends sit in [0, count_bits): the `u64` reads cannot fail.
+        let (Some(low_bits), Some(high_bits)) = (low_count.to_u64(), high_count.to_u64()) else {
+            return Interval::unbounded();
+        };
+        value_interval.multiply(&Interval {
+            low: Some(BigInt::from_i64(1).shl_bits(low_bits as usize)),
+            high: Some(BigInt::from_i64(1).shl_bits(high_bits as usize)),
+        })
+    }
+
+    /// The interval an exact right-shift atom takes from its operands':
+    /// `floor(value / 2^count)` over the count's DEFINED range
+    /// `[0, count_bits)`. Floor division by a positive power of two is
+    /// monotone in the shifted value and monotone in the count for each
+    /// fixed value (falling for a nonnegative value, rising for a negative
+    /// one), so the rectangle's extrema sit at its corners. The F8 count
+    /// obligation is judged separately; this interval only covers
+    /// evaluations that produce one, and such a result never escapes the
+    /// shifted carrier.
+    fn shift_right_interval(
+        &self,
+        value: &Polynomial,
+        count: &Polynomial,
+        count_bits: u32,
+    ) -> Interval {
+        let value_interval = self.polynomial_interval(&self.substituted(value));
+        let count_interval = self.polynomial_interval(&self.substituted(count));
+        let maximum_count = BigInt::from_u64(u64::from(count_bits - 1));
+        let low_count = count_interval
+            .low
+            .unwrap_or_else(BigInt::zero)
+            .max(BigInt::zero());
+        let high_count = count_interval
+            .high
+            .unwrap_or_else(|| maximum_count.clone())
+            .min(maximum_count);
+        if low_count > high_count {
+            return Interval::unbounded();
+        }
+        // Both ends sit in [0, count_bits): the `u64` reads cannot fail.
+        let (Some(low_bits), Some(high_bits)) = (low_count.to_u64(), high_count.to_u64()) else {
+            return Interval::unbounded();
+        };
+        // An unbounded value end keeps its side unbounded: for any fixed
+        // count the result still extends to that infinity. A corner that
+        // cannot be evaluated fails closed the same way.
+        let low = value_interval.low.as_ref().and_then(|bound| {
+            floor_shift_right(bound, low_bits)
+                .zip(floor_shift_right(bound, high_bits))
+                .map(|(low_count, high_count)| low_count.min(high_count))
+        });
+        let high = value_interval.high.as_ref().and_then(|bound| {
+            floor_shift_right(bound, low_bits)
+                .zip(floor_shift_right(bound, high_bits))
+                .map(|(low_count, high_count)| low_count.max(high_count))
+        });
+        Interval { low, high }
+    }
+
+    fn integer_remainder(
+        &mut self,
+        operand: Polynomial,
+        modulus: Polynomial,
+        tight_interval: bool,
+    ) -> Option<Polynomial> {
+        if modulus
+            .constant_value()
+            .is_some_and(|value| value.is_zero())
+        {
+            return None;
+        }
+        let interval = self.remainder_interval(&operand, &modulus, tight_interval);
+        // Match quotient identity: normalized operands, not source spelling.
+        // The private prefix cannot collide with an authored parameter name.
+        let atom = format!("\0integer-remainder:{operand:?}%{modulus:?}");
+        self.register_opaque_term(
+            atom.clone(),
+            OpaqueTerm::Remainder {
+                operand,
+                modulus,
+                tight_interval,
+            },
+        );
+        self.arithmetic_intervals.insert(atom.clone(), interval);
+        Some(Polynomial::atom(atom))
+    }
+
+    /// Normalize an independently admitted truncating integer quotient. The
+    /// caller owns selected operator meaning and each operand/result's carrier
+    /// formation; this mathematical term supplies neither of those judgments.
+    /// Retain both operands even before nonzero/formation hypotheses are live.
+    /// In particular, `0 / divisor` must not erase a still-unproved operation.
+    fn integer_quotient(
+        &mut self,
+        dividend: Polynomial,
+        divisor: Polynomial,
+    ) -> Option<Polynomial> {
+        if divisor
+            .constant_value()
+            .is_some_and(|value| value.is_zero())
+        {
+            return None;
+        }
+        if let (Some(dividend), Some(divisor)) =
+            (dividend.constant_value(), divisor.constant_value())
+        {
+            return Some(Polynomial::constant(dividend.div_rem(&divisor)?.0));
+        }
+        let interval = self.quotient_interval(&dividend, &divisor);
+        let atom = format!("\0integer-quotient:{dividend:?}/{divisor:?}");
+        self.register_opaque_term(atom.clone(), OpaqueTerm::Quotient { dividend, divisor });
+        self.arithmetic_intervals.insert(atom.clone(), interval);
+        Some(Polynomial::atom(atom))
+    }
+
+    /// Normalize an independently admitted exact integer left shift. The
+    /// caller owns selected meaning and the F8 count/representability
+    /// obligations; this mathematical term supplies neither. A spelled
+    /// constant count outside `[0, count_bits)` never produces a value --
+    /// like a literal zero divisor, refuse the term rather than minting an
+    /// atom that no evaluation can reach.
+    fn integer_shift_left(
+        &mut self,
+        value: Polynomial,
+        count: Polynomial,
+        count_bits: u32,
+    ) -> Option<Polynomial> {
+        if let Some(count) = count.constant_value() {
+            let in_range = count
+                .to_u64()
+                .is_some_and(|bits| bits < u64::from(count_bits));
+            if !in_range {
+                return None;
+            }
+            if let Some(value) = value.constant_value() {
+                return Some(Polynomial::constant(
+                    value.shl_bits(count.to_u64()? as usize),
+                ));
+            }
+        }
+        let interval = self.shift_left_interval(&value, &count, count_bits);
+        let atom = format!("\0integer-shift-left:{value:?}<<{count:?}");
+        self.register_opaque_term(
+            atom.clone(),
+            OpaqueTerm::ShiftLeft {
+                value,
+                count,
+                count_bits,
+            },
+        );
+        self.arithmetic_intervals.insert(atom.clone(), interval);
+        Some(Polynomial::atom(atom))
+    }
+
+    /// Normalize an independently admitted exact integer right shift under
+    /// the same contract as [`Self::integer_shift_left`]: the caller owns
+    /// selected meaning and the F8 count obligation, and a spelled constant
+    /// count outside `[0, count_bits)` never produces a value. Unlike `<<`,
+    /// the floor-division result always lands inside the shifted carrier,
+    /// so no separate representability question attaches to the term.
+    fn integer_shift_right(
+        &mut self,
+        value: Polynomial,
+        count: Polynomial,
+        count_bits: u32,
+    ) -> Option<Polynomial> {
+        if let Some(count) = count.constant_value() {
+            let in_range = count
+                .to_u64()
+                .is_some_and(|bits| bits < u64::from(count_bits));
+            if !in_range {
+                return None;
+            }
+            if let Some(value) = value.constant_value() {
+                return floor_shift_right(&value, count.to_u64()?).map(Polynomial::constant);
+            }
+        }
+        let interval = self.shift_right_interval(&value, &count, count_bits);
+        let atom = format!("\0integer-shift-right:{value:?}>>{count:?}");
+        self.register_opaque_term(
+            atom.clone(),
+            OpaqueTerm::ShiftRight {
+                value,
+                count,
+                count_bits,
+            },
+        );
+        self.arithmetic_intervals.insert(atom.clone(), interval);
+        Some(Polynomial::atom(atom))
+    }
+
+    /// Normalize an independently admitted integer bitwise-AND. The caller
+    /// owns selected meaning, the shared primitive's agreement, and each
+    /// operand's landing; `a & b` is total inside the `bits`-wide carrier
+    /// (two's complement when `signed`), so the term's mathematical value
+    /// needs no side condition. Retain both operands: a runtime mask is an
+    /// independently transported value too.
+    fn integer_bitwise_and(
+        &mut self,
+        left: Polynomial,
+        right: Polynomial,
+        bits: u32,
+        signed: bool,
+    ) -> Option<Polynomial> {
+        if let (Some(left), Some(right)) = (left.constant_value(), right.constant_value()) {
+            return bitwise_and_constants(&left, &right, bits, signed).map(Polynomial::constant);
+        }
+        let interval = self.bitwise_and_interval(&left, &right, bits, signed);
+        // Match quotient identity: normalized operands, not source spelling.
+        let atom = format!("\0integer-bitwise-and:{left:?}&{right:?}");
+        self.register_opaque_term(
+            atom.clone(),
+            OpaqueTerm::BitwiseAnd {
+                left,
+                right,
+                bits,
+                signed,
+            },
+        );
+        self.arithmetic_intervals.insert(atom.clone(), interval);
+        Some(Polynomial::atom(atom))
+    }
+
+    /// The interval an integer bitwise-AND atom takes from its operands'
+    /// and the shared carrier's representable range. `a & b` is total, so
+    /// the carrier's own range bounds every evaluation; each live sign
+    /// quadrant then tightens it: a provably nonnegative operand bounds
+    /// the result below itself and above zero (its unset sign bit clears
+    /// the result's and its set bits cap the magnitude), while two
+    /// provably negative operands keep the result below `min(a, b)` inside
+    /// the carrier floor. Quadrants the operand intervals exclude
+    /// contribute nothing.
+    fn bitwise_and_interval(
+        &self,
+        left: &Polynomial,
+        right: &Polynomial,
+        bits: u32,
+        signed: bool,
+    ) -> Interval {
+        let (minimum, maximum) = bitwise_carrier_bounds(bits, signed);
+        let left_interval = self.polynomial_interval(&self.substituted(left));
+        let right_interval = self.polynomial_interval(&self.substituted(right));
+        // An operand can be nonnegative unless its whole interval sits
+        // below zero, and negative unless it never leaves zero.
+        let nonnegative =
+            |interval: &Interval| !interval.high.as_ref().is_some_and(BigInt::is_negative);
+        let negative =
+            |interval: &Interval| !interval.low.as_ref().is_some_and(|low| !low.is_negative());
+        let min_bound = |left: &Option<BigInt>, right: &Option<BigInt>| match (left, right) {
+            (Some(left), Some(right)) => Some(left.clone().min(right.clone())),
+            (Some(bound), None) | (None, Some(bound)) => Some(bound.clone()),
+            (None, None) => None,
+        };
+        // The union of the live quadrants: lows min, highs max, and one
+        // quadrant without a ceiling lifts the whole result's. `fired`
+        // keeps the first bounded quadrant's `Some` from reading as
+        // "unbounded so far" -- the union of bounds is empty only before
+        // the first live quadrant contributes one.
+        let mut low: Option<BigInt> = None;
+        let mut high: Option<BigInt> = None;
+        let mut fired = false;
+        let mut extend = |quadrant_low: BigInt, quadrant_high: Option<BigInt>| {
+            low = Some(match &low {
+                Some(current) => current.clone().min(quadrant_low.clone()),
+                None => quadrant_low,
+            });
+            high = match quadrant_high {
+                Some(bound) if !fired => Some(bound),
+                Some(bound) => high.clone().map(|current| current.max(bound)),
+                None => None,
+            };
+            fired = true;
+        };
+        let (left_nonnegative, left_negative) =
+            (nonnegative(&left_interval), negative(&left_interval));
+        let (right_nonnegative, right_negative) =
+            (nonnegative(&right_interval), negative(&right_interval));
+        if left_nonnegative && right_nonnegative {
+            extend(
+                BigInt::zero(),
+                min_bound(&left_interval.high, &right_interval.high),
+            );
+        }
+        if left_nonnegative && right_negative {
+            extend(BigInt::zero(), left_interval.high.clone());
+        }
+        if left_negative && right_nonnegative {
+            extend(BigInt::zero(), right_interval.high.clone());
+        }
+        if left_negative && right_negative {
+            extend(
+                minimum.clone(),
+                min_bound(&left_interval.high, &right_interval.high),
+            );
+        }
+        Interval {
+            low: low.map(|low| low.max(minimum.clone())).or(Some(minimum)),
+            high: high.map(|high| high.min(maximum.clone())).or(Some(maximum)),
+        }
+    }
+
+    /// Range queries mint endpoint terms before installing their hypotheses.
+    /// Recompute dependent intervals in mint order once those facts are live:
+    /// an inner quotient must tighten before an outer quotient reads it.
+    pub(super) fn refresh_opaque_intervals(&mut self) {
+        if self.opaque_terms.is_empty() {
+            return;
+        }
+        for position in 0..self.opaque_terms.len() {
+            let (atom, term) = self.opaque_terms[position].clone();
+            let interval = match term {
+                OpaqueTerm::Quotient { dividend, divisor } => {
+                    self.quotient_interval(&dividend, &divisor)
+                }
+                OpaqueTerm::Remainder {
+                    operand,
+                    modulus,
+                    tight_interval,
+                } => self.remainder_interval(&operand, &modulus, tight_interval),
+                OpaqueTerm::ShiftLeft {
+                    value,
+                    count,
+                    count_bits,
+                } => self.shift_left_interval(&value, &count, count_bits),
+                OpaqueTerm::ShiftRight {
+                    value,
+                    count,
+                    count_bits,
+                } => self.shift_right_interval(&value, &count, count_bits),
+                OpaqueTerm::BitwiseAnd {
+                    left,
+                    right,
+                    bits,
+                    signed,
+                } => self.bitwise_and_interval(&left, &right, bits, signed),
+            };
+            self.arithmetic_intervals.insert(atom, interval);
+        }
+        self.seed_matrix();
+        self.close_matrix();
+    }
+
+    /// Extend a simultaneous argument map across this engine's opaque atoms:
+    /// a remainder, quotient, or shift atom whose operands substitute
+    /// completely is re-minted under the transported inputs and mapped to
+    /// that fresh atom,
+    /// its interval registered like any minted term. An operand whose leaf
+    /// the map does not cover keeps its atom unmapped, so the consuming
+    /// substitution still fails closed on it. Mint order transports an inner
+    /// atom before every outer term that embeds it.
+    pub(super) fn extend_argument_map_over_opaque_terms(
+        &mut self,
+        argument_map: &mut BTreeMap<String, Polynomial>,
+    ) {
+        for index in 0..self.opaque_terms.len() {
+            let (atom, term) = self.opaque_terms[index].clone();
+            let (next_atom, interval) = match term {
+                OpaqueTerm::Remainder {
+                    operand,
+                    modulus,
+                    tight_interval,
+                } => {
+                    let Some(operand) =
+                        super::inductive_judgment::apply_argument_map(&operand, argument_map)
+                    else {
+                        continue;
+                    };
+                    let Some(modulus) =
+                        super::inductive_judgment::apply_argument_map(&modulus, argument_map)
+                    else {
+                        continue;
+                    };
+                    let next = format!("\0integer-remainder:{operand:?}%{modulus:?}");
+                    (
+                        next,
+                        self.remainder_interval(&operand, &modulus, tight_interval),
+                    )
+                }
+                OpaqueTerm::Quotient { dividend, divisor } => {
+                    let Some(dividend) =
+                        super::inductive_judgment::apply_argument_map(&dividend, argument_map)
+                    else {
+                        continue;
+                    };
+                    let Some(divisor) =
+                        super::inductive_judgment::apply_argument_map(&divisor, argument_map)
+                    else {
+                        continue;
+                    };
+                    (
+                        format!("\0integer-quotient:{dividend:?}/{divisor:?}"),
+                        self.quotient_interval(&dividend, &divisor),
+                    )
+                }
+                OpaqueTerm::ShiftLeft {
+                    value,
+                    count,
+                    count_bits,
+                } => {
+                    let Some(value) =
+                        super::inductive_judgment::apply_argument_map(&value, argument_map)
+                    else {
+                        continue;
+                    };
+                    let Some(count) =
+                        super::inductive_judgment::apply_argument_map(&count, argument_map)
+                    else {
+                        continue;
+                    };
+                    (
+                        format!("\0integer-shift-left:{value:?}<<{count:?}"),
+                        self.shift_left_interval(&value, &count, count_bits),
+                    )
+                }
+                OpaqueTerm::ShiftRight {
+                    value,
+                    count,
+                    count_bits,
+                } => {
+                    let Some(value) =
+                        super::inductive_judgment::apply_argument_map(&value, argument_map)
+                    else {
+                        continue;
+                    };
+                    let Some(count) =
+                        super::inductive_judgment::apply_argument_map(&count, argument_map)
+                    else {
+                        continue;
+                    };
+                    (
+                        format!("\0integer-shift-right:{value:?}>>{count:?}"),
+                        self.shift_right_interval(&value, &count, count_bits),
+                    )
+                }
+                OpaqueTerm::BitwiseAnd {
+                    left,
+                    right,
+                    bits,
+                    signed,
+                } => {
+                    let Some(left) =
+                        super::inductive_judgment::apply_argument_map(&left, argument_map)
+                    else {
+                        continue;
+                    };
+                    let Some(right) =
+                        super::inductive_judgment::apply_argument_map(&right, argument_map)
+                    else {
+                        continue;
+                    };
+                    (
+                        format!("\0integer-bitwise-and:{left:?}&{right:?}"),
+                        self.bitwise_and_interval(&left, &right, bits, signed),
+                    )
+                }
+            };
+            // An unchanged operand re-mints the same atom and keeps its
+            // already-registered interval.
+            self.arithmetic_intervals
+                .entry(next_atom.clone())
+                .or_insert(interval);
+            argument_map.insert(atom, Polynomial::atom(next_atom));
+        }
+    }
+
+    pub(super) fn for_proof_integer_formation(program: &'program TypedTrees) -> Self {
+        let mut bindings = Vec::new();
+        for (handle, expression) in program.expression_table.iter_expressions() {
+            let ExpressionNode::Name(path) = expression else {
+                continue;
+            };
+            if path.symbol.is_valid()
+                && (crate::validation::proof_contracts::proof_embeddings::integer_embedding(
+                    program, handle,
+                )
+                .is_some()
+                    || proof_integer_expression(program, handle))
+                && !bindings.iter().any(|(symbol, _)| *symbol == path.symbol)
+            {
+                bindings.push((
+                    path.symbol,
+                    Polynomial::atom(format!("\0proof-symbol:{:?}", path.symbol)),
+                ));
+            }
+        }
+        Self {
+            program,
+            machine_symbol: SymbolHandle::default(),
+            parameter_atoms: Vec::new(),
+            strict_symbol_bindings: Some(bindings),
+            strict_symbol_bindings_valid: true,
+            exact_argument_widening: false,
+            strict_result_binding: None,
+            strict_projections: Vec::new(),
+            strict_domain_self: Vec::new(),
+            proof_integer_formation: true,
+            integer_embedding_policy: true,
+            unsigned_atoms: Vec::new(),
+            substitutions: BTreeMap::new(),
+            bounds: Vec::new(),
+            nonzero_differences: Vec::new(),
+            arithmetic_intervals: BTreeMap::new(),
+            opaque_terms: Vec::new(),
+            matrix: BTreeMap::new(),
+            requires_unsatisfiable: false,
+        }
+    }
+
+    /// Like [`Engine::new`], plus the reserved `result` atom for the
+    /// machine's return value (unless a real parameter shadows it, matching
+    /// the call-site binder rule). Used by the inductive transition path,
+    /// where each arm binds or shares `result`.
+    pub(super) fn with_result_atom(
+        program: &'program TypedTrees,
+        machine: &Machine,
+        root: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    ) -> Self {
+        let mut engine = Self::new(program, machine);
+        let shadowed = program
+            .state_parameters(root)
+            .iter()
+            .any(|parameter| !parameter.is_self && parameter.name.as_str() == RESULT_BINDER);
+        if !shadowed {
+            engine.parameter_atoms.push(RESULT_BINDER.to_owned());
+            if root.return_type.is_valid()
+                && let Some(primitive) = program
+                    .type_reference_table
+                    .primitive_type(root.return_type)
+                && !primitive.is_signed_integer()
+            {
+                engine.unsigned_atoms.push(RESULT_BINDER.to_owned());
+            }
+        }
+        engine
+    }
+
+    /// Load the requires facts. Returns whether EVERY fact was inside the
+    /// engine's language (full visibility is the precondition for rejecting
+    /// unproven ensures). The ENTRY-state parameters' declared bracket
+    /// ranges join as hypotheses too -- R1's bracket-as-sugar rule (ch12:
+    /// `k: u64 [0..=8]` IS `requires k >= 0 && k <= 8`; the range is
+    /// caller-discharged, so the callee's contract proofs may assume it).
+    pub(super) fn add_requires(&mut self, facts: &[ExpressionHandle]) -> bool {
+        let mut comparisons = Vec::new();
+        let mut fully_visible = self.collect_comparisons(facts, &mut comparisons);
+        self.collect_entry_range_hypotheses(&mut comparisons);
+        fully_visible &= self.install_hypotheses(comparisons);
+        fully_visible
+    }
+
+    /// The bracket-as-sugar hypotheses: for each ENTRY-state (machine
+    /// signature) parameter whose type carries a LITERAL `[a..=b]` range,
+    /// push `param >= a` and `param <= b`. Entry-only: sub-state params are
+    /// different binders that may reuse names.
+    pub(super) fn collect_entry_range_hypotheses(
+        &mut self,
+        comparisons: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
+    ) {
+        let Some(machine) = self
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == self.machine_symbol)
+        else {
+            return;
+        };
+        let Some(entry) = self.program.machine_states(machine).first() else {
+            return;
+        };
+        for parameter in self.program.state_parameters(entry) {
+            if parameter.is_self {
+                continue;
+            }
+            let Some(interval) =
+                crate::validation::proof_contracts::arithmetic_domains::range_constraint_interval(
+                    self.program,
+                    parameter.type_reference,
+                )
+            else {
+                continue;
+            };
+            let atom = Polynomial::atom(parameter.name.as_str().to_owned());
+            if let Some(low) = interval.low() {
+                comparisons.push((
+                    BinaryOperator::GreaterOrEqual,
+                    atom.clone(),
+                    Polynomial::constant(BigInt::from_i64(low)),
+                ));
+            }
+            if let Some(high) = interval.high() {
+                comparisons.push((
+                    BinaryOperator::LessOrEqual,
+                    atom.clone(),
+                    Polynomial::constant(BigInt::from_i64(high)),
+                ));
+            }
+        }
+    }
+
+    /// First ingestion pass: split facts into conjuncts and normalize each to
+    /// a comparison triple. Range membership lowers to `&&` chains
+    /// (`x in 1..=10` arrives as `(x >= 1) && (x <= 10)`), so facts split
+    /// into conjuncts first. Returns whether every conjunct was readable.
+    pub(super) fn collect_comparisons(
+        &mut self,
+        facts: &[ExpressionHandle],
+        comparisons: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
+    ) -> bool {
+        let mut fully_visible = true;
+        for fact in facts {
+            for conjunct in self.conjuncts(*fact) {
+                match self.comparison_polynomials(conjunct) {
+                    Some(comparison) => comparisons.push(comparison),
+                    None => fully_visible = false,
+                }
+            }
+        }
+        fully_visible
+    }
+
+    /// Second ingestion pass: harvest substitutions from equations so every
+    /// later normalization sees them, store lower bounds, then seed and close
+    /// the difference-bound matrix. Returns whether every hypothesis
+    /// installed without arithmetic overflow.
+    pub(super) fn install_hypotheses(
+        &mut self,
+        comparisons: Vec<(BinaryOperator, Polynomial, Polynomial)>,
+    ) -> bool {
+        let mut fully_visible = true;
+        for (operator, left, right) in &comparisons {
+            if *operator == BinaryOperator::Equal {
+                self.harvest_substitution(left, right);
+            }
+        }
+        // Second pass: re-normalize under the substitutions and store bounds.
+        let mut lower_bounds = Vec::new();
+        let mut nonzero_differences = Vec::new();
+        for (operator, left, right) in comparisons {
+            let left = self.substituted(&left);
+            let right = self.substituted(&right);
+            let difference_rl = right.sub(&left);
+            let difference_lr = left.sub(&right);
+            match operator {
+                BinaryOperator::Less => lower_bounds.push((difference_rl, BigInt::from_i64(1))),
+                BinaryOperator::LessOrEqual => lower_bounds.push((difference_rl, BigInt::zero())),
+                BinaryOperator::Greater => lower_bounds.push((difference_lr, BigInt::from_i64(1))),
+                BinaryOperator::GreaterOrEqual => {
+                    lower_bounds.push((difference_lr, BigInt::zero()))
+                }
+                BinaryOperator::Equal => {
+                    lower_bounds.push((difference_rl, BigInt::zero()));
+                    lower_bounds.push((difference_lr, BigInt::zero()));
+                }
+                BinaryOperator::NotEqual => nonzero_differences.push(difference_lr),
+                _ => fully_visible = false,
+            }
+        }
+        for (polynomial, bound) in lower_bounds {
+            if let Some(value) = polynomial.constant_value() {
+                if value < bound {
+                    self.requires_unsatisfiable = true;
+                }
+                continue;
+            }
+            self.bounds.push((polynomial, bound));
+        }
+
+        self.seed_matrix();
+        self.close_matrix();
+        // Disequality alone has no direction. Once the ordinary bounds prove
+        // a direction, excluding zero strengthens that integer bound by one.
+        // Strict integer adapters also retain an unoriented difference as
+        // itself nonzero. Legacy readers admit a wider expression language
+        // (including floating operands), so they keep only the old bound rule.
+        let previous_bounds = self.bounds.len();
+        for difference in nonzero_differences {
+            if self.strict_symbol_bindings.is_some()
+                && !self.nonzero_differences.contains(&difference)
+            {
+                self.nonzero_differences.push(difference.clone());
+            }
+            let opposite = difference.neg();
+            let nonnegative = self.prove_at_least(&difference, &BigInt::zero());
+            let nonpositive = self.prove_at_least(&opposite, &BigInt::zero());
+            match (nonnegative, nonpositive) {
+                (true, true) => self.requires_unsatisfiable = true,
+                (true, false) => self.bounds.push((difference, BigInt::from_i64(1))),
+                (false, true) => self.bounds.push((opposite, BigInt::from_i64(1))),
+                (false, false) => {}
+            }
+        }
+        if self.bounds.len() != previous_bounds {
+            self.seed_matrix();
+            self.close_matrix();
+        }
+        fully_visible
+    }
+
+    /// Judge a full ensures fact: an `&&` chain proves when every conjunct
+    /// proves, and is disproved when any conjunct is.
+    pub(super) fn judge(&mut self, fact: ExpressionHandle) -> Judgment {
+        let conjuncts = self.conjuncts(fact);
+        if conjuncts.len() > 1 {
+            // A disproved conjunct disproves the chain even if an earlier
+            // conjunct was merely unknown, so judge all of them first.
+            let mut constant_false = false;
+            let mut refuted = false;
+            let mut unknown = false;
+            let mut all_in_language = true;
+            for conjunct in conjuncts {
+                match self.judge(conjunct) {
+                    Judgment::Proven => {}
+                    Judgment::ConstantFalse => constant_false = true,
+                    Judgment::Refuted => refuted = true,
+                    Judgment::Unknown { goal_in_language } => {
+                        unknown = true;
+                        all_in_language &= goal_in_language;
+                    }
+                }
+            }
+            return if constant_false {
+                Judgment::ConstantFalse
+            } else if refuted {
+                Judgment::Refuted
+            } else if unknown {
+                Judgment::Unknown {
+                    goal_in_language: all_in_language,
+                }
+            } else {
+                Judgment::Proven
+            };
+        }
+
+        let Some((operator, left, right)) = self.comparison_polynomials(fact) else {
+            return Judgment::Unknown {
+                goal_in_language: false,
+            };
+        };
+        let left = self.substituted(&left);
+        let right = self.substituted(&right);
+        let difference_rl = right.sub(&left);
+        let difference_lr = left.sub(&right);
+
+        // Constant fold first: it gives the crispest diagnostic.
+        if let Some(value) = difference_rl.constant_value() {
+            let holds = match operator {
+                BinaryOperator::Less => !value.is_negative() && !value.is_zero(),
+                BinaryOperator::LessOrEqual => !value.is_negative(),
+                BinaryOperator::Greater => value.is_negative(),
+                BinaryOperator::GreaterOrEqual => value.is_negative() || value.is_zero(),
+                BinaryOperator::Equal => value.is_zero(),
+                BinaryOperator::NotEqual => !value.is_zero(),
+                _ => {
+                    return Judgment::Unknown {
+                        goal_in_language: false,
+                    };
+                }
+            };
+            return if holds {
+                Judgment::Proven
+            } else {
+                Judgment::ConstantFalse
+            };
+        }
+
+        let zero = BigInt::zero();
+        let one = BigInt::from_i64(1);
+        let proved = match operator {
+            BinaryOperator::Less => self.prove_at_least(&difference_rl, &one),
+            BinaryOperator::LessOrEqual => self.prove_at_least(&difference_rl, &zero),
+            BinaryOperator::Greater => self.prove_at_least(&difference_lr, &one),
+            BinaryOperator::GreaterOrEqual => self.prove_at_least(&difference_lr, &zero),
+            BinaryOperator::Equal => {
+                self.prove_at_least(&difference_rl, &zero)
+                    && self.prove_at_least(&difference_lr, &zero)
+            }
+            BinaryOperator::NotEqual => {
+                self.is_known_nonzero(&difference_lr)
+                    || self.prove_at_least(&difference_rl, &one)
+                    || self.prove_at_least(&difference_lr, &one)
+            }
+            _ => {
+                return Judgment::Unknown {
+                    goal_in_language: false,
+                };
+            }
+        };
+        if proved {
+            return Judgment::Proven;
+        }
+
+        let negation_proved = match operator {
+            // not (l < r)  ==  l >= r
+            BinaryOperator::Less => self.prove_at_least(&difference_lr, &zero),
+            BinaryOperator::LessOrEqual => self.prove_at_least(&difference_lr, &one),
+            BinaryOperator::Greater => self.prove_at_least(&difference_rl, &zero),
+            BinaryOperator::GreaterOrEqual => self.prove_at_least(&difference_rl, &one),
+            BinaryOperator::Equal => {
+                self.is_known_nonzero(&difference_lr)
+                    || self.prove_at_least(&difference_rl, &one)
+                    || self.prove_at_least(&difference_lr, &one)
+            }
+            BinaryOperator::NotEqual => {
+                self.prove_at_least(&difference_rl, &zero)
+                    && self.prove_at_least(&difference_lr, &zero)
+            }
+            _ => false,
+        };
+        if negation_proved {
+            return Judgment::Refuted;
+        }
+
+        Judgment::Unknown {
+            goal_in_language: true,
+        }
+    }
+
+    fn is_known_nonzero(&self, difference: &Polynomial) -> bool {
+        let opposite = difference.neg();
+        self.nonzero_differences.iter().any(|known| {
+            // Hypothesis installation is additive: later equations can rename
+            // atoms, but cannot change the captured difference's meaning.
+            let known = self.substituted(known);
+            known == *difference || known == opposite
+        })
+    }
+
+    /// Prove a lower bound directly or by adding one stored lower bound to
+    /// a residual established by the existing nonrecursive judgment.
+    pub(super) fn prove_at_least(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
+        if self.prove_base_lower_bound(polynomial, bound) {
+            return true;
+        }
+        self.bounds.iter().any(|(stored, stored_bound)| {
+            // P >= b and goal - P >= requested - b imply goal >= requested.
+            // Do not recursively search combinations of stored hypotheses.
+            self.prove_base_lower_bound(&polynomial.sub(stored), &bound.sub(stored_bound))
+        })
+    }
+
+    /// Difference bounds, exact hypotheses, and independent intervals only.
+    fn prove_base_lower_bound(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
+        if let Some((positive, negative, constant)) = polynomial.as_atom_difference()
+            && let Some(best) = self.matrix_bound(&positive, &negative)
+            && best.add(&constant) >= *bound
+        {
+            return true;
+        }
+        if let Some((atom, sign, constant)) = polynomial.as_single_atom() {
+            let other = if sign == 1 {
+                self.matrix_bound(&atom, ZERO_ATOM)
+            } else {
+                self.matrix_bound(ZERO_ATOM, &atom)
+            };
+            if let Some(best) = other
+                && best.add(&constant) >= *bound
+            {
+                return true;
+            }
+        }
+        // A stored hypothesis bound whose polynomial IS the goal polynomial
+        // subsumes it directly. This is the shape induction hypotheses
+        // arrive in: general polynomial equations (e.g. `2*result - P >= 0`)
+        // that fit neither the difference-bound matrix nor the interval
+        // evaluator, but whose canonical form matches the goal exactly.
+        for (stored, stored_bound) in &self.bounds {
+            if stored == polynomial && stored_bound >= bound {
+                return true;
+            }
+        }
+        if let Some(low) = self.polynomial_interval(polynomial).low
+            && low >= *bound
+        {
+            return true;
+        }
+        false
+    }
+
+    fn polynomial_interval(&self, polynomial: &Polynomial) -> Interval {
+        let mut total = Interval::constant(BigInt::zero());
+        for (monomial, coefficient) in &polynomial.terms {
+            let mut product = Interval::constant(BigInt::from_i64(1));
+            for (atom, power) in monomial {
+                let base = self.atom_interval(atom);
+                product = product.multiply(&base.correlated_power(*power));
+            }
+            total = total.add(&product.scale(coefficient));
+        }
+        total
+    }
+
+    fn atom_interval(&self, atom: &str) -> Interval {
+        if let Some(interval) = self.arithmetic_intervals.get(atom) {
+            return interval.clone();
+        }
+        let mut low = self.matrix_bound(atom, ZERO_ATOM);
+        if self
+            .unsigned_atoms
+            .iter()
+            .any(|candidate| candidate == atom)
+        {
+            // An unsigned atom is nonnegative before the hypothesis matrix
+            // seeds that bound, so a term minted ahead of installation still
+            // sees the operand's true sign.
+            low = Some(low.map_or_else(BigInt::zero, |bound| bound.max(BigInt::zero())));
+        }
+        Interval {
+            low,
+            high: self
+                .matrix_bound(ZERO_ATOM, atom)
+                .map(|bound| bound.negate()),
+        }
+    }
+
+    fn matrix_bound(&self, from: &str, to: &str) -> Option<BigInt> {
+        if from == to {
+            return Some(BigInt::zero());
+        }
+        self.matrix.get(from).and_then(|row| row.get(to)).cloned()
+    }
+
+    fn seed_matrix(&mut self) {
+        for atom in self.unsigned_atoms.clone() {
+            self.record_difference(&atom, ZERO_ATOM, BigInt::zero());
+        }
+        let arithmetic_atoms: Vec<(String, Interval)> = self
+            .arithmetic_intervals
+            .iter()
+            .map(|(atom, interval)| (atom.clone(), interval.clone()))
+            .collect();
+        for (atom, interval) in arithmetic_atoms {
+            if let Some(low) = interval.low {
+                self.record_difference(&atom, ZERO_ATOM, low);
+            }
+            if let Some(high) = interval.high {
+                self.record_difference(ZERO_ATOM, &atom, high.negate());
+            }
+        }
+        for (polynomial, bound) in self.bounds.clone() {
+            if let Some((positive, negative, constant)) = polynomial.as_atom_difference() {
+                self.record_difference(&positive, &negative, bound.sub(&constant));
+            }
+            if let Some((atom, sign, constant)) = polynomial.as_single_atom() {
+                let edge = bound.sub(&constant);
+                if sign == 1 {
+                    self.record_difference(&atom, ZERO_ATOM, edge);
+                } else {
+                    self.record_difference(ZERO_ATOM, &atom, edge);
+                }
+            }
+        }
+    }
+
+    fn record_difference(&mut self, from: &str, to: &str, bound: BigInt) {
+        let row = self.matrix.entry(from.to_owned()).or_default();
+        match row.entry(to.to_owned()) {
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(bound);
+            }
+            std::collections::btree_map::Entry::Occupied(mut slot) => {
+                if bound > *slot.get() {
+                    slot.insert(bound);
+                }
+            }
+        }
+        self.matrix.entry(to.to_owned()).or_default();
+    }
+
+    fn close_matrix(&mut self) {
+        let atoms: Vec<String> = self.matrix.keys().cloned().collect();
+        for via in &atoms {
+            for from in &atoms {
+                let Some(first) = self.matrix_bound(from, via) else {
+                    continue;
+                };
+                for to in &atoms {
+                    let Some(second) = self.matrix_bound(via, to) else {
+                        continue;
+                    };
+                    let combined = first.add(&second);
+                    if from == to {
+                        if !combined.is_negative() && !combined.is_zero() {
+                            self.requires_unsatisfiable = true;
+                        }
+                        continue;
+                    }
+                    let current = self.matrix_bound(from, to);
+                    if current.is_none() || combined > current.unwrap() {
+                        self.record_difference(from, to, combined);
+                    }
+                }
+            }
+        }
+    }
+
+    fn harvest_substitution(&mut self, left: &Polynomial, right: &Polynomial) {
+        for (candidate, replacement) in [(left, right), (right, left)] {
+            if let Some((atom, 1, constant)) = candidate.as_single_atom()
+                && constant.is_zero()
+            {
+                let occurs = replacement
+                    .terms
+                    .keys()
+                    .any(|monomial| monomial.contains_key(&atom));
+                if !occurs && !self.substitutions.contains_key(&atom) {
+                    self.substitutions.insert(atom, replacement.clone());
+                    return;
+                }
+            }
+        }
+    }
+
+    pub(super) fn substituted(&self, polynomial: &Polynomial) -> Polynomial {
+        let mut current = polynomial.clone();
+        for _ in 0..SUBSTITUTION_ROUNDS {
+            let mut changed = false;
+            let mut next = Polynomial::default();
+            let mut overflowed = false;
+            for (monomial, coefficient) in &current.terms {
+                let mut piece = Polynomial::constant(coefficient.clone());
+                for (atom, power) in monomial {
+                    let base = match self.substitutions.get(atom) {
+                        Some(replacement) => {
+                            changed = true;
+                            replacement.clone()
+                        }
+                        None => Polynomial::atom(atom.clone()),
+                    };
+                    for _ in 0..*power {
+                        match piece.checked_mul(&base) {
+                            Some(product) => piece = product,
+                            None => {
+                                overflowed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if overflowed {
+                        break;
+                    }
+                }
+                if overflowed {
+                    break;
+                }
+                next = next.add(&piece);
+            }
+            if overflowed {
+                return current;
+            }
+            current = next;
+            if !changed {
+                break;
+            }
+        }
+        current
+    }
+
+    /// Flatten nested `&&` chains into conjunct handles (a single
+    /// non-conjunction fact returns itself).
+    pub(super) fn conjuncts(&self, fact: ExpressionHandle) -> Vec<ExpressionHandle> {
+        let node = self.program.expression_table.expression(fact).clone();
+        match node {
+            ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
+                let mut left = self.conjuncts(binary.left);
+                left.extend(self.conjuncts(binary.right));
+                left
+            }
+            ExpressionNode::Borrow(inner) => self.conjuncts(inner.target),
+            _ => vec![fact],
+        }
+    }
+
+    /// Split a fact into `(comparison operator, left polynomial, right
+    /// polynomial)`.
+    pub(super) fn comparison_polynomials(
+        &mut self,
+        fact: ExpressionHandle,
+    ) -> Option<(BinaryOperator, Polynomial, Polynomial)> {
+        let node = self.program.expression_table.expression(fact).clone();
+        let ExpressionNode::Binary(binary) = node else {
+            return None;
+        };
+        match binary.operator {
+            BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual => {
+                let left = self.normalize(binary.left)?;
+                let right = self.normalize(binary.right)?;
+                Some((binary.operator, left, right))
+            }
+            _ => None,
+        }
+    }
+
+    /// Normalize a TERM expression to a polynomial. `None` = outside the
+    /// engine's language.
+    pub(super) fn normalize(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {
+        // Dummy expression storage is an integer zero. An authority-bearing
+        // substitution must not turn a missing or stale operand into a constant.
+        if self.strict_symbol_bindings.is_some()
+            && !self
+                .program
+                .expression_table
+                .expression_is_valid(expression)
+        {
+            return None;
+        }
+        // Closed anonymous arithmetic has the same rational denotation in a
+        // strict binder namespace. Fold the complete integral subtree; never
+        // truncate a fractional child or erase an already-landed carrier.
+        if let Some(value) = super::proof_integer::anonymous_integer_value(self.program, expression)
+        {
+            return Some(Polynomial::constant(value));
+        }
+        if let Some((_, value)) = self
+            .strict_projections
+            .iter()
+            .find(|(candidate, _)| *candidate == expression)
+        {
+            return Some(value.clone());
+        }
+        let node = self.program.expression_table.expression(expression).clone();
+        match node {
+            ExpressionNode::Member(_) => None,
+            ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_bignum()?)),
+            ExpressionNode::Borrow(inner) => self.normalize(inner.target),
+            ExpressionNode::Name(path) => {
+                if let Some(bindings) = &self.strict_symbol_bindings {
+                    if let Some((_, value)) = self
+                        .strict_domain_self
+                        .iter()
+                        .find(|(candidate, _)| *candidate == expression)
+                    {
+                        return Some(value.clone());
+                    }
+                    let [member] = self
+                        .program
+                        .expression_table
+                        .name_path_members(path.members)
+                    else {
+                        return None;
+                    };
+                    if let Some(value) = bindings
+                        .iter()
+                        .find_map(|(symbol, value)| (*symbol == path.symbol).then(|| value.clone()))
+                    {
+                        return Some(value);
+                    }
+                    // An authored binder always resolves through its symbol
+                    // above; only the synthetic guarantee result reaches here.
+                    return self
+                        .strict_result_binding
+                        .clone()
+                        .filter(|_| member.as_str() == RESULT_BINDER);
+                }
+                let members = self
+                    .program
+                    .expression_table
+                    .name_path_members(path.members);
+                if members.len() != 1 {
+                    return None;
+                }
+                let name = members[0].as_str().to_owned();
+                if !self.parameter_atoms.contains(&name) {
+                    return None;
+                }
+                Some(Polynomial::atom(name))
+            }
+            // The typed-tree unary operator is logical-not only (negative
+            // literals fold into Integer), so unary nodes are never terms.
+            ExpressionNode::Unary(_) => None,
+            ExpressionNode::Binary(_)
+                if !proof_integer_expression(self.program, expression)
+                    && ((self.proof_integer_formation
+                        && !exact_integer_source(self.program, expression))
+                        || (self.integer_embedding_policy
+                            && nonexact_integer_source(self.program, expression))) =>
+            {
+                if self.strict_symbol_bindings.is_some() && !self.proof_integer_formation {
+                    return None;
+                }
+                self.normalize_integer_embedding(expression)
+            }
+            ExpressionNode::Binary(binary) => match binary.operator {
+                BinaryOperator::Add => {
+                    let left = self.normalize(binary.left)?;
+                    let right = self.normalize(binary.right)?;
+                    Some(left.add(&right))
+                }
+                BinaryOperator::Subtract => {
+                    let left = self.normalize(binary.left)?;
+                    let right = self.normalize(binary.right)?;
+                    Some(left.sub(&right))
+                }
+                BinaryOperator::Multiply => {
+                    let left = self.normalize(binary.left)?;
+                    let right = self.normalize(binary.right)?;
+                    left.checked_mul(&right)
+                }
+                BinaryOperator::Divide | BinaryOperator::Modulo => {
+                    let dividend = self.normalize(binary.left)?;
+                    let divisor = self.normalize(binary.right)?;
+                    let builtin_proof_integer = proof_integer_expression(self.program, expression)
+                        && self
+                            .program
+                            .expression_table
+                            .authored_selection_occurrences(expression)
+                            .all(|occurrence| {
+                                use language_semantics::declaration_selection::{
+                                    AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+                                    AuthoredDeclarationSelectionLateBinding as LateBinding,
+                                    AuthoredDeclarationSelectionTarget as Target,
+                                };
+                                self.program
+                                    .authored_declaration_selections()
+                                    .get(occurrence)
+                                    .is_some_and(|selection| {
+                                        matches!(
+                                            selection.target(),
+                                            Target::Intrinsic(Intrinsic::BuiltinOperator)
+                                                | Target::LateBound(LateBinding::CheckedOperator)
+                                        )
+                                    })
+                            });
+                    if builtin_proof_integer
+                        && let (Some(dividend), Some(divisor)) = (
+                            self.substituted(&dividend).constant_value(),
+                            self.substituted(&divisor).constant_value(),
+                        )
+                    {
+                        let (quotient, remainder) = dividend.div_rem(&divisor)?;
+                        return Some(Polynomial::constant(
+                            if binary.operator == BinaryOperator::Divide {
+                                quotient
+                            } else {
+                                remainder
+                            },
+                        ));
+                    }
+                    if binary.operator == BinaryOperator::Divide {
+                        if !builtin_proof_integer
+                            || (self.strict_symbol_bindings.is_some()
+                                && !self.proof_integer_formation)
+                        {
+                            return None;
+                        }
+                        let divisor = self.substituted(&divisor).constant_value()?;
+                        // Structural polynomial identity keeps distinct dividends
+                        // separate; the private prefix cannot be an authored name.
+                        return self.integer_quotient(dividend, Polynomial::constant(divisor));
+                    }
+                    let modulus = self.substituted(&divisor).constant_value()?;
+                    if modulus.is_zero() {
+                        return None;
+                    }
+                    let tight_interval = builtin_proof_integer
+                        && (self.strict_symbol_bindings.is_none() || self.proof_integer_formation);
+                    self.integer_remainder(dividend, Polynomial::constant(modulus), tight_interval)
+                }
+                _ => None,
+            },
+            ExpressionNode::Call(call) => {
+                if crate::validation::proof_contracts::proof_embeddings::is_exact_embed_call(
+                    self.program,
+                    &call,
+                ) {
+                    let (_, argument) =
+                        crate::validation::proof_contracts::proof_embeddings::integer_embedding_argument(
+                            self.program,
+                            expression,
+                        )?;
+                    return self.normalize_integer_embedding(argument);
+                }
+                // Ordinary proof views are source-defined data and machines.
+                // Their spelling cannot introduce an arithmetic atom or stand
+                // in for a selected declaration and its checked semantics.
+                None
+            }
+            ExpressionNode::Cast(cast)
+                if proof_nat_cast(self.program, &cast)
+                    && (self.strict_symbol_bindings.is_none() || self.proof_integer_formation) =>
+            {
+                // Formation is checked separately against prior facts. This
+                // conversion preserves the already-proven mathematical value.
+                self.normalize(cast.value)
+            }
+            ExpressionNode::Cast(cast) if self.strict_integer_widen(&cast) => {
+                // A total fixed-integer widening has the same mathematical
+                // value. Keep operand normalization in its original namespace;
+                // the caller's meaning/capture checks still own admissibility.
+                self.normalize(cast.value)
+            }
+            _ => None,
+        }
+    }
+
+    fn strict_integer_widen(
+        &self,
+        cast: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCastExpression,
+    ) -> bool {
+        if self.strict_symbol_bindings.is_none()
+            || !self.exact_argument_widening
+            || self.proof_integer_formation
+            || cast.form.is_recast()
+            || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+            || !cast.semantic_domain.is_empty()
+            || !cast.semantic_domain_arguments.is_empty()
+            || cast.semantic_domain_symbol.is_valid()
+            || cast.semantic_domain_id.is_valid()
+            || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
+        {
+            return false;
+        }
+        let Some(target) = crate::validation::value_custody::recasts::exact_primitive_type(
+            self.program,
+            cast.target_type,
+        ) else {
+            return false;
+        };
+        crate::validation::proof_contracts::proof_embeddings::integer_embedding(
+            self.program,
+            cast.value,
+        )
+        .is_some_and(|source| crate::validation::integer_widen_is_total(source.primitive, target))
+    }
+
+    fn normalize_integer_embedding(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {
+        let embedding = crate::validation::proof_contracts::proof_embeddings::integer_embedding(
+            self.program,
+            expression,
+        )?;
+        if let ExpressionNode::Integer(literal) =
+            self.program.expression_table.expression(expression)
+        {
+            return Some(Polynomial::constant(literal.value_bignum()?));
+        }
+        // A direct binding denotes its payload regardless of its arithmetic
+        // qualification. Exact member occurrences use the same roster as raw
+        // projections; structural spelling cannot replace a missing binding.
+        // Computed sources remain opaque: normalizing their written arithmetic
+        // would erase wrapping or saturation semantics.
+        let direct = if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Name(_) | ExpressionNode::Member(_)
+        ) {
+            self.normalize(expression)
+        } else {
+            None
+        };
+        // A scoped implication may read only values its owner captured. The
+        // formation query separately owns opaque source denotations; importing
+        // those here would equate occurrences across distinct scoped rosters.
+        if self.strict_symbol_bindings.is_some()
+            && !self.proof_integer_formation
+            && direct.is_none()
+        {
+            return None;
+        }
+        let polynomial = direct.unwrap_or_else(|| {
+            Polynomial::atom(format!(
+                "\0embed:{:?}:{}",
+                embedding.primitive,
+                integer_source_identity(self.program, expression),
+            ))
+        });
+        self.bounds.push((polynomial.clone(), embedding.minimum));
+        self.bounds
+            .push((polynomial.neg(), embedding.maximum.negate()));
+        self.seed_matrix();
+        self.close_matrix();
+        Some(polynomial)
+    }
+}
+
+/// A transient normalization key, never artifact identity. Resolved source
+/// symbols, selected casts and operator structure remain distinct. Unsupported
+/// source forms use occurrence identity rather than guessing equivalence.
+fn integer_source_identity(program: &TypedTrees, expression: ExpressionHandle) -> String {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) if path.symbol.is_valid() => format!("name:{:?}", path.symbol),
+        ExpressionNode::Integer(literal) => format!("literal:{literal:?}"),
+        ExpressionNode::Binary(binary) => format!(
+            "binary:{:?}({},{})",
+            binary.operator,
+            integer_source_identity(program, binary.left),
+            integer_source_identity(program, binary.right)
+        ),
+        ExpressionNode::Cast(cast) => format!(
+            "cast:{:?}:{:?}:{:?}:{}",
+            cast.target_type,
+            cast.domain,
+            cast.semantic_domain_id,
+            integer_source_identity(program, cast.value)
+        ),
+        ExpressionNode::Member(member) if member.member_symbol.is_valid() => format!(
+            "member:{:?}:{:?}:{}",
+            member.member_symbol,
+            member.case_variant,
+            integer_source_identity(program, member.receiver)
+        ),
+        ExpressionNode::Indexed(indexed) => format!(
+            "index:{}:{}",
+            integer_source_identity(program, indexed.collection),
+            integer_source_identity(program, indexed.index)
+        ),
+        ExpressionNode::Call(call) if call.target_symbol.is_valid() => format!(
+            "call:{:?}:{:?}:{}:{:?}",
+            call.target_symbol,
+            call.machine_arguments,
+            integer_source_identity(program, call.receiver),
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|argument| integer_source_identity(program, *argument))
+                .collect::<Vec<_>>(),
+        ),
+        _ => format!("occurrence:{expression:?}"),
+    }
+}
+
+/// Compare already-admitted embedding sources using the same carrier and
+/// exact transient identity as arithmetic normalization. No display label or
+/// bare call spelling can establish equality.
+pub fn integer_embedding_sources_equal(
+    program: &TypedTrees,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    let Some(left_carrier) =
+        crate::validation::proof_contracts::proof_embeddings::integer_embedding(program, left)
+    else {
+        return false;
+    };
+    let Some(right_carrier) =
+        crate::validation::proof_contracts::proof_embeddings::integer_embedding(program, right)
+    else {
+        return false;
+    };
+    left_carrier.primitive == right_carrier.primitive
+        && integer_source_identity(program, left) == integer_source_identity(program, right)
+}
+
+fn exact_integer_source(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    use numerics::arithmetic::ArithmeticDomain;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal
+            .landing()
+            .is_none_or(|landing| landing.domain == ArithmeticDomain::Exact),
+        ExpressionNode::Binary(binary) => {
+            exact_integer_source(program, binary.left)
+                && exact_integer_source(program, binary.right)
+        }
+        ExpressionNode::Cast(cast) => cast.domain == ArithmeticDomain::Exact,
+        ExpressionNode::Name(path) => {
+            crate::validation::value_custody::expression_types::named_value_type_reference(
+                program, path,
+            )
+            .is_some_and(|reference| {
+                program.arithmetic_domain_for_type_reference(reference) == ArithmeticDomain::Exact
+            })
+        }
+        _ => false,
+    }
+}
+
+fn nonexact_integer_source(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    use numerics::arithmetic::ArithmeticDomain;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal
+            .landing()
+            .is_some_and(|landing| landing.domain != ArithmeticDomain::Exact),
+        ExpressionNode::Binary(binary) => {
+            nonexact_integer_source(program, binary.left)
+                || nonexact_integer_source(program, binary.right)
+        }
+        ExpressionNode::Cast(cast) => cast.domain != ArithmeticDomain::Exact,
+        ExpressionNode::Call(_) => false,
+        _ => crate::validation::proof_contracts::proof_embeddings::expression_type_reference(
+            program, expression,
+        )
+        .is_some_and(|reference| {
+            program.arithmetic_domain_for_type_reference(reference) != ArithmeticDomain::Exact
+        }),
+    }
+}
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod embedding_tests {
+    use super::super::{ProofFact, SignatureContractKind, proof_integer_nonnegative};
+    use super::{
+        BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Polynomial, TypedTrees,
+        proof_nat_cast,
+    };
+    use numerics::arithmetic::ArithmeticDomain;
+    use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBinaryExpression;
+
+    fn byte_sum(program: &mut TypedTrees, domain: ArithmeticDomain) -> ExpressionHandle {
+        let mut literal = |value| {
+            program.expression_table.insert(ExpressionNode::Integer(
+                IntegerLiteral::from_value(value).with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::U8,
+                    domain,
+                }),
+            ))
+        };
+        let left = literal(255);
+        let right = literal(1);
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator: BinaryOperator::Add,
+                right,
+            }))
+    }
+
+    #[test]
+    fn embedded_wrapping_and_saturating_sources_are_not_mathematical_sums() {
+        let mut program = TypedTrees::default();
+        let wrapping = byte_sum(&mut program, ArithmeticDomain::Wrapping);
+        let saturating = byte_sum(&mut program, ArithmeticDomain::Saturating);
+        let mut engine = Engine::for_proof_integer_formation(&program);
+        let wrapped = engine.normalize_integer_embedding(wrapping).unwrap();
+        let saturated = engine.normalize_integer_embedding(saturating).unwrap();
+        assert_ne!(wrapped, Polynomial::constant(BigInt::from_i64(256)));
+        assert_ne!(wrapped, saturated);
+        assert!(engine.prove_at_least(&wrapped, &BigInt::zero()));
+        assert!(engine.prove_at_least(&wrapped.neg(), &BigInt::from_i64(-255)));
+        assert!(engine.prove_at_least(&saturated.neg(), &BigInt::from_i64(-255)));
+    }
+
+    #[test]
+    fn equal_embedded_source_structure_has_one_transient_mathematical_identity() {
+        let mut program = TypedTrees::default();
+        let first = byte_sum(&mut program, ArithmeticDomain::Wrapping);
+        let second = byte_sum(&mut program, ArithmeticDomain::Wrapping);
+        let mut engine = Engine::for_proof_integer_formation(&program);
+        assert_eq!(
+            engine.normalize_integer_embedding(first),
+            engine.normalize_integer_embedding(second)
+        );
+    }
+
+    #[test]
+    fn embedded_signed_literals_keep_their_negative_mathematical_value() {
+        let mut program = TypedTrees::default();
+        let value = program.expression_table.insert(ExpressionNode::Integer(
+            IntegerLiteral::from_value(-1).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::I32,
+                domain: ArithmeticDomain::Trapping,
+            }),
+        ));
+        let mut engine = Engine::for_proof_integer_formation(&program);
+        let polynomial = engine.normalize_integer_embedding(value).unwrap();
+        assert_eq!(polynomial, Polynomial::constant(BigInt::from_i64(-1)));
+        assert!(!engine.prove_at_least(&polynomial, &BigInt::zero()));
+    }
+
+    #[test]
+    fn satisfiable_wrapping_hypotheses_do_not_prove_arbitrary_nonnegativity() {
+        let source = r#"
+            data Nat { case Zero; case Succ(previous: Nat); }
+            machine predicate(value: u8 in Wrapping, signed: i32) -> Nat
+            requires value == 255
+            requires value + 1 == 0
+            { embed(signed) as Nat }
+        "#;
+        let program = crate::validation::front_end::typed_program(source);
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "predicate")
+            .unwrap();
+        let hypotheses: Vec<_> = program
+            .machine_contracts(machine)
+            .iter()
+            .filter(|contract| contract.kind == SignatureContractKind::Requires)
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+            .filter_map(|fact| match fact {
+                ProofFact::Expression(expression) => Some(*expression),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(hypotheses.len(), 2);
+        let source = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(_, expression)| match expression {
+                ExpressionNode::Cast(cast) if proof_nat_cast(&program, cast) => Some(cast.value),
+                _ => None,
+            })
+            .unwrap();
+        assert!(!proof_integer_nonnegative(&program, source, &hypotheses));
+        let mut engine = Engine::new(&program, machine);
+        engine.add_requires(&hypotheses);
+        assert!(!engine.requires_unsatisfiable);
+    }
+}

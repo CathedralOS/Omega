@@ -4,15 +4,15 @@ use crate::expressions::parse_expression::{
     parse_expression_handle_without_struct_literals,
 };
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableStructLiteral, TableStructLiteralField,
+};
+use crate::syntax_trees::identifier::Identifier;
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use numerics::literals::IntegerLiteral;
 use source::{SourceSpan, Span};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableStructLiteral, TableStructLiteralField,
-};
-use syntax_trees::identifier::Identifier;
-use tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
+use source_files_to_tokens::tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
 
 /// Retain authored dispatch order and source custody for semantic checking.
 fn parse_match_expression_handle<'tokens, 'source>(
@@ -28,7 +28,7 @@ fn parse_match_expression_handle<'tokens, 'source>(
         let arm_start = input;
         let (pattern, rest) = if input.at_contextual("_") {
             (
-                syntax_trees::expression::MatchPattern::Wildcard,
+                crate::syntax_trees::expression::MatchPattern::Wildcard,
                 input.take_contextual("_")?,
             )
         } else {
@@ -48,11 +48,14 @@ fn parse_match_expression_handle<'tokens, 'source>(
                      dispatch; `match` arms admit value and wildcard patterns",
                 ));
             }
-            (syntax_trees::expression::MatchPattern::Value(pattern), rest)
+            (
+                crate::syntax_trees::expression::MatchPattern::Value(pattern),
+                rest,
+            )
         };
         let rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
         let (value, rest) = parse_expression_handle(syntax_trees, rest)?;
-        arms.push(syntax_trees::expression::TableMatchArm {
+        arms.push(crate::syntax_trees::expression::TableMatchArm {
             pattern,
             value,
             source_span: arm_start.source_span_until(rest),
@@ -69,7 +72,7 @@ fn parse_match_expression_handle<'tokens, 'source>(
     }
     let arms = syntax_trees.expressions.insert_match_arms(arms);
     let expression = syntax_trees.expressions.insert(ExpressionNode::Match(
-        syntax_trees::expression::TableMatchExpression { subject, arms },
+        crate::syntax_trees::expression::TableMatchExpression { subject, arms },
     ));
     syntax_trees
         .expressions
@@ -352,7 +355,7 @@ fn starts_generic_type_operand(input: Input<'_, '_>) -> bool {
     };
     if !matches!(
         scratch.type_references.type_reference(reference),
-        syntax_trees::types::TypeReferenceNode::Generic { .. }
+        crate::syntax_trees::types::TypeReferenceNode::Generic { .. }
     ) {
         return false;
     }
@@ -477,9 +480,9 @@ fn parse_struct_literal_handle<'tokens, 'source>(
 #[cfg(test)]
 mod generic_type_operand_tests {
     use crate::parser::parse_syntax_trees;
+    use crate::syntax_trees::expression::ExpressionNode;
+    use crate::syntax_trees::types::TypeReferenceNode;
     use source_files_to_tokens::Lexer;
-    use syntax_trees::expression::ExpressionNode;
-    use syntax_trees::types::TypeReferenceNode;
 
     #[test]
     fn proof_type_operands_keep_nested_applications_and_grouping() {

@@ -1,8 +1,9 @@
 /// Checked occurrence before emission assigns real Terminal identities.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SelectedComparison {
-    pub operator_use: checked_trees::CheckedOperatorUseHandle,
-    pub application_site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
+    pub operator_use: typed_trees_to_checked_trees::checked_trees::CheckedOperatorUseHandle,
+    pub application_site:
+        typed_trees_to_checked_trees::checked_trees::CheckedBoundaryOperatorApplicationUseSite,
     pub requirement_operator: symbols::SymbolHandle,
     pub meaning: SelectedComparisonMeaning,
 }
@@ -20,8 +21,8 @@ pub(crate) enum SelectedComparisonMeaning {
         format: semantic_vocabulary::IeeeFloatFormat,
     },
     Integer {
-        comparison: lowered_psi::LoweredSelectedIntegerComparisonOperation,
-        operand_order: lowered_psi::LoweredSelectedIntegerComparisonOperandOrder,
+        comparison: crate::lowered_psi::LoweredSelectedIntegerComparisonOperation,
+        operand_order: crate::lowered_psi::LoweredSelectedIntegerComparisonOperandOrder,
         negated: bool,
         integer_type: semantic_vocabulary::IntegerType,
     },

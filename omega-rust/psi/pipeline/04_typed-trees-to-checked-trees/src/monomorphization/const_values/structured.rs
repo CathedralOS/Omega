@@ -1,10 +1,14 @@
 //! Replay canonical const values against their independently declared types.
 
 use super::{DecodedCanonicalConstValue, IntegerLiteral, IntegerRadix, integer_value};
-use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
-use typed_trees::expression::{ExpressionNode, TableStructLiteral, TableStructLiteralField};
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionNode, TableStructLiteral, TableStructLiteralField,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(super) fn materialize(
     program: &mut TypedTrees,
@@ -36,7 +40,8 @@ pub(super) fn materialize(
             if *type_name != program.display_type_reference(declared_type) {
                 return None;
             }
-            let declared_type = validation::unwrapped_type_reference(program, declared_type)?;
+            let declared_type =
+                crate::validation::unwrapped_type_reference(program, declared_type)?;
             let TypeReferenceNode::FixedArray {
                 element_type,
                 length: FixedArrayLength::Literal(length),
@@ -77,7 +82,7 @@ fn record(
     case_name: Option<&str>,
     fields: &[(String, DecodedCanonicalConstValue)],
 ) -> Option<ExpressionNode> {
-    let declared_type = validation::unwrapped_type_reference(program, declared_type)?;
+    let declared_type = crate::validation::unwrapped_type_reference(program, declared_type)?;
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(declared_type)
     else {

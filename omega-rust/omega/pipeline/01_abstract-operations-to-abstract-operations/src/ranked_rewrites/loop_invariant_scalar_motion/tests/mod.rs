@@ -12,12 +12,12 @@ mod place_observations;
 mod structural_establishments;
 
 use crate::VerifiedPsiOptimizationSession;
-use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use optimization_unit::{
+use semantic_vocabulary::ValueId;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     PsiOptimizationUnit, PsiProvenance, recompute_psi_optimization_unit_identity,
 };
-use semantic_vocabulary::ValueId;
 
 /// Two-state unranked cycle: the entry state forwards `scale` to `step`, which
 /// carries it back unchanged, and every traversal that leaves the component
@@ -74,11 +74,11 @@ pub(super) const BYPASSED_MEMBER_SOURCE: &str = r#"
 /// The `s + s` computation inside a member block, its block, and the member
 /// parameter it reads twice.
 pub(super) fn member_addition<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> (
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
     ValueId,
 ) {
     for member in &component.members {
@@ -105,7 +105,7 @@ pub(super) fn member_addition<'function>(
 pub(super) fn take_operation(
     unit: &mut PsiOptimizationUnit,
     operation: semantic_vocabulary::OperationId,
-) -> optimization_unit::OptimizationNode {
+) -> terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode {
     for function in &mut unit.functions {
         for block in &mut function.blocks {
             if let Some(index) = block.nodes.iter().position(|node| {
@@ -121,7 +121,7 @@ pub(super) fn take_operation(
 pub(super) fn find_operation_mut(
     unit: &mut PsiOptimizationUnit,
     operation: semantic_vocabulary::OperationId,
-) -> &mut optimization_unit::OptimizationNode {
+) -> &mut terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode {
     unit.functions
         .iter_mut()
         .flat_map(|function| &mut function.blocks)
@@ -137,7 +137,7 @@ pub(super) fn refresh_coordinates_and_effects(unit: &mut PsiOptimizationUnit) {
             for (node_index, node) in block.nodes.iter_mut().enumerate() {
                 let node_index = u32::try_from(node_index).expect("test fixture fits u32");
                 for definition in &mut node.definitions {
-                    definition.site = optimization_unit::ValueDefinitionSite::Node {
+                    definition.site = terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
                         block: block.id,
                         node: node_index,
                     };
@@ -146,7 +146,7 @@ pub(super) fn refresh_coordinates_and_effects(unit: &mut PsiOptimizationUnit) {
                     value_use.block = block.id;
                     value_use.node = node_index;
                 }
-                node.effect = optimization_unit::EffectLink {
+                node.effect = terminal_psi_to_abstract_operations::optimization_unit::EffectLink {
                     input: effect,
                     output: effect + 1,
                 };
@@ -165,12 +165,12 @@ pub(super) fn refresh_coordinates_and_effects(unit: &mut PsiOptimizationUnit) {
             .collect::<std::collections::BTreeMap<_, _>>();
         function.facts.sort_by_key(|fact| {
             let support = match fact {
-                optimization_unit::OptimizationFact::OperationObligationReference {
+                terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference {
                     support,
                     ..
                 }
-                | optimization_unit::OptimizationFact::BooleanConstant { support, .. }
-                | optimization_unit::OptimizationFact::IntegerConstant { support, .. } => support,
+                | terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::BooleanConstant { support, .. }
+                | terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::IntegerConstant { support, .. } => support,
             };
             operation_order.get(support).copied()
         });
@@ -181,11 +181,11 @@ pub(super) fn refresh_coordinates_and_effects(unit: &mut PsiOptimizationUnit) {
 /// The `IntegerStructuralField` observations inside a component's member
 /// blocks, as `(member block, node)` pairs in member order.
 pub(super) fn member_field_reads<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 )> {
     component
         .members
@@ -215,11 +215,11 @@ pub(super) fn member_field_reads<'function>(
 /// The `ByteSequenceLength` observations inside a component's member blocks,
 /// as `(member block, node)` pairs in member order.
 pub(super) fn member_length_reads<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 )> {
     component
         .members
@@ -245,7 +245,7 @@ pub(super) fn member_length_reads<'function>(
 
 /// The operation identity of a source-owned node.
 pub(super) fn operation_of(
-    node: &optimization_unit::OptimizationNode,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 ) -> semantic_vocabulary::OperationId {
     match node.provenance.first() {
         Some(PsiProvenance::Operation(operation)) => *operation,
@@ -324,11 +324,11 @@ pub(super) fn lowered_session_entry_with_module_edit(
 /// The `Root::bump`/`Root::spin` scalar call inside a member block and its
 /// block — the caller-side counterpart of [`member_addition`].
 pub(super) fn member_call<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> (
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 ) {
     for member in &component.members {
         let block = function
@@ -396,11 +396,11 @@ pub(super) const BYPASSED_LITERAL_SOURCE: &str = r#"
 /// The `EstablishByteSequenceLiteral` inside a member block and its block —
 /// the byte-literal counterpart of [`member_call`].
 pub(super) fn member_literal<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> (
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 ) {
     for member in &component.members {
         let block = function
@@ -420,11 +420,11 @@ pub(super) fn member_literal<'function>(
 /// The `EstablishPrimitiveLocal` node inside a member block and its block —
 /// the primitive-local counterpart of [`member_call`].
 pub(super) fn member_primitive_local<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> (
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 ) {
     for member in &component.members {
         let block = function
@@ -446,11 +446,11 @@ pub(super) fn member_primitive_local<'function>(
 /// structural call in the roster, [`member_structural_scalar_calls`] lists
 /// them all.
 pub(super) fn member_structural_scalar_call<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> (
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 ) {
     let calls = member_structural_scalar_calls(function, component);
     let [(block, node)] = calls.as_slice() else {
@@ -460,11 +460,11 @@ pub(super) fn member_structural_scalar_call<'function>(
 }
 
 pub(super) fn member_structural_scalar_calls<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 )> {
     let mut calls = Vec::new();
     for member in &component.members {
@@ -485,11 +485,11 @@ pub(super) fn member_structural_scalar_calls<'function>(
 /// Every `EstablishRecord` node inside `component`'s member blocks — the
 /// record counterpart of [`member_primitive_local`].
 pub(super) fn member_record_establishments<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 )> {
     let mut records = Vec::new();
     for member in &component.members {
@@ -532,11 +532,11 @@ pub(super) const MEMBER_SCALAR_ARRAY_SOURCE: &str = r#"
 /// Every `EstablishScalarArray` node inside `component`'s member blocks —
 /// the array counterpart of [`member_record_establishments`].
 pub(super) fn member_scalar_array_establishments<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 )> {
     let mut arrays = Vec::new();
     for member in &component.members {
@@ -557,11 +557,11 @@ pub(super) fn member_scalar_array_establishments<'function>(
 /// Every `EstablishScalarCase` node inside `component`'s member blocks —
 /// the sum counterpart of [`member_scalar_array_establishments`].
 pub(super) fn member_scalar_case_establishments<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 )> {
     let mut cases = Vec::new();
     for member in &component.members {

@@ -6,10 +6,14 @@ use super::{
 use crate::rewrites::unexecuted::{
     StoredLoadForwardingError, forward_selected_stored_load, validate_stored_load_forwarding,
 };
-use optimization_unit::ValueDefinitionSite;
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
+    StructuralFieldId, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
@@ -18,11 +22,7 @@ use selected_instructions::{
     SelectedValueBinding, SelectedValueTransport, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
-    StructuralFieldId, ValueId,
-};
-use target::NativeTarget;
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 #[test]
 fn cross_block_store_forwards_through_a_unique_predecessor() {
@@ -513,7 +513,7 @@ fn cross_block_joins_reject_when_paths_disagree_or_never_resolve() {
             unreachable!()
         };
         edge.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -776,7 +776,7 @@ fn merge_join(
         for (instruction_id, block_id, value) in [(7, 2, VALUE), (9, 3, SCRATCH)] {
             let mut edge = successor(1);
             edge.bindings.push(SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                     parameter: ValueId::new(6).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type,
@@ -1024,7 +1024,7 @@ fn cross_block_joins_merge_propagates_through_deferred_blocks() {
         for (instruction_id, block_id, value) in [(7, 2, VALUE), (9, 3, SCRATCH)] {
             let mut edge = successor(4);
             edge.bindings.push(SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                     parameter: ValueId::new(6).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type,
@@ -1454,7 +1454,7 @@ fn cross_block_looped_head_needs_a_clear_tail() {
     let environment = baseline_target_register_environment(target).unwrap();
     let looped_tail = |edit: &dyn Fn(
         &mut SelectedFunction,
-        &register_environment::ValidatedTargetRegisterEnvironment,
+        &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     )| {
         mutated_chained(target, |function, environment| {
             let branch = environment
@@ -1831,7 +1831,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     let environment = baseline_target_register_environment(target).unwrap();
     // An edge register parameter redefining the carried value cannot forward.
     let value_binding = |parameter: VirtualRegisterId| SelectedValueBinding {
-        semantic: abstract_operations::ValueBinding {
+        semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
             parameter: ValueId::new(5).unwrap(),
             argument: ValueId::new(1).unwrap(),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
@@ -1873,10 +1873,10 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
             payloads: vec![SelectedCasePayloadBinding {
-                semantic: legalized_operations::LegalizedStructuralCasePayload {
+                semantic: target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralCasePayload {
                     field: StructuralFieldId::new(1).unwrap(),
                     field_byte_offset: 0,
-                    parameter: legalized_operations::LegalizedValueDefinition {
+                    parameter: target_operations_to_selected_instructions::legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(5).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -1904,7 +1904,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -1932,7 +1932,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -2309,7 +2309,7 @@ fn cross_block_byte_sequence_load_forwards_across_the_edge() {
     let redefined = mutated_chained(target, |function, environment| {
         sequence_pair(function, environment, 0, 5);
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -2571,7 +2571,7 @@ fn cross_block_constant_index_rows_land_on_fixed_positions() {
             ..access(STORE, 1, place(), 11, SelectedMemoryAccessRole::WritePlace)
         };
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(

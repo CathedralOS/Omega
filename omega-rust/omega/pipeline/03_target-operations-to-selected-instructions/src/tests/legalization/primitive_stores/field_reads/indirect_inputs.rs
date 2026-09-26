@@ -10,13 +10,13 @@ use super::{
     ValueId, fixture,
 };
 use crate::legalize_target_operations;
+use crate::selected_instructions::{
+    FrameStorageSlotId, SelectedInstructionKind as Instruction, VirtualRegisterOrigin,
+};
 use crate::tests::legalization::primitive_stores::integer;
 use crate::validate_legalized_operations;
-use calling_conventions::{
+use abstract_operations_to_target_operations::calling_conventions::{
     IndirectPointerLocation, MachineRegister, ValueLocation, ValuePlacement,
-};
-use selected_instructions::{
-    FrameStorageSlotId, SelectedInstructionKind as Instruction, VirtualRegisterOrigin,
 };
 
 fn input(
@@ -76,12 +76,12 @@ fn input(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     (source, target, unit)
 }
 
@@ -138,7 +138,7 @@ fn owned_indirect_physical_shape_preserves_qualification_and_multiplicity_rows()
             let graph = &target.functions[0].graph;
             let accepts =
                 |semantic: &StructuralParameterDeclaration,
-                 target: &target_operations::TargetStructuralParameter| {
+                 target: &abstract_operations_to_target_operations::target_operations::TargetStructuralParameter| {
                     crate::structural_inputs::structural_unit_input::accepts_graph(
                         &graph.call_plan,
                         &[crate::structural_inputs::structural_unit_input::Parameter {
@@ -247,7 +247,9 @@ fn owned_indirect_inputs_reject_substituted_abi_and_receiving_access() {
                 &legalized.plan().scalar_functions[0].call_plan.parameters[scalar_count];
             assert_eq!(
                 placement.shape,
-                calling_conventions::ValueShape::integer(24, 8)
+                abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
+                    24, 8
+                )
             );
             assert!(
                 matches!(placement.locations.as_slice(), [ValueLocation::Indirect { pointer, copy_stack_byte_offset: Some(_), byte_size: 24, alignment: 8 }]
@@ -330,7 +332,7 @@ fn owned_indirect_entry_replay_checks_pointer_capture_without_a_value_copy() {
             let (source, target, unit) = input(native, scalar_count);
             let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
             let environment =
-                register_environment::baseline_target_register_environment(native).unwrap();
+                crate::register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = crate::selection_constraints(&legalized, &environment);
             let selected = crate::select_instructions(
                 &legalized,

@@ -31,6 +31,10 @@ use super::{
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
+use crate::lowered_psi::{
+    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
+    LoweredSourceCallOccurrence,
+};
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::{
     Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, ClaimId,
@@ -45,11 +49,7 @@ use crate::unit::{
 use crate::unit::{
     MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
-use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
-use lowered_psi::{
-    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
-    LoweredSourceCallOccurrence,
-};
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
 /// What the closure keeps for every ordinary machine emitter: the identity
 /// rosters, boundary parameters, signatures and requirement counts, plus the

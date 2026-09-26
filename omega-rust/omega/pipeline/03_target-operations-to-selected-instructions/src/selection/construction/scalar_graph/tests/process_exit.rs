@@ -24,9 +24,11 @@ fn process_exit_retains_boundary_but_does_not_execute_nominal_return() {
         constant.kind = LegalizedScalarInstructionKind::Constant(IntegerValue::Signed(255));
         let row = &mut source.blocks[0].instructions[1];
         row.result = None;
-        row.ownership = vec![optimization_unit::OwnershipEvent::ClaimCompletion(
-            Vec::new(),
-        )];
+        row.ownership = vec![
+            terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(
+                Vec::new(),
+            ),
+        ];
         row.kind = LegalizedScalarInstructionKind::HostedExitProcessI32 {
             boundary: BoundaryMachineId::new(1).unwrap(),
             source: ValueId::new(1).unwrap(),
@@ -34,13 +36,21 @@ fn process_exit_retains_boundary_but_does_not_execute_nominal_return() {
         let LegalizedScalarTerminator::Return(returned) = &mut source.blocks[0].terminator else {
             panic!("fixture return");
         };
-        returned.ownership = vec![optimization_unit::OwnershipEvent::Cleanup(Vec::new())];
-        returned.fuel = vec![optimization_unit::FuelSettlement {
-            site: optimization_unit::PsiProvenance::Edge(returned.edge),
-            units: 999,
-        }];
+        returned.ownership = vec![
+            terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
+                Vec::new(),
+            ),
+        ];
+        returned.fuel = vec![
+            terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+                site: terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Edge(
+                    returned.edge,
+                ),
+                units: 999,
+            },
+        ];
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -100,7 +110,9 @@ fn process_exit_retains_boundary_but_does_not_execute_nominal_return() {
     }
 }
 
-fn returned_fuel(source: &LegalizedScalarFunction) -> Vec<optimization_unit::FuelSettlement> {
+fn returned_fuel(
+    source: &LegalizedScalarFunction,
+) -> Vec<terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement> {
     let LegalizedScalarTerminator::Return(returned) = &source.blocks[0].terminator else {
         unreachable!();
     };
@@ -125,16 +137,19 @@ fn a_misplaced_exit_is_refused_at_its_own_operation() {
     let trailing = source.blocks[0].instructions[0].clone();
     let row = &mut source.blocks[0].instructions[1];
     row.result = None;
-    row.ownership = vec![optimization_unit::OwnershipEvent::ClaimCompletion(
-        Vec::new(),
-    )];
+    row.ownership = vec![
+        terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(
+            Vec::new(),
+        ),
+    ];
     row.kind = LegalizedScalarInstructionKind::HostedExitProcessI32 {
         boundary: BoundaryMachineId::new(1).unwrap(),
         source: ValueId::new(1).unwrap(),
     };
     let exit = row.operation;
     source.blocks[0].instructions.push(trailing);
-    let environment = register_environment::baseline_target_register_environment(target).unwrap();
+    let environment =
+        crate::register_environment::baseline_target_register_environment(target).unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: environment.selected_keys(),
         fixed_inputs: Vec::new(),

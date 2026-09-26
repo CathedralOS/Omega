@@ -11,7 +11,7 @@ use crate::monomorphization::{
 
 pub(crate) fn approved_type_bounds(program: &TypedTrees, candidates: &[Candidate]) -> Vec<bool> {
     let mut symbol_diagnostics = Vec::new();
-    let symbols = validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
+    let symbols = crate::validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
     candidates
         .iter()
         .map(|candidate| {
@@ -24,12 +24,13 @@ pub(crate) fn approved_type_bounds(program: &TypedTrees, candidates: &[Candidate
                     let Some(binding) = binding else {
                         return true;
                     };
-                    let Some(unwrapped) = validation::unwrapped_type_reference(program, *binding)
+                    let Some(unwrapped) =
+                        crate::validation::unwrapped_type_reference(program, *binding)
                     else {
                         return false;
                     };
                     bounds.iter().all(|property| {
-                        validation::type_satisfies_declared_property(
+                        crate::validation::type_satisfies_declared_property(
                             program,
                             &symbols,
                             &[],
@@ -243,7 +244,10 @@ pub(crate) fn close_candidate_bound_application(
     program: &TypedTrees,
     candidate: &Candidate,
     selected: &StaticMachineArgument,
-) -> Result<typed_trees::typed_trees::ClosedConformanceApplication, Diagnostic> {
+) -> Result<
+    symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::ClosedConformanceApplication,
+    Diagnostic,
+> {
     let rewrites = forwarded_static_argument_rewrites(program, candidate);
     let mut applications = [selected.clone()];
     substitute_forwarded_machine_arguments(&mut applications, &rewrites, &[]);
@@ -283,8 +287,8 @@ pub(crate) fn concrete_data_type_name(
 pub(crate) fn conformance_application_arguments_match_candidate(
     program: &TypedTrees,
     candidate: &Candidate,
-    bound: &typed_trees::machine::GenericConformanceBound,
-    application: &typed_trees::typed_trees::ClosedConformanceApplication,
+    bound: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::GenericConformanceBound,
+    application: &symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::ClosedConformanceApplication,
 ) -> bool {
     let substitutions = candidate
         .template
@@ -382,8 +386,8 @@ pub(crate) fn conformance_application_arguments_match_candidate(
 pub(crate) fn conformance_arguments_match_candidate(
     program: &TypedTrees,
     candidate: &Candidate,
-    bound: &typed_trees::machine::GenericConformanceBound,
-    conformance: &typed_trees::trait_definition::Conformance,
+    bound: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::GenericConformanceBound,
+    conformance: &symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::Conformance,
 ) -> bool {
     let actual = program
         .type_reference_table

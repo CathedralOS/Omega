@@ -1,5 +1,5 @@
 use crate::input::token_cursor::Input;
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 pub(super) fn find_top_level_punctuation(
     input: Input<'_, '_>,

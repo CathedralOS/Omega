@@ -61,7 +61,7 @@ fn direct_unsigned_countdown_exports_exact_ranked_scc_evidence() {
     assert_eq!(component.header_rank_parameter_position, 1);
     assert_eq!(
         component.rank_primitive_type,
-        typed_trees::types::PrimitiveType::U32
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32
     );
     assert_eq!(component.rank_lower_bound, 0);
     assert_eq!(component.rank_upper_bound, u128::from(u32::MAX));

@@ -1,6 +1,6 @@
 //! Input-only block layout. Backedges are layout edges, not ranking evidence.
 use super::SelectedInstructionError;
-use legalized_operations::{LegalizedScalarFunction, LegalizedScalarTerminator};
+use crate::legalized_operations::{LegalizedScalarFunction, LegalizedScalarTerminator};
 
 pub(super) fn derive(
     source: &LegalizedScalarFunction,
@@ -86,12 +86,12 @@ pub(super) fn derive(
 #[cfg(test)]
 mod tests {
     use super::LegalizedScalarTerminator;
-    use crate::selection::block_order::derive;
-    use legalized_operations::{
+    use crate::legalized_operations::{
         LegalizedScalarInstructionKind, LegalizedScalarSuccessor, LegalizedStructuralCaseSuccessor,
     };
-    use optimization_unit::EffectLink;
+    use crate::selection::block_order::derive;
     use semantic_vocabulary::{BlockId, EdgeId, StructuralCaseId};
+    use terminal_psi_to_abstract_operations::optimization_unit::EffectLink;
 
     #[test]
     fn case_targets_precede_their_join_in_a_permuted_roster() {
@@ -131,7 +131,7 @@ mod tests {
         let empty = arm(2, 12);
         let present = arm(3, 13);
         source.blocks[0].terminator = LegalizedScalarTerminator::StructuralCase {
-            source: legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+            source: crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 operation,
                 result,
             },

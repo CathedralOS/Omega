@@ -1,5 +1,5 @@
 use crate::input::token_cursor::{Input, ParseResult};
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 /// Parse the closed property set that attaches to one authored binding
 /// occurrence's name: `proof [erased]: Evidence` marks only `proof`, never

@@ -1,11 +1,11 @@
 //! Intrinsic call targets and exact build receivers.
 
-use checked_trees::CheckFacts;
+use crate::checked_trees::CheckFacts;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, BuildOperation,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 /// How checking tells a toolchain-owned build operation apart from an
 /// ordinary call which happens to share its spelling.
@@ -52,8 +52,8 @@ pub(crate) fn is_boundary_acceptance_marker(call_target: &str) -> bool {
 
 pub(crate) fn checked_statement_call_intrinsic(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
-    call: &typed_trees::statement::TableCall,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
@@ -83,13 +83,13 @@ pub(crate) fn checked_statement_call_intrinsic(
         program,
         call.target.as_str(),
         call.target_symbol,
-        typed_trees::expression::ExpressionHandle::invalid(),
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
     )
 }
 
 pub(crate) fn checked_intrinsic_call_target(
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
     let mut matching = facts
         .intrinsic_calls
@@ -106,7 +106,7 @@ pub(crate) fn checked_call_intrinsic(
     program: &TypedTrees,
     target: &str,
     target_symbol: SymbolHandle,
-    receiver: typed_trees::expression::ExpressionHandle,
+    receiver: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
@@ -145,7 +145,7 @@ pub(crate) fn checked_call_intrinsic(
 
 fn exact_build_prelude_receiver(
     program: &TypedTrees,
-    receiver: typed_trees::expression::ExpressionHandle,
+    receiver: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     expected_receiver: &str,
 ) -> bool {
     crate::flow::expression_type_symbol(program, receiver).is_some_and(|type_symbol| {
@@ -155,8 +155,8 @@ fn exact_build_prelude_receiver(
 
 fn exact_statement_build_member_receiver(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
-    call: &typed_trees::statement::TableCall,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
     expected_receiver: &str,
 ) -> bool {
     let [root, members @ ..] = program.statement_table.name_path_members(call.receiver) else {
@@ -193,17 +193,17 @@ fn exact_statement_build_member_receiver(
 
 pub(crate) fn type_reference_names_exact_prelude_data(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     name: &str,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
             type_reference_names_exact_prelude_data(program, *referee, name)
         }
-        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_names_exact_prelude_data(program, *base_type, name)
         }
-        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
             exact_build_prelude_data(program, *symbol, name)
         }
         _ => false,

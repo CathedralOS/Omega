@@ -9,10 +9,10 @@ use crate::execution::terminal_unit::types::{
 
 use crate::execution::terminal_unit::calls;
 
-use checked_trees::{
+use crate::checked_trees::{
     BorrowAccessKind, BorrowLoanLineage, FlowBorrowWeakeningReason, FlowInvalidationSource,
 };
-use typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 
 mod nested;
 mod projection;
@@ -22,7 +22,7 @@ mod tests;
 pub(super) struct ReceiverAlias {
     pub(super) owner: SymbolHandle,
     pub(super) root: SymbolHandle,
-    pub(super) segments: Vec<facts::PlaceSegment>,
+    pub(super) segments: Vec<crate::fact_plan::PlaceSegment>,
     /// The erased loan's exact access and terminal statement. A bare-argument
     /// move records only a carrier read; this evidence restores the authority
     /// that argument actually forwards.
@@ -38,20 +38,20 @@ pub(super) struct ReceiverAlias {
 fn formation(
     program: &TypedTrees,
     facts: &CheckFacts,
-    flow: &checked_trees::FlowStateFact,
-    borrow_state: &checked_trees::StateBorrowFact,
-    parameters: &[typed_trees::signature::StateParameter],
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    flow: &crate::checked_trees::FlowStateFact,
+    borrow_state: &crate::checked_trees::StateBorrowFact,
+    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    local: &typed_trees::statement::TableLocalData,
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
     statement_count: usize,
     aliases: &[ReceiverAlias],
-    loans: &[(arena::Handle<checked_trees::BorrowLoanFact>, usize)],
+    loans: &[(arena::Handle<crate::checked_trees::BorrowLoanFact>, usize)],
     parents: &[Option<usize>],
 ) -> Option<(
     ReceiverAlias,
-    (arena::Handle<checked_trees::BorrowLoanFact>, usize),
+    (arena::Handle<crate::checked_trees::BorrowLoanFact>, usize),
     Option<usize>,
 )> {
     if local.is_mutable
@@ -81,7 +81,7 @@ fn formation(
     }
     let (place, source) =
         projection::formation_place(program, machine, state, statement_index, borrow.target)?;
-    let facts::PlaceRoot::Symbol(source_root) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(source_root) = place.root else {
         return None;
     };
     if let Some(parent_position) = aliases.iter().position(|alias| alias.owner == source_root) {
@@ -95,7 +95,7 @@ fn formation(
         {
             return None;
         }
-        let parent: &(arena::Handle<checked_trees::BorrowLoanFact>, usize) =
+        let parent: &(arena::Handle<crate::checked_trees::BorrowLoanFact>, usize) =
             loans.get(parent_position)?;
         let loan = nested::formation(
             facts,
@@ -130,7 +130,7 @@ fn formation(
     if roots.next().is_some()
         || root.is_const
         || exclusive_access(program, root.type_reference)?.direct_reborrow_effect(&access)
-            != Some(checked_trees::CheckedReborrowAccessEffect::ExclusiveSuspension)
+            != Some(crate::checked_trees::CheckedReborrowAccessEffect::ExclusiveSuspension)
     {
         return None;
     }
@@ -138,7 +138,7 @@ fn formation(
     // referent is the exact attachment, as in the ordinary Unit signature
     // collector; no other parameter may borrow that substitution.
     let root_type = if root.is_self {
-        let reference = validation::unwrapped_type_reference(program, root.type_reference)?;
+        let reference = crate::validation::unwrapped_type_reference(program, root.type_reference)?;
         let TypeReferenceNode::Named { symbol, .. } =
             program.type_reference_table.type_reference(reference)
         else {
@@ -296,8 +296,8 @@ fn formation(
 pub(super) fn aliases(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Option<Vec<ReceiverAlias>> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let parameters = program.state_parameters(state);
@@ -358,14 +358,14 @@ pub(super) fn resolve(
     aliases: &[ReceiverAlias],
     place: &crate::flow::CanonicalPlace,
 ) -> Option<crate::flow::CanonicalPlace> {
-    let facts::PlaceRoot::Symbol(owner) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(owner) = place.root else {
         return None;
     };
     let alias = aliases.iter().find(|alias| alias.owner == owner)?;
     let mut segments = alias.segments.clone();
     segments.extend_from_slice(&place.segments);
     Some(crate::flow::CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(alias.root),
+        root: crate::fact_plan::PlaceRoot::Symbol(alias.root),
         segments,
     })
 }
@@ -378,8 +378,8 @@ pub(super) fn resolve(
 pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Option<Vec<SymbolHandle>> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let StatementNode::LocalData(parent_local) = statements.first()? else {
@@ -466,10 +466,10 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
                 || certificate.carrier_place.root_symbol != parent_local.symbol
                 || !certificate.carrier_place.segments.is_empty()
                 || parent_source.root
-                    != facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol)
+                    != crate::fact_plan::PlaceRoot::Symbol(certificate.restored_place.root_symbol)
                 || parent_source.segments != certificate.restored_place.segments
                 || child_sources.iter().any(|source| {
-                    source.root != facts::PlaceRoot::Symbol(parent_local.symbol)
+                    source.root != crate::fact_plan::PlaceRoot::Symbol(parent_local.symbol)
                         || !source.segments.is_empty()
                 })
                 || !facts
@@ -507,13 +507,13 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
                             member.owner_symbol == local.symbol
                                 && borrow.access
                                     == match member.access {
-                                        checked_trees::BorrowAccessKind::Mutable => {
+                                        crate::checked_trees::BorrowAccessKind::Mutable => {
                                             language_semantics::ReferenceAccess::Mutable
                                         }
-                                        checked_trees::BorrowAccessKind::WriteOnly => {
+                                        crate::checked_trees::BorrowAccessKind::WriteOnly => {
                                             language_semantics::ReferenceAccess::WriteOnly
                                         }
-                                        checked_trees::BorrowAccessKind::Read => {
+                                        crate::checked_trees::BorrowAccessKind::Read => {
                                             language_semantics::ReferenceAccess::Shared
                                         }
                                     }

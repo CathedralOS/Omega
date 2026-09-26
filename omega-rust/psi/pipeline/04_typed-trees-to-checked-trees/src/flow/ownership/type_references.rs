@@ -1,12 +1,12 @@
 use super::place_types::expression_type_reference_in_state;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 #[cfg(test)]
 mod tests;
 
 pub(in crate::flow::ownership) fn expression_requires_ownership(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -51,8 +51,8 @@ pub(in crate::flow::ownership) enum OperatorResultOwnership {
 /// [`type_requires_ownership`] but is expressed in operator-result terms so the
 /// move/borrow/drop emitters and a future copy/drop policy share one decision.
 pub(in crate::flow::ownership) fn classify_operator_result_ownership(
-    program: &typed_trees::TypedTrees,
-    return_type: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> OperatorResultOwnership {
     if !return_type.is_valid() {
         return OperatorResultOwnership::NoTransfer;
@@ -60,23 +60,23 @@ pub(in crate::flow::ownership) fn classify_operator_result_ownership(
 
     match program.type_reference_table.type_reference(return_type) {
         // `&[T]`, `&mut [T]`, `&string`, `&T` — a borrowed view/window.
-        typed_trees::types::TypeReferenceNode::Reference { .. } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. } => {
             OperatorResultOwnership::BorrowedView
         }
         // Unit results (`Vec::push`, `String::push_str`) transfer nothing.
-        typed_trees::types::TypeReferenceNode::ConstExpression(_)
-        | typed_trees::types::TypeReferenceNode::Unit => OperatorResultOwnership::NoTransfer,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::ConstExpression(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit => OperatorResultOwnership::NoTransfer,
         // A constrained result classifies by its base type.
-        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             classify_operator_result_ownership(program, *base_type)
         }
         // Any other aggregate/owned return classifies as owned vs copy by the
         // shared ownership rule (e.g. `Vec<T>` owns, `usize`/`u8` copy).
-        typed_trees::types::TypeReferenceNode::FixedArray { .. }
-        | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
-        | typed_trees::types::TypeReferenceNode::Slice { .. }
-        | typed_trees::types::TypeReferenceNode::Generic { .. }
-        | typed_trees::types::TypeReferenceNode::Named { .. } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { .. } => {
             if type_requires_ownership(program, return_type) {
                 OperatorResultOwnership::OwnedValue
             } else {
@@ -87,8 +87,8 @@ pub(in crate::flow::ownership) fn classify_operator_result_ownership(
 }
 
 pub(in crate::flow::ownership) fn type_requires_ownership(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     type_reference.is_valid()
         && program.type_multiplicity(type_reference)
@@ -96,7 +96,7 @@ pub(in crate::flow::ownership) fn type_requires_ownership(
 }
 
 fn expression_is_place_like(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> bool {
     if !expression.is_valid() {
@@ -128,19 +128,19 @@ fn expression_is_place_like(
 /// Equality observes the tags of an exact payload-free nominal sum. The shared
 /// typed classifier excludes authored and selected operator meanings first.
 pub(super) fn intrinsic_enum_equality(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state: SymbolHandle,
     expression: ExpressionHandle,
 ) -> bool {
-    use typed_trees::types::TypeReferenceNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
     };
     let spelling = match binary.operator {
-        typed_trees::expression::BinaryOperator::Equal => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal => {
             language_core::operator_spelling::OperatorSpelling::Equal
         }
-        typed_trees::expression::BinaryOperator::NotEqual => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::NotEqual => {
             language_core::operator_spelling::OperatorSpelling::NotEqual
         }
         _ => return false,
@@ -164,9 +164,11 @@ pub(super) fn intrinsic_enum_equality(
     // Equality observes values, including constructed cases; a place-only query
     // cannot establish the type of a fresh constructor operand.
     let operands = [binary.left, binary.right].map(|operand| {
-        validation::expression_result_type_reference(program, machine, state, operand)
+        crate::validation::expression_result_type_reference(program, machine, state, operand)
     });
-    let nominal = |reference: Option<typed_trees::types::TypeReferenceHandle>| {
+    let nominal = |reference: Option<
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    >| {
         let mut reference = reference?;
         let mut seen = Vec::new();
         while !seen.contains(&reference) {
@@ -193,8 +195,8 @@ pub(super) fn intrinsic_enum_equality(
         return false;
     };
     let members = program.data_members(data);
-    if members.is_empty() || !members.iter().all(|member| matches!(member, typed_trees::data::DataMember::Variant(variant) if program.data_payload_fields(variant).is_empty())) { return false; }
-    typed_trees::operator::has_builtin_spelled_expression_meaning(
+    if members.is_empty() || !members.iter().all(|member| matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) if program.data_payload_fields(variant).is_empty())) { return false; }
+    symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,
         machine.symbol,
         expression,

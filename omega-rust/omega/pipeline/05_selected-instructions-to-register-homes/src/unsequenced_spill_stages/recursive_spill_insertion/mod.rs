@@ -16,12 +16,16 @@ use crate::unsequenced_spill_stages::{
 };
 pub use identity::recursive_spill_insertion_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{AllocatorAvailabilityIdentity, LogicalSpillStorageClass};
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{
-    LiveRangePoint, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+use selected_instructions_to_selected_instructions::register_homes::{
+    AllocatorAvailabilityIdentity, LogicalSpillStorageClass,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
+};
+use target_operations_to_selected_instructions::{
+    LiveRangePoint, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+};
 pub use validate::validate_recursive_spill_insertion;
 
 pub fn schedule_recursive_spill_insertion(

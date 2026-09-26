@@ -1,7 +1,9 @@
-use checked_trees::FlowStateFact;
+use crate::checked_trees::FlowStateFact;
+use crate::fact_plan::{FactOrigin, ProgramPoint};
 use diagnostics::Diagnostic;
-use facts::{FactOrigin, ProgramPoint};
-use typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionTargetHandle, TransitionTargetNode,
+};
 
 use super::prover::semantic_contexts_prove_contract_fact;
 use crate::labels::semantic_fact_requirement_label;
@@ -10,8 +12,8 @@ use crate::labels::semantic_fact_requirement_label;
 /// Re-check the declaring state's arrival contract after all preceding
 /// mutations; the entry assumption cannot justify itself once invalidated.
 pub(super) fn check_self_transition_arrival_requires(
-    program: &typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    facts: &crate::checked_trees::CheckFacts,
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -105,7 +107,10 @@ pub(super) fn check_self_transition_arrival_requires(
     }
 }
 
-fn target_is_self(program: &typed_trees::TypedTrees, target: TransitionTargetHandle) -> bool {
+fn target_is_self(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    target: TransitionTargetHandle,
+) -> bool {
     matches!(
         program.statement_table.transition_target(target),
         TransitionTargetNode::SelfTarget

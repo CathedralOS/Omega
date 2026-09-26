@@ -21,14 +21,14 @@ pub(super) fn build(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state_index: usize,
-    state: &typed_trees::state::State,
-    result: &checked_trees::CheckedControlResultPlan,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    result: &crate::checked_trees::CheckedControlResultPlan,
     signatures: &[Signature],
-    entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
-    scalar_result: Option<&checked_trees::CheckedUnitScalarResultBindingPlan>,
-    structural_result: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
+    entry_claims: &[crate::checked_trees::CheckedUnitEntryClaimPlan],
+    scalar_result: Option<&crate::checked_trees::CheckedUnitScalarResultBindingPlan>,
+    structural_result: Option<&crate::checked_trees::CheckedUnitStructuralReturnPlan>,
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     terminator_index: usize,
     trace: &control::LocalConstructionTrace,
@@ -63,7 +63,7 @@ pub(super) fn build(
         trace,
     ) {
         terminator
-    } else if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = result
+    } else if let crate::checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = result
         && let Some(completion) = returns::scalar_completion(
             program,
             facts,
@@ -97,7 +97,7 @@ pub(super) fn build(
         terminator
     } else {
         match &statements[terminator_index..] {
-            [] if result == checked_trees::CheckedControlResultPlan::Unit => {
+            [] if result == crate::checked_trees::CheckedControlResultPlan::Unit => {
                 trace.phase("state graph: terminator: unit tail cleanup");
                 return_cleanup_is_whole(
                     program, facts, machine, state, structural, operations, shapes,
@@ -105,7 +105,7 @@ pub(super) fn build(
                 CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             }
             [StatementNode::Expression(expression)]
-                if result != checked_trees::CheckedControlResultPlan::Unit =>
+                if result != crate::checked_trees::CheckedControlResultPlan::Unit =>
             {
                 trace.phase("state graph: terminator: return expression");
                 if let Some(result) = structural_result.cloned() {
@@ -156,13 +156,13 @@ pub(super) fn build(
                 // value instead of transferring to a named state; a named
                 // arm keeps the ordinary successor custody plan.
                 let mut return_count = returns::next_result_ordinal(operations)?;
-                let mut branch = |transition: &typed_trees::statement::TableTransition,
+                let mut branch = |transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
                                   edge_ordinal: u32|
                  -> Option<
                     Result<
                         CheckedStructuralControlSuccessorPlan,
                         (
-                            checked_trees::CheckedConditionalReturnArm,
+                            crate::checked_trees::CheckedConditionalReturnArm,
                             Vec<CheckedUnitEffectOperationPlan>,
                         ),
                     >,
@@ -185,7 +185,7 @@ pub(super) fn build(
                         // A scalar result is the value checking retained
                         // under the arm's `Return` role; the arm alone
                         // evaluates it.
-                        if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } =
+                        if let crate::checked_trees::CheckedControlResultPlan::Scalar { primitive_type } =
                             result
                         {
                             let role = CheckedScalarExpressionRole::Return;
@@ -200,7 +200,7 @@ pub(super) fn build(
                                     .root_at(state.symbol, edge_ordinal, role)
                                     .is_some_and(|root| root.machine == machine.symbol);
                             return retained.then_some(Err((
-                                checked_trees::CheckedConditionalReturnArm::Scalar {
+                                crate::checked_trees::CheckedConditionalReturnArm::Scalar {
                                     statement_ordinal: edge_ordinal,
                                     primitive_type,
                                 },
@@ -223,7 +223,7 @@ pub(super) fn build(
                         )
                         .map(|(operation, operand_calls)| {
                             Err((
-                                checked_trees::CheckedConditionalReturnArm::Structural(operation),
+                                crate::checked_trees::CheckedConditionalReturnArm::Structural(operation),
                                 operand_calls,
                             ))
                         });
@@ -320,7 +320,7 @@ pub(super) fn build(
                         return None;
                     };
                     let arm_ordinal = ordinal.checked_add(u32::try_from(index).ok()?)?;
-                    let checked_trees::CheckedScalarBranchDestination::Jump(selected) =
+                    let crate::checked_trees::CheckedScalarBranchDestination::Jump(selected) =
                         &exit.destination
                     else {
                         return None;
@@ -353,7 +353,7 @@ pub(super) fn build(
                     return None;
                 };
                 let fallback_ordinal = ordinal.checked_add(u32::try_from(exits.len()).ok()?)?;
-                let Some(checked_trees::CheckedScalarBranchDestination::Jump(selected)) =
+                let Some(crate::checked_trees::CheckedScalarBranchDestination::Jump(selected)) =
                     &retained.fallback
                 else {
                     return None;

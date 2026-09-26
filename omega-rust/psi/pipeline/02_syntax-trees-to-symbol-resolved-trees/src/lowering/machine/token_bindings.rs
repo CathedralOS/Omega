@@ -44,17 +44,17 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::data::TypeParameter;
+use crate::symbol_resolved_trees::machine::Machine;
+use crate::symbol_resolved_trees::signature::StateParameter;
+use crate::symbol_resolved_trees::types::TypeReference;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::ReferenceAccess;
 use source::SourceSpan;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::data::TypeParameter;
-use symbol_resolved_trees::machine::Machine;
-use symbol_resolved_trees::signature::StateParameter;
-use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolKind};
-use syntax_trees::operator_spelling::OperatorSpelling;
+use tokens_to_syntax_trees::syntax_trees::operator_spelling::OperatorSpelling;
 
 /// Reject every direct machine whose operand tuple omits its semantic home,
 /// then every spelling-bearing declaration whose fixed token, owner, and
@@ -351,8 +351,8 @@ fn entry_parameters<'program>(
 /// symbols compared by their authored spelling.
 fn operator_token_binding<'program>(
     program: &'program SymbolResolvedTrees,
-    operator: &'program symbol_resolved_trees::operator::OperatorDefinition,
-    domain: Option<&'program symbol_resolved_trees::domain::DomainDefinition>,
+    operator: &'program crate::symbol_resolved_trees::operator::OperatorDefinition,
+    domain: Option<&'program crate::symbol_resolved_trees::domain::DomainDefinition>,
     spelling: OperatorSpelling,
 ) -> TokenBinding<'program> {
     let members = program.operator_path_members(operator.name);
@@ -509,7 +509,7 @@ fn qualified_by_domain(
                 .any(|constraint| {
                     matches!(
                         constraint,
-                        symbol_resolved_trees::types::TypeConstraint::Domain(domain)
+                        crate::symbol_resolved_trees::types::TypeConstraint::Domain(domain)
                             if domain.name.as_str() == domain_name || domain.name.as_str() == leaf
                     )
                 })
@@ -579,7 +579,7 @@ fn names_declaration(program: &SymbolResolvedTrees, type_reference: &TypeReferen
                 .any(|constraint| {
                     matches!(
                         constraint,
-                        symbol_resolved_trees::types::TypeConstraint::Domain(_)
+                        crate::symbol_resolved_trees::types::TypeConstraint::Domain(_)
                     )
                 })
                 || names_declaration(program, program.child_type_reference(constrained.base_type))
@@ -650,7 +650,9 @@ fn collect_declared_symbols(
                 .constraints
                 .span_or_empty(constrained.constraints)
             {
-                if let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint {
+                if let crate::symbol_resolved_trees::types::TypeConstraint::Domain(domain) =
+                    constraint
+                {
                     symbols.extend(domains_named(program, domain.name.as_str()));
                 }
             }
@@ -724,7 +726,7 @@ fn binding_owner(program: &SymbolResolvedTrees, machine: &Machine) -> BindingOwn
 fn attached_domain<'program>(
     program: &'program SymbolResolvedTrees,
     machine: &Machine,
-) -> Option<&'program symbol_resolved_trees::domain::DomainDefinition> {
+) -> Option<&'program crate::symbol_resolved_trees::domain::DomainDefinition> {
     if machine.attached_data_symbol.is_valid() {
         return None;
     }
@@ -862,7 +864,7 @@ impl<'program> ShapeNormalizer<'program> {
                     .span_or_empty(constrained.constraints)
                     .iter()
                     .map(|constraint| match constraint {
-                        symbol_resolved_trees::types::TypeConstraint::Domain(domain)
+                        crate::symbol_resolved_trees::types::TypeConstraint::Domain(domain)
                             if !domain.arguments.is_empty() =>
                         {
                             let arguments = self

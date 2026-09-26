@@ -4,21 +4,21 @@
 //! admitted or rejected through `check_flow_call_borrows` without compiling a
 //! whole source program.
 
-use crate::tests::front_end::checked_program;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::{
+use crate::checked_trees::expression::ExpressionNode;
+use crate::checked_trees::{
     BorrowAccessKind, BorrowCompatibilityConclusion, BorrowCompatibilityDerivation,
     BorrowCompatibilityFormation, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment,
     CapturedPlace, CapturedPlaceContainment, CheckFacts, CheckedBorrowCompatibilityCertificate,
     CheckedBorrowMutationCertificate, FlowConstraintKind, FlowConstraintRef, FlowStateFact,
     FlowStatementFact, StateBorrowFact,
 };
+use crate::tests::front_end::checked_program;
 use numerics::literals::IntegerLiteral;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{StatementNode, TableLocalData};
 use symbols::SymbolHandle;
-use typed_trees::machine::Machine;
-use typed_trees::name::Identifier;
-use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableLocalData};
 
 fn symbol(index: u32) -> SymbolHandle {
     SymbolHandle::from_arena_index(index)
@@ -38,23 +38,22 @@ const Y_FIELD: u32 = 13;
 const S_FIELD: u32 = 14;
 const Z_FIELD: u32 = 15;
 
-fn field(index: u32) -> facts::PlaceSegment {
-    facts::PlaceSegment::Field {
+fn field(index: u32) -> crate::fact_plan::PlaceSegment {
+    crate::fact_plan::PlaceSegment::Field {
         symbol: symbol(index),
     }
 }
 
 /// One machine with one state whose body holds `let d = <aggregate>` followed
 /// by `let p = <borrow>`; the exact loan facts are installed separately.
-fn statement_program() -> typed_trees::TypedTrees {
-    let mut program = typed_trees::TypedTrees::default();
-    let type_reference =
-        program
-            .type_reference_table
-            .insert(typed_trees::types::TypeReferenceNode::Named {
-                symbol: SymbolHandle::invalid(),
-                name: Identifier::generated_static("u64"),
-            });
+fn statement_program() -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let type_reference = program.type_reference_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated_static("u64"),
+        },
+    );
     let initial_value = program
         .expression_table
         .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
@@ -209,7 +208,7 @@ fn carried_transfer_facts(
 }
 
 fn check(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let summaries = crate::flow::StateMutationSummaryCache::default();
@@ -225,20 +224,19 @@ fn check(
 /// One machine with one state whose body is `let p = 0; x = 0`; the
 /// assignment's entry constraints carry the already-active loans installed
 /// separately by `mutation_facts`.
-fn mutation_program() -> typed_trees::TypedTrees {
-    let mut program = typed_trees::TypedTrees::default();
-    let type_reference =
-        program
-            .type_reference_table
-            .insert(typed_trees::types::TypeReferenceNode::Named {
-                symbol: SymbolHandle::invalid(),
-                name: Identifier::generated_static("u64"),
-            });
+fn mutation_program() -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let type_reference = program.type_reference_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated_static("u64"),
+        },
+    );
     let initial_value = program
         .expression_table
         .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
     let target = program.expression_table.insert(ExpressionNode::Name(
-        typed_trees::expression::TableNamePath {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath {
             members: arena::HandleSpan::empty(),
             member_symbols: arena::HandleSpan::empty(),
             head_symbol: symbol(X_LOCAL),
@@ -269,10 +267,12 @@ fn mutation_program() -> typed_trees::TypedTrees {
     );
     program.statement_table.push_statement(
         &mut state.statement_nodes,
-        StatementNode::Assignment(typed_trees::statement::TableAssignment {
-            target,
-            value: initial_value,
-        }),
+        StatementNode::Assignment(
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment {
+                target,
+                value: initial_value,
+            },
+        ),
     );
     program.push_machine_state(&mut machine, state);
     program.push_machine(machine);

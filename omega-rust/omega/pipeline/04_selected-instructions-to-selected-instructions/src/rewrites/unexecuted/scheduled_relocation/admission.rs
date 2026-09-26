@@ -10,12 +10,12 @@
 use std::collections::{BTreeSet, VecDeque};
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
+use semantic_vocabulary::EdgeId;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedSuccessor,
 };
-use semantic_vocabulary::EdgeId;
 
 use super::ScheduledRelocationError;
 use crate::ValidatedSelectedAnalysis;
@@ -57,7 +57,7 @@ pub(super) struct Admission {
 /// where the encoded trap behavior is the honest bound — an execution
 /// that could fault must still run on every path that ran it before.
 fn sinkable(instruction: &SelectedInstruction) -> bool {
-    use selected_instructions::SelectedInstructionKind::*;
+    use target_operations_to_selected_instructions::SelectedInstructionKind::*;
     !matches!(
         instruction.kind,
         CopyBytes

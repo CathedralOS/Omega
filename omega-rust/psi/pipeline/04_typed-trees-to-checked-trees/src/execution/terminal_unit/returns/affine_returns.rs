@@ -20,7 +20,7 @@ pub(crate) fn build_claim_free_affine_structural_return_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<CheckedClaimFreeAffineStructuralReturnMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;

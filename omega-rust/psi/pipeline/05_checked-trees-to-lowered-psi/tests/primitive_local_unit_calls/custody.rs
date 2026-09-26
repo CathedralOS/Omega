@@ -1,11 +1,11 @@
 //! Source and borrow ledgers cannot jointly substitute another live local.
 
-use checked_trees::{
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
+use typed_trees_to_checked_trees::checked_trees::{
     BorrowAccessKind, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan,
-};
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
 fn source() -> String {
@@ -15,7 +15,7 @@ fn source() -> String {
     )
 }
 
-fn caller(checked: &checked_trees::CheckedTrees) -> usize {
+fn caller(checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees) -> usize {
     checked
         .facts
         .flow
@@ -88,7 +88,7 @@ fn local_unit_borrow_rejects_missing_duplicate_and_changed_call_evidence() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("observe")
             )
@@ -143,7 +143,7 @@ fn coherent_local_and_borrow_substitution_still_rejects_the_wrong_authored_actua
             .root_symbol = spare;
     }
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &changed,
             TerminalMachineSelection::Name("observe")
         )
@@ -186,7 +186,7 @@ fn local_unit_call_rejects_changed_access_and_missing_ordered_effects() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("observe")
             )
@@ -257,7 +257,7 @@ fn local_unit_actual_cannot_change_its_retained_owner_kind_to_a_parameter() {
     structural_arguments[0].source =
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 };
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &changed,
             TerminalMachineSelection::Name("observe")
         )

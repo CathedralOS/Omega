@@ -4,10 +4,10 @@ use super::{
     SelectedMemoryAccessRole, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 
 /// Descriptor scratch is operand-owned; its provenance retains the actual
 /// backing place by rejoining that operand, not by fabricating a storage owner.
@@ -25,10 +25,10 @@ fn storage_origin_place(
     if operation != row.operation {
         return None;
     }
-    let legalized_operations::LegalizedScalarInstructionKind::Call(call) = &row.kind else {
+    let crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) = &row.kind else {
         return None;
     };
-    let legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } =
+    let crate::legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } =
         call.arguments.get(usize::try_from(argument_index).ok()?)?
     else {
         return None;
@@ -52,7 +52,7 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
     builder
         .transport
         .local_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
+        .push(crate::selected_instructions::SelectedLocalStorageSlot {
             id: slot,
             byte_size: 16,
             alignment: 8,
@@ -90,7 +90,7 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
     builder
         .transport
         .local_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
+        .push(crate::selected_instructions::SelectedLocalStorageSlot {
             id: slot,
             byte_size: 16,
             alignment: 8,

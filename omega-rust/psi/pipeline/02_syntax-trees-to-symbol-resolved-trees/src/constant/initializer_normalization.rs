@@ -6,6 +6,7 @@
 //! declaration-source resolution; initializer implementation exposure never
 //! becomes public index exposure just because its constant is public.
 
+use crate::symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure as Exposure,
@@ -14,9 +15,10 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionTarget as Target,
 };
 use source::SourceSpan;
-use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
 use symbols::SymbolKind;
-use syntax_trees::{SyntaxTrees, item::ConstDefinition, types::ConstArgumentOrigin};
+use tokens_to_syntax_trees::syntax_trees::{
+    SyntaxTrees, item::ConstDefinition, types::ConstArgumentOrigin,
+};
 
 pub(crate) struct PendingInitializer {
     declaration: SourceSpan,
@@ -24,7 +26,7 @@ pub(crate) struct PendingInitializer {
     pub(crate) authored: ExpressionHandle,
     references: Vec<(SourceSpan, String)>,
     operators: Vec<SourceSpan>,
-    receipt: syntax_trees::item::ConstInitializerNormalization,
+    receipt: tokens_to_syntax_trees::syntax_trees::item::ConstInitializerNormalization,
 }
 
 fn error(reference: SourceSpan, reason: &str) -> Diagnostic {
@@ -74,7 +76,7 @@ pub(crate) fn retain(
             continue;
         }
         visited.push(expression);
-        use syntax_trees::expression::{ExpressionNode, MatchPattern};
+        use tokens_to_syntax_trees::syntax_trees::expression::{ExpressionNode, MatchPattern};
         match syntax.expressions.expression(expression) {
             ExpressionNode::Integer(_)
             | ExpressionNode::Boolean(_)
@@ -94,7 +96,10 @@ pub(crate) fn retain(
                     .map(|member| member.as_str())
                     .collect::<Vec<_>>()
                     .join("::");
-                let identifier = syntax_trees::identifier::Identifier::new(name.clone(), reference);
+                let identifier = tokens_to_syntax_trees::syntax_trees::identifier::Identifier::new(
+                    name.clone(),
+                    reference,
+                );
                 if lowerer
                     .constant_selection
                     .as_ref()
@@ -290,7 +295,7 @@ fn reconstruct(
 /// again under an extension's namespace.
 fn append_retained_custody(
     program: &SymbolResolvedTrees,
-    owner: &symbol_resolved_trees::constant::ConstDeclaration,
+    owner: &crate::symbol_resolved_trees::constant::ConstDeclaration,
     root: SourceSpan,
     origins: &mut Vec<ConstArgumentOrigin>,
     operators: &mut Vec<SourceSpan>,

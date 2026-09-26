@@ -2,7 +2,7 @@
 //!
 //! Direct-home and selected-lowering routes join here. The durable record,
 //! canonical identity, persistence, and human rendering live in
-//! `register_homes::post_allocation_manifest`; projection, reconstruction, and
+//! `selected_instructions_to_selected_instructions::register_homes::post_allocation_manifest`; projection, reconstruction, and
 //! validation stay transform-local.
 
 mod projection;
@@ -19,7 +19,7 @@ use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 
-pub use register_homes::post_allocation_manifest::{
+pub use selected_instructions_to_selected_instructions::register_homes::post_allocation_manifest::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,
     PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,
     PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,

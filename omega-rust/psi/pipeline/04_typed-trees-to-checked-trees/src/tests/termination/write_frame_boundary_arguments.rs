@@ -37,7 +37,7 @@ fn boundary_reference_metadata_preserves_disjoint_facts_and_argument_effects() {
             .iter()
             .find(|machine| machine.name.as_str() == "Main::inspect")
             .expect("caller");
-        let frame = validation::CallFrameResolver::new(&typed)
+        let frame = crate::validation::CallFrameResolver::new(&typed)
             .expect("resolver")
             .inferred_state_write_frame(machine, &typed.machine_states(machine)[0]);
         assert_eq!(
@@ -167,7 +167,7 @@ fn indexed_method_receivers_keep_coarse_storage_and_exact_argument_writes() {
         source.push_str(&format!("machine Main::case_{name}(&mut self) {{ {prefix} let result: u64 = {receiver}.{target}(&mut self.audit); }}"));
     }
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, _, expected) in cases {
         let qualified = format!("Main::case_{name}");
@@ -177,7 +177,9 @@ fn indexed_method_receivers_keep_coarse_storage_and_exact_argument_writes() {
             .find(|machine| machine.name.as_str() == qualified)
             .expect("caller");
         let state = &typed.machine_states(machine)[0];
-        let typed_trees::statement::StatementNode::LocalData(result) = typed
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            result,
+        ) = typed
             .statement_table
             .statements(state.statement_nodes)
             .last()
@@ -185,8 +187,9 @@ fn indexed_method_receivers_keep_coarse_storage_and_exact_argument_writes() {
         else {
             panic!("result local");
         };
-        let typed_trees::expression::ExpressionNode::Call(call) =
-            typed.expression_table.expression(result.initial_value)
+        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+            call,
+        ) = typed.expression_table.expression(result.initial_value)
         else {
             panic!("method call");
         };
@@ -469,7 +472,7 @@ fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
         ));
     }
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, expected) in cases {
         let qualified = format!("Main::case_{name}");
@@ -485,10 +488,10 @@ fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
             .last()
             .expect("boundary call statement");
         let direct = match statement {
-            typed_trees::statement::StatementNode::Call(call) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) => {
                 if name == "attached" {
                     let argument = typed.statement_table.expression_handles(call.arguments)[0];
-                    let typed_trees::expression::ExpressionNode::Call(helper) =
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(helper) =
                         typed.expression_table.expression(argument)
                     else {
                         panic!("attached helper");
@@ -524,7 +527,7 @@ fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
                     written
                 })
             }
-            typed_trees::statement::StatementNode::LocalData(local) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) => {
                 resolver.expression_may_write_paths(machine, local.initial_value)
             }
             _ => panic!("boundary call"),
@@ -668,7 +671,7 @@ fn boundary_results_bound_to_locals_transport_their_proven_origin() {
         ));
     }
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, expected) in cases {
         let qualified = format!("Main::case_{name}");
@@ -683,7 +686,9 @@ fn boundary_results_bound_to_locals_transport_their_proven_origin() {
             .statements(state.statement_nodes)
             .last()
             .expect("boundary call statement");
-        let typed_trees::statement::StatementNode::Call(call) = statement else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) =
+            statement
+        else {
             panic!("boundary call statement");
         };
         // The statement-call query excludes argument evaluation. The
@@ -737,8 +742,8 @@ fn boundary_results_bound_to_locals_transport_their_proven_origin() {
 
 #[test]
 fn boundary_attached_result_requires_the_exact_caller_self_identity() {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
     let source = r#"
         boundary trait Device { machine output(value: &mut u64); }
         data Cell { value: u64; }
@@ -787,7 +792,7 @@ fn boundary_attached_result_requires_the_exact_caller_self_identity() {
                 .expression_table
                 .set_name_path_member_symbol_at_offset(members, 0, foreign_symbol);
         }
-        let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
         let machine = typed
             .machines()
             .iter()
@@ -814,9 +819,9 @@ fn boundary_attached_result_requires_the_exact_caller_self_identity() {
 
 #[test]
 fn boundary_reference_binding_identity_requires_the_live_caller_declaration() {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::statement::StatementNode;
-    use typed_trees::types::TypeReferenceNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
     let source = r#"
         boundary trait Device { machine output(value: &mut u64); }
         data Main<'s> { device: &'s mut Device; value: u64; }
@@ -930,7 +935,7 @@ fn boundary_reference_binding_identity_requires_the_live_caller_declaration() {
                     .set_name_path_member_symbol_at_offset(members, 0, symbol);
             }
         }
-        let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
         let machine = typed
             .machines()
             .iter()
@@ -1067,7 +1072,7 @@ fn boundary_reference_bindings_keep_exact_origins_without_reborrowing_slots() {
         ));
     }
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, _, expected_state, expected_calls) in cases {
         let qualified = format!("Main::{name}");
@@ -1080,14 +1085,14 @@ fn boundary_reference_bindings_keep_exact_origins_without_reborrowing_slots() {
         let mut frames = vec![resolver.inferred_state_write_frame(machine, state)];
         for statement in typed.statement_table.statements(state.statement_nodes) {
             match statement {
-                typed_trees::statement::StatementNode::Call(call)
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call)
                     if call.target.as_str() == "output" =>
                 {
                     frames.push(resolver.may_write_frame(machine, call));
                 }
-                typed_trees::statement::StatementNode::LocalData(local)
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                     if matches!(typed.expression_table.expression(local.initial_value),
-                        typed_trees::expression::ExpressionNode::Call(call) if call.target.as_str() == "output_value") =>
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) if call.target.as_str() == "output_value") =>
                 {
                     frames.push(resolver.expression_write_frame(machine, local.initial_value));
                 }
@@ -1139,7 +1144,7 @@ fn boundary_method_names_do_not_acquire_builtin_empty_frames() {
             }}"
         );
         let typed = typed_program(&source);
-        let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+        let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
         let machine = typed
             .machines()
             .iter()
@@ -1191,19 +1196,19 @@ fn constrained_boundary_reference_parameters_keep_their_write_reach() {
         .clone();
     assert!(matches!(
         reference,
-        typed_trees::types::TypeReferenceNode::Reference { .. }
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. }
     ));
     let base_type = typed.type_reference_table.insert(reference);
     // Normalization can put transparent constraints around the whole reference.
     // Do not erase its access mode while peeling those constraints.
     typed.type_reference_table.substitute_node(
         parameter_type,
-        typed_trees::types::TypeReferenceNode::Constrained {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
             base_type,
             constraints: Default::default(),
         },
     );
-    let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
     let machine = typed
         .machines()
         .iter()
@@ -1403,7 +1408,7 @@ fn boundary_arguments_publish_declared_reach_and_all_producer_writes() {
     // Malformed argument contexts deliberately reach the pre-validation frame
     // query. Neither argument typing nor boundary reach may be guessed here.
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("symbol cache");
     for name in [
         "carrier_literal",
         "carrier_call",
@@ -1434,7 +1439,7 @@ fn boundary_arguments_publish_declared_reach_and_all_producer_writes() {
             .statements(state.statement_nodes)
             .iter()
             .find_map(|statement| {
-                if let typed_trees::statement::StatementNode::Call(call) = statement {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) = statement {
                     Some(call)
                 } else {
                     None

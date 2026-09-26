@@ -6,10 +6,12 @@ use super::{
     decode_proof_bundle, main_machine, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, OperationResult, Terminator};
 
 #[test]
@@ -51,7 +53,7 @@ fn nested_boundary_custody_rejects_reordering_substitution_and_duplicate_cleanup
         {
             if mutation == 1 {
                 structural_arguments[0].source =
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: 1,
                     };
             } else {
@@ -158,15 +160,16 @@ fn nested_boundary_arguments_preserve_effect_order_result_slots_and_cleanup() {
             }
             let checked = crate::front_end::checked_program(&source);
             let artifact = encoded_locals(&checked, &names);
-            let published = terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("Main::main"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .unwrap()
-            .into_artifact();
+            let published =
+                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                    &checked,
+                    TerminalMachineSelection::Name("Main::main"),
+                )
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default(),
+                ))
+                .unwrap()
+                .into_artifact();
             let module = decode_module(&artifact.0).unwrap();
             assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
             let entry = module

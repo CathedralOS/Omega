@@ -10,8 +10,8 @@ fn closed_conformance_application_commitment_binds_exact_requirement_signature()
         result_type: &str,
     ) -> (
         u64,
-        typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
-    ) {
+        symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
+    ){
         let source = format!(
             r#"
                 trait Ranked {{
@@ -414,10 +414,10 @@ fn explicit_conformance_binder_dispatches_an_inherited_requirement_row() {
                 .any(|statement| {
                     matches!(
                         statement,
-                        typed_trees::statement::StatementNode::Expression(expression)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(expression)
                             if matches!(
                                 checked.expression_table.expression(*expression),
-                                typed_trees::expression::ExpressionNode::Call(call)
+                                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call)
                                     if call.target_symbol == selected_row
                             )
                     )
@@ -475,7 +475,7 @@ fn explicit_conformance_binder_rewrites_a_procedure_requirement_call() {
                 .any(|statement| {
                     matches!(
                         statement,
-                        typed_trees::statement::StatementNode::Call(call)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call)
                             if call.target_symbol == selected_row
                                 && checked.statement_table.name_path_members(call.receiver).len() == 1
                                 && checked.statement_table.expression_handles(call.arguments).is_empty()
@@ -563,7 +563,7 @@ fn static_named_witness_requirement_call_keeps_public_lanes_and_private_dispatch
         .evidence_terms
         .get(argument.callee_input);
     let output_declaration = checked.facts.proof.evidence_terms.get(output.callee_output);
-    let public_owner = checked_trees::ContractProofFactOwner::StateSignature {
+    let public_owner = crate::checked_trees::ContractProofFactOwner::StateSignature {
         owner_symbol: dispatch.declaring_trait,
         state_symbol: dispatch.requirement,
     };
@@ -585,7 +585,7 @@ fn static_named_witness_requirement_call_keeps_public_lanes_and_private_dispatch
                 forwarding.machine_symbol == dispatch.realization_machine
                     && matches!(
                         forwarding.source,
-                        checked_trees::EvidenceAssignmentSource::Forwarded { .. }
+                        crate::checked_trees::EvidenceAssignmentSource::Forwarded { .. }
                     )
             })
     );
@@ -676,7 +676,7 @@ fn static_named_witness_requirement_call_accepts_exact_i32_result() {
         checked
             .type_reference_table
             .type_reference(materialized_token),
-        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. }
             if *symbol == token.symbol
     ));
     assert!(
@@ -717,7 +717,7 @@ fn static_named_witness_requirement_call_accepts_exact_i32_result() {
         checked
             .typed
             .primitive_type_reference(target_state.return_type),
-        Some(typed_trees::types::PrimitiveType::I32)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
     );
     assert!(invocation.runtime_call.is_some());
     let [output] = invocation.outputs.as_slice() else {
@@ -730,7 +730,7 @@ fn static_named_witness_requirement_call_accepts_exact_i32_result() {
             .evidence_terms
             .get(output.callee_output)
             .owner,
-        checked_trees::ContractProofFactOwner::StateSignature {
+        crate::checked_trees::ContractProofFactOwner::StateSignature {
             owner_symbol: dispatch.declaring_trait,
             state_symbol: dispatch.requirement,
         }

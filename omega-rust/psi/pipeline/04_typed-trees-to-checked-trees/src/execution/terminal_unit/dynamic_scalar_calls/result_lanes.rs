@@ -12,15 +12,15 @@
 use super::call_plans::{DynamicCallCustody, DynamicCaller, ForwardedDispatch};
 use super::forwarded_calls::{scalar_helper_body, unit_helper_body};
 use super::realization_bodies::{CheckedRealizationScalarBody, checked_realization_scalar_body};
+use crate::checked_trees::{CheckedDynamicBinding, CheckedDynamicDispatchPlan};
 use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, terminal_field_identity};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedUnitScalarResultBindingPlan, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::semantic::calls::CallSite;
-use checked_trees::{CheckedDynamicBinding, CheckedDynamicDispatchPlan};
 use language_semantics::{ServiceReachRowTable, ServiceReachSummary};
-use typed_trees::types::TypeReferenceHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
 
 /// What one result lane decides beyond the custody every dynamic call shares.
 /// A lane value is the caller's result custody: the scalar binding, or
@@ -45,7 +45,7 @@ pub(super) trait DynamicResultLane: Sized {
     fn caller_result(
         program: &TypedTrees,
         statements: &[StatementNode],
-        flow_call: &checked_trees::FlowCallFact,
+        flow_call: &crate::checked_trees::FlowCallFact,
         site: &CallSite<'_>,
     ) -> Option<Self>;
 
@@ -57,9 +57,9 @@ pub(super) trait DynamicResultLane: Sized {
     fn helper_body(
         program: &TypedTrees,
         facts: &CheckFacts,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        inner_call: &checked_trees::FlowCallFact,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        inner_call: &crate::checked_trees::FlowCallFact,
         inner_site: &CallSite<'_>,
     ) -> Option<Self::HelperBody>;
 
@@ -71,8 +71,8 @@ pub(super) trait DynamicResultLane: Sized {
         &self,
         program: &TypedTrees,
         facts: &CheckFacts,
-        realization_machine: &typed_trees::machine::Machine,
-        realization_state: &typed_trees::state::State,
+        realization_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        realization_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     ) -> Option<Self::SelectedBody>;
 
     /// Whether the call and its caller may reach the services they do.
@@ -100,15 +100,15 @@ pub(super) trait DynamicResultLane: Sized {
 macro_rules! checked_dynamic_call_plan {
     ($plan:ident, $origin:ident, $custody:expr, { $($field:ident: $value:expr),* $(,)? }) => {{
         let custody = $custody;
-        checked_trees::$plan {
+        crate::checked_trees::$plan {
             origin: match custody.forwarded {
-                None => checked_trees::$origin::Local,
+                None => crate::checked_trees::$origin::Local,
                 Some(ForwardedDispatch {
                     machine,
                     state,
                     coordinate,
                     parameter,
-                }) => checked_trees::$origin::Forwarded {
+                }) => crate::checked_trees::$origin::Forwarded {
                     machine,
                     state,
                     coordinate,
@@ -161,8 +161,8 @@ pub(super) struct ScalarResultLane {
 }
 
 impl DynamicResultLane for ScalarResultLane {
-    type Plan = checked_trees::CheckedDynamicScalarCallPlan;
-    type HelperBody = checked_trees::CheckedDynamicScalarHelperPlan;
+    type Plan = crate::checked_trees::CheckedDynamicScalarCallPlan;
+    type HelperBody = crate::checked_trees::CheckedDynamicScalarHelperPlan;
     type SelectedBody = CheckedRealizationScalarBody;
 
     const STORES_DESCRIPTORS: bool = true;
@@ -174,7 +174,7 @@ impl DynamicResultLane for ScalarResultLane {
     fn caller_result(
         program: &TypedTrees,
         statements: &[StatementNode],
-        flow_call: &checked_trees::FlowCallFact,
+        flow_call: &crate::checked_trees::FlowCallFact,
         site: &CallSite<'_>,
     ) -> Option<Self> {
         let CallSite::Expression { expression, .. } = *site else {
@@ -220,9 +220,9 @@ impl DynamicResultLane for ScalarResultLane {
     fn helper_body(
         program: &TypedTrees,
         facts: &CheckFacts,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        inner_call: &checked_trees::FlowCallFact,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        inner_call: &crate::checked_trees::FlowCallFact,
         inner_site: &CallSite<'_>,
     ) -> Option<Self::HelperBody> {
         scalar_helper_body(program, facts, machine, state, inner_call, inner_site)
@@ -240,8 +240,8 @@ impl DynamicResultLane for ScalarResultLane {
         &self,
         program: &TypedTrees,
         facts: &CheckFacts,
-        realization_machine: &typed_trees::machine::Machine,
-        realization_state: &typed_trees::state::State,
+        realization_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        realization_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     ) -> Option<Self::SelectedBody> {
         checked_realization_scalar_body(
             program,
@@ -317,8 +317,8 @@ impl DynamicResultLane for ScalarResultLane {
 pub(super) struct UnitResultLane;
 
 impl DynamicResultLane for UnitResultLane {
-    type Plan = checked_trees::CheckedDynamicUnitCallPlan;
-    type HelperBody = checked_trees::CheckedDynamicUnitHelperPlan;
+    type Plan = crate::checked_trees::CheckedDynamicUnitCallPlan;
+    type HelperBody = crate::checked_trees::CheckedDynamicUnitHelperPlan;
     type SelectedBody = ();
 
     const STORES_DESCRIPTORS: bool = false;
@@ -331,7 +331,7 @@ impl DynamicResultLane for UnitResultLane {
     fn caller_result(
         _program: &TypedTrees,
         statements: &[StatementNode],
-        flow_call: &checked_trees::FlowCallFact,
+        flow_call: &crate::checked_trees::FlowCallFact,
         site: &CallSite<'_>,
     ) -> Option<Self> {
         let CallSite::Statement(call) = *site else {
@@ -351,9 +351,9 @@ impl DynamicResultLane for UnitResultLane {
     fn helper_body(
         program: &TypedTrees,
         facts: &CheckFacts,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        inner_call: &checked_trees::FlowCallFact,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        inner_call: &crate::checked_trees::FlowCallFact,
         inner_site: &CallSite<'_>,
     ) -> Option<Self::HelperBody> {
         unit_helper_body(program, facts, machine, state, inner_call, inner_site)
@@ -369,8 +369,8 @@ impl DynamicResultLane for UnitResultLane {
         &self,
         program: &TypedTrees,
         _facts: &CheckFacts,
-        _realization_machine: &typed_trees::machine::Machine,
-        realization_state: &typed_trees::state::State,
+        _realization_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        realization_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     ) -> Option<Self::SelectedBody> {
         (program
             .statement_table
@@ -421,9 +421,9 @@ impl DynamicResultLane for UnitResultLane {
 /// result = erased.call();` over a mutable borrowed `self`.
 fn checked_caller_structural_scalar_field_store_plan(
     caller: &DynamicCaller<'_, '_>,
-    custody: &DynamicCallCustody<checked_trees::CheckedDynamicScalarHelperPlan>,
+    custody: &DynamicCallCustody<crate::checked_trees::CheckedDynamicScalarHelperPlan>,
     lane: &ScalarResultLane,
-) -> Option<checked_trees::CheckedStructuralScalarFieldStorePlan> {
+) -> Option<crate::checked_trees::CheckedStructuralScalarFieldStorePlan> {
     let program = caller.program;
     let facts = caller.facts;
     let state = caller.state;
@@ -470,17 +470,17 @@ fn checked_caller_structural_scalar_field_store_plan(
         assignment.target,
     )?;
     let [
-        facts::PlaceSegment::Field {
+        crate::fact_plan::PlaceSegment::Field {
             symbol: carrier_field,
         },
-        facts::PlaceSegment::Field {
+        crate::fact_plan::PlaceSegment::Field {
             symbol: primitive_field,
         },
     ] = destination.segments.as_slice()
     else {
         return None;
     };
-    if destination.root != facts::PlaceRoot::Symbol(destination_parameter.symbol)
+    if destination.root != crate::fact_plan::PlaceRoot::Symbol(destination_parameter.symbol)
         || *carrier_field != custody.source_field
         || *carrier_field != selection.source_symbol
         || !primitive_field.is_valid()
@@ -492,7 +492,9 @@ fn checked_caller_structural_scalar_field_store_plan(
         .data_members(caller.source_definition)
         .iter()
         .filter_map(|member| {
-            let typed_trees::data::DataMember::Field(field) = member else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+                member
+            else {
                 return None;
             };
             (field.symbol == *primitive_field).then_some(field)
@@ -506,8 +508,11 @@ fn checked_caller_structural_scalar_field_store_plan(
         return None;
     }
 
-    let expected_mutation_path =
-        facts::canonical_place_label_from_parts(program, destination.root, &destination.segments);
+    let expected_mutation_path = crate::fact_plan::canonical_place_label_from_parts(
+        program,
+        destination.root,
+        &destination.segments,
+    );
     let mutation_paths = facts
         .mutation
         .for_machine(caller.machine.symbol)?
@@ -531,21 +536,26 @@ fn checked_caller_structural_scalar_field_store_plan(
             CheckedScalarExpression::Boolean(expression)
                 if matches!(
                     expression.as_ref(),
-                    checked_trees::CheckedBooleanExpression::Constant(_)
+                    crate::checked_trees::CheckedBooleanExpression::Constant(_)
                 )
         );
     if !direct_literal || crate::values::scalar_expression_type(value) != Some(primitive_type) {
         return None;
     }
 
-    Some(checked_trees::CheckedStructuralScalarFieldStorePlan {
-        statement_index: 0,
-        destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-            position: custody.source_parameter_position,
+    Some(
+        crate::checked_trees::CheckedStructuralScalarFieldStorePlan {
+            statement_index: 0,
+            destination:
+                crate::checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                    position: custody.source_parameter_position,
+                },
+            carrier_path: custody.source_path.clone(),
+            field_identity: terminal_field_identity(program, direct_field.symbol)?,
+            primitive_type,
+            value: crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(
+                value.clone(),
+            ),
         },
-        carrier_path: custody.source_path.clone(),
-        field_identity: terminal_field_identity(program, direct_field.symbol)?,
-        primitive_type,
-        value: checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone()),
-    })
+    )
 }

@@ -1,6 +1,6 @@
 //! CLI diagnostics for required or stale trust admissions.
 
-pub(crate) fn report_unsettled_admissions(settlement: &compiler::TrustAdmissionSettlement) {
+pub(crate) fn report_unsettled_admissions(settlement: &omega::compiler::TrustAdmissionSettlement) {
     for (label, admissions) in [
         ("unresolved", settlement.unresolved()),
         ("stale", settlement.unused()),

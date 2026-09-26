@@ -18,10 +18,10 @@
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use register_model::RegisterUnitId;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::register_model::RegisterUnitId;
+use target_operations_to_selected_instructions::{
     SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, VirtualRegisterId,
 };

@@ -30,13 +30,15 @@
 
 use std::collections::BTreeMap;
 
-use checked_trees::signature::{SignatureContract, SignatureContractKind};
-use checked_trees::{
-    CheckedCrashOperatorSite, CheckedOperatorUseHandle, CheckedTrees, CheckedValueOrigin,
-};
-use lowered_psi::{LoweredPsi, LoweredSelectedIntegerComparisonOperandOrder};
+use crate::lowered_psi::{LoweredPsi, LoweredSelectedIntegerComparisonOperandOrder};
 use semantic_vocabulary::{MachineId, OperationId, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{OperationKind, TerminalMachine, TerminalOperationCrashContract};
+use typed_trees_to_checked_trees::checked_trees::signature::{
+    SignatureContract, SignatureContractKind,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedCrashOperatorSite, CheckedOperatorUseHandle, CheckedTrees, CheckedValueOrigin,
+};
 
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::{LoweringError, unsupported};
@@ -349,7 +351,8 @@ fn formal_identity(ordinal: usize) -> Result<ValueId, LoweringError> {
 fn published_buckets<'checked>(
     checked: &'checked CheckedTrees,
     site: &'checked CheckedCrashOperatorSite,
-) -> Result<&'checked [checked_trees::CrashRouteBucket], LoweringError> {
+) -> Result<&'checked [typed_trees_to_checked_trees::checked_trees::CrashRouteBucket], LoweringError>
+{
     let Some(declaration) = checked
         .facts
         .contract_plans
@@ -406,7 +409,7 @@ fn operator_declaration(
     checked: &CheckedTrees,
     symbol: symbols::SymbolHandle,
 ) -> Option<(
-    &[checked_trees::signature::StateParameter],
+    &[typed_trees_to_checked_trees::checked_trees::signature::StateParameter],
     arena::HandleSpan<SignatureContract>,
 )> {
     let program = &checked.typed;
@@ -515,7 +518,7 @@ mod tests {
     /// use, mutably, so the test can point it at a different carrier.
     fn sole_occurrence(
         lowered: &mut LoweredPsi,
-    ) -> &mut lowered_psi::LoweredSelectedIntegerComparisonOccurrence {
+    ) -> &mut crate::lowered_psi::LoweredSelectedIntegerComparisonOccurrence {
         let [occurrence] = lowered
             .selected_integer_comparison_occurrences
             .as_mut_slice()

@@ -1,7 +1,7 @@
 //! Whole readable primitive referents are storage reads, not scalar formals.
 
-use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
-use typed_trees::{
+use crate::checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
     signature::StateParameter,

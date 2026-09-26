@@ -35,8 +35,8 @@ fn direct_alias_stores_invalidate_domain_facts_but_rebinding_does_not() {
         "#
         );
         let typed = typed_program(&source);
-        let proof_plan = proof::obligations::build_proof_plan(&typed);
-        let operations = validation::infer_operational_may(&typed);
+        let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+        let operations = crate::validation::infer_operational_may(&typed);
         let borrow = build_borrow_facts(&typed);
         let proof = build_proof_facts(&typed, &proof_plan, &borrow);
         let mut semantic = build_semantic_facts(&typed, &proof);
@@ -67,8 +67,9 @@ fn direct_alias_stores_invalidate_domain_facts_but_rebinding_does_not() {
             .iter()
             .find(|parameter| parameter.is_self)
             .expect("self");
-        let typed_trees::statement::StatementNode::LocalData(alias) =
-            &typed.statement_table.statements(state.statement_nodes)[1]
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            alias,
+        ) = &typed.statement_table.statements(state.statement_nodes)[1]
         else {
             panic!("alias");
         };
@@ -80,7 +81,7 @@ fn direct_alias_stores_invalidate_domain_facts_but_rebinding_does_not() {
             .filter(|event| {
                 matches!(
                     event.source,
-                    checked_trees::FlowInvalidationSource::Statement { statement_index: 2 }
+                    crate::checked_trees::FlowInvalidationSource::Statement { statement_index: 2 }
                 )
             })
             .collect();
@@ -90,14 +91,15 @@ fn direct_alias_stores_invalidate_domain_facts_but_rebinding_does_not() {
             "{assignment}"
         );
         assert!(
-            invalidations
-                .iter()
-                .any(|event| event.mutated_root == facts::PlaceRoot::Symbol(alias.symbol))
+            invalidations.iter().any(
+                |event| event.mutated_root == crate::fact_plan::PlaceRoot::Symbol(alias.symbol)
+            )
         );
         assert_eq!(
             invalidations
                 .iter()
-                .any(|event| event.mutated_root == facts::PlaceRoot::Symbol(receiver.symbol)),
+                .any(|event| event.mutated_root
+                    == crate::fact_plan::PlaceRoot::Symbol(receiver.symbol)),
             invalidates,
             "rebinding invalidates the alias's copied fact, not the owner's fact"
         );
@@ -161,8 +163,8 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -333,8 +335,8 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -478,8 +480,8 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -616,8 +618,8 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -680,7 +682,7 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
         &borrow,
         touch_unrelated_borrow_call,
         &cache,
-        ::validation::CallFrameResolver::new(&typed).as_ref(),
+        crate::validation::CallFrameResolver::new(&typed).as_ref(),
     )
     .expect("complete storage frame");
     assert_eq!(
@@ -780,8 +782,8 @@ fn stores_and_calls_invalidate_domain_facts_copied_to_aliases() {
         "#
         );
         let typed = typed_program(&source);
-        let proof_plan = proof::obligations::build_proof_plan(&typed);
-        let operations = validation::infer_operational_may(&typed);
+        let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+        let operations = crate::validation::infer_operational_may(&typed);
         let borrow = build_borrow_facts(&typed);
         let proof = build_proof_facts(&typed, &proof_plan, &borrow);
         let mut semantic = build_semantic_facts(&typed, &proof);

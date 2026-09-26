@@ -1,7 +1,9 @@
 use semantic_vocabulary::MachineId;
 
 use crate::StackSlotColoringError;
-use register_homes::{FunctionStackSlotColoring, StackSlotAssignment};
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionStackSlotColoring, StackSlotAssignment,
+};
 
 use super::StackSlotInterval;
 

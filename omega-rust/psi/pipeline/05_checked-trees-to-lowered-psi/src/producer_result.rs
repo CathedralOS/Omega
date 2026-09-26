@@ -7,8 +7,8 @@
 //! (`DebugPublication`), and which conformances still need publishing. The
 //! entrance reads those modes to decide what remains to run.
 
+use crate::lowered_psi::LoweredPsi;
 use crate::lowering_error::{LoweringError, unsupported};
-use lowered_psi::LoweredPsi;
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub(crate) enum OperandProofCompletion {

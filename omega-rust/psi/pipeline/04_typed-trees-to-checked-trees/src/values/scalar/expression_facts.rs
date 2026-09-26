@@ -1,16 +1,18 @@
 //! Facts about scalar expressions the lowerings share: parameter and local
 //! positions, expression types, builtin operators and arithmetic domains.
 
-use crate::values::scalar::expression_plans::ScalarLocal;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedIntegerBinaryKind, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
     CheckedScalarExpression,
 };
+use crate::values::scalar::expression_plans::ScalarLocal;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle};
-use typed_trees::signature::StateParameter;
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 /// Whether an authored parameter occupies a position in the dense scalar
 /// namespace that `CheckedScalarExpression::Parameter` indexes: a primitive
@@ -28,7 +30,7 @@ pub(crate) fn occupies_scalar_position(program: &TypedTrees, parameter: &StatePa
 
 pub(crate) fn parameter_position(
     program: &TypedTrees,
-    path: &typed_trees::expression::TableNamePath,
+    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
     parameters: &[StateParameter],
 ) -> Option<usize> {
     let members = program.expression_table.name_path_members(path.members);
@@ -53,7 +55,7 @@ pub(crate) fn parameter_position(
 pub(crate) fn local_position(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    path: &typed_trees::expression::TableNamePath,
+    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
     locals: &[ScalarLocal],
 ) -> Option<usize> {
     if path.symbol.is_valid() && path.head_symbol.is_valid() && path.symbol != path.head_symbol {

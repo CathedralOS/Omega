@@ -1,9 +1,9 @@
 //! Exact and wrapping integer-shift semantics.
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
+use crate::target_operations::TargetIntegerExpression;
 use semantic_vocabulary::{IntegerType, ValueId};
 use std::collections::BTreeMap;
-use target_operations::TargetIntegerExpression;
 #[derive(Clone, Copy)]
 pub(in crate::lowering::scalar) enum WrappingShiftKind {
     Left,

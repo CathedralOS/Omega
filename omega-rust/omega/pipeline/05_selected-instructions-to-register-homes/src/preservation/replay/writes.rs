@@ -1,7 +1,11 @@
 use std::collections::BTreeMap;
 
-use register_model::{RegisterOperandAccess, RegisterUnitId};
-use selected_instructions::{SelectedBlockId, SelectedInstruction, VirtualRegisterId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{
+    SelectedBlockId, SelectedInstruction, VirtualRegisterId,
+};
 
 use super::{
     super::{AllocatedCalleeSavedRequirementError, CalleeSavedModificationWitness},
@@ -76,7 +80,7 @@ pub(super) fn scan_instruction(
 pub(super) fn scan_implicit(
     traversal: &mut ReplayTraversal<'_>,
     block: SelectedBlockId,
-    instruction: selected_instructions::SelectedInstructionId,
+    instruction: target_operations_to_selected_instructions::SelectedInstructionId,
     definitions: &[RegisterUnitId],
     clobbers: &[RegisterUnitId],
     units: &mut BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,

@@ -63,7 +63,11 @@ pub(crate) fn remap_machine_argument_symbols(
 pub(crate) fn substitute_forwarded_machine_arguments(
     arguments: &mut [StaticMachineArgument],
     static_rewrites: &[(SymbolHandle, StaticMachineArgument)],
-    rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
+    rewrites: &[(
+        SymbolHandle,
+        SymbolHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+    )],
 ) {
     for argument in arguments {
         if let Some((_, replacement)) = static_rewrites
@@ -172,7 +176,7 @@ pub(crate) fn static_argument_from_type_reference(
         } => Some(StaticMachineArgument {
             type_reference: TypeReferenceHandle::invalid(),
             path: vec![base_name.clone()].into_boxed_slice(),
-            application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+            application: Some(Box::new(symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticSymbolApplication {
                 lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
                 arguments: program
                     .type_reference_table

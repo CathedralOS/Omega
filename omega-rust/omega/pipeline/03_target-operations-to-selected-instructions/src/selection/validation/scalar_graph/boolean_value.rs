@@ -4,11 +4,11 @@ use super::{
     SelectedInstructionProvenance, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
+use crate::legalized_operations::LegalizedScalarComparison;
 use crate::selection::validation::scalar_graph::Replay;
-use legalized_operations::LegalizedScalarComparison;
 
 pub(super) fn validate(
-    operation: &legalized_operations::LegalizedScalarInstruction,
+    operation: &crate::legalized_operations::LegalizedScalarInstruction,
     state: &mut Replay<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let result = operation

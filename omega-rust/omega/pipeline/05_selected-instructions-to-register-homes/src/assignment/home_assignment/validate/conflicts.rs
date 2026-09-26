@@ -2,12 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
-use selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
+};
 
 use super::domain::ReplayDomain;
 use crate::RegisterHomeError;
-use selected_instructions::{FunctionLiveRanges, VirtualInterference};
+use target_operations_to_selected_instructions::{FunctionLiveRanges, VirtualInterference};
 
 pub(super) fn viable_candidates(
     function: usize,
@@ -104,7 +106,7 @@ fn directional_early_clobber_conflict(
 fn checked_view(
     function: usize,
     register: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     view: RegisterViewId,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<&RegisterView, RegisterHomeError> {

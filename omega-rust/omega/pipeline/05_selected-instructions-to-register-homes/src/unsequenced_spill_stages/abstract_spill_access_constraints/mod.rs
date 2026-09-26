@@ -15,11 +15,13 @@ use crate::unsequenced_spill_stages::{
 pub use error::AbstractSpillAccessConstraintError;
 pub use identity::abstract_spill_access_constraint_plan_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-pub use register_homes::AbstractSpillAccessConstraintPlanIdentity;
-use register_homes::AllocatorAvailabilityIdentity;
-use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::{LiveRangePoint, SelectedBlockId, SelectedInstructionId};
+pub use selected_instructions_to_selected_instructions::register_homes::AbstractSpillAccessConstraintPlanIdentity;
+use selected_instructions_to_selected_instructions::register_homes::AllocatorAvailabilityIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity;
+use target_operations_to_selected_instructions::{
+    LiveRangePoint, SelectedBlockId, SelectedInstructionId,
+};
 pub use validate::validate_abstract_spill_access_constraints;
 
 pub fn constrain_abstract_spill_accesses(

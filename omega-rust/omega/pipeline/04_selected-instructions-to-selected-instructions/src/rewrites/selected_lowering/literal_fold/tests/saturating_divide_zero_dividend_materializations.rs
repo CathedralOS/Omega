@@ -5,19 +5,19 @@ use super::{
     staged_wrapping_add_inputs, validate,
 };
 use crate::analyses::validated_machine_effect_catalog;
+use crate::register_homes::RecoveryClassification;
 use crate::{LiteralFoldError, LiteralFoldPolicy};
 use optimization_core::AcceptedObligationFactIdentity;
-use register_environment::baseline_target_register_environment;
-use register_homes::RecoveryClassification;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::{IntegerValue, ObligationId};
+use std::sync::Arc;
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     MachineEffectCatalogIdentity, SaturatingCarrier, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlanIdentity, SelectedOperand, SelectedTerminator,
     VirtualRegisterId,
 };
-use semantic_vocabulary::{IntegerValue, ObligationId};
-use std::sync::Arc;
-use target::NativeTarget;
 
 /// The targets and block-0 terminators the unsigned-carrier fold must
 /// hold under. Every unsigned carrier binds the `divide_u64` row —
@@ -86,8 +86,8 @@ fn signed_carriers() -> [SaturatingCarrier; 4] {
 /// auxiliary `Use`s — the operand-3 `Use` an x86-64 pinned divide row
 /// reads — for the constraint row `key` names.
 fn tail_shape(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    key: register_model::RegisterConstraintKey,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+    key: target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
 ) -> (usize, usize) {
     let row = environment.constraint(key).unwrap();
     let tail = &row.operands[3..];
@@ -636,15 +636,15 @@ fn saturating_divide_zero_dividend_fold_rejects_a_scratch_def_read_elsewhere() {
     let class = function.virtual_registers[0].class;
     function
         .virtual_registers
-        .push(selected_instructions::VirtualRegister {
+        .push(target_operations_to_selected_instructions::VirtualRegister {
             id: VirtualRegisterId(4),
             scalar_type: scalar,
             class,
-            origin: selected_instructions::VirtualRegisterOrigin::InstructionResult {
+            origin: target_operations_to_selected_instructions::VirtualRegisterOrigin::InstructionResult {
                 instruction: SelectedInstructionId(4),
                 source_value: semantic_vocabulary::ValueId::new(4).unwrap(),
             },
-            definition_site: Some(optimization_unit::ValueDefinitionSite::Node {
+            definition_site: Some(terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
                 block: semantic_vocabulary::BlockId::new(2).unwrap(),
                 node: 0,
             }),
@@ -795,15 +795,15 @@ fn saturating_divide_zero_dividend_fold_rejects_while_another_instruction_reads_
             );
             function
                 .virtual_registers
-                .push(selected_instructions::VirtualRegister {
+                .push(target_operations_to_selected_instructions::VirtualRegister {
                     id: forged_register,
                     scalar_type: scalar,
                     class,
-                    origin: selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                    origin: target_operations_to_selected_instructions::VirtualRegisterOrigin::InstructionResult {
                         instruction: forged_instruction,
                         source_value: semantic_vocabulary::ValueId::new(5).unwrap(),
                     },
-                    definition_site: Some(optimization_unit::ValueDefinitionSite::Node {
+                    definition_site: Some(terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
                         block: semantic_vocabulary::BlockId::new(2).unwrap(),
                         node: 0,
                     }),
@@ -1010,7 +1010,13 @@ fn saturating_divide_zero_dividend_fold_rejects_tied_consumer_operands_but_keeps
             let mut plan = inputs.selected.transformed().clone();
             let operand = &mut plan.functions[0].blocks[0].instructions[2].operands[1];
             match mutation {
-                0 => operand.fixed_view = Some(register_model::RegisterViewId(0)),
+                0 => {
+                    operand.fixed_view = Some(
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
+                    )
+                }
                 1 => operand.tied_to = Some(0),
                 _ => operand.early_clobber = true,
             }

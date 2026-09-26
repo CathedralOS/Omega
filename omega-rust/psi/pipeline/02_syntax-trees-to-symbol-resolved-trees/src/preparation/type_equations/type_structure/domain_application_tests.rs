@@ -10,10 +10,12 @@ use diagnostics::Diagnostic;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
 use std::collections::HashMap;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{DataMember, Item, TypeParameterKind};
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
+use tokens_to_syntax_trees::syntax_trees::item::{DataMember, Item, TypeParameterKind};
+use tokens_to_syntax_trees::syntax_trees::types::{
+    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 fn parse(source: &str) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::new(SourceId::default());
@@ -26,7 +28,7 @@ fn parse(source: &str) -> SyntaxTrees {
 fn data_definition<'syntax>(
     syntax: &'syntax SyntaxTrees,
     name: &str,
-) -> &'syntax syntax_trees::item::DataDefinition {
+) -> &'syntax tokens_to_syntax_trees::syntax_trees::item::DataDefinition {
     syntax
         .root_item_handles()
         .iter()

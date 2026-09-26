@@ -90,10 +90,11 @@ fn lowers_statement_argument_spans_from_statement_table() {
         .statement_table
         .statements(entry.statement_nodes);
 
-    let typed_trees::statement::StatementNode::Transition(transition) = &statements[0] else {
+    let crate::typed_trees::statement::StatementNode::Transition(transition) = &statements[0]
+    else {
         panic!("entry should lower to transition statement");
     };
-    let typed_trees::statement::TransitionTargetNode::Named {
+    let crate::typed_trees::statement::TransitionTargetNode::Named {
         arguments,
         source_span,
         authored_call_selection,
@@ -164,21 +165,21 @@ fn indexed_qualification_binder_keeps_machine_const_identity() {
     assert_eq!(parameter.name.as_str(), "To");
     assert!(matches!(
         parameter.kind,
-        typed_trees::data::TypeParameterKind::Const { .. }
+        crate::typed_trees::data::TypeParameterKind::Const { .. }
     ));
     let state = &typed_trees.machine_states(machine)[0];
-    let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed_trees
+    let crate::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed_trees
         .type_reference_table
         .type_reference(state.return_type)
     else {
         panic!("return should retain Quantity<To>");
     };
-    let [typed_trees::types::TypeConstraintNode::Domain(return_domain)] =
+    let [crate::typed_trees::types::TypeConstraintNode::Domain(return_domain)] =
         typed_trees.type_reference_table.constraints(*constraints)
     else {
         panic!("return should carry one declared domain");
     };
-    let typed_trees::types::TypeReferenceNode::Named {
+    let crate::typed_trees::types::TypeReferenceNode::Named {
         symbol: return_symbol,
         name: return_name,
     } = typed_trees
@@ -194,7 +195,7 @@ fn indexed_qualification_binder_keeps_machine_const_identity() {
         .expression_table
         .iter_expressions()
         .find_map(|(handle, expression)| match expression {
-            typed_trees::expression::ExpressionNode::Cast(cast) => Some((handle, cast)),
+            crate::typed_trees::expression::ExpressionNode::Cast(cast) => Some((handle, cast)),
             _ => None,
         })
         .expect("retag body should retain its qualification cast");
@@ -204,7 +205,7 @@ fn indexed_qualification_binder_keeps_machine_const_identity() {
     else {
         panic!("cast should retain one index argument");
     };
-    let typed_trees::types::TypeReferenceNode::Named {
+    let crate::typed_trees::types::TypeReferenceNode::Named {
         symbol: cast_symbol,
         name: cast_name,
     } = typed_trees
@@ -244,7 +245,7 @@ fn indexed_qualification_binder_keeps_machine_const_identity() {
     let [requirement_parameter] = typed_trees.state_signature_type_parameters(requirement) else {
         panic!("generic requirement should retain its const binder");
     };
-    let typed_trees::types::TypeReferenceNode::Constrained {
+    let crate::typed_trees::types::TypeReferenceNode::Constrained {
         constraints: requirement_constraints,
         ..
     } = typed_trees
@@ -253,13 +254,13 @@ fn indexed_qualification_binder_keeps_machine_const_identity() {
     else {
         panic!("generic requirement result should retain Quantity<To>");
     };
-    let [typed_trees::types::TypeConstraintNode::Domain(requirement_domain)] = typed_trees
+    let [crate::typed_trees::types::TypeConstraintNode::Domain(requirement_domain)] = typed_trees
         .type_reference_table
         .constraints(*requirement_constraints)
     else {
         panic!("generic requirement result should carry one domain");
     };
-    let typed_trees::types::TypeReferenceNode::Named {
+    let crate::typed_trees::types::TypeReferenceNode::Named {
         symbol: requirement_symbol,
         ..
     } = typed_trees
@@ -495,12 +496,12 @@ fn proof_fact_indexed_application_interns_the_constraint_identity() {
     };
 
     let return_constraint = |return_type| {
-        let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
+        let crate::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
             typed_trees.type_reference_table.type_reference(return_type)
         else {
             panic!("requirement result should retain its indexed constraint");
         };
-        let [typed_trees::types::TypeConstraintNode::Domain(domain)] =
+        let [crate::typed_trees::types::TypeConstraintNode::Domain(domain)] =
             typed_trees.type_reference_table.constraints(*constraints)
         else {
             panic!("requirement result should carry one declared domain");
@@ -513,9 +514,9 @@ fn proof_fact_indexed_application_interns_the_constraint_identity() {
         };
         assert_eq!(
             contract.kind,
-            typed_trees::signature::SignatureContractKind::Ensures
+            crate::typed_trees::signature::SignatureContractKind::Ensures
         );
-        let [typed_trees::domain::ProofFact::Membership(membership)] =
+        let [crate::typed_trees::domain::ProofFact::Membership(membership)] =
             typed_trees.proof_facts.span_or_empty(contract.facts)
         else {
             panic!("ensures should retain one membership fact");
@@ -529,7 +530,7 @@ fn proof_fact_indexed_application_interns_the_constraint_identity() {
             .iter()
             .map(
                 |argument| match typed_trees.type_reference_table.type_reference(*argument) {
-                    typed_trees::types::TypeReferenceNode::Named { symbol, name } => {
+                    crate::typed_trees::types::TypeReferenceNode::Named { symbol, name } => {
                         (name.as_str().to_owned(), *symbol)
                     }
                     other => panic!("index argument should be a named leaf, got {other:?}"),

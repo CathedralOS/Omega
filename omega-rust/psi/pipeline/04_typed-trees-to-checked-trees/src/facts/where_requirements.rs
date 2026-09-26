@@ -21,16 +21,22 @@
 //! reads authored inside the fact expression, borrowed fields -- is withheld
 //! rather than weakening the fact's enforcement elsewhere.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedOperatorFacts,
     CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::{
+    DataDefinition, DataField, DataMember,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::data::{DataDefinition, DataField, DataMember};
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// The `data where` facts holding at machine entry over `self`, lowered into
 /// the structural runtime-requirement vocabulary. Facts the bounded terminal
@@ -38,7 +44,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// itself never fails closed on them.
 pub(crate) fn machine_entry_where_requirements(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     operators: &CheckedOperatorFacts,
 ) -> Vec<CheckedBooleanExpression> {
     // Only the root-installed receiver is guaranteed to arrive as machine
@@ -149,7 +155,7 @@ fn append_where_requirements(
     // are withheld too: they already bound those fields' Terminal carriers,
     // which every store proves and every read assumes.
     if !definition.zero_gated
-        && validation::data_where_field_intervals(program, definition).is_none()
+        && crate::validation::data_where_field_intervals(program, definition).is_none()
     {
         for fact in program.proof_facts.span_or_empty(definition.where_facts) {
             let ProofFact::Expression(expression) = fact else {
@@ -186,7 +192,10 @@ fn append_where_requirements(
         }
         if let TypeReferenceNode::FixedArray {
             element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(length),
+            length:
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
+                    length,
+                ),
         } = program.type_reference_table.type_reference(carrier)
         {
             let Some(nested) = owned_field_data_definition(program, *element_type) else {

@@ -1,6 +1,6 @@
 //! Independent replay of shared address joins against the optimized unit.
 //!
-//! An address join (`abstract_operations::control_flow::address_joins`) is a
+//! An address join (`terminal_psi_to_abstract_operations::abstract_operations::control_flow::address_joins`) is a
 //! shared block parameter whose carrier is its referent's address. Target
 //! lowering classified each edge source and call argument; this replay
 //! reconstructs both from the optimized function alone, without reading the
@@ -38,7 +38,7 @@ pub(in crate::legalization) fn parameter<'a>(
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != function.entry
-        && abstract_operations::control_flow::address_joins::is_address_join_in(
+        && terminal_psi_to_abstract_operations::abstract_operations::control_flow::address_joins::is_address_join_in(
             parameter,
             &plan.structural_types,
         )
@@ -62,7 +62,10 @@ pub(in crate::legalization) fn call_argument(
     call: &CallPlan,
     parameter_ordinal: usize,
     plan: &AbstractOperationPlan,
-) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
+) -> Result<
+    abstract_operations_to_target_operations::target_operations::TargetStructuralArgument,
+    LegalizationError,
+> {
     let (block, parameter) =
         parameter(caller, semantic.place, plan).ok_or(LegalizationError::custody())?;
     let call_block = operation_block(caller, call_operation).ok_or(LegalizationError::custody())?;
@@ -72,7 +75,7 @@ pub(in crate::legalization) fn call_argument(
     )
     .ok_or(LegalizationError::custody())?;
     let shape =
-        calling_conventions::ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
+        abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
     let placement = call
         .parameters
         .get(parameter_ordinal)
@@ -89,7 +92,7 @@ pub(in crate::legalization) fn call_argument(
     {
         return Err(LegalizationError::custody());
     }
-    Ok(target_operations::TargetStructuralArgument {
+    Ok(abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
         place: semantic.place,
         access: semantic.access,
         path: Vec::new(),
@@ -99,7 +102,7 @@ pub(in crate::legalization) fn call_argument(
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
-        source: target_operations::TargetStructuralArgumentSource::BlockParameter {
+        source: abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::BlockParameter {
             block,
             place: parameter.place,
         },
@@ -113,7 +116,7 @@ pub(in crate::legalization) fn edge_bindings(
     function: &PsiOptimizationFunction,
     source_block: BlockId,
     target: BlockId,
-    bindings: &[abstract_operations::AbstractStructuralBinding],
+    bindings: &[terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding],
     plan: &AbstractOperationPlan,
 ) -> bool {
     let Some(destination) = function.blocks.iter().find(|block| block.id == target) else {
@@ -124,7 +127,7 @@ pub(in crate::legalization) fn edge_bindings(
             .iter()
             .zip(&destination.structural_parameters)
             .all(|(binding, declaration)| {
-                if !abstract_operations::control_flow::address_joins::is_address_join_in(
+                if !terminal_psi_to_abstract_operations::abstract_operations::control_flow::address_joins::is_address_join_in(
                     declaration,
                     &plan.structural_types,
                 ) {
@@ -132,7 +135,7 @@ pub(in crate::legalization) fn edge_bindings(
                 }
                 binding.parameter == declaration.place
                     && binding.argument.access == StructuralAccess::SharedBorrow
-                    && abstract_operations::control_flow::address_joins::is_static_projection(
+                    && terminal_psi_to_abstract_operations::abstract_operations::control_flow::address_joins::is_static_projection(
                         &binding.argument.path,
                     )
                     && root_type(function, source_block, binding.argument.place, plan)
@@ -184,10 +187,12 @@ fn root_type(
         (operation, result.clone())
     } else {
         match super::structural_case::source_owner(function, place).ok()? {
-            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+            crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 operation,
                 result,
             } => (operation, result),
+            crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                 block: owner,
                 declaration,
@@ -195,6 +200,7 @@ fn root_type(
                 return (owner == block || dominates(function, owner, block))
                     .then_some(declaration.structural_type);
             }
+            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
             legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
             | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
                 return None;

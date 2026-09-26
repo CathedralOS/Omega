@@ -2,12 +2,12 @@
 //! Replay the recursive shape even with no scalar leaves; a typed empty payload
 //! cannot substitute another same-typed occurrence or conceal a stale carrier.
 
-use checked_trees::expression::ExpressionHandle;
-use checked_trees::signature::StateParameter;
-use checked_trees::{
+use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle;
+use typed_trees_to_checked_trees::checked_trees::signature::StateParameter;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarComputationStructuralArgument, CheckedTrees,
 };
-use symbols::SymbolHandle;
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
@@ -30,12 +30,20 @@ pub(super) fn rejoin(
     if parameter.is_mutable
         || *retained_expression != expression
         || *type_reference != parameter.type_reference
-        || !validation::is_closed_primitive_array_type(checked, *type_reference)
+        || !typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(
+            checked,
+            *type_reference,
+        )
     {
         return unsupported("computed array differs from its exact authored actual or type");
     }
-    let source = validation::scalar_array_elements(checked, machine, expression, *type_reference)
-        .ok_or(LoweringError::Unsupported(
+    let source = typed_trees_to_checked_trees::validation::scalar_array_elements(
+        checked,
+        machine,
+        expression,
+        *type_reference,
+    )
+    .ok_or(LoweringError::Unsupported(
         "computed array has no exact recursive source shape",
     ))?;
     // Projection folding may select closed leaves, but cannot erase a changed
@@ -47,8 +55,8 @@ pub(super) fn rejoin(
                 || selected.candidate_count != 0
                 || !matches!(
                     selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::Missing
+                        | typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                 ))
         {
             return unsupported("computed array indexing selection changed");

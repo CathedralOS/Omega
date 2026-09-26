@@ -1,8 +1,8 @@
-use register_homes::{PressureRecoveryClassification, RecoveryClassification};
+use crate::register_homes::{PressureRecoveryClassification, RecoveryClassification};
 
 use optimization_core::OptimizationWorkBudget;
-use register_model::RegisterViewId;
-use selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::RegisterViewId;
 
 use super::super::compute::{build_functions, ensure_budget, required_usage};
 use super::super::{PressureRematerializationError, PressureRematerializationPolicy};

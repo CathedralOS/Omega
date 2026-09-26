@@ -6,17 +6,17 @@ use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
     ProofRangeKind, proof_range_pair_comparison_unit, range_pair_comparison_unit,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, compute_analysis};
-use abstract_operations::AbstractOperation;
 use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use semantic_vocabulary::{IntegerSign, IntegerType};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_boolean_evaluation_candidate,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType};
 
 fn rule(kind: IntegerRangePairComparisonKind) -> &'static dyn PsiOptimizationRule {
     match kind {

@@ -6,9 +6,9 @@ use super::{
 };
 use crate::expressions::qualification_casts::normalize_qualification_casts_from;
 use crate::type_reference::domain_constraints::normalize_domain_constraints_from;
+use crate::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use typed_trees::TypedTrees;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
 
 mod seeded_local_instances;
 mod seeded_type_application;
@@ -335,7 +335,7 @@ fn retained_authored_service_reaches_are_exact(
     // Resolution groups machines before trait requirements, so generated
     // machine rows can precede retained requirement rows. Rejoin by owner;
     // preserve the typed base order and append only generated machine rows.
-    let retained_owner = |row: &&symbol_resolved_trees::signature::AuthoredServiceReachRow| {
+    let retained_owner = |row: &&syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::AuthoredServiceReachRow| {
         base.authored_service_reach_rows
             .iter()
             .any(|base_row| base_row.owner == row.owner)
@@ -452,10 +452,10 @@ pub(super) fn seeded_extension_shape_is_supported(
                     .iter()
                     .all(|member| {
                         let fields = match member {
-                            symbol_resolved_trees::data::DataMember::Field(field) => {
+                            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(field) => {
                                 std::slice::from_ref(field)
                             }
-                            symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(variant) => {
                                 source.data_payload_fields(variant.payload)
                             }
                         };
@@ -510,7 +510,7 @@ fn exact_extension_trait_definition(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
     local_instances: &[symbols::SymbolHandle],
-    trait_definition: &symbol_resolved_trees::trait_definition::TraitDefinition,
+    trait_definition: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::trait_definition::TraitDefinition,
 ) -> bool {
     let requirements = source.trait_machine_signatures(trait_definition.machines);
     exact_flat_trait_definition(source, trait_definition)
@@ -528,7 +528,7 @@ fn exact_extension_trait_definition(
 
 fn exact_flat_trait_definition(
     source: &SymbolResolvedTrees,
-    trait_definition: &symbol_resolved_trees::trait_definition::TraitDefinition,
+    trait_definition: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::trait_definition::TraitDefinition,
 ) -> bool {
     trait_definition.symbol.is_valid()
         && source.symbols.get(trait_definition.symbol).kind == symbols::SymbolKind::Trait
@@ -549,8 +549,8 @@ fn exact_flat_trait_requirement(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
     local_instances: &[symbols::SymbolHandle],
-    trait_definition: &symbol_resolved_trees::trait_definition::TraitDefinition,
-    requirement: &symbol_resolved_trees::signature::StateSignature,
+    trait_definition: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::trait_definition::TraitDefinition,
+    requirement: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::StateSignature,
 ) -> bool {
     requirement.symbol.is_valid()
         && source.symbols.get(requirement.symbol).kind == symbols::SymbolKind::State
@@ -608,7 +608,7 @@ fn exact_extension_machine_symbol(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
     local_instances: &[symbols::SymbolHandle],
-    machine: &symbol_resolved_trees::machine::Machine,
+    machine: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::machine::Machine,
 ) -> bool {
     let type_parameters = source.data_type_parameters(machine.type_parameters);
     if !machine.symbol.is_valid()
@@ -618,24 +618,24 @@ fn exact_extension_machine_symbol(
             .iter()
             .all(|parameter| {
                 match &parameter.kind {
-                symbol_resolved_trees::data::TypeParameterKind::Type => {
+                syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Type => {
                     seeded_local_instances::parameter_is_supported(
                         source,
                         machine.symbol,
                         parameter,
                     )
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Const { .. }
-                | symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
+                syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+                | syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
                     seeded_local_instances::const_parameter_is_supported(
                         source,
                         machine.symbol,
                         parameter,
                     )
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Machine { contract } => {
+                syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Machine { contract } => {
                     match contract {
-                        symbol_resolved_trees::data::MachineParameterContract::Structural(
+                        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract::Structural(
                             _,
                         ) => exact_extension_structural_machine_parameter(
                             source,
@@ -646,7 +646,7 @@ fn exact_extension_machine_symbol(
                             parameter,
                             contract,
                         ),
-                        symbol_resolved_trees::data::MachineParameterContract::Nominal {
+                        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract::Nominal {
                             ..
                         } => exact_extension_nominal_machine_parameter(
                             source,
@@ -657,13 +657,13 @@ fn exact_extension_machine_symbol(
                             parameter,
                             contract,
                         ),
-                        symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
-                        | symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
+                        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+                        | syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
                             ..
                         } => false,
                     }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
+                syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
             }
             })
         || !machine.satisfies.is_empty()
@@ -736,16 +736,16 @@ fn exact_extension_structural_machine_parameter(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
     local_instances: &[symbols::SymbolHandle],
-    machine: &symbol_resolved_trees::machine::Machine,
-    owner_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    parameter: &symbol_resolved_trees::data::TypeParameter,
-    contract: &symbol_resolved_trees::data::MachineParameterContract,
+    machine: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::machine::Machine,
+    owner_type_parameters: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter],
+    parameter: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter,
+    contract: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract,
 ) -> bool {
-    let symbol_resolved_trees::data::MachineParameterContract::Structural(signature) = contract
+    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract::Structural(signature) = contract
     else {
         return false;
     };
-    parameter.bounds == symbol_resolved_trees::data::DataProperties::default()
+    parameter.bounds == syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataProperties::default()
         && parameter.symbol.is_valid()
         && source.symbols.get(parameter.symbol).kind == symbols::SymbolKind::MachineParameter
         && source.symbols.get(parameter.symbol).parent == machine.symbol
@@ -800,12 +800,12 @@ fn exact_extension_nominal_machine_parameter(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
     local_instances: &[symbols::SymbolHandle],
-    machine: &symbol_resolved_trees::machine::Machine,
-    owner_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    parameter: &symbol_resolved_trees::data::TypeParameter,
-    contract: &symbol_resolved_trees::data::MachineParameterContract,
+    machine: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::machine::Machine,
+    owner_type_parameters: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter],
+    parameter: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter,
+    contract: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract,
 ) -> bool {
-    let symbol_resolved_trees::data::MachineParameterContract::Nominal {
+    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract::Nominal {
         trait_definition,
         requirement,
         authored_path,
@@ -832,7 +832,7 @@ fn exact_extension_nominal_machine_parameter(
     let [requirement] = requirements.as_slice() else {
         return false;
     };
-    parameter.bounds == symbol_resolved_trees::data::DataProperties::default()
+    parameter.bounds == syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataProperties::default()
         && parameter.symbol.is_valid()
         && source.symbols.get(parameter.symbol).kind == symbols::SymbolKind::MachineParameter
         && source.symbols.get(parameter.symbol).parent == machine.symbol
@@ -842,7 +842,7 @@ fn exact_extension_nominal_machine_parameter(
             .filter(|candidate| {
                 matches!(
                     candidate.kind,
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+                    syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
                 )
             })
             .count()
@@ -870,11 +870,11 @@ fn plain_type_is_supported(
     data_frontier: usize,
     local_instances: &[symbols::SymbolHandle],
     owner: symbols::SymbolHandle,
-    owner_lifetimes: &[symbol_resolved_trees::name::DiagnosticName],
-    owner_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    type_reference: &symbol_resolved_trees::types::TypeReference,
+    owner_lifetimes: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName],
+    owner_type_parameters: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter],
+    type_reference: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference,
 ) -> bool {
-    use symbol_resolved_trees::types::TypeReference;
+    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference;
     match type_reference {
         TypeReference::Named { symbol, .. } if !symbol.is_valid() => false,
         TypeReference::Named { symbol, name } if source.symbols.name(*symbol) != name.as_str() => {
@@ -892,7 +892,7 @@ fn plain_type_is_supported(
                 parameter.symbol == *symbol
                     && matches!(
                         parameter.kind,
-                        symbol_resolved_trees::data::TypeParameterKind::Type
+                        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Type
                     )
             }),
             _ => false,

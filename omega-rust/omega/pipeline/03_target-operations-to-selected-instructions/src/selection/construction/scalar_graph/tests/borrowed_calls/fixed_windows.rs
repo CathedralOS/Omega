@@ -100,7 +100,7 @@ fn repeated_fixed_backing_windows_have_operand_owned_descriptors() {
                 })
                 .collect();
             let environment =
-                register_environment::baseline_target_register_environment(native).unwrap();
+                crate::register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
                 fixed_inputs: Vec::new(),
@@ -130,7 +130,7 @@ fn repeated_fixed_backing_windows_have_operand_owned_descriptors() {
             for (argument_index, slot) in selected.local_storage_slots.iter().enumerate() {
                 assert_eq!(
                     slot.id,
-                    selected_instructions::LocalStorageSlotId::StructuralCallArgument {
+                    crate::selected_instructions::LocalStorageSlotId::StructuralCallArgument {
                         operation,
                         argument_index: argument_index as u32,
                     }

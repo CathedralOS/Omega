@@ -5,6 +5,10 @@
 mod joins;
 pub(crate) use joins::{publish_conditional_claim_joins, validate_conditional_claim_joins};
 
+use crate::checked_trees::{
+    CheckFacts, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
+    FlowPermissionEventFact,
+};
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
 };
@@ -13,20 +17,16 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::type_multiplicity::{data_field_name, literal_variant};
 use arena::HandleSpan;
-use checked_trees::{
-    CheckFacts, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
-    FlowPermissionEventFact,
-};
 use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
     PermissionProvenance,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 
 pub(crate) fn derive_checked_claim_outcome_maps(
-    program: &typed_trees::TypedTrees,
-    ownership: &checked_trees::FlowOwnershipFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ownership: &crate::checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
 ) -> Vec<CheckedClaimOutcomeMap> {
     let state_count = program
@@ -62,10 +62,10 @@ pub(crate) fn derive_checked_claim_outcome_maps(
 
 #[allow(clippy::too_many_arguments)]
 fn derive_checked_claim_outcome_map(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
-    state: &typed_trees::state::State,
-    ownership: &checked_trees::FlowOwnershipFacts,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    ownership: &crate::checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> Option<CheckedClaimOutcomeMap> {
@@ -91,7 +91,7 @@ fn derive_checked_claim_outcome_map(
             *expression,
         )
         && place.segments.is_empty()
-        && let facts::PlaceRoot::Symbol(parameter_symbol) = place.root
+        && let crate::fact_plan::PlaceRoot::Symbol(parameter_symbol) = place.root
         && program.state_parameters(state).iter().any(|parameter| {
             parameter.is_self
                 && parameter.symbol == parameter_symbol
@@ -101,9 +101,9 @@ fn derive_checked_claim_outcome_map(
                         machine.symbol == machine_symbol
                             && machine.attached_data_symbol.is_valid()
                             && matches!(program.type_reference_table.type_reference(parameter.type_reference),
-                                typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == machine_symbol)
+                                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == machine_symbol)
                             && matches!(program.type_reference_table.type_reference(state.return_type),
-                                typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == machine.attached_data_symbol)
+                                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == machine.attached_data_symbol)
                     }))
         })
     {
@@ -215,8 +215,8 @@ fn derive_checked_claim_outcome_map(
 }
 
 pub(crate) fn claim_paths_are_case_alternatives(
-    left: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
+    left: &[crate::fact_plan::PlaceSegment],
+    right: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
     left.iter()
         .zip(right)
@@ -227,10 +227,10 @@ pub(crate) fn claim_paths_are_case_alternatives(
             Some(matches!(
                 (left, right),
                 (
-                    facts::PlaceSegment::Case {
+                    crate::fact_plan::PlaceSegment::Case {
                         variant: left_variant
                     },
-                    facts::PlaceSegment::Case {
+                    crate::fact_plan::PlaceSegment::Case {
                         variant: right_variant
                     }
                 ) if left_variant != right_variant
@@ -240,13 +240,16 @@ pub(crate) fn claim_paths_are_case_alternatives(
 }
 
 fn claim_path_is_statically_inactive(
-    program: &typed_trees::TypedTrees,
-    path: &[facts::PlaceSegment],
-    result_expressions: &[(usize, typed_trees::expression::ExpressionHandle)],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    path: &[crate::fact_plan::PlaceSegment],
+    result_expressions: &[(
+        usize,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    )],
     named_transitions: &[(
         usize,
         SymbolHandle,
-        HandleSpan<typed_trees::expression::ExpressionHandle>,
+        HandleSpan<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>,
     )],
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> bool {
@@ -267,16 +270,16 @@ fn claim_path_is_statically_inactive(
 }
 
 fn expression_statically_excludes_claim_path(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    path: &[facts::PlaceSegment],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    path: &[crate::fact_plan::PlaceSegment],
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> bool {
     match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
             let mut remaining = path;
             if literal.case_name.is_some() {
-                let Some(facts::PlaceSegment::Case { variant }) = remaining.first() else {
+                let Some(crate::fact_plan::PlaceSegment::Case { variant }) = remaining.first() else {
                     return false;
                 };
                 if literal_variant(program, literal).map(|candidate| candidate.symbol)
@@ -286,7 +289,7 @@ fn expression_statically_excludes_claim_path(
                 }
                 remaining = &remaining[1..];
             }
-            let Some(facts::PlaceSegment::Field { symbol }) = remaining.first() else {
+            let Some(crate::fact_plan::PlaceSegment::Field { symbol }) = remaining.first() else {
                 return false;
             };
             let Some(field_name) = data_field_name(program, *symbol) else {
@@ -306,8 +309,8 @@ fn expression_statically_excludes_claim_path(
                     )
                 })
         }
-        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
-            let Some(facts::PlaceSegment::FixedIndex { index }) = path.first() else {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+            let Some(crate::fact_plan::PlaceSegment::FixedIndex { index }) = path.first() else {
                 return false;
             };
             program
@@ -323,7 +326,7 @@ fn expression_statically_excludes_claim_path(
                     )
                 })
         }
-        typed_trees::expression::ExpressionNode::Call(call) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => {
             crate::semantic::calls::find_state(program, call.target_symbol)
                 .and_then(|target| {
                     known_maps
@@ -337,9 +340,12 @@ fn expression_statically_excludes_claim_path(
 }
 
 fn state_result_expressions(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     statements: &[StatementNode],
-) -> Vec<(usize, typed_trees::expression::ExpressionHandle)> {
+) -> Vec<(
+    usize,
+    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+)> {
     statements
         .iter()
         .enumerate()
@@ -351,7 +357,7 @@ fn state_result_expressions(
                 .into_iter()
                 .filter(|handle| handle.is_valid())
                 .filter_map(|handle| {
-                    let typed_trees::statement::TransitionTargetNode::Value(expression) =
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) =
                         program.statement_table.transition_target(handle)
                     else {
                         return None;
@@ -365,12 +371,12 @@ fn state_result_expressions(
 }
 
 fn state_result_named_transitions(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     statements: &[StatementNode],
 ) -> Vec<(
     usize,
     SymbolHandle,
-    HandleSpan<typed_trees::expression::ExpressionHandle>,
+    HandleSpan<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>,
 )> {
     statements
         .iter()
@@ -383,7 +389,7 @@ fn state_result_named_transitions(
                 .into_iter()
                 .filter(|handle| handle.is_valid())
                 .filter_map(|handle| {
-                    let typed_trees::statement::TransitionTargetNode::Named {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named {
                         path, arguments, ..
                     } = program.statement_table.transition_target(handle)
                     else {
@@ -398,12 +404,14 @@ fn state_result_named_transitions(
 
 #[allow(clippy::too_many_arguments)]
 fn claim_outcomes_for_named_transition(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     target_symbol: SymbolHandle,
-    arguments: HandleSpan<typed_trees::expression::ExpressionHandle>,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    arguments: HandleSpan<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
+    segments: &arena::Arena<crate::fact_plan::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> Vec<CheckedClaimOutcomeEntry> {
@@ -442,14 +450,14 @@ fn claim_outcomes_for_named_transition(
 
 #[allow(clippy::too_many_arguments)]
 fn claim_outcomes_for_expression(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    ownership: &checked_trees::FlowOwnershipFacts,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    ownership: &crate::checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
     known_maps: &[CheckedClaimOutcomeMap],
-    output_prefix: &[facts::PlaceSegment],
+    output_prefix: &[crate::fact_plan::PlaceSegment],
 ) -> Vec<CheckedClaimOutcomeEntry> {
     let segments = &ownership.segments;
     if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
@@ -493,14 +501,14 @@ fn claim_outcomes_for_expression(
     }
 
     match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => program
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(values) => program
             .expression_table
             .expression_handles(*values)
             .iter()
             .enumerate()
             .flat_map(|(index, value)| {
                 let mut element_prefix = output_prefix.to_vec();
-                element_prefix.push(facts::PlaceSegment::FixedIndex { index });
+                element_prefix.push(crate::fact_plan::PlaceSegment::FixedIndex { index });
                 claim_outcomes_for_expression(
                     program,
                     state,
@@ -513,14 +521,14 @@ fn claim_outcomes_for_expression(
                 )
             })
             .collect(),
-        typed_trees::expression::ExpressionNode::StructLiteral(literal)
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal)
             if literal.case_name.is_some() =>
         {
             let Some(variant) = literal_variant(program, literal) else {
                 return Vec::new();
             };
             let mut case_prefix = output_prefix.to_vec();
-            case_prefix.push(facts::PlaceSegment::Case {
+            case_prefix.push(crate::fact_plan::PlaceSegment::Case {
                 variant: variant.symbol,
             });
             program
@@ -534,7 +542,7 @@ fn claim_outcomes_for_expression(
                         .find(|literal_field| literal_field.name == field.name)?
                         .value;
                     let mut field_prefix = case_prefix.clone();
-                    field_prefix.push(facts::PlaceSegment::Field {
+                    field_prefix.push(crate::fact_plan::PlaceSegment::Field {
                         symbol: field.symbol,
                     });
                     Some(claim_outcomes_for_expression(
@@ -551,7 +559,7 @@ fn claim_outcomes_for_expression(
                 .flatten()
                 .collect()
         }
-        typed_trees::expression::ExpressionNode::StructLiteral(literal)
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal)
             if literal.case_name.is_none() =>
         {
             let Some(definition) = program
@@ -571,7 +579,7 @@ fn claim_outcomes_for_expression(
                             .data_members(definition)
                             .iter()
                             .find_map(|member| match member {
-                                typed_trees::data::DataMember::Field(field)
+                                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
                                     if field.name.as_str() == literal_field.name.as_str() =>
                                 {
                                     Some(field)
@@ -582,7 +590,7 @@ fn claim_outcomes_for_expression(
                         return Vec::new();
                     };
                     let mut field_prefix = output_prefix.to_vec();
-                    field_prefix.push(facts::PlaceSegment::Field {
+                    field_prefix.push(crate::fact_plan::PlaceSegment::Field {
                         symbol: field.symbol,
                     });
                     claim_outcomes_for_expression(
@@ -598,7 +606,7 @@ fn claim_outcomes_for_expression(
                 })
                 .collect()
         }
-        typed_trees::expression::ExpressionNode::Call(call) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => {
             let Some(target_state) =
                 crate::semantic::calls::find_state(program, call.target_symbol)
             else {
@@ -636,7 +644,7 @@ fn claim_outcomes_for_expression(
         // A receipt'd selection joins one result claim at the destination;
         // the receipt's transfers name the consumed source claim per edge
         // rather than a permission event.
-        typed_trees::expression::ExpressionNode::Match(_) => claim_outcomes_for_owned_selection(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Match(_) => claim_outcomes_for_owned_selection(
             program,
             state,
             statement_index,
@@ -652,7 +660,7 @@ fn claim_outcomes_for_expression(
         // to spell that return. Without this the state published no outcome
         // map and every caller of such a machine was told its linear result
         // "has no unique conserved claim mapping".
-        typed_trees::expression::ExpressionNode::Cast(cast)
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Cast(cast)
             if cast_conserves_carrier(program, state, statement_index, cast) =>
         {
             claim_outcomes_for_expression(
@@ -682,10 +690,10 @@ fn claim_outcomes_for_expression(
 /// claim-bearing carrier must not silently inherit conservation from the
 /// value it replaced.
 fn cast_conserves_carrier(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    cast: &typed_trees::expression::TableCastExpression,
+    cast: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCastExpression,
 ) -> bool {
     let Some(value_type) = crate::flow::expression_type_reference_in_state(
         program,
@@ -707,19 +715,19 @@ fn cast_conserves_carrier(
 /// The named declaration a type reference ultimately denotes, unwrapping the
 /// constrained and borrowed spellings a qualification adds.
 fn carrier_declaration(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     let mut type_reference = type_reference;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 type_reference = *base_type;
             }
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
                 type_reference = *referee;
             }
-            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
                 return symbol.is_valid().then_some(*symbol);
             }
             _ => return None,
@@ -737,12 +745,12 @@ fn carrier_declaration(
 /// fresh per-edge product establishes its claim inside the selection, so its
 /// origin is intentionally untracked.
 fn claim_outcomes_for_owned_selection(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    ownership: &checked_trees::FlowOwnershipFacts,
-    output_prefix: &[facts::PlaceSegment],
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    ownership: &crate::checked_trees::FlowOwnershipFacts,
+    output_prefix: &[crate::fact_plan::PlaceSegment],
 ) -> Vec<CheckedClaimOutcomeEntry> {
     let Some((_, receipt)) = ownership.owned_selection_at(state.symbol, statement_index as u32)
     else {
@@ -809,10 +817,10 @@ fn claim_outcomes_for_owned_selection(
 }
 
 fn claim_outcome_source_for_event(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     event: &FlowPermissionEventFact,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::Arena<crate::fact_plan::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> CheckedClaimOutcomeSource {
     if let Some(entry) = permission_events.iter().find(|candidate| {
@@ -822,7 +830,7 @@ fn claim_outcome_source_for_event(
             && candidate.access == PermissionAccess::Owned
             && candidate.claim_identity == event.claim_identity
             && candidate.provenance == event.provenance
-    }) && let facts::PlaceRoot::Symbol(parameter_symbol) = entry.root
+    }) && let crate::fact_plan::PlaceRoot::Symbol(parameter_symbol) = entry.root
         && program
             .state_parameters(state)
             .iter()
@@ -840,9 +848,9 @@ fn claim_outcome_source_for_event(
 }
 
 fn claim_origin_for_source(
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::Arena<crate::fact_plan::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> Option<(PermissionProvenance, PermissionClaimIdentity)> {
     match source {
@@ -862,7 +870,7 @@ fn claim_origin_for_source(
                         && event.kind == PermissionEventKind::Establish
                         && event.access == PermissionAccess::Owned
                         && event.obligation_live
-                        && event.root == facts::PlaceRoot::Symbol(*parameter_symbol)
+                        && event.root == crate::fact_plan::PlaceRoot::Symbol(*parameter_symbol)
                         && segments.span_or_empty(event.segments) == path
                         && event.claim_identity != PermissionClaimIdentity::Unknown
                         && event.provenance != PermissionProvenance::Unknown
@@ -884,13 +892,13 @@ fn claim_origin_for_source(
 
 #[allow(clippy::too_many_arguments)]
 fn bind_claim_outcome_source_at_call(
-    program: &typed_trees::TypedTrees,
-    caller_state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    call: &typed_trees::expression::TableCallExpression,
-    target_state: &typed_trees::state::State,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::Arena<crate::fact_plan::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> Option<CheckedClaimOutcomeSource> {
     bind_claim_outcome_source_at_arguments(
@@ -908,14 +916,16 @@ fn bind_claim_outcome_source_at_call(
 
 #[allow(clippy::too_many_arguments)]
 fn bind_claim_outcome_source_at_arguments(
-    program: &typed_trees::TypedTrees,
-    caller_state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    arguments: &[typed_trees::expression::ExpressionHandle],
-    receiver: Option<typed_trees::expression::ExpressionHandle>,
-    target_state: &typed_trees::state::State,
+    arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle],
+    receiver: Option<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
+    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::Arena<crate::fact_plan::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> Option<CheckedClaimOutcomeSource> {
     let CheckedClaimOutcomeSource::Input {
@@ -989,12 +999,14 @@ fn bind_claim_outcome_source_at_arguments(
 }
 
 fn argument_for_parameter(
-    program: &typed_trees::TypedTrees,
-    arguments: &[typed_trees::expression::ExpressionHandle],
-    receiver: Option<typed_trees::expression::ExpressionHandle>,
-    target_state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle],
+    receiver: Option<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
+    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameter_symbol: SymbolHandle,
-) -> Option<typed_trees::expression::ExpressionHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle> {
     let parameters = program.state_parameters(target_state);
     let includes_explicit_self =
         parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
@@ -1015,8 +1027,8 @@ fn argument_for_parameter(
 }
 
 pub(crate) fn call_result_origin_rewrites(
-    program: &typed_trees::TypedTrees,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    segments: &arena::Arena<crate::fact_plan::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
 ) -> Vec<(
@@ -1058,8 +1070,9 @@ pub(crate) fn call_result_origin_rewrites(
             StatementNode::Assignment(assignment) => assignment.value,
             _ => continue,
         };
-        let typed_trees::expression::ExpressionNode::Call(call) =
-            program.expression_table.expression(result_expression)
+        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+            call,
+        ) = program.expression_table.expression(result_expression)
         else {
             continue;
         };
@@ -1125,10 +1138,10 @@ pub(crate) fn call_result_origin_rewrites(
                         let expression = match statement {
                             StatementNode::LocalData(local) => local.initial_value,
                             StatementNode::Assignment(assignment) => assignment.value,
-                            _ => typed_trees::expression::ExpressionHandle::invalid(),
+                            _ => symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
                         };
                         if expression.is_valid()
-                            && let typed_trees::expression::ExpressionNode::Call(call) =
+                            && let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
                                 program.expression_table.expression(expression)
                             && crate::semantic::calls::find_state(program, call.target_symbol)
                                 .is_some()

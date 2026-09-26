@@ -79,7 +79,7 @@ fn named_tail_calls_retain_machine_requirement_facts() {
         "machine restricted(index: u64) -> u64 requires index < 2 { index }
          machine main() -> u64 { transition { _ -> restricted(2) } }",
     );
-    let plan = proof::obligations::build_proof_plan(&typed);
+    let plan = crate::proof_engine::obligations::build_proof_plan(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &plan, &borrow);
     assert!(
@@ -91,10 +91,10 @@ fn named_tail_calls_retain_machine_requirement_facts() {
     );
     let semantic = build_semantic_facts(&typed, &proof);
     assert!(
-        semantic
-            .contexts
-            .iter()
-            .any(|(_, context)| matches!(context.point, facts::ProgramPoint::CallRequires { .. })),
+        semantic.contexts.iter().any(|(_, context)| matches!(
+            context.point,
+            crate::fact_plan::ProgramPoint::CallRequires { .. }
+        )),
         "the roster reaches semantic call constraints"
     );
 }
@@ -240,17 +240,17 @@ fn machine_requires_semantic_assumptions_are_scoped_to_entry() {
         .first()
         .expect("entry state")
         .symbol;
-    let point = facts::ProgramPoint::State {
+    let point = crate::fact_plan::ProgramPoint::State {
         machine_symbol: machine.symbol,
         state_symbol: entry,
     };
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let semantic = build_semantic_facts(&typed, &proof);
-    let belongs_to_machine = |fact: &facts::Fact| {
+    let belongs_to_machine = |fact: &crate::fact_plan::Fact| {
         matches!(
-            fact.origin, facts::FactOrigin::MachineContract { machine_symbol }
+            fact.origin, crate::fact_plan::FactOrigin::MachineContract { machine_symbol }
                 if machine_symbol == machine.symbol
         )
     };
@@ -335,7 +335,7 @@ fn internal_jumps_do_not_publish_machine_return_guarantees() {
         .find(|machine| machine.name.as_str() == "consume")
         .expect("consumer")
         .symbol;
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let semantic = build_semantic_facts(&typed, &proof);
@@ -357,7 +357,7 @@ fn internal_jumps_do_not_publish_machine_return_guarantees() {
     );
     let has_return_guarantee = |owner| {
         semantic.facts.iter().any(|(_, fact)| {
-            matches!(fact.point, facts::ProgramPoint::CallEnsures { machine_symbol, .. }
+            matches!(fact.point, crate::fact_plan::ProgramPoint::CallEnsures { machine_symbol, .. }
             if machine_symbol == owner)
         })
     };

@@ -5,13 +5,17 @@
 //! fixtures, never against the producer's answer. These fixtures carry raw
 //! ordering premises only; they manufacture no selection authority.
 use super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
-use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
-use selected_instructions::{SelectedBlock, SelectedFunction, SelectedTerminator};
-use selected_instructions::{
+use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterConstraintFamily, RegisterConstraintKey,
+};
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedFunction, SelectedTerminator,
+};
+use target_operations_to_selected_instructions::{
     SelectedBlockId, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedSuccessor,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
 /// A block-order derivation under test.
 pub(super) type Derive =
@@ -38,7 +42,7 @@ fn instruction(block: u32, kind: SelectedInstructionKind) -> SelectedInstruction
 fn successor(target: u32) -> SelectedSuccessor {
     SelectedSuccessor {
         structural_case: None,
-        role: selected_instructions::SelectedSuccessorRole::Semantic,
+        role: target_operations_to_selected_instructions::SelectedSuccessorRole::Semantic,
         structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(u64::from(target) + 1).unwrap(),
         block: SelectedBlockId(target),
@@ -85,7 +89,7 @@ fn function(terminators: Vec<SelectedTerminator>) -> SelectedFunction {
             .enumerate()
             .map(|(position, terminator)| SelectedBlock {
                 id: SelectedBlockId(position as u32),
-                origin: selected_instructions::SelectedBlockOrigin::Source(
+                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
                     BlockId::new(position as u64 + 1).unwrap(),
                 ),
                 instructions: Vec::new(),

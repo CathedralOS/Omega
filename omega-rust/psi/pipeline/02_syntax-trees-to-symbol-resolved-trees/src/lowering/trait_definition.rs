@@ -5,14 +5,14 @@ use crate::lowering::data::lower_type_parameters;
 use crate::lowering::state::lower_state_signature_node;
 use crate::lowering::type_reference::lower_child_type_references;
 use crate::resolution::lowerer::Lowerer;
-use arena::HandleSpan;
-use diagnostics::Diagnostic;
-use symbol_resolved_trees::signature::StateSignature;
-use symbol_resolved_trees::trait_definition::{
+use crate::symbol_resolved_trees::signature::StateSignature;
+use crate::symbol_resolved_trees::trait_definition::{
     TraitDefinition, TraitRefinementClause, TraitRequirement, TraitStorage,
 };
+use arena::HandleSpan;
+use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_trait_definition(
     lowerer: &mut Lowerer,

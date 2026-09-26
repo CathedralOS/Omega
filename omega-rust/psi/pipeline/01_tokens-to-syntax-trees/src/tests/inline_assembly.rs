@@ -1,7 +1,7 @@
 use crate::parser::parse_syntax_trees;
+use crate::syntax_trees::expression::ExpressionNode;
+use crate::syntax_trees::statement::StatementNode;
 use source_files_to_tokens::Lexer;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::statement::StatementNode;
 
 #[test]
 fn parses_multiple_known_asm_instructions_in_one_block() {
@@ -27,7 +27,7 @@ fn parses_multiple_known_asm_instructions_in_one_block() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -74,7 +74,7 @@ fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -114,7 +114,7 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -154,7 +154,7 @@ fn parses_x86_flags_as_explicit_value_operations() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -200,7 +200,7 @@ fn parses_x86_msr_as_structured_value_operations() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -251,7 +251,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -320,7 +320,7 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
+            crate::syntax_trees::item::Item::Trait(definition) => Some(definition),
             _ => None,
         })
         .expect("trait root item");
@@ -341,7 +341,7 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -466,7 +466,7 @@ fn parses_register_move_as_an_ordinary_checked_assignment() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -520,7 +520,7 @@ fn parses_memory_transfers_as_place_assignments() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -635,7 +635,7 @@ fn parses_asm_where_facts_at_entry_and_exit() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine");
@@ -647,7 +647,7 @@ fn parses_asm_where_facts_at_entry_and_exit() {
     assert!(matches!(
         parsed.statements.statement(statements[0]),
         StatementNode::AssemblyFact(fact)
-            if fact.kind == syntax_trees::statement::AssemblyFactKind::Requires
+            if fact.kind == crate::syntax_trees::statement::AssemblyFactKind::Requires
     ));
     assert!(matches!(
         parsed.statements.statement(statements[1]),
@@ -656,7 +656,7 @@ fn parses_asm_where_facts_at_entry_and_exit() {
     assert!(matches!(
         parsed.statements.statement(statements[2]),
         StatementNode::AssemblyFact(fact)
-            if fact.kind == syntax_trees::statement::AssemblyFactKind::Ensures
+            if fact.kind == crate::syntax_trees::statement::AssemblyFactKind::Ensures
     ));
 }
 
@@ -750,7 +750,7 @@ fn parses_executable_domain_membership_intersection_expression() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -767,12 +767,13 @@ fn parses_executable_domain_membership_intersection_expression() {
         .first()
         .copied()
         .expect("entry transition");
-    let syntax_trees::statement::StatementNode::Transition(transition) =
+    let crate::syntax_trees::statement::StatementNode::Transition(transition) =
         parsed.statements.statement(statement)
     else {
         panic!("entry should start with transition")
     };
-    let syntax_trees::statement::TransitionGuardNode::When(subject) = transition.guard else {
+    let crate::syntax_trees::statement::TransitionGuardNode::When(subject) = transition.guard
+    else {
         panic!("transition should lower as a guarded expression");
     };
     assert!(matches!(
@@ -810,7 +811,7 @@ fn parses_executable_domain_membership_union_expression() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -827,12 +828,13 @@ fn parses_executable_domain_membership_union_expression() {
         .first()
         .copied()
         .expect("entry transition");
-    let syntax_trees::statement::StatementNode::Transition(transition) =
+    let crate::syntax_trees::statement::StatementNode::Transition(transition) =
         parsed.statements.statement(statement)
     else {
         panic!("entry should start with transition")
     };
-    let syntax_trees::statement::TransitionGuardNode::When(subject) = transition.guard else {
+    let crate::syntax_trees::statement::TransitionGuardNode::When(subject) = transition.guard
+    else {
         panic!("transition should lower as a guarded expression");
     };
     assert!(matches!(

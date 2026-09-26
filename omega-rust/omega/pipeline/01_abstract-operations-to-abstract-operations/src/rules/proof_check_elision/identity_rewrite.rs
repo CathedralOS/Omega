@@ -3,13 +3,13 @@
 //! it to accepted obligation and literal evidence, and the exact zero and one
 //! literals the identity rules compare against.
 
-use abstract_operations::AbstractOperation;
 use optimization_core::{AnalysisKind, OptimizationRuleContract};
-use optimization_unit::{
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite,
     PsiOptimizationUnit, PsiRewriteCandidate,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, ValueId};
 
 use crate::rules::support::{
     accepted_obligation_fact, literal_integer_constant, node_elision_accounting,

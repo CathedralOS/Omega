@@ -11,9 +11,9 @@
 
 use diagnostics::Diagnostic;
 use language_core::receiver_place_label;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StaticPersistentPath {
@@ -32,12 +32,14 @@ enum StaticPersistentSegment {
 #[derive(Debug, Clone, Copy)]
 struct StateTransitionEdge {
     target: SymbolHandle,
-    arguments: arena::HandleSpan<typed_trees::expression::ExpressionHandle>,
+    arguments: arena::HandleSpan<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
 }
 
 pub(super) fn check_persistent_borrow_assignments(
-    program: &typed_trees::TypedTrees,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // One resolver serves every machine in the pass; the program is immutable
@@ -76,11 +78,11 @@ pub(super) fn check_persistent_borrow_assignments(
 }
 
 fn static_persistent_paths_at_state_entries(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
-    states: &[typed_trees::state::State],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    states: &[symbol_resolved_trees_to_typed_trees::typed_trees::state::State],
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Vec<Vec<StaticPersistentPath>> {
     let mut entries = vec![None::<Vec<StaticPersistentPath>>; states.len()];
     if !states.is_empty() {
@@ -166,8 +168,8 @@ fn static_persistent_paths_at_state_entries(
 }
 
 fn state_transition_edges(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Vec<StateTransitionEdge> {
     program
         .statement_table
@@ -182,7 +184,7 @@ fn state_transition_edges(
         .flatten()
         .filter(|target| target.is_valid())
         .filter_map(|target| {
-            let typed_trees::statement::TransitionTargetNode::Named {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named {
                 path, arguments, ..
             } = program.statement_table.transition_target(target)
             else {
@@ -197,10 +199,12 @@ fn state_transition_edges(
 }
 
 fn rebase_static_paths_for_transition(
-    program: &typed_trees::TypedTrees,
-    source: &typed_trees::state::State,
-    target: &typed_trees::state::State,
-    arguments: arena::HandleSpan<typed_trees::expression::ExpressionHandle>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    source: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    target: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    arguments: arena::HandleSpan<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
     paths: &[StaticPersistentPath],
 ) -> Vec<StaticPersistentPath> {
     let arguments = program.statement_table.expression_handles(arguments);
@@ -258,9 +262,9 @@ fn rebase_static_paths_for_transition(
 }
 
 fn expression_is_exact_stable_index(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
     let Some(candidate) = exact_name_symbol(program, state, expression) else {
@@ -277,8 +281,8 @@ fn expression_is_exact_stable_index(
 }
 
 fn stable_index_origin_symbol(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     symbol: SymbolHandle,
     visiting: &mut Vec<SymbolHandle>,
 ) -> Option<SymbolHandle> {
@@ -311,12 +315,12 @@ fn stable_index_origin_symbol(
 }
 
 fn analyze_persistent_state(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     entry_paths: &[StaticPersistentPath],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     report_diagnostics: bool,
 ) -> (Vec<StaticPersistentPath>, Vec<Diagnostic>) {
     let mut static_persistent_places = Vec::new();
@@ -444,10 +448,10 @@ fn analyze_persistent_state(
 }
 
 fn source_is_known_static_persistent_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     source_type: TypeReferenceHandle,
     known_static: &[crate::flow::CanonicalPlace],
     known_static_paths: &[StaticPersistentPath],
@@ -509,7 +513,7 @@ fn persistent_field_and_tail(
     place: &crate::flow::CanonicalPlace,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> Option<(SymbolHandle, usize)> {
-    if let facts::PlaceRoot::Symbol(symbol) = place.root
+    if let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root
         && persistent
             .iter()
             .any(|(candidate, _, _)| *candidate == symbol)
@@ -522,7 +526,7 @@ fn persistent_field_and_tail(
         .iter()
         .enumerate()
         .find_map(|(index, segment)| {
-            let facts::PlaceSegment::Field { symbol } = segment else {
+            let crate::fact_plan::PlaceSegment::Field { symbol } = segment else {
                 return None;
             };
             persistent
@@ -533,8 +537,8 @@ fn persistent_field_and_tail(
 }
 
 fn stable_persistent_path(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     place: &crate::flow::CanonicalPlace,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> Option<StaticPersistentPath> {
@@ -547,18 +551,22 @@ fn stable_persistent_path(
 }
 
 fn static_persistent_segment(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    segment: facts::PlaceSegment,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    segment: crate::fact_plan::PlaceSegment,
 ) -> Option<StaticPersistentSegment> {
     match segment {
-        facts::PlaceSegment::Field { symbol } => Some(StaticPersistentSegment::Field(symbol)),
-        facts::PlaceSegment::Case { variant } => Some(StaticPersistentSegment::Case(variant)),
-        facts::PlaceSegment::FixedIndex { index } => {
+        crate::fact_plan::PlaceSegment::Field { symbol } => {
+            Some(StaticPersistentSegment::Field(symbol))
+        }
+        crate::fact_plan::PlaceSegment::Case { variant } => {
+            Some(StaticPersistentSegment::Case(variant))
+        }
+        crate::fact_plan::PlaceSegment::FixedIndex { index } => {
             Some(StaticPersistentSegment::FixedIndex(index))
         }
-        facts::PlaceSegment::FixedRange { .. } => None,
-        facts::PlaceSegment::Index { expression } => {
+        crate::fact_plan::PlaceSegment::FixedRange { .. } => None,
+        crate::fact_plan::PlaceSegment::Index { expression } => {
             immutable_state_index_symbol(program, state, expression)
                 .map(StaticPersistentSegment::StableIndex)
         }
@@ -566,9 +574,9 @@ fn static_persistent_segment(
 }
 
 fn immutable_state_index_symbol(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let symbol = exact_name_symbol(program, state, expression)?;
     let parameter_matches = program.state_parameters(state).iter().filter(|parameter| {
@@ -592,11 +600,11 @@ fn immutable_state_index_symbol(
 }
 
 fn exact_name_symbol(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let typed_trees::expression::ExpressionNode::Name(path) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) =
         program.expression_table.expression(expression)
     else {
         return None;
@@ -676,7 +684,7 @@ fn static_persistent_segments_may_overlap(
 }
 
 fn add_static_borrow_frontier(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     target: StaticPersistentPath,
     target_type: TypeReferenceHandle,
     paths: &mut Vec<StaticPersistentPath>,
@@ -693,10 +701,17 @@ fn add_static_borrow_frontier(
         let mut path = target.clone();
         path.segments
             .extend(owner_segments.into_iter().map(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => StaticPersistentSegment::Field(symbol),
-            facts::PlaceSegment::Case { variant } => StaticPersistentSegment::Case(variant),
-            facts::PlaceSegment::FixedIndex { index } => StaticPersistentSegment::FixedIndex(index),
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => {
+            crate::fact_plan::PlaceSegment::Field { symbol } => {
+                StaticPersistentSegment::Field(symbol)
+            }
+            crate::fact_plan::PlaceSegment::Case { variant } => {
+                StaticPersistentSegment::Case(variant)
+            }
+            crate::fact_plan::PlaceSegment::FixedIndex { index } => {
+                StaticPersistentSegment::FixedIndex(index)
+            }
+            crate::fact_plan::PlaceSegment::FixedRange { .. }
+            | crate::fact_plan::PlaceSegment::Index { .. } => {
                 unreachable!(
                     "range/dynamic borrow-owner paths are rejected before persistent propagation"
                 )
@@ -712,8 +727,8 @@ fn add_static_borrow_frontier(
 /// Returns whether existing state-local canonical markers must retire as well.
 /// Resolve the frame only when either provenance frontier needs invalidation.
 fn retain_static_paths_across_call_frame(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     paths: &mut Vec<StaticPersistentPath>,
     local_places: &[crate::flow::CanonicalPlace],
@@ -739,7 +754,7 @@ fn retain_static_paths_across_call_frame(
             && written.iter().all(|written| {
                 aliases
                     .iter()
-                    .all(|path| !validation::frame_paths_overlap(path, written))
+                    .all(|path| !crate::validation::frame_paths_overlap(path, written))
             })
     });
     true
@@ -749,8 +764,8 @@ fn retain_static_paths_across_call_frame(
 mod tests;
 
 fn static_path_frame_aliases(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     path: &StaticPersistentPath,
 ) -> Vec<String> {
@@ -808,14 +823,21 @@ fn static_path_frame_aliases(
     vec![field_path, receiver_path]
 }
 
-fn data_field_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> Option<&str> {
+fn data_field_name(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&str> {
     for definition in program.data_definitions() {
         for member in program.data_members(definition) {
             match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.symbol == symbol => {
                     return Some(field.name.as_str());
                 }
-                typed_trees::data::DataMember::Variant(variant) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) => {
                     if let Some(field) = program
                         .data_payload_fields(variant)
                         .iter()
@@ -824,7 +846,7 @@ fn data_field_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> O
                         return Some(field.name.as_str());
                     }
                 }
-                typed_trees::data::DataMember::Field(_) => {}
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(_) => {}
             }
         }
     }
@@ -833,17 +855,17 @@ fn data_field_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> O
 
 fn owner_path_place_segments(
     path: &[crate::borrow::BorrowOwnerSegment],
-) -> Option<Vec<facts::PlaceSegment>> {
+) -> Option<Vec<crate::fact_plan::PlaceSegment>> {
     path.iter()
         .map(|segment| match segment {
             crate::borrow::BorrowOwnerSegment::Field(symbol) => {
-                Some(facts::PlaceSegment::Field { symbol: *symbol })
+                Some(crate::fact_plan::PlaceSegment::Field { symbol: *symbol })
             }
             crate::borrow::BorrowOwnerSegment::Case(variant) => {
-                Some(facts::PlaceSegment::Case { variant: *variant })
+                Some(crate::fact_plan::PlaceSegment::Case { variant: *variant })
             }
             crate::borrow::BorrowOwnerSegment::FixedIndex(index) => {
-                Some(facts::PlaceSegment::FixedIndex { index: *index })
+                Some(crate::fact_plan::PlaceSegment::FixedIndex { index: *index })
             }
             crate::borrow::BorrowOwnerSegment::DynamicIndex => None,
         })
@@ -851,7 +873,7 @@ fn owner_path_place_segments(
 }
 
 fn static_provenance_invalidated_by_mutation(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     known: &crate::flow::CanonicalPlace,
     mutated: &crate::flow::CanonicalPlace,
 ) -> bool {
@@ -866,7 +888,7 @@ fn static_provenance_invalidated_by_mutation(
     }
 
     known.segments.iter().any(|segment| {
-        let facts::PlaceSegment::Index { expression } = segment else {
+        let crate::fact_plan::PlaceSegment::Index { expression } = segment else {
             return false;
         };
         crate::flow::canonical_place_from_expression(program, *expression).is_some_and(
@@ -883,8 +905,8 @@ fn static_provenance_invalidated_by_mutation(
 }
 
 fn place_is_proven_prefix_of(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     prefix: &crate::flow::CanonicalPlace,
     place: &crate::flow::CanonicalPlace,
 ) -> bool {
@@ -898,17 +920,17 @@ fn place_is_proven_prefix_of(
 }
 
 fn place_segments_proven_equal(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    left: facts::PlaceSegment,
-    right: facts::PlaceSegment,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    left: crate::fact_plan::PlaceSegment,
+    right: crate::fact_plan::PlaceSegment,
 ) -> bool {
     match (left, right) {
         (
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::Index {
                 expression: left_expression,
             },
-            facts::PlaceSegment::Index {
+            crate::fact_plan::PlaceSegment::Index {
                 expression: right_expression,
             },
         ) => {
@@ -932,11 +954,11 @@ fn place_segments_proven_equal(
 }
 
 fn immutable_local_index_symbol(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let typed_trees::expression::ExpressionNode::Name(path) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) =
         program.expression_table.expression(expression)
     else {
         return None;
@@ -974,21 +996,21 @@ fn immutable_local_index_symbol(
 /// needs to reach its initializer; `resolving` stops a chain of locals from
 /// revisiting one.
 fn is_state_independent_borrow_source(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     resolving: &mut Vec<SymbolHandle>,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::String(_) => true,
-        typed_trees::expression::ExpressionNode::Cast(cast) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::String(_) => true,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Cast(cast) => {
             is_state_independent_borrow_source(program, state, cast.value, resolving)
         }
-        typed_trees::expression::ExpressionNode::Binary(binary) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary) => {
             is_state_independent_borrow_source(program, state, binary.left, resolving)
                 && is_state_independent_borrow_source(program, state, binary.right, resolving)
         }
-        typed_trees::expression::ExpressionNode::Call(call) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => {
             let Some(callee) = crate::semantic::calls::find_state(program, call.target_symbol)
             else {
                 return false;
@@ -1001,7 +1023,7 @@ fn is_state_independent_borrow_source(
         // stores, and the persistent-field fence must reach the same verdict
         // for both. A `let mut` is excluded: a later assignment could point it
         // at a state-local loan after this read.
-        typed_trees::expression::ExpressionNode::Name(path) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) => {
             if !path.symbol.is_valid() || resolving.contains(&path.symbol) {
                 return false;
             }
@@ -1026,25 +1048,25 @@ fn is_state_independent_borrow_source(
             resolving.pop();
             is_static
         }
-        typed_trees::expression::ExpressionNode::ArrayLiteral(_)
-        | typed_trees::expression::ExpressionNode::Match(_)
-        | typed_trees::expression::ExpressionNode::Atomic(_)
-        | typed_trees::expression::ExpressionNode::Boolean(_)
-        | typed_trees::expression::ExpressionNode::Float(_)
-        | typed_trees::expression::ExpressionNode::Indexed(_)
-        | typed_trees::expression::ExpressionNode::Integer(_)
-        | typed_trees::expression::ExpressionNode::Member(_)
-        | typed_trees::expression::ExpressionNode::Borrow(_)
-        | typed_trees::expression::ExpressionNode::Range(_)
-        | typed_trees::expression::ExpressionNode::StructLiteral(_)
-        | typed_trees::expression::ExpressionNode::Unary(_)
-        | typed_trees::expression::ExpressionNode::ZeroValue(_) => false,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Match(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Atomic(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Float(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Indexed(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Integer(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Borrow(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Range(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Unary(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ZeroValue(_) => false,
     }
 }
 
 fn state_returns_only_static_borrows(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     visiting: &mut Vec<SymbolHandle>,
 ) -> bool {
     if visiting.contains(&state.symbol) {
@@ -1067,11 +1089,11 @@ fn state_returns_only_static_borrows(
         .filter(|target| target.is_valid())
         .all(
             |target| match program.statement_table.transition_target(target) {
-                typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) => {
                     found_value_exit = true;
                     is_state_independent_borrow_source(program, state, *expression, &mut Vec::new())
                 }
-                typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
                     let Some(target_state) =
                         crate::semantic::calls::find_state(program, path.symbol)
                     else {
@@ -1082,8 +1104,8 @@ fn state_returns_only_static_borrows(
                     found_value_exit |= is_static;
                     is_static
                 }
-                typed_trees::statement::TransitionTargetNode::SelfTarget => false,
-                typed_trees::statement::TransitionTargetNode::Terminal => true,
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::SelfTarget => false,
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Terminal => true,
             },
         );
 
@@ -1092,11 +1114,11 @@ fn state_returns_only_static_borrows(
 }
 
 fn persistent_target_type<'program>(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     place: &crate::flow::CanonicalPlace,
     persistent: &[(SymbolHandle, &'program str, TypeReferenceHandle)],
 ) -> Option<(&'program str, TypeReferenceHandle)> {
-    if let facts::PlaceRoot::Symbol(symbol) = place.root
+    if let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root
         && let Some((_, name, root_type)) = persistent
             .iter()
             .find(|(candidate, _, _)| *candidate == symbol)
@@ -1114,7 +1136,7 @@ fn persistent_target_type<'program>(
         .iter()
         .enumerate()
         .find_map(|(index, segment)| {
-            let facts::PlaceSegment::Field { symbol } = segment else {
+            let crate::fact_plan::PlaceSegment::Field { symbol } = segment else {
                 return None;
             };
             let (_, name, root_type) = persistent
@@ -1130,8 +1152,8 @@ fn persistent_target_type<'program>(
 }
 
 fn attached_persistent_fields<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &'program typed_trees::machine::Machine,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Vec<(SymbolHandle, &'program str, TypeReferenceHandle)> {
     machine
         .attached_data
@@ -1145,17 +1167,17 @@ fn attached_persistent_fields<'program>(
         .into_iter()
         .flat_map(|definition| program.data_members(definition).iter())
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
                 Some((field.symbol, field.name.as_str(), field.type_reference))
             }
-            typed_trees::data::DataMember::Variant(_) => None,
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(_) => None,
         })
         .collect()
 }
 
 fn persistent_storage<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &'program typed_trees::machine::Machine,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Vec<(SymbolHandle, &'program str, TypeReferenceHandle)> {
     attached_persistent_fields(program, machine)
         .into_iter()

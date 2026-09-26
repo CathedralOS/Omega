@@ -6,7 +6,7 @@
 //! is not an incoming `requires` binding resolves to the subjectless
 //! conformance alias it names.
 
-use symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 
 pub(crate) fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees) {
     let mut owners = Vec::new();
@@ -14,7 +14,8 @@ pub(crate) fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees)
     for (machine_root_index, machine) in program.machines.iter().enumerate() {
         incoming_evidence_names.extend(program.machine_contracts(machine).iter().filter_map(
             |contract| {
-                (contract.kind == symbol_resolved_trees::signature::SignatureContractKind::Requires)
+                (contract.kind
+                    == crate::symbol_resolved_trees::signature::SignatureContractKind::Requires)
                     .then_some(contract.binding.as_ref())
                     .flatten()
                     .map(|binding| (machine.symbol, binding.as_str().to_owned()))
@@ -36,7 +37,7 @@ pub(crate) fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees)
         .filter_map(|conformance| {
             (matches!(
                 conformance.subject,
-                symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
+                crate::symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
             ))
             .then(|| {
                 conformance

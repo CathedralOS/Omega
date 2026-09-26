@@ -21,15 +21,15 @@ use crate::parameters::binding_properties::parse_binding_relevance_brackets;
 use crate::parameters::parse_generic_parameters::{
     GenericParameterSyntax, parse_generic_parameters,
 };
-use crate::type_syntax::parse_type::parse_type_reference_handle;
-use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::{
     MathematicalDefinition, MathematicalDefinitionBody, MathematicalParameterNode,
     MathematicalTypeHandle, MathematicalTypeNode,
 };
-use tokens::PunctuationKind;
+use crate::type_syntax::parse_type::parse_type_reference_handle;
+use arena::{Handle, HandleSpan};
+use source_files_to_tokens::tokens::PunctuationKind;
 
 /// Parse the declaration tail after a consumed `let` keyword. `boundary`
 /// selects the bodyless named-assumption form: `boundary let name(...): T;`.

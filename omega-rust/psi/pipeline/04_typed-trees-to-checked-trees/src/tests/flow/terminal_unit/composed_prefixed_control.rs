@@ -30,15 +30,15 @@ fn composes_scalar_prefix_before_boundary_call_conditional() {
     };
     assert!(matches!(
         &entry.terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor }
+        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor }
             if successor.target_state == dispatch.state
                 && matches!(successor.scalar_arguments.as_slice(), [argument]
-                    if argument.source == (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 })
+                    if argument.source == (crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 })
                         && argument.target_scalar_parameter_index == 0)
     ));
     assert!(matches!(
         dispatch.terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
     ));
     for leaf in [when_true, when_false] {
         assert!(matches!(
@@ -77,16 +77,16 @@ fn composes_two_scalar_prefixes_without_a_depth_specific_route() {
     for (state, target) in [(entry, relay), (relay, dispatch)] {
         assert!(matches!(
             &state.terminator,
-            checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor }
+            crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor }
                 if successor.target_state == target.state
                     && matches!(successor.scalar_arguments.as_slice(), [argument]
-                        if argument.source == (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 })
+                        if argument.source == (crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 })
                             && argument.target_scalar_parameter_index == 0)
         ));
     }
     assert!(matches!(
         dispatch.terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
     ));
     for leaf in [when_true, when_false] {
         assert!(matches!(

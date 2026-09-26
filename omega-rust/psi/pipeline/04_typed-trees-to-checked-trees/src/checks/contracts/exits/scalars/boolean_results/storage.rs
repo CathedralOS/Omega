@@ -8,8 +8,8 @@
 use super::{
     CheckedBooleanExpression, CheckedScalarExpressionRole, ExitScalars, PrimitiveType, SymbolHandle,
 };
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 impl ExitScalars<'_, '_> {
     pub(super) fn bind_boolean_storage_at(
@@ -71,11 +71,11 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let frames = self.call_frames?;
-        let preserves = |frame: facts::NormalizedWriteFrame| {
+        let preserves = |frame: crate::fact_plan::NormalizedWriteFrame| {
             frame.into_complete_paths().is_some_and(|paths| {
-                paths
-                    .iter()
-                    .all(|written| !validation::frame_paths_overlap(written, local.name.as_str()))
+                paths.iter().all(|written| {
+                    !crate::validation::frame_paths_overlap(written, local.name.as_str())
+                })
             })
         };
         // A statement ordinal has no operand-prefix coordinate. Until such
@@ -187,11 +187,11 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let frames = self.call_frames?;
-        let preserves = |frame: facts::NormalizedWriteFrame| {
+        let preserves = |frame: crate::fact_plan::NormalizedWriteFrame| {
             frame.into_complete_paths().is_some_and(|paths| {
-                paths
-                    .iter()
-                    .all(|written| !validation::frame_paths_overlap(written, local.name.as_str()))
+                paths.iter().all(|written| {
+                    !crate::validation::frame_paths_overlap(written, local.name.as_str())
+                })
             })
         };
         // `let` fixes a binding, not its bytes: a mutable loan can overwrite

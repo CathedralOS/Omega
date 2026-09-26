@@ -1,19 +1,19 @@
 //! Optimizer module role: executable entrance. Projects ordered scalar blocks and explicit transfers.
 use crate::legalization::scalar_graph_input;
-use crate::{LegalizationError, LegalizationError as Error};
-use abstract_operations::AbstractOperationPlan;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarFunction, LegalizedScalarParameter,
 };
-use optimization_unit::PsiOptimizationUnit;
-use target_operations::TargetOperationPlan;
+use crate::{LegalizationError, LegalizationError as Error};
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 mod instruction;
 mod structural_case;
 mod terminator;
 pub(super) fn derive(
-    target: &target_operations::TargetFunction,
-    abstracted: &abstract_operations::AbstractFunction,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    target: &abstract_operations_to_target_operations::target_operations::TargetFunction,
+    abstracted: &terminal_psi_to_abstract_operations::abstract_operations::AbstractFunction,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,

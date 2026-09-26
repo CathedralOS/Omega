@@ -5,15 +5,15 @@ use crate::lowering::statement::indexed_read_hoisting::{
 };
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
-use arena::HandleSpan;
-use symbol_resolved_trees::expression::{
+use crate::symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableNamePath,
 };
-use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::statement::{LocalData, LocalDataStorage, Statement};
-use symbol_resolved_trees::types::TypeReference;
+use crate::symbol_resolved_trees::name::DiagnosticName;
+use crate::symbol_resolved_trees::statement::{LocalData, LocalDataStorage, Statement};
+use crate::symbol_resolved_trees::types::TypeReference;
+use arena::HandleSpan;
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 /// Hoists a USER value-machine call out of a guard comparison:
 /// `self.next() == expected` becomes
@@ -278,7 +278,7 @@ fn expression_contains_call(lowerer: &Lowerer, expression: ExpressionHandle) -> 
     match expressions.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             contains(dispatch.subject) || expressions.match_arms(dispatch.arms).iter().any(|arm| {
-                matches!(arm.pattern, symbol_resolved_trees::expression::MatchPattern::Value(pattern) if contains(pattern))
+                matches!(arm.pattern, crate::symbol_resolved_trees::expression::MatchPattern::Value(pattern) if contains(pattern))
                     || contains(arm.value)
             })
         }

@@ -1,4 +1,4 @@
-use symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
@@ -29,7 +29,7 @@ pub(super) fn assign_data_symbols(
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters)
             {
                 let kind = match type_parameter.kind {
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                         SymbolKind::MachineParameter
                     }
                     _ => SymbolKind::TypeParameter,
@@ -50,7 +50,7 @@ pub(super) fn assign_data_symbols(
                         &data_type_parameters.span_or_empty(data_definition.type_parameters)[index];
                     (parameter.symbol, parameter.kind.clone())
                 };
-                let symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } = kind
+                let crate::symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } = kind
                 else {
                     continue;
                 };
@@ -68,16 +68,16 @@ pub(super) fn assign_data_symbols(
                     );
                 }
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters)[index]
-                    .kind = symbol_resolved_trees::data::TypeParameterKind::Machine { contract };
+                    .kind = crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract };
             }
 
             for member in data_members.span_mut_or_empty(data_definition.members) {
                 match member {
-                    symbol_resolved_trees::data::DataMember::Field(field) => {
+                    crate::symbol_resolved_trees::data::DataMember::Field(field) => {
                         field.symbol =
                             next_child_of_kind(&mut data_children, symbols, SymbolKind::Field);
                     }
-                    symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                    crate::symbol_resolved_trees::data::DataMember::Variant(variant) => {
                         variant.symbol =
                             next_child_of_kind(&mut data_children, symbols, SymbolKind::Variant);
                         let mut variant_children =

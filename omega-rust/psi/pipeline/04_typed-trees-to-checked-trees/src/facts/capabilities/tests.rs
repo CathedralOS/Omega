@@ -1,14 +1,14 @@
 //! Capability fact tests.
 
 use super::{CapabilityFlowKind, CapabilityFlowPlan, SymbolHandle, TypedTrees};
+use crate::checked_trees::FlowFacts;
 use crate::facts::build_capability_facts;
 use crate::tests::front_end::typed_program;
-use checked_trees::FlowFacts;
 
 fn capability_plan(source: &str) -> (TypedTrees, CapabilityFlowPlan) {
     let typed = typed_program(source);
-    let operations = validation::infer_operational_may(&typed);
-    let service_reaches = validation::infer_service_reaches(&typed, &operations);
+    let operations = crate::validation::infer_operational_may(&typed);
+    let service_reaches = crate::validation::infer_service_reaches(&typed, &operations);
     // Capability-flow verbs derive from normalized call topology,
     // independent of raw control-flow facts, so an empty FlowFacts
     // exercises the nested-propagation logic.

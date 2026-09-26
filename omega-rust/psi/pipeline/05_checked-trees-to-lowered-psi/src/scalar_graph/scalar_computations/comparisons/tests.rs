@@ -1,9 +1,11 @@
 use super::super::super::OperationKind;
 use super::super::CheckedScalarComputationKind;
-use crate::TerminalMachineSelection;
-use checked_trees::CheckedTrees;
-use checked_trees::expression::ExpressionNode;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
 
 fn checked(source: &str) -> CheckedTrees {
     crate::front_end::checked_program(source)
@@ -24,12 +26,15 @@ fn ordinary_selected_float_comparisons_emit_one_exact_operation() {
                 "boundary operator {token} Float::{name}(left: {format}, right: {format}) -> bool; machine choose(left: {format}, right: {format}) -> bool {{ left {token} right }}"
             );
             let checked = checked(&source);
-            let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
-                .expect("selected comparison lowers");
-            assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 1);
-            let produced = terminal_production::TerminalProductionRequest::new(
+            let lowered = checked_trees_to_lowered_psi::lower_machine(
                 &checked,
-                terminal_production::TerminalMachineSelection::Name("choose"),
+                TerminalMachineSelection::Name("choose"),
+            )
+            .expect("selected comparison lowers");
+            assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 1);
+            let produced = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("choose"),
             )
             .produce(TerminalProductionCustody::artifact_only(
                 &mut TerminalProductionTimings::default(),
@@ -62,7 +67,7 @@ fn ordinary_selected_float_comparisons_emit_one_exact_operation() {
 
 #[test]
 fn the_operand_mapping_addresses_only_the_exact_emitted_pair() {
-    use lowered_psi::LoweredSelectedIntegerComparisonOperandOrder as Order;
+    use checked_trees_to_lowered_psi::lowered_psi::LoweredSelectedIntegerComparisonOperandOrder as Order;
     assert_eq!(Order::Authored.terminal_operand_position(0, 2), Some(0));
     assert_eq!(Order::Authored.terminal_operand_position(1, 2), Some(1));
     assert_eq!(Order::Swapped.terminal_operand_position(0, 2), Some(1));
@@ -83,7 +88,7 @@ fn ordinary_selected_integer_comparisons_emit_one_exact_operation() {
     // the float roster. `>` and `>=` emit the reversed operation and `!=` the
     // negated equality, mirroring the checked stage's own normalization of
     // the builtin comparisons, so no spelling needs an operation of its own.
-    use lowered_psi::LoweredSelectedIntegerComparisonOperandOrder as Order;
+    use checked_trees_to_lowered_psi::lowered_psi::LoweredSelectedIntegerComparisonOperandOrder as Order;
     for (token, name, expected, order, negated) in [
         ("==", "equal", "IntegerEqual", Order::Authored, false),
         ("!=", "not_equal", "IntegerEqual", Order::Authored, true),
@@ -109,8 +114,11 @@ fn ordinary_selected_integer_comparisons_emit_one_exact_operation() {
                 "boundary operator {token} Comparison::{name}(left: {primitive}, right: {primitive}) -> bool; machine choose(left: {primitive}, right: {primitive}) -> bool {{ left {token} right }}"
             );
             let checked = checked(&source);
-            let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
-                .expect("selected integer comparison lowers");
+            let lowered = checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("choose"),
+            )
+            .expect("selected integer comparison lowers");
             assert!(
                 lowered
                     .selected_ieee_float_comparison_occurrences
@@ -183,9 +191,9 @@ fn ordinary_selected_integer_comparisons_emit_one_exact_operation() {
                 usize::from(negated),
                 "{source}"
             );
-            let produced = terminal_production::TerminalProductionRequest::new(
+            let produced = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
-                terminal_production::TerminalMachineSelection::Name("choose"),
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("choose"),
             )
             .produce(TerminalProductionCustody::artifact_only(
                 &mut TerminalProductionTimings::default(),
@@ -209,15 +217,22 @@ fn published_match_custody_rejects_missing_and_duplicate_occurrences() {
             match identity(value) { identity(first) -> 7, identity(second) -> 9, _ -> 11 }
         }",
     );
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
-    let produced = terminal_production::TerminalProductionRequest::new(
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
-        terminal_production::TerminalMachineSelection::Name("choose"),
+        TerminalMachineSelection::Name("choose"),
     )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("both selected arms publish exact custody");
+    .unwrap();
+    let produced =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "choose",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("both selected arms publish exact custody");
     assert_eq!(produced.boundary_operator_scope().occurrences().len(), 2);
     for duplicate in [false, true] {
         let mut corrupted = lowered.clone();
@@ -253,8 +268,11 @@ fn match_comparison_custody_rejects_arm_and_provider_substitution() {
             match identity(value) { identity(first) -> 7, identity(second) -> 9, _ -> 11 }
         }",
     );
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
-        .expect("saved subject and ordered patterns");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("saved subject and ordered patterns");
     assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 2);
     let arms = checked
         .facts
@@ -281,7 +299,11 @@ fn match_comparison_custody_rejects_arm_and_provider_substitution() {
     retained[0].equality_use = retained[1].equality_use;
     retained[1].equality_use = first_use;
     assert!(
-        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("choose")
+        )
+        .is_err(),
         "arm equality cannot borrow a sibling occurrence"
     );
 }
@@ -292,7 +314,11 @@ fn selected_comparison_replay_rejects_swapped_operands_and_changed_source_operat
         "boundary operator < Float::less(left: f64, right: f64) -> bool;
         machine choose(left: f64, right: f64) -> bool { left < right }",
     );
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .unwrap();
     let use_handle = lowered.selected_ieee_float_comparison_occurrences[0].operator_use;
     let expression = checked.facts.operators.uses.get(use_handle).expression;
     let computation = checked
@@ -328,7 +354,11 @@ fn selected_comparison_replay_rejects_swapped_operands_and_changed_source_operat
         std::mem::swap(left, right);
     }
     assert!(
-        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("choose")
+        )
+        .is_err(),
         "same-typed operands retain authored order"
     );
     checked
@@ -341,10 +371,15 @@ fn selected_comparison_replay_rejects_swapped_operands_and_changed_source_operat
     if let ExpressionNode::Binary(binary) =
         checked.typed.expression_table.expression_mut(expression)
     {
-        binary.operator = checked_trees::expression::BinaryOperator::Greater;
+        binary.operator =
+            typed_trees_to_checked_trees::checked_trees::expression::BinaryOperator::Greater;
     }
     assert!(
-        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("choose")
+        )
+        .is_err(),
         "source operator cannot reuse selected less meaning"
     );
 }
@@ -355,15 +390,23 @@ fn selected_comparison_replays_origin_role_even_when_application_is_relabelled()
         "boundary operator == Float::equal(left: f32, right: f32) -> bool;
         machine choose(left: f32, right: f32) -> bool { left == right }",
     );
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .unwrap();
     let handle = lowered.selected_ieee_float_comparison_occurrences[0].operator_use;
     let selected = checked.facts.operators.uses.get_mut(handle);
     let original_site = selected.application_site();
-    let checked_trees::CheckedValueOrigin::StateStatement { role, .. } = &mut selected.origin
+    let typed_trees_to_checked_trees::checked_trees::CheckedValueOrigin::StateStatement {
+        role,
+        ..
+    } = &mut selected.origin
     else {
         panic!("statement origin");
     };
-    *role = checked_trees::CheckedValueStatementRole::LocalInitializer;
+    *role =
+        typed_trees_to_checked_trees::checked_trees::CheckedValueStatementRole::LocalInitializer;
     let substituted_site = selected.application_site();
     for application in &mut checked.facts.operators.boundary_applications {
         if application.site == original_site {
@@ -371,7 +414,11 @@ fn selected_comparison_replays_origin_role_even_when_application_is_relabelled()
         }
     }
     assert!(
-        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("choose")
+        )
+        .is_err(),
         "origin role is replayed from the actual statement"
     );
 }

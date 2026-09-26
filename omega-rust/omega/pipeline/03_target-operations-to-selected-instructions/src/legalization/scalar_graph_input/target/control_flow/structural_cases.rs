@@ -5,11 +5,11 @@ use super::{
     AbstractOperationPlan, PsiOptimizationFunction, TargetControlGraph, TargetUnitOperation,
 };
 use crate::legalization::scalar_graph_input::target::control_flow::sources;
-use semantic_vocabulary::PlaceId;
-use target_operations::{
+use abstract_operations_to_target_operations::target_operations::{
     TargetBoundaryResult, TargetControlCaseSuccessor, TargetStructuralCaseSource,
     TargetStructuralHomeRequirement, TargetStructuralParameter,
 };
+use semantic_vocabulary::PlaceId;
 
 pub(super) fn home_available(
     graph: &TargetControlGraph,
@@ -25,7 +25,7 @@ pub(super) fn home_available(
     // All producer rows are independently replayed by the caller. Presence in
     // the graph alone is insufficient: the result must precede this dispatch.
     match &source.origin {
-        target_operations::TargetStructuralHomeOrigin::OperationResult { .. } => {
+        abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult { .. } => {
             let mut producers = graph.blocks.iter().flat_map(|candidate| {
                 candidate
                     .operations
@@ -49,7 +49,7 @@ pub(super) fn home_available(
                         }
                         | TargetUnitOperation::Call {
                             result:
-                                target_operations::TargetCallResult::Structural {
+                                abstract_operations_to_target_operations::target_operations::TargetCallResult::Structural {
                                     result_home: Some(home),
                                     ..
                                 },
@@ -61,7 +61,7 @@ pub(super) fn home_available(
                         // home; the custody metadata roster stands in for it.
                         TargetUnitOperation::Call {
                             result:
-                                target_operations::TargetCallResult::Structural {
+                                abstract_operations_to_target_operations::target_operations::TargetCallResult::Structural {
                                     result_home: None,
                                     result,
                                     reference_results,
@@ -98,7 +98,7 @@ pub(super) fn home_available(
                 return false;
             }
         }
-        target_operations::TargetStructuralHomeOrigin::BlockParameter {
+        abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::BlockParameter {
             block: owner,
             declaration,
         } => {
@@ -160,7 +160,7 @@ fn parameter_available(
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     parameter: &TargetStructuralParameter,
-    layout: &target_operations::TargetStructuralHomeLayout,
+    layout: &abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout,
     expected_source: PlaceId,
 ) -> bool {
     let Some(declaration) = optimized
@@ -244,7 +244,7 @@ pub(super) fn matches(
     source: &TargetStructuralCaseSource,
     cases: &[TargetControlCaseSuccessor],
     expected_source: PlaceId,
-    expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
+    expected_cases: &[terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralCaseSuccessor],
 ) -> bool {
     let available = match source {
         TargetStructuralCaseSource::Home(home) => {

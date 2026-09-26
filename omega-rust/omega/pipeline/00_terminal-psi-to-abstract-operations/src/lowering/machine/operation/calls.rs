@@ -1,4 +1,4 @@
-use abstract_operations::{AbstractOperation, AbstractResult, CompletionClaimSource};
+use crate::abstract_operations::{AbstractOperation, AbstractResult, CompletionClaimSource};
 use terminal_psi::{
     ClosedConformanceApplication, Operation, OperationKind, TerminalDynamicDispatchCatalog,
     TerminalMachine,
@@ -307,16 +307,18 @@ pub(super) fn lower(
                 psi_operation: operation.id,
                 result: match &operation.result {
                     terminal_psi::OperationResult::Unit => {
-                        abstract_operations::AbstractBoundaryResult::Unit
+                        crate::abstract_operations::AbstractBoundaryResult::Unit
                     }
                     terminal_psi::OperationResult::Scalar(result) => {
-                        abstract_operations::AbstractBoundaryResult::Scalar(AbstractResult {
+                        crate::abstract_operations::AbstractBoundaryResult::Scalar(AbstractResult {
                             value: result.id,
                             scalar_type: result.scalar_type,
                         })
                     }
                     terminal_psi::OperationResult::Structural(result) => {
-                        abstract_operations::AbstractBoundaryResult::Structural(result.clone())
+                        crate::abstract_operations::AbstractBoundaryResult::Structural(
+                            result.clone(),
+                        )
                     }
                 },
                 boundary,
@@ -348,7 +350,7 @@ pub(super) fn lower(
 
 #[cfg(test)]
 mod tests {
-    use abstract_operations::AbstractOperation;
+    use crate::abstract_operations::AbstractOperation;
     use semantic_vocabulary::{
         BlockId, ContractId, IntegerSign, IntegerType, MachineId, ObligationId, OperationId,
         ScalarType, ValueId,

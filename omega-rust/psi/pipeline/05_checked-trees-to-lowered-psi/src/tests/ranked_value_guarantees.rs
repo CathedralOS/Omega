@@ -3,11 +3,12 @@
 //! every arrival, and the replayed bundle refuses a wrong accumulator arrival
 //! while the unchanged `Natural` certificate still answers the cycle question.
 
-use super::{LoweringError, lower_machine};
+use super::LoweringError;
 use crate::TerminalMachineSelection;
+use crate::lower_machine;
+use crate::lowered_psi::LoweredPsi;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::proofs::scalar_block_invariants::retain_provable;
-use lowered_psi::LoweredPsi;
 use proof_admission::{AdmissionProfile, EvidenceError, ProofError};
 use semantic_vocabulary::{IntegerValue, ObligationId, Proposition, ScalarTerm};
 use terminal_psi::{

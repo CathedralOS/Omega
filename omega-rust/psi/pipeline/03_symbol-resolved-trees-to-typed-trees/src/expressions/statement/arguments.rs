@@ -1,9 +1,9 @@
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
+use crate::typed_trees as typed;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(super) fn lower_statement_expression(
     lowerer: &mut Lowerer,

@@ -3,13 +3,15 @@
 use super::constraints::reject_v1_unsupported;
 use super::instruction_order::ordered_instructions;
 use crate::analyses::liveness::LivenessError;
-use register_model::{RegisterOperandAccess, RegisterUnitId};
-use selected_instructions::{
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPosition,
     OperandPosition, SelectedBlock, SelectedFunction, SelectedTerminator, SuccessorLiveness,
     VirtualRegisterId,
 };
-use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
 std::thread_local! {
@@ -185,11 +187,26 @@ fn replay_block(
     function_index: usize,
     function: &SelectedFunction,
     block: &SelectedBlock,
-    position: &BTreeMap<selected_instructions::SelectedInstructionId, LivenessPosition>,
-    v_in: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<VirtualRegisterId>>,
-    v_out: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<VirtualRegisterId>>,
-    u_in: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<RegisterUnitId>>,
-    u_out: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<RegisterUnitId>>,
+    position: &BTreeMap<
+        target_operations_to_selected_instructions::SelectedInstructionId,
+        LivenessPosition,
+    >,
+    v_in: &BTreeMap<
+        target_operations_to_selected_instructions::SelectedBlockId,
+        BTreeSet<VirtualRegisterId>,
+    >,
+    v_out: &BTreeMap<
+        target_operations_to_selected_instructions::SelectedBlockId,
+        BTreeSet<VirtualRegisterId>,
+    >,
+    u_in: &BTreeMap<
+        target_operations_to_selected_instructions::SelectedBlockId,
+        BTreeSet<RegisterUnitId>,
+    >,
+    u_out: &BTreeMap<
+        target_operations_to_selected_instructions::SelectedBlockId,
+        BTreeSet<RegisterUnitId>,
+    >,
 ) -> Result<BlockLiveness, LivenessError> {
     let mut vl = v_out[&block.id].clone();
     let mut ul = u_out[&block.id].clone();

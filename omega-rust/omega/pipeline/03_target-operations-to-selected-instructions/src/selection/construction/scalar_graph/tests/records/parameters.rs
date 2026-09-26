@@ -41,7 +41,7 @@ fn borrowed_owned_input_returns_current_home_instead_of_entry_fragments() {
             is_self: false,
         };
         signature.result.as_mut().unwrap().multiplicity = StructuralMultiplicity::Affine;
-        signature.parameters = vec![legalized_operations::LegalizedCallUnitParameter {
+        signature.parameters = vec![crate::legalized_operations::LegalizedCallUnitParameter {
             semantic: terminal_psi::StructuralParameterDeclaration {
                 place,
                 position: 0,
@@ -52,7 +52,7 @@ fn borrowed_owned_input_returns_current_home_instead_of_entry_fragments() {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             },
-            target: target_operations::TargetStructuralParameter {
+            target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                 place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Affine,
@@ -72,9 +72,13 @@ fn borrowed_owned_input_returns_current_home_instead_of_entry_fragments() {
         )
         .unwrap();
         let row = &mut source.blocks[0].instructions[2];
-        row.ownership = vec![optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())];
+        row.ownership = vec![
+            terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimTransfer(
+                Vec::new(),
+            ),
+        ];
         row.kind = LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
-            source: legalized_operations::NativeCallOrigin::Authored,
+            source: crate::legalized_operations::NativeCallOrigin::Authored,
             callee: MachineId::new(10).unwrap(),
             arguments: vec![LegalizedScalarArgument::Structural {
                 semantic: terminal_psi::StructuralArgument {
@@ -82,7 +86,7 @@ fn borrowed_owned_input_returns_current_home_instead_of_entry_fragments() {
                     access: StructuralAccess::MutableBorrow,
                     path: Vec::new(),
                 },
-                target: target_operations::TargetStructuralArgument {
+                target: abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
                     place,
                     access: StructuralAccess::MutableBorrow,
                     path: Vec::new(),
@@ -108,7 +112,7 @@ fn borrowed_owned_input_returns_current_home_instead_of_entry_fragments() {
         };
         returned.value = LegalizedScalarReturnValue::StructuralParameter { place };
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -137,7 +141,7 @@ fn borrowed_owned_input_returns_current_home_instead_of_entry_fragments() {
         assert_eq!(selected.local_storage_slots.len(), 1);
         assert_eq!(
             selected.local_storage_slots[0].id,
-            selected_instructions::LocalStorageSlotId::StructuralParameter { place }
+            crate::selected_instructions::LocalStorageSlotId::StructuralParameter { place }
         );
         let rows = &selected.blocks[0].instructions;
         let call_position = rows
@@ -158,7 +162,7 @@ fn borrowed_owned_input_returns_current_home_instead_of_entry_fragments() {
             .find(|register| {
                 matches!(
                     register.origin,
-                    selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. }
+                    crate::selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. }
                 )
             })
             .unwrap()
@@ -211,7 +215,7 @@ fn owned_parameter_child_rejoins_exact_captured_fragments() {
             .retain(|place| place.id != result.place);
         signature
             .parameters
-            .push(legalized_operations::LegalizedCallUnitParameter {
+            .push(crate::legalized_operations::LegalizedCallUnitParameter {
                 semantic: terminal_psi::StructuralParameterDeclaration {
                     place: result.place,
                     position: 0,
@@ -222,7 +226,7 @@ fn owned_parameter_child_rejoins_exact_captured_fragments() {
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 },
-                target: target_operations::TargetStructuralParameter {
+                target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                     place: result.place,
                     structural_type: result.structural_type,
                     multiplicity: StructuralMultiplicity::Affine,
@@ -233,7 +237,7 @@ fn owned_parameter_child_rejoins_exact_captured_fragments() {
                 },
             });
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -278,7 +282,7 @@ fn owned_parameter_child_rejoins_exact_captured_fragments() {
             .find(|register| {
                 matches!(
                     register.origin,
-                    selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. }
+                    crate::selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. }
                 )
             })
             .unwrap();
@@ -304,7 +308,7 @@ fn owned_parameter_child_rejoins_exact_captured_fragments() {
             .find(|register| {
                 matches!(
                     register.origin,
-                    selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. }
+                    crate::selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. }
                 )
             })
             .unwrap()

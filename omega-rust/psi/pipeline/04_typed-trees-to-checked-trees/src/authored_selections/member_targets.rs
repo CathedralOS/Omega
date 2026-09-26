@@ -8,16 +8,16 @@ use crate::authored_selections::contexts;
 use crate::authored_selections::operator_targets::{
     authored_operand_descriptor, authored_operand_type, type_reference_for_symbol,
 };
+use crate::checked_trees::CheckFacts;
 use crate::semantic::calls::MeasureReceiver;
-use checked_trees::CheckFacts;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
 
 fn contextual_domain_member_target(
     program: &TypedTrees,
-    containing_expression: typed_trees::expression::ExpressionHandle,
-    member: &typed_trees::expression::TableMemberExpression,
+    containing_expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
     let target_type = contextual_domain_target_type(program, containing_expression)?;
     contextual_self_member_symbol(program, member, target_type).and_then(declaration_target)
@@ -26,8 +26,8 @@ fn contextual_domain_member_target(
 pub(crate) fn checked_member_target(
     program: &TypedTrees,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
-    member: &typed_trees::expression::TableMemberExpression,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
     owner_index: Option<&contexts::OwnerEnvironmentIndex>,
 ) -> Option<CheckedResolutionTarget> {
     declaration_target(crate::flow::effective_member_symbol(
@@ -72,7 +72,7 @@ pub(crate) fn checked_member_target(
 fn checked_value_member_target(
     program: &TypedTrees,
     facts: &CheckFacts,
-    member: &typed_trees::expression::TableMemberExpression,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
     let mut resolved = None;
     for (_, value) in facts.values.expression_values(member.receiver) {
@@ -99,7 +99,7 @@ fn checked_value_member_target(
 
 fn authored_member_target(
     program: &TypedTrees,
-    member: &typed_trees::expression::TableMemberExpression,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
     let receiver_type = authored_operand_type(program, member.receiver)?;
     member_symbol_from_type_reference(program, receiver_type, member.member.as_str())
@@ -109,8 +109,8 @@ fn authored_member_target(
 
 fn contextual_statement_member_target(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    member: &typed_trees::expression::TableMemberExpression,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
     let mut resolved = None;
     for machine in program.machines() {
@@ -156,10 +156,10 @@ fn contextual_statement_member_target(
 
 fn member_symbol_from_type_reference(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
-    use typed_trees::types::TypeReferenceNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 
     let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
@@ -187,15 +187,17 @@ fn member_symbol_from_type_reference(
         .data_members(data)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == member_name => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == member_name =>
+            {
                 Some(field.symbol)
             }
-            typed_trees::data::DataMember::Variant(variant)
-                if variant.name.as_str() == member_name =>
-            {
-                Some(variant.symbol)
-            }
-            typed_trees::data::DataMember::Variant(variant) => program
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) if variant.name.as_str() == member_name => Some(variant.symbol),
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) => program
                 .data_payload_fields(variant)
                 .iter()
                 .find_map(|field| (field.name.as_str() == member_name).then_some(field.symbol)),
@@ -208,8 +210,8 @@ fn member_symbol_from_type_reference(
 /// declaration. Anything else yields no intrinsic target.
 fn collection_measure_target(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-    member: &typed_trees::expression::TableMemberExpression,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
     let measure = crate::semantic::calls::collection_measure_member(
         program,
@@ -221,8 +223,8 @@ fn collection_measure_target(
 
 pub(crate) fn expression_is_contextual_domain_primitive(
     program: &TypedTrees,
-    containing_expression: typed_trees::expression::ExpressionHandle,
-    expression: typed_trees::expression::ExpressionHandle,
+    containing_expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let Some(target_type) = contextual_domain_target_type(program, containing_expression) else {
         return false;
@@ -234,8 +236,8 @@ pub(crate) fn expression_is_contextual_domain_primitive(
 
 pub(crate) fn expression_is_contextual_statement_primitive(
     program: &TypedTrees,
-    containing_expression: typed_trees::expression::ExpressionHandle,
-    operand: typed_trees::expression::ExpressionHandle,
+    containing_expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    operand: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let mut found = false;
     for machine in program.machines() {
@@ -276,9 +278,9 @@ pub(crate) fn expression_is_contextual_statement_primitive(
 
 fn contextual_expression_type_reference(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    domain_target_type: typed_trees::types::TypeReferenceHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    domain_target_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) if contextual_self_path(program, path) => {
             Some(domain_target_type)
@@ -296,8 +298,8 @@ fn contextual_expression_type_reference(
 
 fn contextual_self_member_symbol(
     program: &TypedTrees,
-    member: &typed_trees::expression::TableMemberExpression,
-    domain_target_type: typed_trees::types::TypeReferenceHandle,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
+    domain_target_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
         return None;
@@ -314,7 +316,7 @@ fn contextual_self_member_symbol(
 
 fn contextual_self_path(
     program: &TypedTrees,
-    path: &typed_trees::expression::TableNamePath,
+    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
 ) -> bool {
     let members = program.expression_table.name_path_members(path.members);
     !path.symbol.is_valid() && members.len() == 1 && members[0].is_self_receiver()
@@ -322,14 +324,14 @@ fn contextual_self_path(
 
 fn contextual_domain_target_type(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     for domain in program.domain_definitions() {
         for fact in program.proof_facts(domain) {
             let root = match fact {
-                typed_trees::domain::ProofFact::Expression(root) => *root,
-                typed_trees::domain::ProofFact::Membership(membership) => membership.value,
-                typed_trees::domain::ProofFact::Proposition(_) => continue,
+                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(root) => *root,
+                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) => membership.value,
+                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(_) => continue,
             };
             if expression_contains(program, root, expression) {
                 return Some(domain.target_type);
@@ -342,8 +344,8 @@ fn contextual_domain_target_type(
 /// Whether the containment walk from `root` reaches `target`.
 pub(crate) fn expression_contains(
     program: &TypedTrees,
-    root: typed_trees::expression::ExpressionHandle,
-    target: typed_trees::expression::ExpressionHandle,
+    root: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
     reaches(program, root, target, &mut HashSet::new())
 }
@@ -358,15 +360,15 @@ pub(crate) fn expression_contains(
 /// of rewalking `root` per target.
 pub(crate) fn reachable_expressions(
     program: &TypedTrees,
-    root: typed_trees::expression::ExpressionHandle,
-) -> HashSet<typed_trees::expression::ExpressionHandle> {
+    root: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> HashSet<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle> {
     let mut reached = HashSet::new();
     // Arena index zero is the invalid address; `is_valid` rejects it below,
     // so no recorded expression can equal it.
     reaches(
         program,
         root,
-        typed_trees::expression::ExpressionHandle::invalid(),
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
         &mut reached,
     );
     reached
@@ -376,9 +378,11 @@ pub(crate) fn reachable_expressions(
 /// expression reached twice through different parents is entered once.
 fn reaches(
     program: &TypedTrees,
-    root: typed_trees::expression::ExpressionHandle,
-    target: typed_trees::expression::ExpressionHandle,
-    visited: &mut HashSet<typed_trees::expression::ExpressionHandle>,
+    root: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    visited: &mut HashSet<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
 ) -> bool {
     if !root.is_valid() || !visited.insert(root) {
         return false;
@@ -394,7 +398,7 @@ fn reaches(
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
-                        (matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
+                        (matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern)
                         if reaches(program, pattern, target, visited)))
                             || reaches(program, arm.value, target, visited)
                     })
@@ -445,7 +449,7 @@ fn reaches(
 
 pub(crate) fn expression_is_intrinsic_primitive_without_origin(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let type_reference = match program.tables.expression_table.expression(expression) {
         ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::Integer(_) => {
@@ -479,21 +483,21 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
-                typed_trees::expression::BinaryOperator::And
-                    | typed_trees::expression::BinaryOperator::BitwiseAnd
-                    | typed_trees::expression::BinaryOperator::BitwiseOr
-                    | typed_trees::expression::BinaryOperator::BitwiseXor
-                    | typed_trees::expression::BinaryOperator::Or
-                    | typed_trees::expression::BinaryOperator::ShiftLeft
-                    | typed_trees::expression::BinaryOperator::ShiftRight
-                    | typed_trees::expression::BinaryOperator::CaseMembership
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::BitwiseAnd
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::BitwiseOr
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::BitwiseXor
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Or
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::ShiftLeft
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::ShiftRight
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::CaseMembership
             ) =>
         {
             return true;
         }
         ExpressionNode::Binary(binary) => {
             use language_core::OperatorSpelling;
-            use typed_trees::expression::BinaryOperator;
+            use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
 
             let spelling = match binary.operator {
                 BinaryOperator::Add => OperatorSpelling::Add,
@@ -530,7 +534,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
                 return expression_is_anonymous_arithmetic(program, binary.left)
                     && expression_is_anonymous_arithmetic(program, binary.right);
             }
-            if !typed_trees::operator::resolve_spelling_for_operand_types(
+            if !symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_spelling_for_operand_types(
                 program,
                 spelling,
                 &operand_types,
@@ -545,7 +549,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
             // directly; it is exactly a builtin primitive with nothing to
             // point at.
             return operand_types.iter().any(|operand| {
-                matches!(operand, typed_trees::operator::OperandType::Primitive(_))
+                matches!(operand, symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperandType::Primitive(_))
             }) || expression_is_intrinsic_primitive_without_origin(program, binary.left)
                 || expression_is_intrinsic_primitive_without_origin(program, binary.right);
         }
@@ -566,9 +570,9 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
 /// until it lands, so no authored operator spelling applies to it.
 fn expression_is_anonymous_arithmetic(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    use typed_trees::expression::BinaryOperator;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
     match program.tables.expression_table.expression(expression) {
         ExpressionNode::Float(literal) => literal.landing().is_none(),
         ExpressionNode::Integer(literal) => literal.landing().is_none(),
@@ -591,7 +595,7 @@ fn expression_is_anonymous_arithmetic(
 mod tests {
     use super::{expression_contains, reachable_expressions};
     use crate::tests::front_end::typed_program;
-    use typed_trees::TypedTrees;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
     fn fixture() -> TypedTrees {
         let source = r#"
@@ -643,7 +647,7 @@ mod tests {
     #[test]
     fn no_recorded_expression_holds_the_invalid_address() {
         let program = fixture();
-        let invalid = typed_trees::expression::ExpressionHandle::invalid();
+        let invalid = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid();
         for (expression, _) in program.expression_table.iter_expressions() {
             assert_ne!(expression, invalid);
             assert!(expression.is_valid());

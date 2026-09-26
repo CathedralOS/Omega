@@ -7,12 +7,12 @@ use crate::{
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
-use abstract_operations::AbstractOperation;
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::OptimizationUnitValidationError;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError;
 
 use super::{
     find_operation_mut, lowered_session, lowered_session_entry, member_field_reads,
@@ -829,9 +829,9 @@ fn member_view_parameters_resolve_across_member_edges() {
 }
 
 fn find_member_node(
-    function: &optimization_unit::PsiOptimizationFunction,
+    function: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     site: NodeLocation,
-) -> &optimization_unit::OptimizationNode {
+) -> &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode {
     function
         .blocks
         .iter()
@@ -1127,11 +1127,11 @@ const MEMBER_PRODUCED_VIEW_SOURCE: &str = r#"
 /// The `PrimitiveScalarRead` node inside a member block and its block —
 /// the read counterpart of [`member_primitive_local`].
 fn member_scalar_read<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> (
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 ) {
     for member in &component.members {
         let block = function

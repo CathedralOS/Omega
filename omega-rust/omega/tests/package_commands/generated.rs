@@ -1,5 +1,5 @@
 use super::fixture::{Fixture, assert_status};
-use package_source::ImmutableSourceResolution;
+use omega::package_source::ImmutableSourceResolution;
 
 #[path = "generated/build_scope.rs"]
 mod build_scope;

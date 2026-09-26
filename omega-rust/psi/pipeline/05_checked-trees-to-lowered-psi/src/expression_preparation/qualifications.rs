@@ -7,11 +7,6 @@
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use checked_trees::types::{
-    DomainConstraintSubject, PrimitiveType, TypeConstraintNode, TypeReferenceHandle,
-    TypeReferenceNode,
-};
-use checked_trees::{CheckedScalarComputationKind, CheckedScalarDispatchPattern, CheckedTrees};
 use language_semantics::{DomainEstablishmentRoute, SemanticDomainId};
 use semantic_vocabulary::{
     DomainSemanticId, QualifiedScalarType, ScalarDomainId, ScalarQualificationSetId,
@@ -20,6 +15,13 @@ use symbols::SymbolHandle;
 use terminal_psi::{
     ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarQualificationCatalog,
     ScalarQualificationSet,
+};
+use typed_trees_to_checked_trees::checked_trees::types::{
+    DomainConstraintSubject, PrimitiveType, TypeConstraintNode, TypeReferenceHandle,
+    TypeReferenceNode,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarComputationKind, CheckedScalarDispatchPattern, CheckedTrees,
 };
 
 pub(crate) struct PreparedScalarQualifications {
@@ -461,7 +463,7 @@ pub(crate) fn type_atoms(
                         // retained as the same closed entry range a bracketed
                         // range is, so the range owner carries it too.
                         TypeConstraintNode::Domain(domain)
-                            if validation::exact_declared_domain_carrier_interval(
+                            if typed_trees_to_checked_trees::validation::exact_declared_domain_carrier_interval(
                                 &checked.typed,
                                 primitive,
                                 domain,
@@ -552,14 +554,16 @@ pub(crate) fn declared_atoms(
     if declarations.next().is_some()
         || domain.predicate_body.is_present()
         || !domain.facts.is_empty()
-        || (!checked_trees::domain::has_generic_carrier(checked, domain)
-            && checked.primitive_type_reference(domain.target_type) != Some(primitive))
+        || (!typed_trees_to_checked_trees::checked_trees::domain::has_generic_carrier(
+            checked, domain,
+        ) && checked.primitive_type_reference(domain.target_type) != Some(primitive))
     {
         return unsupported(
             "scalar qualification declaration needs non-vacuous evidence or another carrier",
         );
     }
-    let parameters = checked_trees::domain::index_parameters(checked, domain);
+    let parameters =
+        typed_trees_to_checked_trees::checked_trees::domain::index_parameters(checked, domain);
     if parameters.len() != arguments.len()
         || arguments.iter().any(|argument| {
             !checked
@@ -570,10 +574,12 @@ pub(crate) fn declared_atoms(
         return unsupported("scalar qualification changed its domain index arity or identity");
     }
     let identity =
-        checked_trees::domain::indexed_domain_instance_name(checked, domain, parameters, arguments)
-            .map_err(|_| {
-                LoweringError::Unsupported("scalar qualification has unresolved domain indices")
-            })?;
+        typed_trees_to_checked_trees::checked_trees::domain::indexed_domain_instance_name(
+            checked, domain, parameters, arguments,
+        )
+        .map_err(|_| {
+            LoweringError::Unsupported("scalar qualification has unresolved domain indices")
+        })?;
     if checked.semantic_domains.name(semantic_id) != Some(identity.as_str())
         || (arguments.is_empty() && semantic_id != domain.semantic_id)
     {

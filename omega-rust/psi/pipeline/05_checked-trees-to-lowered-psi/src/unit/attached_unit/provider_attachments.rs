@@ -13,7 +13,7 @@ pub(super) use source::validate_call_source;
 
 pub(super) fn validate_provider_attachment_requirements(
     attachment: &CheckedUnitStructuralTypePlan,
-    requirements: &[checked_trees::CheckedProviderAttachmentRequirementPlan],
+    requirements: &[typed_trees_to_checked_trees::checked_trees::CheckedProviderAttachmentRequirementPlan],
     called_boundaries: &[symbols::SymbolHandle],
 ) -> Result<(), LoweringError> {
     let fields = match &attachment.shape {
@@ -83,7 +83,7 @@ pub(super) fn validate_provider_attachment_requirements(
 pub(crate) fn lower_provider_attachment_places(
     attachment: StructuralTypeId,
     declaration: &StructuralTypeDeclaration,
-    requirements: &[checked_trees::CheckedProviderAttachmentRequirementPlan],
+    requirements: &[typed_trees_to_checked_trees::checked_trees::CheckedProviderAttachmentRequirementPlan],
     boundaries: &[(symbols::SymbolHandle, BoundaryMachineId)],
     next_place: &mut u64,
 ) -> Result<Vec<StructuralPlaceDeclaration>, LoweringError> {

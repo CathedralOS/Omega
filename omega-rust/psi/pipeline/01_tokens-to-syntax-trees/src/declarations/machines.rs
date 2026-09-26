@@ -5,11 +5,11 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::Machine;
 use arena::HandleSpan;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::Machine;
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 use crate::bodies::tail_calls::rewrite_terminal_tail_self_calls;
 use crate::contracts::conformance::parse_conformance::parse_satisfies_traits;

@@ -161,7 +161,7 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
             } = operation.kind
             {
                 assert!(actual.operations.contains(
-                    &abstract_operations::AbstractOperation::ByteSequenceWrite {
+                    &terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::ByteSequenceWrite {
                         psi_operation: operation.id,
                         destination,
                         index,
@@ -226,7 +226,7 @@ fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
                 else {
                     unreachable!()
                 };
-                abstract_operations::AbstractOperation::StructuralByteSequenceFieldStore {
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::StructuralByteSequenceFieldStore {
                     psi_operation: operation.id,
                     destination: *destination,
                     path: path.clone(),

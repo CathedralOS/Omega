@@ -6,12 +6,12 @@ use super::{
     CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType, StatementNode,
     SymbolHandle, TypeReferenceNode, TypedTrees,
 };
-use checked_trees::{
+use crate::checked_trees::{
     CheckedStructuralDispatchArm, CheckedStructuralValue, CheckedStructuralValueHandle,
     CheckedStructuralValueKind, CheckedStructuralValuePlans,
 };
-use typed_trees::expression::MatchPattern;
-use typed_trees::types::TypeReferenceHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
 
 // Classify the destination before inserting scalar operand roots. A scalar or
 // array Match must not leave partial structural plans when a later arm fails.
@@ -32,10 +32,11 @@ pub(super) fn is_structural_case_value(
     ) {
         return false;
     }
-    let Some(constructor) = validation::structural_case_constructor(program, expression) else {
+    let Some(constructor) = crate::validation::structural_case_constructor(program, expression)
+    else {
         return false;
     };
-    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
+    let Some(reference) = crate::validation::unwrapped_type_reference(program, expected) else {
         return false;
     };
     program.normalized_type_identity(constructor.type_reference)
@@ -54,7 +55,7 @@ pub(super) fn is_record_value(
         return false;
     }
     let shared_referent = shared_record_reference(program, expected);
-    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
+    let Some(reference) = crate::validation::unwrapped_type_reference(program, expected) else {
         return false;
     };
     // A `&T` selection result plans its borrowed arms against the referent
@@ -93,11 +94,12 @@ pub(super) fn is_record_value(
         else {
             return false;
         };
-        if program
-            .data_members(record)
-            .iter()
-            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
-        {
+        if program.data_members(record).iter().any(|member| {
+            matches!(
+                member,
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(_)
+            )
+        }) {
             return false;
         }
         record_symbol = *symbol;
@@ -109,7 +111,7 @@ pub(super) fn is_record_value(
             ExpressionNode::StructLiteral(literal)
                 if literal.case_symbol.is_none() && literal.type_symbol == *symbol => {}
             ExpressionNode::Name(_)
-                if validation::affine_owned_value_source(program, expression, expected)
+                if crate::validation::affine_owned_value_source(program, expression, expected)
                     .is_some() => {}
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
                 if shared_referent.is_none()
@@ -143,8 +145,8 @@ pub(super) fn is_record_value(
                 };
                 if program.normalized_type_identity(returned)
                     != program.normalized_type_identity(expected)
-                    || !(validation::has_linear_owned_contents(program, returned)
-                        || validation::reference_result_custody::is_reference_record(
+                    || !(crate::validation::has_linear_owned_contents(program, returned)
+                        || crate::validation::reference_result_custody::is_reference_record(
                             program, returned,
                         ))
                 {
@@ -249,12 +251,12 @@ pub(super) fn is_fixed_array_value(
     matches!(
         program.expression_table.expression(expression),
         ExpressionNode::ArrayLiteral(_)
-    ) && validation::unwrapped_type_reference(program, expected).is_some_and(|reference| {
+    ) && crate::validation::unwrapped_type_reference(program, expected).is_some_and(|reference| {
         matches!(
             program.type_reference_table.type_reference(reference),
-            typed_trees::types::TypeReferenceNode::FixedArray { .. }
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
         )
-    }) && !validation::is_closed_primitive_array_type(program, expected)
+    }) && !crate::validation::is_closed_primitive_array_type(program, expected)
 }
 
 /// The element type of an owned or borrowed contiguous collection place.
@@ -296,7 +298,7 @@ fn shared_record_reference(
         return None;
     };
     if *access != language_semantics::ReferenceAccess::Shared
-        || !validation::has_linear_owned_contents(program, *referee)
+        || !crate::validation::has_linear_owned_contents(program, *referee)
     {
         return None;
     }
@@ -312,10 +314,12 @@ fn shared_record_reference(
         .data_definitions()
         .iter()
         .find(|record| record.symbol == *symbol)?;
-    (!program
-        .data_members(record)
-        .iter()
-        .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_))))
+    (!program.data_members(record).iter().any(|member| {
+        matches!(
+            member,
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(_)
+        )
+    }))
     .then_some(*referee)
 }
 
@@ -361,15 +365,16 @@ fn projected_leaf_type(
         || !place.segments.iter().all(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                crate::fact_plan::PlaceSegment::Field { .. }
+                    | crate::fact_plan::PlaceSegment::FixedIndex { .. }
             )
         })
     {
         return None;
     }
     let root = match place.root {
-        facts::PlaceRoot::Symbol(symbol) => symbol_declared_type(program, symbol)?,
-        facts::PlaceRoot::Expression(expression) => {
+        crate::fact_plan::PlaceRoot::Symbol(symbol) => symbol_declared_type(program, symbol)?,
+        crate::fact_plan::PlaceRoot::Expression(expression) => {
             match program.expression_table.expression(expression) {
                 ExpressionNode::Call(call) => {
                     crate::flow::call_target_return_type(program, call.target_symbol)?
@@ -388,11 +393,12 @@ fn projected_leaf_type(
 /// source -- a computed root cannot be re-derived at replay, and a dynamic
 /// index or range segment has no statically checkable ordinal.
 fn canonical_place_is_borrowable(place: &crate::flow::CanonicalPlace) -> bool {
-    matches!(place.root, facts::PlaceRoot::Symbol(_))
+    matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(_))
         && place.segments.iter().all(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                crate::fact_plan::PlaceSegment::Field { .. }
+                    | crate::fact_plan::PlaceSegment::FixedIndex { .. }
             )
         })
 }
@@ -425,7 +431,7 @@ fn symbol_declared_type(program: &TypedTrees, symbol: SymbolHandle) -> Option<Ty
 /// storage contents, which is exactly what a `self.bitness`-shape read needs;
 /// anything with payload storage or affine custody needs move semantics.
 fn scalar_case_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> bool {
-    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
+    let Some(reference) = crate::validation::unwrapped_type_reference(program, expected) else {
         return false;
     };
     if program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted {
@@ -446,9 +452,9 @@ fn scalar_case_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -
     let members = program.data_members(data);
     !members.is_empty()
         && members.iter().all(|member| match member {
-            typed_trees::data::DataMember::Variant(variant) => {
-                program.data_payload_fields(variant).is_empty()
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) => program.data_payload_fields(variant).is_empty(),
             _ => false,
         })
 }
@@ -478,7 +484,7 @@ pub(super) fn is_scalar_case_place_value(
     if place.segments.is_empty() || !canonical_place_is_borrowable(&place) {
         return false;
     }
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return false;
     };
     let Some(root) = symbol_declared_type(program, symbol) else {
@@ -516,7 +522,7 @@ fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> boo
     {
         return true;
     }
-    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
+    let Some(reference) = crate::validation::unwrapped_type_reference(program, expected) else {
         return false;
     };
     if program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted {
@@ -562,7 +568,7 @@ pub(super) fn is_copied_place_value(
     if !canonical_place_is_borrowable(&place) {
         return false;
     }
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return false;
     };
     let Some(root) = symbol_declared_type(program, symbol) else {
@@ -618,10 +624,11 @@ fn zeroed_scalar_array_parts(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<(PrimitiveType, u64)> {
-    let reference = validation::unwrapped_type_reference(program, type_reference)?;
+    let reference = crate::validation::unwrapped_type_reference(program, type_reference)?;
     let TypeReferenceNode::FixedArray {
         element_type,
-        length: typed_trees::types::FixedArrayLength::Literal(length),
+        length:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(length),
     } = program.type_reference_table.type_reference(reference)
     else {
         return None;
@@ -647,7 +654,7 @@ fn zeroed_scalar_array_parts(
 /// element contributes: a landed `0` in the declared element carrier.
 fn zeroed_integer_literal(
     primitive_type: PrimitiveType,
-) -> Option<checked_trees::CheckedScalarExpression> {
+) -> Option<crate::checked_trees::CheckedScalarExpression> {
     let landed_type = match primitive_type {
         PrimitiveType::I8 => numerics::literals::LandedIntegerType::I8,
         PrimitiveType::I16 => numerics::literals::LandedIntegerType::I16,
@@ -659,18 +666,20 @@ fn zeroed_integer_literal(
         PrimitiveType::U64 => numerics::literals::LandedIntegerType::U64,
         _ => return None,
     };
-    Some(checked_trees::CheckedScalarExpression::IntegerLiteral {
-        literal: numerics::literals::IntegerLiteral::from_parts(
-            false,
-            numerics::literals::IntegerRadix::Decimal,
-            "0",
-        )
-        .ok()?
-        .with_landing(numerics::literals::IntegerLanding {
-            landed_type,
-            domain: numerics::arithmetic::ArithmeticDomain::Exact,
-        }),
-    })
+    Some(
+        crate::checked_trees::CheckedScalarExpression::IntegerLiteral {
+            literal: numerics::literals::IntegerLiteral::from_parts(
+                false,
+                numerics::literals::IntegerRadix::Decimal,
+                "0",
+            )
+            .ok()?
+            .with_landing(numerics::literals::IntegerLanding {
+                landed_type,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            }),
+        },
+    )
 }
 
 /// The terminal expression carrying a projection's storage: the whole local
@@ -699,7 +708,8 @@ impl Builder<'_, '_> {
         values: &mut CheckedStructuralValuePlans,
         pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueHandle> {
-        let kind = if validation::reference_result_custody::parts(self.program, expected).is_some()
+        let kind = if crate::validation::reference_result_custody::parts(self.program, expected)
+            .is_some()
         {
             let state = crate::lookup::machine_by_symbol(self.program, self.machine).and_then(
                 |machine| {
@@ -710,7 +720,7 @@ impl Builder<'_, '_> {
                 },
             )?;
             CheckedStructuralValueKind::Reference {
-                source: validation::reference_result_custody::initializer_source(
+                source: crate::validation::reference_result_custody::initializer_source(
                     self.program,
                     state,
                     expression,
@@ -720,7 +730,8 @@ impl Builder<'_, '_> {
         } else if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Name(_)
-        ) && validation::scalar_case_constructor(self.program, expression).is_none()
+        ) && crate::validation::scalar_case_constructor(self.program, expression)
+            .is_none()
             && let Some(argument) = self.owned_record_place(expression, expected)
         {
             CheckedStructuralValueKind::Place(argument)
@@ -736,8 +747,8 @@ impl Builder<'_, '_> {
             let returned = crate::flow::call_target_return_type(self.program, call.target_symbol)?;
             if self.program.normalized_type_identity(returned)
                 != self.program.normalized_type_identity(expected)
-                || !(validation::has_linear_owned_contents(self.program, returned)
-                    || validation::reference_result_custody::is_reference_record(
+                || !(crate::validation::has_linear_owned_contents(self.program, returned)
+                    || crate::validation::reference_result_custody::is_reference_record(
                         self.program,
                         returned,
                     ))
@@ -808,10 +819,10 @@ impl Builder<'_, '_> {
         {
             self.fixed_array_value(expected, *literal, values, pure)?
         } else if let Some(symbol) =
-            validation::scalar_case_value_source(self.program, expression, expected)
+            crate::validation::scalar_case_value_source(self.program, expression, expected)
         {
-            CheckedStructuralValueKind::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            CheckedStructuralValueKind::Place(crate::checked_trees::CheckedUnitStructuralArgumentPlan {
+                source: crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
                 },
                 path: Vec::new(),
@@ -819,7 +830,7 @@ impl Builder<'_, '_> {
                     .program
                     .normalized_type_identity(expected)
                     .into_string(),
-                access: checked_trees::CheckedStructuralAccess::Owned,
+                access: crate::checked_trees::CheckedStructuralAccess::Owned,
             })
         } else if let Some(borrowed) = self.borrowed_place(expression, expected) {
             borrowed
@@ -835,15 +846,17 @@ impl Builder<'_, '_> {
                 .machine_states(machine)
                 .iter()
                 .find(|state| state.symbol == self.state)?;
-            let subject_type = validation::expression_result_type_reference(
+            let subject_type = crate::validation::expression_result_type_reference(
                 self.program,
                 machine,
                 state,
                 dispatch.subject,
             )
-            .and_then(|reference| validation::unwrapped_type_reference(self.program, reference))
+            .and_then(|reference| {
+                crate::validation::unwrapped_type_reference(self.program, reference)
+            })
             .and_then(|reference| self.program.primitive_type_reference(reference))
-            .or_else(|| validation::match_subject_primitive_type(self.program, &dispatch))?;
+            .or_else(|| crate::validation::match_subject_primitive_type(self.program, &dispatch))?;
             let subject = self.expression(dispatch.subject, subject_type)?;
             self.plans.nodes.get_mut(subject).authored_root = dispatch.subject;
             self.plans.roots.append(CheckedScalarComputationRoot {
@@ -885,7 +898,9 @@ impl Builder<'_, '_> {
                 {
                     self.comparison_use(
                         expression,
-                        checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm },
+                        crate::checked_trees::CheckedOperatorOccurrence::MatchEquality {
+                            source_arm,
+                        },
                     )?
                 } else {
                     arena::Handle::invalid()
@@ -893,7 +908,7 @@ impl Builder<'_, '_> {
                 let pattern = match arm.pattern {
                     MatchPattern::Wildcard => {
                         covered = true;
-                        checked_trees::CheckedScalarDispatchPattern::Wildcard
+                        crate::checked_trees::CheckedScalarDispatchPattern::Wildcard
                     }
                     MatchPattern::Value(pattern) => {
                         if subject_type == PrimitiveType::Bool
@@ -914,7 +929,7 @@ impl Builder<'_, '_> {
                             },
                             root: computation,
                         });
-                        checked_trees::CheckedScalarDispatchPattern::Value(computation)
+                        crate::checked_trees::CheckedScalarDispatchPattern::Value(computation)
                     }
                 };
                 let value = self.structural_value(arm.value, expected, values, pure)?;
@@ -997,13 +1012,10 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let TypeReferenceNode::Named { symbol, .. } = self
-            .program
-            .type_reference_table
-            .type_reference(validation::unwrapped_type_reference(
-                self.program,
-                expected,
-            )?)
+        let TypeReferenceNode::Named { symbol, .. } =
+            self.program.type_reference_table.type_reference(
+                crate::validation::unwrapped_type_reference(self.program, expected)?,
+            )
         else {
             return None;
         };
@@ -1014,7 +1026,9 @@ impl Builder<'_, '_> {
             .find(|data| data.symbol == *symbol)?;
         let mut reads = Vec::new();
         for member in self.program.data_members(data) {
-            let typed_trees::data::DataMember::Field(field) = member else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+                member
+            else {
                 return None;
             };
             let primitive_type = self
@@ -1032,12 +1046,12 @@ impl Builder<'_, '_> {
                 return None;
             }
             reads.push(
-                checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+                crate::checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
                     root: selection.root,
                     path: Vec::new(),
                     index: Box::new(selection.index.clone()),
                     element_path: vec![
-                        checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                        crate::checked_trees::CheckedStructuralPredicatePathSegment::Field(
                             field.path_identity(),
                         ),
                     ],
@@ -1078,7 +1092,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<(
-        checked_trees::CheckedUnitStructuralArgumentPlan,
+        crate::checked_trees::CheckedUnitStructuralArgumentPlan,
         TypeReferenceHandle,
     )> {
         let place = crate::flow::canonical_place_from_expression_in_state(
@@ -1087,7 +1101,7 @@ impl Builder<'_, '_> {
             self.statement_index,
             expression,
         )?;
-        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
             return None;
         };
         let source = if let Some((index, parameter)) = self
@@ -1106,16 +1120,18 @@ impl Builder<'_, '_> {
             if parameter.is_self {
                 // The authored `self` name retains the durable machine symbol;
                 // binding resolves that normalized root to the is_self slot.
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol: self.machine,
                 }
             } else {
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: u32::try_from(index).ok()?,
                 }
             }
         } else {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol,
+            }
         };
         let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
             self.program,
@@ -1135,11 +1151,13 @@ impl Builder<'_, '_> {
         let type_identity =
             if crate::execution::terminal_unit::types::borrowed_slice_view(self.program, projected)
             {
-                validation::unwrapped_type_reference(self.program, projected).map(|unwrapped| {
-                    self.program
-                        .normalized_type_identity(unwrapped)
-                        .into_string()
-                })
+                crate::validation::unwrapped_type_reference(self.program, projected).map(
+                    |unwrapped| {
+                        self.program
+                            .normalized_type_identity(unwrapped)
+                            .into_string()
+                    },
+                )
             } else {
                 None
             }
@@ -1149,11 +1167,11 @@ impl Builder<'_, '_> {
                     .into_string()
             });
         Some((
-            checked_trees::CheckedUnitStructuralArgumentPlan {
+            crate::checked_trees::CheckedUnitStructuralArgumentPlan {
                 source,
                 path,
                 type_identity,
-                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+                access: crate::checked_trees::CheckedStructuralAccess::SharedBorrow,
             },
             projected,
         ))
@@ -1191,7 +1209,8 @@ impl Builder<'_, '_> {
             || !place.segments.iter().all(|segment| {
                 matches!(
                     segment,
-                    facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                    crate::fact_plan::PlaceSegment::Field { .. }
+                        | crate::fact_plan::PlaceSegment::FixedIndex { .. }
                 )
             })
         {
@@ -1261,7 +1280,7 @@ impl Builder<'_, '_> {
         if !canonical_place_is_borrowable(&place) {
             return None;
         }
-        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
             return None;
         };
         // The root's dense structural position is its signature ordinal when
@@ -1282,11 +1301,13 @@ impl Builder<'_, '_> {
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == symbol)
         {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(index).ok()?,
             }
         } else {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol,
+            }
         };
         let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
             self.program,
@@ -1300,14 +1321,14 @@ impl Builder<'_, '_> {
             return None;
         }
         Some(CheckedStructuralValueKind::Reference {
-            source: checked_trees::CheckedUnitStructuralArgumentPlan {
+            source: crate::checked_trees::CheckedUnitStructuralArgumentPlan {
                 source,
                 path,
                 type_identity: self
                     .program
                     .normalized_type_identity(projected)
                     .into_string(),
-                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+                access: crate::checked_trees::CheckedStructuralAccess::SharedBorrow,
             },
         })
     }
@@ -1367,12 +1388,12 @@ impl Builder<'_, '_> {
         let loan = loans.next()?;
         if loans.next().is_some()
             || loan.statement_index != self.statement_index
-            || loan.kind != checked_trees::BorrowAccessKind::Read
+            || loan.kind != crate::checked_trees::BorrowAccessKind::Read
         {
             return None;
         }
         let mut place = crate::flow::CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(loan.root_symbol),
+            root: crate::fact_plan::PlaceRoot::Symbol(loan.root_symbol),
             segments: self
                 .borrow
                 .access_segments
@@ -1388,7 +1409,7 @@ impl Builder<'_, '_> {
         if !canonical_place_is_borrowable(&place) {
             return None;
         }
-        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
             return None;
         };
         // The root's dense structural position is its signature ordinal when
@@ -1409,11 +1430,13 @@ impl Builder<'_, '_> {
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == symbol)
         {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(index).ok()?,
             }
         } else {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol,
+            }
         };
         let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
             self.program,
@@ -1431,14 +1454,14 @@ impl Builder<'_, '_> {
             return None;
         }
         Some(CheckedStructuralValueKind::BorrowedSliceView {
-            source: checked_trees::CheckedUnitStructuralArgumentPlan {
+            source: crate::checked_trees::CheckedUnitStructuralArgumentPlan {
                 source,
                 path,
                 type_identity: self
                     .program
                     .normalized_type_identity(projected)
                     .into_string(),
-                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+                access: crate::checked_trees::CheckedStructuralAccess::SharedBorrow,
             },
         })
     }
@@ -1447,7 +1470,7 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+    ) -> Option<crate::checked_trees::CheckedUnitStructuralArgumentPlan> {
         let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
         else {
             return None;
@@ -1457,7 +1480,7 @@ impl Builder<'_, '_> {
             || name.members.count() != 1
             // The same finite owned walls as plain storage, but a `[linear]`
             // member rides as a claim the selection transfer names.
-            || !validation::has_linear_owned_contents(self.program, expected)
+            || !crate::validation::has_linear_owned_contents(self.program, expected)
         {
             return None;
         }
@@ -1471,12 +1494,12 @@ impl Builder<'_, '_> {
             .data_definitions()
             .iter()
             .find(|data| data.symbol == *symbol)?;
-        if self
-            .program
-            .data_members(data)
-            .iter()
-            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
-        {
+        if self.program.data_members(data).iter().any(|member| {
+            matches!(
+                member,
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(_)
+            )
+        }) {
             return None;
         }
         let owner = crate::lookup::machine_by_symbol(self.program, self.machine)?;
@@ -1501,7 +1524,7 @@ impl Builder<'_, '_> {
             .find(|(_, parameter)| parameter.symbol == name.symbol)
         {
             (
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: u32::try_from(index).ok()?,
                 },
                 parameter.type_reference,
@@ -1522,7 +1545,7 @@ impl Builder<'_, '_> {
                     _ => None,
                 })?;
             (
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol: local.symbol,
                 },
                 local.type_reference,
@@ -1530,22 +1553,22 @@ impl Builder<'_, '_> {
         };
         if self.program.normalized_type_identity(reference)
             != self.program.normalized_type_identity(expected)
-            || !validation::has_linear_owned_contents(self.program, reference)
+            || !crate::validation::has_linear_owned_contents(self.program, reference)
             || !matches!(
                 self.program.type_reference_table.type_reference(reference),
-                typed_trees::types::TypeReferenceNode::Named { .. }
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { .. }
             )
         {
             return None;
         }
-        Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        Some(crate::checked_trees::CheckedUnitStructuralArgumentPlan {
             source,
             path: Vec::new(),
             type_identity: self
                 .program
                 .normalized_type_identity(reference)
                 .into_string(),
-            access: checked_trees::CheckedStructuralAccess::Owned,
+            access: crate::checked_trees::CheckedStructuralAccess::Owned,
         })
     }
 
@@ -1559,10 +1582,10 @@ impl Builder<'_, '_> {
         values: &mut CheckedStructuralValuePlans,
         pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueKind> {
-        if validation::is_closed_primitive_array_type(self.program, expected) {
+        if crate::validation::is_closed_primitive_array_type(self.program, expected) {
             return None;
         }
-        let reference = validation::unwrapped_type_reference(self.program, expected)?;
+        let reference = crate::validation::unwrapped_type_reference(self.program, expected)?;
         let TypeReferenceNode::FixedArray { element_type, .. } =
             self.program.type_reference_table.type_reference(reference)
         else {
@@ -1587,9 +1610,14 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        if !validation::has_plain_owned_contents_with_numeric_constraints(self.program, expected)
-            && !validation::has_cleanup_owned_contents(self.program, expected)
-            && !validation::reference_result_custody::is_reference_record(self.program, expected)
+        if !crate::validation::has_plain_owned_contents_with_numeric_constraints(
+            self.program,
+            expected,
+        ) && !crate::validation::has_cleanup_owned_contents(self.program, expected)
+            && !crate::validation::reference_result_custody::is_reference_record(
+                self.program,
+                expected,
+            )
             && !crate::execution::terminal_unit::types::record_with_owned_or_shared_view_fields(
                 self.program,
                 expected,
@@ -1597,10 +1625,10 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let reference = validation::unwrapped_type_reference(self.program, expected)?;
+        let reference = crate::validation::unwrapped_type_reference(self.program, expected)?;
         let symbol = match self.program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => symbol,
-            typed_trees::types::TypeReferenceNode::Generic {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. } => symbol,
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic {
                 base_symbol,
                 arguments,
                 ..
@@ -1623,10 +1651,12 @@ impl Builder<'_, '_> {
             .iter()
             .find(|data| data.symbol == *symbol)?;
         let declared = self.program.data_members(data);
-        if declared
-            .iter()
-            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
-        {
+        if declared.iter().any(|member| {
+            matches!(
+                member,
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(_)
+            )
+        }) {
             return None;
         }
         let authored = self
@@ -1637,18 +1667,18 @@ impl Builder<'_, '_> {
         let relevant = declared
             .iter()
             .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
-                    Some(field)
-                }
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if !field.relevance.is_erased() => Some(field),
                 _ => None,
             })
             .collect::<Vec<_>>();
         let erased = declared
             .iter()
             .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.relevance.is_erased() => {
-                    Some(field)
-                }
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.relevance.is_erased() => Some(field),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -1669,7 +1699,7 @@ impl Builder<'_, '_> {
             && (authored.len() > relevant.len() + erased.len()
                 || authored.iter().any(|initializer| {
                     declared.iter().all(|member| match member {
-                        typed_trees::data::DataMember::Field(field) => {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
                             field.symbol != initializer.field_symbol
                         }
                         _ => true,
@@ -1698,10 +1728,10 @@ impl Builder<'_, '_> {
                 // it carries semantic content but no runtime storage, so the
                 // checked value keeps its exact initializer for interpretation
                 // while emission skips it below the lowered representations.
-                let value = checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                let value = crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(
                     self.structural_value(initializer.value, field.type_reference, values, pure)?,
                 );
-                fields.push(checked_trees::CheckedStructuralRecordField {
+                fields.push(crate::checked_trees::CheckedStructuralRecordField {
                     field: field.symbol,
                     expression: initializer.value,
                     type_reference: field.type_reference,
@@ -1709,53 +1739,44 @@ impl Builder<'_, '_> {
                 });
                 continue;
             }
-            if fields
-                .iter()
-                .any(|prior: &checked_trees::CheckedStructuralRecordField| {
+            if fields.iter().any(
+                |prior: &crate::checked_trees::CheckedStructuralRecordField| {
                     prior.field == field.symbol
-                })
-            {
+                },
+            ) {
                 return None;
             }
             let reference =
-                validation::unwrapped_type_reference(self.program, field.type_reference)?;
-            let value =
-                if validation::reference_result_custody::parts(self.program, field.type_reference)
-                    .is_some()
-                {
-                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(
-                            initializer.value,
-                            field.type_reference,
-                            values,
-                            pure,
-                        )?,
-                    )
-                } else if let Some(primitive) = self.program.primitive_type_reference(reference) {
-                    let root = self.expression(initializer.value, primitive)?;
-                    self.plans.nodes.get_mut(root).authored_root = initializer.value;
-                    self.plans.roots.append(CheckedScalarComputationRoot {
-                        machine: self.machine,
-                        state: self.state,
-                        statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                        role: CheckedScalarExpressionRole::RecordField {
-                            expression,
-                            field_ordinal: u32::try_from(ordinal).ok()?,
-                        },
-                        root,
-                    });
-                    checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
-                } else {
-                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(
-                            initializer.value,
-                            field.type_reference,
-                            values,
-                            pure,
-                        )?,
-                    )
-                };
-            fields.push(checked_trees::CheckedStructuralRecordField {
+                crate::validation::unwrapped_type_reference(self.program, field.type_reference)?;
+            let value = if crate::validation::reference_result_custody::parts(
+                self.program,
+                field.type_reference,
+            )
+            .is_some()
+            {
+                crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                    self.structural_value(initializer.value, field.type_reference, values, pure)?,
+                )
+            } else if let Some(primitive) = self.program.primitive_type_reference(reference) {
+                let root = self.expression(initializer.value, primitive)?;
+                self.plans.nodes.get_mut(root).authored_root = initializer.value;
+                self.plans.roots.append(CheckedScalarComputationRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                    role: CheckedScalarExpressionRole::RecordField {
+                        expression,
+                        field_ordinal: u32::try_from(ordinal).ok()?,
+                    },
+                    root,
+                });
+                crate::checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
+            } else {
+                crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                    self.structural_value(initializer.value, field.type_reference, values, pure)?,
+                )
+            };
+            fields.push(crate::checked_trees::CheckedStructuralRecordField {
                 field: field.symbol,
                 expression: initializer.value,
                 type_reference: field.type_reference,
@@ -1769,11 +1790,11 @@ impl Builder<'_, '_> {
             let element = self
                 .plans
                 .nodes
-                .append(checked_trees::CheckedScalarComputation {
+                .append(crate::checked_trees::CheckedScalarComputation {
                     authored_root: ExpressionHandle::invalid(),
                     value_source: ExpressionHandle::invalid(),
                     primitive_type,
-                    kind: checked_trees::CheckedScalarComputationKind::Value(zero),
+                    kind: crate::checked_trees::CheckedScalarComputationKind::Value(zero),
                 });
             self.plans.roots.append(CheckedScalarComputationRoot {
                 machine: self.machine,
@@ -1792,11 +1813,11 @@ impl Builder<'_, '_> {
                     element_count,
                 },
             });
-            fields.push(checked_trees::CheckedStructuralRecordField {
+            fields.push(crate::checked_trees::CheckedStructuralRecordField {
                 field: field.symbol,
                 expression,
                 type_reference: field.type_reference,
-                value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
+                value: crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
             });
         }
         Some(CheckedStructuralValueKind::Record {
@@ -1817,7 +1838,7 @@ impl Builder<'_, '_> {
         values: &mut CheckedStructuralValuePlans,
         pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueKind> {
-        let constructor = validation::structural_case_constructor(self.program, expression)?;
+        let constructor = crate::validation::structural_case_constructor(self.program, expression)?;
         if self
             .program
             .normalized_type_identity(constructor.type_reference)
@@ -1829,10 +1850,12 @@ impl Builder<'_, '_> {
         for (ordinal, (symbol, value_expression, declared)) in
             constructor.fields.into_iter().enumerate()
         {
-            let reference = validation::unwrapped_type_reference(self.program, declared)?;
+            let reference = crate::validation::unwrapped_type_reference(self.program, declared)?;
             let value =
-                if validation::reference_result_custody::parts(self.program, declared).is_some() {
-                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                if crate::validation::reference_result_custody::parts(self.program, declared)
+                    .is_some()
+                {
+                    crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(
                         self.structural_value(value_expression, declared, values, pure)?,
                     )
                 } else if let Some(primitive) = self.program.primitive_type_reference(reference) {
@@ -1848,13 +1871,13 @@ impl Builder<'_, '_> {
                         },
                         root,
                     });
-                    checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
+                    crate::checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
                 } else {
-                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                    crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(
                         self.structural_value(value_expression, declared, values, pure)?,
                     )
                 };
-            fields.push(checked_trees::CheckedStructuralRecordField {
+            fields.push(crate::checked_trees::CheckedStructuralRecordField {
                 field: symbol,
                 expression: value_expression,
                 type_reference: declared,

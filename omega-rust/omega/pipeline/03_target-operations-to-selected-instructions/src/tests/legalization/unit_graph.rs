@@ -3,15 +3,17 @@ use crate::{
     legalize_target_operations, select_instructions, validate_legalized_operations,
     validate_selected_instructions,
 };
-use abstract_operations::{
-    AbstractBlockEntry, AbstractOperation, AbstractParameter, AbstractSuccessor,
+use abstract_operations_to_target_operations::target_operations::{
+    TargetControlTerminator, TargetUnitOperation,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{TargetControlTerminator, TargetUnitOperation};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractOperation, AbstractParameter, AbstractSuccessor,
+};
 mod continuations;
 
 fn targets() -> [NativeTarget; 4] {
@@ -64,9 +66,9 @@ fn jump(identity: u64) -> AbstractOperation {
 pub(super) fn fixture(
     native: NativeTarget,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
@@ -129,7 +131,7 @@ pub(super) fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -152,7 +154,7 @@ fn unit_graph_calls_branch_and_rejoin_on_all_hosted_targets() {
         assert_eq!(caller.blocks.len(), 4);
         assert!(caller.call_plan.result.is_none());
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -178,7 +180,7 @@ fn unit_graph_calls_branch_and_rejoin_on_all_hosted_targets() {
                 .flat_map(|block| &block.instructions)
                 .filter(|row| matches!(
                     row.kind,
-                    selected_instructions::SelectedInstructionKind::CallUnit { .. }
+                    crate::selected_instructions::SelectedInstructionKind::CallUnit { .. }
                 ))
                 .count(),
             3
@@ -263,7 +265,7 @@ fn unit_graph_replay_rejects_cfg_and_source_substitution() {
                         9 => when_true.psi_edge = edge(11),
                         10 => *condition_source = value(101),
                         _ => {
-                            let target_operations::TargetBooleanExpression::Parameter {
+                            let abstract_operations_to_target_operations::target_operations::TargetBooleanExpression::Parameter {
                                 parameter_index,
                                 ..
                             } = condition

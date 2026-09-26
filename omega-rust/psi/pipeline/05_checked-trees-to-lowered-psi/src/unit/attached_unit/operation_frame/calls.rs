@@ -92,7 +92,7 @@ impl OperationFrame<'_, '_> {
     /// result goes back to the route.
     fn bind_scalar_result(
         &mut self,
-        coordinate: checked_trees::CheckedUnitCallCoordinate,
+        coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
         value: ValueDeclaration,
         staged: bool,
     ) -> Result<Option<ValueDeclaration>, LoweringError> {
@@ -108,7 +108,7 @@ impl OperationFrame<'_, '_> {
             self.values.push(value);
             if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {
                 bindings.append(
-                    checked_trees::CheckedScalarBindingDestination::Immutable,
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable,
                     value.scalar_type,
                     position,
                 )?;
@@ -125,7 +125,7 @@ impl OperationFrame<'_, '_> {
     pub(super) fn publish_result(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
-        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan,
         declaration: StructuralPlaceDeclaration,
         discard_on_return: bool,
     ) -> Result<(), LoweringError> {
@@ -164,8 +164,8 @@ impl OperationFrame<'_, '_> {
     /// The source-call row every call records beside its operation.
     pub(super) fn record_source_call(
         &mut self,
-        coordinate: checked_trees::CheckedUnitCallCoordinate,
-        source_site: Option<checked_trees::NominalMachineUseSite>,
+        coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
+        source_site: Option<typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite>,
         operation: semantic_vocabulary::OperationId,
         target: symbols::SymbolHandle,
     ) -> Result<(), LoweringError> {
@@ -534,7 +534,7 @@ impl OperationFrame<'_, '_> {
                 let erased_arguments = erased_scalar_arguments
                     .iter()
                     .map(|argument| {
-                        let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument
+                        let typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(expression) = argument
                         else {
                             return unsupported(
                                 "scalar call erased actual must be a pure checked expression",

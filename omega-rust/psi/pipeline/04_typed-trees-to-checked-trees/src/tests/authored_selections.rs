@@ -16,7 +16,10 @@ mod collection_views;
 mod indexed_operators;
 mod projected_receivers;
 
-fn typed_root_binding_fixture(source: &str, toolchain: bool) -> typed_trees::TypedTrees {
+fn typed_root_binding_fixture(
+    source: &str,
+    toolchain: bool,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let mut sources = source::SourceMap::default();
     let source_id = sources
         .add_with_metadata(
@@ -51,7 +54,7 @@ fn root_binding_statement_checks_the_exact_build_parameter_without_resolving_pro
             .flat_map(|machine| checked.machine_states(machine))
             .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
             .find_map(|statement| {
-                if let typed_trees::statement::StatementNode::RootBinding(binding) = statement {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::RootBinding(binding) = statement {
                     Some(binding)
                 } else {
                     None
@@ -89,7 +92,7 @@ fn root_binding_statement_rejects_forged_build_and_non_mutable_receivers() {
         let mut typed = typed_root_binding_fixture(&source, toolchain);
         let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
             &mut typed,
-            &checked_trees::CheckFacts::default(),
+            &crate::checked_trees::CheckFacts::default(),
         )
         .expect_err("binding requires exact mutable Build authority");
         assert!(
@@ -121,7 +124,7 @@ fn root_binding_has_no_value_context_or_ordinary_bind_call_exception() {
     let mut typed = typed_root_binding_fixture(source, true);
     let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
         &mut typed,
-        &checked_trees::CheckFacts::default(),
+        &crate::checked_trees::CheckFacts::default(),
     )
     .expect_err("same-shaped ordinary receiver has no Build authority");
     assert!(diagnostic.message.contains("compiler-issued &mut Build"));
@@ -211,8 +214,9 @@ fn root_binding_computed_index_operand_retains_its_collection_access() {
         .expect("build machine");
     let state = &program.machine_states(machine)[0];
     let builder = program.state_parameters(state)[0].symbol;
-    let typed_trees::statement::StatementNode::RootBinding(binding) =
-        &program.statement_table.statements(state.statement_nodes)[0]
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::RootBinding(
+        binding,
+    ) = &program.statement_table.statements(state.statement_nodes)[0]
     else {
         panic!("root binding");
     };
@@ -267,7 +271,7 @@ fn root_binding_rejects_uninitialized_receiver_and_live_shared_loan() {
 
 #[test]
 fn successful_checking_rejects_any_unresolved_authored_selection() {
-    let mut typed = typed_trees::TypedTrees::default();
+    let mut typed = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let mut selections = AuthoredDeclarationSelections::default();
     selections
         .record_late_bound(
@@ -281,7 +285,7 @@ fn successful_checking_rejects_any_unresolved_authored_selection() {
 
     let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
         &mut typed,
-        &checked_trees::CheckFacts::default(),
+        &crate::checked_trees::CheckFacts::default(),
     )
     .expect_err("unjoinable authored selection must fail before checked trees are issued");
 
@@ -340,9 +344,9 @@ fn explicit_state_arguments_finalize_nested_record_member_selections() {
             .data_members(definition)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
-                    Some(field.symbol)
-                }
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == name => Some(field.symbol),
                 _ => None,
             })
             .expect("declared field");
@@ -364,7 +368,7 @@ fn entry_record_types_do_not_finalize_implicit_state_captures() {
     let mut typed = typed_program(source);
     let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
         &mut typed,
-        &checked_trees::CheckFacts::default(),
+        &crate::checked_trees::CheckFacts::default(),
     )
     .expect_err("entry-local types cannot resolve a sibling state's receiver");
     assert!(
@@ -458,7 +462,10 @@ fn checked_operator_contract_context_disambiguates_named_overloads() {
             _ => None,
         })
         .expect("contract call selects one exact overload");
-    let operator = typed_trees::operator::declaration_by_symbol(&checked, selected)
+    let operator =
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+            &checked, selected,
+        )
         .expect("selected call target remains an operator declaration");
     let [parameter] = checked.operator_parameters(operator) else {
         panic!("selected overload retains one parameter")
@@ -467,7 +474,7 @@ fn checked_operator_contract_context_disambiguates_named_overloads() {
         checked
             .type_reference_table
             .primitive_type(parameter.type_reference),
-        Some(typed_trees::types::PrimitiveType::I32)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
     );
     assert!(checked.authored_declaration_selections().all_finalized());
 }
@@ -670,7 +677,7 @@ fn nominal_call_custody_rejects_ambiguous_targets_under_the_exact_owner() {
 
     let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
         &mut typed,
-        &checked_trees::CheckFacts::default(),
+        &crate::checked_trees::CheckFacts::default(),
     )
     .expect_err("same-named states under the exact owner must remain ambiguous");
 
@@ -735,8 +742,8 @@ fn successful_checking_finalizes_declared_operator_occurrences() {
         .find_map(|(expression, node)| {
             matches!(
                 node,
-                typed_trees::expression::ExpressionNode::Binary(binary)
-                    if binary.operator == typed_trees::expression::BinaryOperator::Add
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Add
             )
             .then_some(expression)
         })
@@ -771,8 +778,8 @@ fn constrained_primitive_operator_is_not_preclassified_as_intrinsic() {
         .find_map(|(expression, node)| {
             matches!(
                 node,
-                typed_trees::expression::ExpressionNode::Binary(binary)
-                    if binary.operator == typed_trees::expression::BinaryOperator::Add
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Add
             )
             .then_some(expression)
         })
@@ -799,8 +806,8 @@ fn unrelated_nominal_operator_does_not_capture_primitive_comparison() {
         .expression_table
         .iter_expressions()
         .find_map(|(handle, node)| {
-            matches!(node, typed_trees::expression::ExpressionNode::Binary(binary)
-            if binary.operator == typed_trees::expression::BinaryOperator::Less)
+            matches!(node, symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary)
+            if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Less)
             .then_some(handle)
         })
         .expect("primitive comparison");
@@ -848,8 +855,8 @@ fn endpoint_operator_candidates_retain_explicit_literal_carriers() {
             .expression_table
             .iter_expressions()
             .find_map(|(expression, node)| {
-                matches!(node, typed_trees::expression::ExpressionNode::Binary(binary)
-                    if binary.operator == typed_trees::expression::BinaryOperator::Modulo)
+                matches!(node, symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Modulo)
                 .then_some(expression)
             })
             .expect("authored endpoint modulo");
@@ -1000,8 +1007,8 @@ fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
         .find_map(|(expression, node)| {
             matches!(
                 node,
-                typed_trees::expression::ExpressionNode::Binary(binary)
-                    if binary.operator == typed_trees::expression::BinaryOperator::And
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And
             )
             .then_some(expression)
         })
@@ -1041,7 +1048,7 @@ fn successful_checking_finalizes_index_and_range_operator_occurrences() {
         .expression_table
         .iter_expressions()
         .find_map(|(expression, node)| {
-            matches!(node, typed_trees::expression::ExpressionNode::Indexed(_))
+            matches!(node, symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Indexed(_))
                 .then_some(expression)
         })
         .expect("checked program retains indexed expression");
@@ -1241,11 +1248,9 @@ fn successful_checking_binds_boundary_calls_through_parameter_fields() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::Call(call)
-                if call.target.as_str() == "open" =>
-            {
-                Some(call)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+                call,
+            ) if call.target.as_str() == "open" => Some(call),
             _ => None,
         })
         .expect("boundary call");
@@ -1333,7 +1338,8 @@ fn undeclared_contract_view_calls_finalize_as_proof_view_intrinsics() {
 /// with a package identity so the proof-only bridge's hermetic identity rule
 /// holds, and unmodified otherwise: every typed termination summary is
 /// `NoGuarantee`, as on the compiler route.
-fn managed_quotient_define_program() -> typed_trees::TypedTrees {
+fn managed_quotient_define_program() -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees
+{
     const CORE_RELATION: &str = include_str!("../../../../../../source/library/core/relation.omg");
     const SOURCE: &str = r#"
 use omega::language::core::relation;
@@ -1465,7 +1471,7 @@ fn a_sealed_quotient_request_call_resolves_as_a_proof_only_intrinsic() {
         .find_map(|(handle, expression)| {
             matches!(
                 expression,
-                typed_trees::expression::ExpressionNode::Call(call) if call.quotient_operation.is_some()
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) if call.quotient_operation.is_some()
             )
             .then_some(handle)
         })

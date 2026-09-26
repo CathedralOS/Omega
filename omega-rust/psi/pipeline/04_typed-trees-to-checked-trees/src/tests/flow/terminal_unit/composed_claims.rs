@@ -34,7 +34,7 @@ fn composes_one_whole_root_linear_claim_through_both_boundary_leaves() {
     assert!(entry_claim.path.is_empty());
     assert_eq!(entry_claim.parameter_index, 0);
     assert_eq!(entry.structural_parameters.len(), 1);
-    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
         when_true: true_edge,
         when_false: false_edge,
         ..
@@ -46,7 +46,7 @@ fn composes_one_whole_root_linear_claim_through_both_boundary_leaves() {
         assert!(matches!(
             edge.transfers.as_slice(),
             [transfer]
-                if matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 })
+                if matches!(transfer.source, crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 })
                     && transfer.target_parameter_index == 0
         ));
         assert!(edge.scalar_arguments.is_empty());

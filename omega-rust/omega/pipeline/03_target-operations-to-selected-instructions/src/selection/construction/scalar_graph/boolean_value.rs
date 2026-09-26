@@ -4,11 +4,11 @@ use super::{
     ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
+use crate::legalized_operations::LegalizedScalarComparison;
 use crate::selection::construction::scalar_graph::control;
-use legalized_operations::LegalizedScalarComparison;
 
 pub(super) fn emit(
-    operation: &legalized_operations::LegalizedScalarInstruction,
+    operation: &crate::legalized_operations::LegalizedScalarInstruction,
     state: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::custody();
@@ -106,7 +106,7 @@ pub(super) fn emit(
 pub(super) fn emit_branch_comparison(
     function: usize,
     source: &LegalizedScalarFunction,
-    block: &legalized_operations::LegalizedScalarBlock,
+    block: &crate::legalized_operations::LegalizedScalarBlock,
     operation_index: usize,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
@@ -126,7 +126,7 @@ pub(super) fn emit_branch_comparison(
     if !matches!(*operand_type, ScalarType::Integer(integer)
         if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && matches!(integer.bits(), 8 | 16 | 32 | 64))
         && !(*operand_type == ScalarType::Boolean
-            && *predicate == legalized_operations::LegalizedScalarComparison::Equal)
+            && *predicate == crate::legalized_operations::LegalizedScalarComparison::Equal)
     {
         return Err(invalid());
     }
@@ -205,7 +205,7 @@ pub(super) fn emit_branch_comparison(
     }
     let operands = if matches!(
         predicate,
-        legalized_operations::LegalizedScalarComparison::LessOrEqual
+        crate::legalized_operations::LegalizedScalarComparison::LessOrEqual
     ) {
         [right_register, left_register]
     } else {

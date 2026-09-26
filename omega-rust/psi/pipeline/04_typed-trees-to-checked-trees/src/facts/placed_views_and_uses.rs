@@ -1,10 +1,10 @@
 //! Checked placed view inputs and nominal machine use facts.
 
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 pub(crate) fn build_checked_placed_view_inputs(
     program: &TypedTrees,
-) -> Vec<checked_trees::CheckedPlacedViewInput> {
+) -> Vec<crate::checked_trees::CheckedPlacedViewInput> {
     let mut inputs = Vec::new();
     for machine in program.machines() {
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -16,7 +16,7 @@ pub(crate) fn build_checked_placed_view_inputs(
         }
         for state in program.machine_states(machine) {
             for (position, parameter) in program.state_parameters(state).iter().enumerate() {
-                let typed_trees::types::TypeReferenceNode::Reference {
+                let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference {
                     referee,
                     access,
                     lifetime: _,
@@ -29,7 +29,7 @@ pub(crate) fn build_checked_placed_view_inputs(
                 let Some(view) = program.placed_view_plan_for_type_reference(*referee) else {
                     continue;
                 };
-                inputs.push(checked_trees::CheckedPlacedViewInput {
+                inputs.push(crate::checked_trees::CheckedPlacedViewInput {
                     machine: machine.symbol,
                     state: state.symbol,
                     position: u32::try_from(position)
@@ -52,9 +52,9 @@ pub(crate) fn build_checked_placed_view_inputs(
 
 pub(crate) fn build_nominal_machine_use_facts(
     program: &TypedTrees,
-    nominal_machine_uses: Vec<validation::ValidatedNominalMachineUse>,
-    contract_plans: &checked_trees::MachineContractPlans,
-) -> Result<checked_trees::NominalMachineUseFacts, Vec<diagnostics::Diagnostic>> {
+    nominal_machine_uses: Vec<crate::validation::ValidatedNominalMachineUse>,
+    contract_plans: &crate::checked_trees::MachineContractPlans,
+) -> Result<crate::checked_trees::NominalMachineUseFacts, Vec<diagnostics::Diagnostic>> {
     let mut checked = Vec::with_capacity(nominal_machine_uses.len());
     for nominal_use in nominal_machine_uses {
         let Some(published) = contract_plans.crash_capsule(
@@ -101,7 +101,7 @@ pub(crate) fn build_nominal_machine_use_facts(
                     )]);
                 };
                 let resource_receipt =
-                    checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+                    crate::checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
                         resource_envelope,
                     )
                     .map_err(|error| {
@@ -109,7 +109,7 @@ pub(crate) fn build_nominal_machine_use_facts(
                             "admitted nominal callback resource receipt failed checked replay: {error}"
                         ))]
                 })?;
-                Some(checked_trees::CheckedCallbackPlacementIdentity {
+                Some(crate::checked_trees::CheckedCallbackPlacementIdentity {
                     boundary_calling_plan_report_fingerprint: boundary_calling_plan_identity
                         .report_fingerprint,
                     boundary_calling_plan_commitment: boundary_calling_plan_identity.commitment,
@@ -125,13 +125,13 @@ pub(crate) fn build_nominal_machine_use_facts(
                 "admitted nominal callback use is missing its evaluated boundary calling-plan identity",
             )]);
         }
-        checked.push(checked_trees::CheckedNominalMachineUse {
+        checked.push(crate::checked_trees::CheckedNominalMachineUse {
             site: match nominal_use.site {
-                validation::ValidatedNominalMachineUseSite::Statement(handle) => {
-                    checked_trees::NominalMachineUseSite::Statement(handle)
+                crate::validation::ValidatedNominalMachineUseSite::Statement(handle) => {
+                    crate::checked_trees::NominalMachineUseSite::Statement(handle)
                 }
-                validation::ValidatedNominalMachineUseSite::Expression(handle) => {
-                    checked_trees::NominalMachineUseSite::Expression(handle)
+                crate::validation::ValidatedNominalMachineUseSite::Expression(handle) => {
+                    crate::checked_trees::NominalMachineUseSite::Expression(handle)
                 }
             },
             registration_operation: nominal_use.registration_operation,
@@ -141,16 +141,18 @@ pub(crate) fn build_nominal_machine_use_facts(
             satisfaction_trait: nominal_use.satisfaction_trait,
             satisfaction_requirement: nominal_use.satisfaction_requirement,
             canonical_requirement_overload: nominal_use.canonical_requirement_overload,
-            published_requirement_envelope: checked_trees::CheckedMachineContractEnvelopeIdentity {
-                contract_report_fingerprint: published_fingerprint,
-                contract_commitment: published_commitment,
-            },
-            selected_actual_envelope: checked_trees::CheckedMachineContractEnvelopeIdentity {
-                contract_report_fingerprint: actual_fingerprint,
-                contract_commitment: actual.commitment,
-            },
+            published_requirement_envelope:
+                crate::checked_trees::CheckedMachineContractEnvelopeIdentity {
+                    contract_report_fingerprint: published_fingerprint,
+                    contract_commitment: published_commitment,
+                },
+            selected_actual_envelope:
+                crate::checked_trees::CheckedMachineContractEnvelopeIdentity {
+                    contract_report_fingerprint: actual_fingerprint,
+                    contract_commitment: actual.commitment,
+                },
             callback_placement,
-            refinement: checked_trees::CheckedMachineContractRefinement {
+            refinement: crate::checked_trees::CheckedMachineContractRefinement {
                 published_requirement_report_fingerprint: published_fingerprint,
                 published_requirement_commitment: published_commitment,
                 selected_actual_report_fingerprint: actual_fingerprint,
@@ -158,6 +160,6 @@ pub(crate) fn build_nominal_machine_use_facts(
             },
         });
     }
-    checked_trees::NominalMachineUseFacts::try_with_uses(checked)
+    crate::checked_trees::NominalMachineUseFacts::try_with_uses(checked)
         .map_err(|message| vec![diagnostics::Diagnostic::error(message)])
 }

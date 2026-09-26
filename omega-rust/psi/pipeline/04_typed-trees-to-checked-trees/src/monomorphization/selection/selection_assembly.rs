@@ -14,8 +14,8 @@ use crate::monomorphization::{
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn selection_for_call(
     program: &TypedTrees,
-    caller_machine: &typed_trees::machine::Machine,
-    caller_state: &typed_trees::state::State,
+    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     candidates: &[Candidate],
     callee_states: &[CalleeState],
     site: CallSite,

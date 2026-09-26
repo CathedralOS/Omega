@@ -1,14 +1,14 @@
 //! The writer's strict-decrease obligation, exercised as an actual byte read.
 
-use super::lower_machine;
 use crate::TerminalMachineSelection;
 use crate::emission::scalar_types::terminal_scalar_type;
+use crate::lower_machine;
+use crate::lowered_psi::LoweredPsi;
 use crate::terminal_identities::{obligation_id, operation_id, value_id};
-use checked_trees::types::PrimitiveType;
-use lowered_psi::LoweredPsi;
 use semantic_vocabulary::IntegerValue;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
 mod rejections;
 
 const SOURCE: &str = r#"

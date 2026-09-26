@@ -1,4 +1,4 @@
-use symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::super::top_level::next_child_of_kind;
@@ -23,7 +23,7 @@ pub(super) fn assign_proposition_symbols(
             .flatten();
         for binder in binders.span_mut_or_empty(proposition.binders) {
             let kind = match binder.kind {
-                symbol_resolved_trees::proposition::PropositionBinderKind::Machine => {
+                crate::symbol_resolved_trees::proposition::PropositionBinderKind::Machine => {
                     SymbolKind::PropositionMachineParameter
                 }
                 _ => SymbolKind::TypeParameter,

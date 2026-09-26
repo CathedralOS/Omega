@@ -1,15 +1,15 @@
 use crate::borrow::accesses::collect_call_argument_accesses;
-use checked_trees::expression::ExpressionHandle;
-use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
+use crate::checked_trees::expression::ExpressionHandle;
+use crate::checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 use symbols::SymbolHandle;
 
 pub(super) struct BorrowCallCollection<'a> {
-    pub(super) program: &'a typed_trees::TypedTrees,
-    pub(super) machine: &'a typed_trees::machine::Machine,
-    pub(super) state: &'a typed_trees::state::State,
+    pub(super) program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    pub(super) machine: &'a symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    pub(super) state: &'a symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     pub(super) statement_index: usize,
     pub(super) call_ordinal: &'a mut usize,
-    access_segments: &'a mut arena::Arena<facts::PlaceSegment>,
+    access_segments: &'a mut arena::Arena<crate::fact_plan::PlaceSegment>,
     argument_accesses: &'a mut arena::Arena<BorrowArgumentAccessFact>,
     calls: &'a mut arena::Arena<BorrowCallFact>,
     state_calls: &'a mut arena::HandleSpan<BorrowCallFact>,
@@ -17,12 +17,12 @@ pub(super) struct BorrowCallCollection<'a> {
 
 impl<'a> BorrowCallCollection<'a> {
     pub(super) fn new(
-        program: &'a typed_trees::TypedTrees,
-        machine: &'a typed_trees::machine::Machine,
-        state: &'a typed_trees::state::State,
+        program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &'a symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &'a symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statement_index: usize,
         call_ordinal: &'a mut usize,
-        access_segments: &'a mut arena::Arena<facts::PlaceSegment>,
+        access_segments: &'a mut arena::Arena<crate::fact_plan::PlaceSegment>,
         argument_accesses: &'a mut arena::Arena<BorrowArgumentAccessFact>,
         calls: &'a mut arena::Arena<BorrowCallFact>,
         state_calls: &'a mut arena::HandleSpan<BorrowCallFact>,

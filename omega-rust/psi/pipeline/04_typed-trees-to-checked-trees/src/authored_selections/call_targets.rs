@@ -2,14 +2,14 @@
 
 use crate::authored_selections::CheckedResolutionTarget;
 use crate::authored_selections::{contexts, contract_resolution};
-use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
+use crate::checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
 
 pub(crate) fn checked_operator_conformance_targets(
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Vec<SymbolHandle> {
     let mut targets = Vec::new();
     for (_, operator_use) in facts.operators.uses.iter() {
@@ -31,7 +31,7 @@ pub(crate) fn checked_operator_conformance_targets(
 pub(crate) fn checked_call_conformance_targets(
     program: &TypedTrees,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     authored_target: SymbolHandle,
     authored_source_span: source::SourceSpan,
 ) -> Vec<SymbolHandle> {
@@ -109,7 +109,7 @@ pub(crate) fn checked_statement_call_target(
 pub(crate) fn checked_call_target(
     program: &TypedTrees,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     authored_target: SymbolHandle,
     authored_source_span: source::SourceSpan,
 ) -> SymbolHandle {
@@ -211,9 +211,13 @@ pub(crate) fn checked_call_target(
 
 pub(crate) fn exact_named_operator_call<'program>(
     program: &'program TypedTrees,
-    call: &typed_trees::expression::TableCallExpression,
-) -> Option<&'program typed_trees::operator::OperatorDefinition> {
-    typed_trees::operator::resolve_named_expression_call(program, call).or_else(|| {
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition>
+{
+    symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(
+        program, call,
+    )
+    .or_else(|| {
         let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
             return None;
         };
@@ -224,7 +228,7 @@ pub(crate) fn exact_named_operator_call<'program>(
             .map(|segment| segment.as_str())
             .collect::<Vec<_>>();
         (!static_segments.is_empty()).then_some(())?;
-        typed_trees::operator::resolve_named_call(
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_call(
             program,
             call.target_symbol,
             Some(&static_segments),
@@ -240,8 +244,8 @@ pub(crate) fn exact_named_operator_call<'program>(
 
 pub(crate) fn checked_name_path_segment_target(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    path: &typed_trees::expression::TableNamePath,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
     target_index: usize,
 ) -> SymbolHandle {
     let direct = crate::lookup::resolve_name_path_member_symbol(program, path, target_index);
@@ -271,7 +275,7 @@ pub(crate) fn checked_name_path_segment_target(
                     direct
                 } else {
                     let Some(crate::flow::CanonicalPlace {
-                        root: facts::PlaceRoot::Symbol(root),
+                        root: crate::fact_plan::PlaceRoot::Symbol(root),
                         ..
                     }) = crate::flow::canonical_place_from_expression_in_state(
                         program,
@@ -324,8 +328,8 @@ pub(crate) fn checked_name_path_segment_target(
 
 fn authored_contextual_root(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     selected: SymbolHandle,
 ) -> SymbolHandle {
@@ -370,7 +374,10 @@ fn authored_contextual_root(
         .statement_table
         .statements(template_state.statement_nodes);
     for (ordinal, statement) in statements.iter().take(statement_index).enumerate() {
-        let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            local,
+        ) = statement
+        else {
             continue;
         };
         if local.symbol != selected {
@@ -379,7 +386,7 @@ fn authored_contextual_root(
         return template_statements
             .get(ordinal)
             .and_then(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
                 _ => None,
             })
             .unwrap_or(selected);

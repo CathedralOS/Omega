@@ -12,10 +12,10 @@ pub(crate) mod validate;
 
 use crate::LivenessError;
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{
+use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::{
     LiveRangeIdentity, LiveRangePlan, LivenessIdentity, SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
 pub use validate::validate_live_ranges;
 
 #[cfg(test)]

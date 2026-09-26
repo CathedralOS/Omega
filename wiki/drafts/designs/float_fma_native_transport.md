@@ -46,7 +46,7 @@ downstream consumers replay it.
 The bounded Unit lane makes each FMA a real stream member, so leg (b)'s
 first edit is a `SelectedInstructionKind` variant (format + settlement
 custody, three XMM-class operand uses, one XMM result def) in
-`omega-rust/omega/representations/selected-instructions`, plus the
+`omega-rust/omega/pipeline/03_target-operations-to-selected-instructions`, plus the
 `InstructionMachineEffects`/alternative rows it joins against. Downstream
 surfaces: `legalized-operations` (a legalized FMA kind so `nodes.rs` admits
 the abstract node instead of falling to `_ => NodeRejection::
@@ -63,7 +63,7 @@ record fields that `image-emission` already validates.
 
 The w9-era fences on this row have all expired; current live claims:
 
-- `omega-rust/omega/representations/selected-instructions` (whole crate) +
+- `omega-rust/omega/pipeline/03_target-operations-to-selected-instructions` (whole crate) +
   `s2s/src/lib.rs` + `s2s/src/rewrites/{fixed_view,allocation_recovery,
   selected_lowering/literal_fold,literal_folds}` +
   `s2rh/src/{assignment/post_allocation_manifest,rewrites/

@@ -380,7 +380,8 @@ fn forwarding_named_requires_to_ensures_preserves_exact_term_identity() {
         panic!("one checked forwarding expected");
     };
     assert_eq!(forwarding.statement_index, 0);
-    let checked_trees::EvidenceAssignmentSource::Forwarded { term: source } = &forwarding.source
+    let crate::checked_trees::EvidenceAssignmentSource::Forwarded { term: source } =
+        &forwarding.source
     else {
         panic!("an incoming evidence assignment must retain forwarding identity")
     };

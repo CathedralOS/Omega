@@ -8,12 +8,12 @@ use super::{
     lower_normalized_foreign_scalar_arguments_with_result, lower_normalized_foreign_scalar_result,
     lower_normalized_foreign_structural_arguments,
 };
+use crate::calling_conventions::MachineRegister;
 use crate::lowering::control_flow::scalar_sources::ScalarSources;
-use calling_conventions::MachineRegister;
+use crate::target_operations::TargetUnitScalarArgumentSource;
 use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::{BlockId, IeeeFloatFormat, IeeeFloatValue};
-use target_operations::TargetUnitScalarArgumentSource;
 
 #[derive(Default)]
 struct Sources {
@@ -21,7 +21,7 @@ struct Sources {
     scalar_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
     ieee_float_constants: BTreeMap<ValueId, (OperationId, IeeeFloatValue)>,
-    scalar_block_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
+    scalar_block_parameters: BTreeMap<ValueId, crate::target_operations::TargetScalarBlockValue>,
 }
 
 impl Sources {
@@ -37,15 +37,16 @@ impl Sources {
 }
 
 fn function(
-    parameters: Vec<abstract_operations::AbstractParameter>,
-) -> abstract_operations::AbstractFunction {
-    abstract_operations::AbstractFunction {
+    parameters: Vec<terminal_psi_to_abstract_operations::abstract_operations::AbstractParameter>,
+) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractFunction {
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
         entry: BlockId::new(1).unwrap(),
         parameters,
         structural_parameters: Vec::new(),
-        result: abstract_operations::AbstractFunctionResult::Unit,
+        result:
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractFunctionResult::Unit,
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         block_entries: Vec::new(),
@@ -78,8 +79,8 @@ fn declaration(
 fn entry_plan(
     target: NativeTarget,
     scalar_types: &[IntegerType],
-) -> calling_conventions::BoundaryEntryPlan {
-    calling_conventions::evaluate_ordinary_boundary_entry_plan(
+) -> crate::calling_conventions::BoundaryEntryPlan {
+    crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
             parameters: scalar_types
@@ -100,12 +101,12 @@ fn entry_plan(
 fn interleaved_callback(
     boundary: BoundaryMachineId,
 ) -> (
-    calling_conventions::BoundaryEntryPlan,
-    target_operations::TargetNativeCallbackArgument,
+    crate::calling_conventions::BoundaryEntryPlan,
+    crate::target_operations::TargetNativeCallbackArgument,
 ) {
     let target = NativeTarget::linux_x64();
     let shape = ValueShape::integer(8, 8);
-    let mut plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let mut plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
             parameters: vec![shape, shape, shape],
@@ -115,25 +116,26 @@ fn interleaved_callback(
     .expect("three-slot registrar plan")
     .plan()
     .clone();
-    let binder = calling_conventions::StaticMachineBinderId::new(71).unwrap();
-    let parameter = calling_conventions::NativeParameterId::new(72).unwrap();
-    let requirement = calling_conventions::CallbackRequirementId::new(73).unwrap();
-    let destination = calling_conventions::NativePlace::Parameter(parameter);
-    plan.call.callback_materializations = vec![calling_conventions::CallbackMaterialization {
-        binder,
-        destination: destination.clone(),
-    }];
-    let context = calling_conventions::CallbackMaterializationContext {
-        binders: vec![calling_conventions::CallbackBinderRequirement {
+    let binder = crate::calling_conventions::StaticMachineBinderId::new(71).unwrap();
+    let parameter = crate::calling_conventions::NativeParameterId::new(72).unwrap();
+    let requirement = crate::calling_conventions::CallbackRequirementId::new(73).unwrap();
+    let destination = crate::calling_conventions::NativePlace::Parameter(parameter);
+    plan.call.callback_materializations =
+        vec![crate::calling_conventions::CallbackMaterialization {
+            binder,
+            destination: destination.clone(),
+        }];
+    let context = crate::calling_conventions::CallbackMaterializationContext {
+        binders: vec![crate::calling_conventions::CallbackBinderRequirement {
             binder,
             requirement,
         }],
-        demands: vec![calling_conventions::NativeCallbackDemand {
+        demands: vec![crate::calling_conventions::NativeCallbackDemand {
             destination,
             requirement,
         }],
     };
-    let application = calling_conventions::NativeParameterApplication {
+    let application = crate::calling_conventions::NativeParameterApplication {
         parameter,
         native_ordinal: 1,
         shape,
@@ -141,10 +143,10 @@ fn interleaved_callback(
     };
     (
         plan.clone(),
-        target_operations::TargetNativeCallbackArgument {
+        crate::target_operations::TargetNativeCallbackArgument {
             terminal_operation: OperationId::new(boundary.get()).unwrap(),
             placement_index: 0,
-            callback_function: function_identity::MachineFunctionIdentity::default(),
+            callback_function: crate::function_identity::MachineFunctionIdentity::default(),
             application,
             registrar_boundary_entry_plan: plan,
             registrar_context: context,
@@ -337,7 +339,7 @@ fn normalized_foreign_parameters_and_block_parameters_retain_order_identity_and_
                     }
                 } else {
                     TargetUnitScalarArgumentSource::BlockParameter(
-                        target_operations::TargetScalarBlockValue {
+                        crate::target_operations::TargetScalarBlockValue {
                             block,
                             value: source_value,
                             scalar_type,
@@ -691,7 +693,7 @@ fn zero_argument_leaf_stays_valid_and_scalar_mutations_fail_closed() {
     let source = ValueId::new(52).expect("source");
     let constant = OperationId::new(53).expect("constant");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
-    let zero_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let zero_plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(NativeTarget::linux_x64()),
         &CallSignature::default(),
     )
@@ -895,7 +897,7 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
             let mut declaration = declaration(boundary, Vec::new());
             declaration.result =
                 terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(integer));
-            let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            let plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
                     parameters: Vec::new(),
@@ -905,7 +907,7 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
             .unwrap()
             .plan()
             .clone();
-            let result = abstract_operations::AbstractResult {
+            let result = terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                 value,
                 scalar_type: ScalarType::Integer(integer),
             };
@@ -975,7 +977,7 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
         let mut declaration = declaration(boundary, Vec::new());
         declaration.result =
             terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(invalid));
-        let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        let plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(NativeTarget::linux_x64()),
             &CallSignature {
                 parameters: Vec::new(),
@@ -990,10 +992,12 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
                 boundary,
                 &declaration,
                 operation,
-                Some(abstract_operations::AbstractResult {
-                    value,
-                    scalar_type: ScalarType::Integer(invalid),
-                }),
+                Some(
+                    terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                        value,
+                        scalar_type: ScalarType::Integer(invalid),
+                    }
+                ),
                 &plan,
             )
             .is_err()
@@ -1008,7 +1012,7 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
 fn flat_record_catalog() -> (
     StructuralTypeId,
     StructuralTypeId,
-    abstract_operations::StructuralTypeCatalog,
+    terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog,
 ) {
     let point = StructuralTypeId::new(201).unwrap();
     let main = StructuralTypeId::new(202).unwrap();
@@ -1025,29 +1029,32 @@ fn flat_record_catalog() -> (
         next_field += 1;
         declaration
     };
-    let catalog = abstract_operations::StructuralTypeCatalog::from(vec![
-        terminal_psi::StructuralTypeDeclaration {
-            id: point,
-            identity: "Point".into(),
-            shape: terminal_psi::StructuralTypeShape::Record {
-                fields: vec![
-                    field("x", terminal_psi::StructuralFieldType::Scalar(i32_scalar)),
-                    field("y", terminal_psi::StructuralFieldType::Scalar(i32_scalar)),
-                ],
-            },
-        },
-        terminal_psi::StructuralTypeDeclaration {
-            id: main,
-            identity: "Main".into(),
-            shape: terminal_psi::StructuralTypeShape::Record {
-                fields: vec![
-                    field("m", terminal_psi::StructuralFieldType::Scalar(i64_scalar)),
-                    field("p", terminal_psi::StructuralFieldType::Structural(point)),
-                    field("q", terminal_psi::StructuralFieldType::Structural(point)),
-                ],
-            },
-        },
-    ]);
+    let catalog =
+        terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog::from(
+            vec![
+                terminal_psi::StructuralTypeDeclaration {
+                    id: point,
+                    identity: "Point".into(),
+                    shape: terminal_psi::StructuralTypeShape::Record {
+                        fields: vec![
+                            field("x", terminal_psi::StructuralFieldType::Scalar(i32_scalar)),
+                            field("y", terminal_psi::StructuralFieldType::Scalar(i32_scalar)),
+                        ],
+                    },
+                },
+                terminal_psi::StructuralTypeDeclaration {
+                    id: main,
+                    identity: "Main".into(),
+                    shape: terminal_psi::StructuralTypeShape::Record {
+                        fields: vec![
+                            field("m", terminal_psi::StructuralFieldType::Scalar(i64_scalar)),
+                            field("p", terminal_psi::StructuralFieldType::Structural(point)),
+                            field("q", terminal_psi::StructuralFieldType::Structural(point)),
+                        ],
+                    },
+                },
+            ],
+        );
     (point, main, catalog)
 }
 
@@ -1087,8 +1094,11 @@ fn structural_formal(
     }
 }
 
-fn pointer_plan(target: NativeTarget, count: usize) -> calling_conventions::BoundaryEntryPlan {
-    calling_conventions::evaluate_ordinary_boundary_entry_plan(
+fn pointer_plan(
+    target: NativeTarget,
+    count: usize,
+) -> crate::calling_conventions::BoundaryEntryPlan {
+    crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
             parameters: vec![ValueShape::integer(8, 8); count],
@@ -1167,7 +1177,7 @@ fn borrowed_flat_record_arguments_preserve_source_custody_and_plan_positions() {
             assert_eq!(argument.element_stride, None);
             assert_eq!(
                 argument.source,
-                target_operations::TargetStructuralArgumentSource::Placement(
+                crate::target_operations::TargetStructuralArgumentSource::Placement(
                     receiver.placement.clone()
                 )
             );
@@ -1202,15 +1212,16 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
         next_field += 1;
         declaration
     };
-    let catalog = abstract_operations::StructuralTypeCatalog::from(vec![
-        terminal_psi::StructuralTypeDeclaration {
-            id: quad,
-            identity: "Quad".into(),
-            shape: terminal_psi::StructuralTypeShape::Record {
-                fields: vec![field("a"), field("b"), field("c"), field("d")],
-            },
-        },
-    ]);
+    let catalog =
+        terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog::from(
+            vec![terminal_psi::StructuralTypeDeclaration {
+                id: quad,
+                identity: "Quad".into(),
+                shape: terminal_psi::StructuralTypeShape::Record {
+                    fields: vec![field("a"), field("b"), field("c"), field("d")],
+                },
+            }],
+        );
     let structural_types = StructuralTypeLookup::new(&catalog);
     let source = TargetStructuralParameter {
         place: caller_place,
@@ -1245,7 +1256,7 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let abi_shape = ValueShape::homogeneous_float_aggregate(4, 4);
-        let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        let plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature {
                 parameters: vec![abi_shape],
@@ -1284,7 +1295,9 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
         assert_eq!(argument.element_stride, None);
         assert_eq!(
             argument.source,
-            target_operations::TargetStructuralArgumentSource::Placement(source.placement.clone())
+            crate::target_operations::TargetStructuralArgumentSource::Placement(
+                source.placement.clone()
+            )
         );
         assert_eq!(argument.destination, plan.call.parameters[0]);
     }
@@ -1293,7 +1306,7 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
     // plan each fail closed for an owned formal.
     let mut projected = arguments[0].clone();
     projected.path = vec![terminal_psi::StructuralPathSegment::Field("a".into())];
-    let point_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let point_plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(NativeTarget::linux_x64()),
         &CallSignature {
             parameters: vec![ValueShape::integer(8, 4)],
@@ -1303,7 +1316,7 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
     .expect("size-mismatched entry plan")
     .plan()
     .clone();
-    let borrowed_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let borrowed_plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(NativeTarget::linux_x64()),
         &CallSignature {
             parameters: vec![ValueShape::borrowed_reference(16, 4)],
@@ -1314,7 +1327,7 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
     .plan()
     .clone();
     let x64 = NativeTarget::linux_x64();
-    let aggregate_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let aggregate_plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(x64),
         &CallSignature {
             parameters: vec![ValueShape::homogeneous_float_aggregate(4, 4)],
@@ -1386,21 +1399,21 @@ fn owned_aggregate_argument_from_call_result_admits_affine_home() {
             byte_size: 8,
         }],
     };
-    let operations = vec![target_operations::TargetUnitOperation::Call {
-        origin: target_operations::NativeCallOrigin::Authored,
+    let operations = vec![crate::target_operations::TargetUnitOperation::Call {
+        origin: crate::target_operations::NativeCallOrigin::Authored,
         psi_operation: producer,
         callee: MachineId::new(285).unwrap(),
-        call_plan: calling_conventions::CallPlan {
+        call_plan: crate::calling_conventions::CallPlan {
             policy: CallingPolicy::native_for_target(NativeTarget::linux_x64()),
             parameters: Vec::new(),
             result: Some(result_placement),
             callback_materializations: Vec::new(),
-            ordinary_clobbers: calling_conventions::RegisterSet::default(),
+            ordinary_clobbers: crate::calling_conventions::RegisterSet::default(),
             stack_alignment: 16,
             shadow_bytes: 0,
-            entry_control: calling_conventions::EntryControl::CallReturn,
+            entry_control: crate::calling_conventions::EntryControl::CallReturn,
         },
-        result: target_operations::TargetCallResult::Structural {
+        result: crate::target_operations::TargetCallResult::Structural {
             result: record_result.clone(),
             callee_result: terminal_psi::StructuralResultDeclaration {
                 place: result_place,
@@ -1410,12 +1423,14 @@ fn owned_aggregate_argument_from_call_result_admits_affine_home() {
                 projected_qualifications: Vec::new(),
                 reference_sources: Vec::new(),
             },
-            result_home: Some(target_operations::TargetStructuralHomeRequirement {
-                origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+            result_home: Some(crate::target_operations::TargetStructuralHomeRequirement {
+                origin: crate::target_operations::TargetStructuralHomeOrigin::OperationResult {
                     operation: producer,
                     result: record_result,
                 },
-                layout: target_operations::TargetStructuralHomeLayout::Aggregate(result_shape),
+                layout: crate::target_operations::TargetStructuralHomeLayout::Aggregate(
+                    result_shape,
+                ),
             }),
             reference_results: Vec::new(),
             returned_claim_transfers: Vec::new(),
@@ -1428,7 +1443,7 @@ fn owned_aggregate_argument_from_call_result_admits_affine_home() {
     }];
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        let plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature {
                 parameters: vec![result_shape],
@@ -1465,7 +1480,7 @@ fn owned_aggregate_argument_from_call_result_admits_affine_home() {
         assert_eq!(argument.source_byte_offset, 0);
         assert_eq!(
             argument.source,
-            target_operations::TargetStructuralArgumentSource::StructuralHome {
+            crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
                 psi_operation: producer,
             }
         );
@@ -1478,7 +1493,7 @@ fn owned_aggregate_argument_from_call_result_admits_affine_home() {
     let mut unrestricted = declaration.clone();
     unrestricted.structural_parameters[0].multiplicity =
         terminal_psi::StructuralMultiplicity::Unrestricted;
-    let unrestricted_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let unrestricted_plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(NativeTarget::linux_x64()),
         &CallSignature {
             parameters: vec![result_shape],
@@ -1527,37 +1542,40 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
         next_field += 1;
         declaration
     };
-    let catalog = abstract_operations::StructuralTypeCatalog::from(vec![
-        terminal_psi::StructuralTypeDeclaration {
-            id: bytes,
-            identity: "bytes".into(),
-            shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+    let catalog =
+        terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog::from(
+            vec![
+                terminal_psi::StructuralTypeDeclaration {
+                    id: bytes,
+                    identity: "bytes".into(),
+                    shape: terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        },
+                    ),
                 },
-            ),
-        },
-        terminal_psi::StructuralTypeDeclaration {
-            id: holder,
-            identity: "Holder".into(),
-            shape: terminal_psi::StructuralTypeShape::Record {
-                fields: vec![
-                    field(
-                        "slice",
-                        terminal_psi::StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                            },
-                        ),
-                    ),
-                    field(
-                        "tail",
-                        terminal_psi::StructuralFieldType::Scalar(i64_scalar),
-                    ),
-                ],
-            },
-        },
-    ]);
+                terminal_psi::StructuralTypeDeclaration {
+                    id: holder,
+                    identity: "Holder".into(),
+                    shape: terminal_psi::StructuralTypeShape::Record {
+                        fields: vec![
+                            field(
+                                "slice",
+                                terminal_psi::StructuralFieldType::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                                    },
+                                ),
+                            ),
+                            field(
+                                "tail",
+                                terminal_psi::StructuralFieldType::Scalar(i64_scalar),
+                            ),
+                        ],
+                    },
+                },
+            ],
+        );
     let structural_types = StructuralTypeLookup::new(&catalog);
     let descriptor_source = TargetStructuralParameter {
         place: descriptor_place,
@@ -1606,7 +1624,7 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
     )];
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        let plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature {
                 parameters: vec![ValueShape::integer(16, 8)],
@@ -1685,7 +1703,7 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
     // formal must join an indirect destination, and a path landing on an
     // ordinary leaf cannot pass a descriptor formal.
     let x64 = NativeTarget::linux_x64();
-    let thin_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let thin_plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(x64),
         &CallSignature {
             parameters: vec![ValueShape::integer(8, 8)],
@@ -1695,7 +1713,7 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
     .expect("thin-pointer entry plan")
     .plan()
     .clone();
-    let descriptor_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let descriptor_plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(x64),
         &CallSignature {
             parameters: vec![ValueShape::integer(16, 8)],
@@ -1781,9 +1799,9 @@ fn normalized_foreign_structural_mutations_fail_closed() {
     let lower =
         |declaration: &terminal_psi::BoundaryMachineDeclaration,
          arguments: &[terminal_psi::StructuralArgument],
-         plan: &calling_conventions::BoundaryEntryPlan,
+         plan: &crate::calling_conventions::BoundaryEntryPlan,
          parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-         callback: Option<&target_operations::TargetNativeCallbackArgument>| {
+         callback: Option<&crate::target_operations::TargetNativeCallbackArgument>| {
             lower_normalized_foreign_structural_arguments(
                 boundary,
                 machine,
@@ -2026,7 +2044,7 @@ fn normalized_foreign_scalars_admit_boolean_and_ieee_float_shapes() {
     ] {
         let mut declaration = declaration(boundary, vec![f64_type, bool_type, f32_type]);
         declaration.result = terminal_psi::BoundaryMachineResult::Scalar(f64_type);
-        let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        let plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature {
                 parameters: vec![
@@ -2051,10 +2069,12 @@ fn normalized_foreign_scalars_admit_boolean_and_ieee_float_shapes() {
             scalar_type: f32_type,
             shape: ValueShape::float(4),
         };
-        let function = function(vec![abstract_operations::AbstractParameter {
-            value: parameter,
-            scalar_type: f64_type,
-        }]);
+        let function = function(vec![
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractParameter {
+                value: parameter,
+                scalar_type: f64_type,
+            },
+        ]);
         let sources = Sources {
             booleans: BTreeMap::from([(flag, (producing, true))]),
             scalar_homes: BTreeMap::from([(homed, home)]),
@@ -2101,10 +2121,12 @@ fn normalized_foreign_scalars_admit_boolean_and_ieee_float_shapes() {
             boundary,
             &declaration,
             producing,
-            Some(abstract_operations::AbstractResult {
-                value: result,
-                scalar_type: f64_type,
-            }),
+            Some(
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                    value: result,
+                    scalar_type: f64_type,
+                },
+            ),
             &plan,
         )
         .expect("floating result home")
@@ -2157,26 +2179,27 @@ fn lower_direct_port_read_call(
     boundary: BoundaryMachineId,
     operation: &super::AbstractOperation,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
-    realization: target_operations::BoundaryRealization,
+    realization: crate::target_operations::BoundaryRealization,
     places: &BTreeMap<PlaceId, TargetStructuralParameter>,
 ) -> Result<
     (
-        Vec<target_operations::TargetUnitOperation>,
+        Vec<crate::target_operations::TargetUnitOperation>,
         BTreeMap<ValueId, KnownUnitInteger>,
     ),
     LoweringError,
 > {
     let function = function(Vec::new());
-    let catalog: abstract_operations::StructuralTypeCatalog = Vec::new().into();
+    let catalog: terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog =
+        Vec::new().into();
     let lookup = StructuralTypeLookup::new(&catalog);
     let boundary_machines = BTreeMap::from([(boundary, declaration)]);
     let settlements = BTreeMap::from([(
         boundary,
-        target_operations::BoundarySettlementBinding {
+        crate::target_operations::BoundarySettlementBinding {
             boundary,
-            execution: target_operations::BoundaryExecutionBinding::AdmittedProvider(
-                target_operations::ProviderExecutionBinding::from_execution_record(
-                    target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+            execution: crate::target_operations::BoundaryExecutionBinding::AdmittedProvider(
+                crate::target_operations::ProviderExecutionBinding::from_execution_record(
+                    crate::target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
                     11,
                     13,
                     17,
@@ -2184,7 +2207,9 @@ fn lower_direct_port_read_call(
                 )
                 .expect("nonzero provider identities"),
             ),
-            realization: target_operations::BoundarySettlementRealization::Builtin(realization),
+            realization: crate::target_operations::BoundarySettlementRealization::Builtin(
+                realization,
+            ),
         },
     )]);
     let parameters_by_place = places
@@ -2198,7 +2223,7 @@ fn lower_direct_port_read_call(
     let mut scalar_homes = BTreeMap::new();
     let sources = Sources::default();
     let mut operations = Vec::new();
-    let mut provenance = target_operations::TerminalPsiProvenance::default();
+    let mut provenance = crate::target_operations::TerminalPsiProvenance::default();
     let mut nonreturning = false;
     super::lower_boundary_call(
         operation,
@@ -2234,12 +2259,13 @@ fn direct_port_read_u8_settlement_carries_exact_scalar_home() {
     declaration.result = terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(u8_type));
     let operation = super::AbstractOperation::BoundaryCall {
         psi_operation,
-        result: abstract_operations::AbstractBoundaryResult::Scalar(
-            abstract_operations::AbstractResult {
-                value: result,
-                scalar_type: ScalarType::Integer(u8_type),
-            },
-        ),
+        result:
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                    value: result,
+                    scalar_type: ScalarType::Integer(u8_type),
+                },
+            ),
         boundary,
         arguments: Vec::new(),
         structural_arguments: Vec::new(),
@@ -2251,8 +2277,8 @@ fn direct_port_read_u8_settlement_carries_exact_scalar_home() {
         boundary,
         &operation,
         &declaration,
-        target_operations::BoundaryRealization::DirectPortReadU8(
-            target_operations::DirectPortReadU8Realization {
+        crate::target_operations::BoundaryRealization::DirectPortReadU8(
+            crate::target_operations::DirectPortReadU8Realization {
                 service: semantic_vocabulary::ServiceId::new(41).unwrap(),
                 port: 0x3f8,
             },
@@ -2267,7 +2293,7 @@ fn direct_port_read_u8_settlement_carries_exact_scalar_home() {
         shape: ValueShape::integer(1, 1),
     };
     assert_eq!(operations.len(), 1);
-    let target_operations::TargetUnitOperation::BoundarySettlement {
+    let crate::target_operations::TargetUnitOperation::BoundarySettlement {
         result: lowered_result,
         realization: lowered_realization,
         arguments,
@@ -2282,12 +2308,12 @@ fn direct_port_read_u8_settlement_carries_exact_scalar_home() {
     };
     assert_eq!(
         *lowered_result,
-        target_operations::TargetBoundaryResult::Scalar(expected_home)
+        crate::target_operations::TargetBoundaryResult::Scalar(expected_home)
     );
     assert_eq!(
         *lowered_realization,
-        target_operations::BoundaryRealization::DirectPortReadU8(
-            target_operations::DirectPortReadU8Realization {
+        crate::target_operations::BoundaryRealization::DirectPortReadU8(
+            crate::target_operations::DirectPortReadU8Realization {
                 service: semantic_vocabulary::ServiceId::new(41).unwrap(),
                 port: 0x3f8,
             }
@@ -2313,8 +2339,8 @@ fn direct_port_read_u8_settlement_rejects_mutations() {
     let mut declaration = declaration(boundary, Vec::new());
     declaration.result = terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(u8_type));
     let realization = || {
-        target_operations::BoundaryRealization::DirectPortReadU8(
-            target_operations::DirectPortReadU8Realization {
+        crate::target_operations::BoundaryRealization::DirectPortReadU8(
+            crate::target_operations::DirectPortReadU8Realization {
                 service: semantic_vocabulary::ServiceId::new(55).unwrap(),
                 port: 0x60,
             },
@@ -2322,12 +2348,13 @@ fn direct_port_read_u8_settlement_rejects_mutations() {
     };
     let call = |result_type: ScalarType| super::AbstractOperation::BoundaryCall {
         psi_operation,
-        result: abstract_operations::AbstractBoundaryResult::Scalar(
-            abstract_operations::AbstractResult {
-                value: result,
-                scalar_type: result_type,
-            },
-        ),
+        result:
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(
+                terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                    value: result,
+                    scalar_type: result_type,
+                },
+            ),
         boundary,
         arguments: Vec::new(),
         structural_arguments: Vec::new(),
@@ -2423,8 +2450,8 @@ fn direct_port_read_u8_settlement_rejects_mutations() {
             boundary,
             &call(ScalarType::Integer(u8_type)),
             &declaration,
-            target_operations::BoundaryRealization::HostedWriteByteI32(
-                target_operations::HostedWriteByteI32Realization
+            crate::target_operations::BoundaryRealization::HostedWriteByteI32(
+                crate::target_operations::HostedWriteByteI32Realization
             ),
             &BTreeMap::new(),
         )
@@ -2442,7 +2469,8 @@ fn direct_port_read_u8_rejects_unit_result() {
     ));
     let operation = super::AbstractOperation::BoundaryCall {
         psi_operation,
-        result: abstract_operations::AbstractBoundaryResult::Unit,
+        result:
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
         boundary,
         arguments: Vec::new(),
         structural_arguments: Vec::new(),
@@ -2455,8 +2483,8 @@ fn direct_port_read_u8_rejects_unit_result() {
             boundary,
             &operation,
             &declaration,
-            target_operations::BoundaryRealization::DirectPortReadU8(
-                target_operations::DirectPortReadU8Realization {
+            crate::target_operations::BoundaryRealization::DirectPortReadU8(
+                crate::target_operations::DirectPortReadU8Realization {
                     service: semantic_vocabulary::ServiceId::new(63).unwrap(),
                     port: 0x3f8,
                 },

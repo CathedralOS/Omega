@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::{RegisterUnitId, ValidatedPhysicalRegisterModel};
 use semantic_vocabulary::MachineId;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterUnitId, ValidatedPhysicalRegisterModel,
+};
 
 use super::super::{
     AllocatedCalleeSavedUnitRequirement, CalleeSavedModificationWitness,

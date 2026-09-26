@@ -22,7 +22,7 @@ fn types_nested_index_hoists_from_explicit_local_collections() {
         .statements(state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            crate::typed_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str().starts_with("__hoist_") =>
             {
                 Some(local)
@@ -36,7 +36,7 @@ fn types_nested_index_hoists_from_explicit_local_collections() {
         1,
         "the indexed RHS should have one value hoist"
     );
-    let typed_trees::types::TypeReferenceNode::Constrained {
+    let crate::typed_trees::types::TypeReferenceNode::Constrained {
         base_type,
         constraints,
     } = typed
@@ -47,14 +47,16 @@ fn types_nested_index_hoists_from_explicit_local_collections() {
     };
     assert!(matches!(
         typed.type_reference_table.type_reference(*base_type),
-        typed_trees::types::TypeReferenceNode::Named { name, .. }
+        crate::typed_trees::types::TypeReferenceNode::Named { name, .. }
             if name.as_str() == "i32"
     ));
     assert!(matches!(
         typed.type_reference_table.constraints(*constraints),
-        [typed_trees::types::TypeConstraintNode::ArithmeticDomain(
-            numerics::arithmetic::ArithmeticDomain::Wrapping
-        )]
+        [
+            crate::typed_trees::types::TypeConstraintNode::ArithmeticDomain(
+                numerics::arithmetic::ArithmeticDomain::Wrapping
+            )
+        ]
     ));
 }
 
@@ -75,7 +77,7 @@ fn generic_proposition_applications_remain_proof_facts_when_typed() {
     };
     assert!(matches!(
         relation.kind,
-        typed_trees::data::TypeParameterKind::Proposition { .. }
+        crate::typed_trees::data::TypeParameterKind::Proposition { .. }
     ));
     let [signature] = typed.trait_machine_signatures(trait_definition) else {
         panic!("trait should retain one proof signature");
@@ -83,7 +85,7 @@ fn generic_proposition_applications_remain_proof_facts_when_typed() {
     let [contract] = typed.state_signature_contracts(signature) else {
         panic!("proof signature should retain one ensures contract");
     };
-    let [typed_trees::domain::ProofFact::Proposition(application)] =
+    let [crate::typed_trees::domain::ProofFact::Proposition(application)] =
         typed.proof_facts.span_or_empty(contract.facts)
     else {
         panic!("Relation(value, value) should be a proposition proof fact");
@@ -118,7 +120,7 @@ fn proposition_declarations_and_fact_applications_remain_distinct_when_typed() {
     );
     assert!(matches!(
         typed.propositions()[0].body,
-        typed_trees::proposition::PropositionBody::Primitive
+        crate::typed_trees::proposition::PropositionBody::Primitive
     ));
     let [contract] = typed.machine_contracts(&typed.machines()[0]) else {
         panic!("machine should retain its requires contract");
@@ -126,7 +128,7 @@ fn proposition_declarations_and_fact_applications_remain_distinct_when_typed() {
     let [fact] = typed.proof_facts.span_or_empty(contract.facts) else {
         panic!("requires should retain one proposition fact");
     };
-    let typed_trees::domain::ProofFact::Proposition(application) = fact else {
+    let crate::typed_trees::domain::ProofFact::Proposition(application) = fact else {
         panic!("proposition application must not become a Boolean expression");
     };
     assert_eq!(application.proposition, typed.propositions()[0].symbol);
@@ -171,18 +173,18 @@ fn proposition_type_and_const_arguments_retain_categories_and_identity() {
     let [contract] = typed.machine_contracts(&typed.machines()[0]) else {
         panic!("machine should retain its proposition requirement");
     };
-    let [typed_trees::domain::ProofFact::Proposition(application)] =
+    let [crate::typed_trees::domain::ProofFact::Proposition(application)] =
         typed.proof_facts.span_or_empty(contract.facts)
     else {
         panic!("requires should retain the proposition application");
     };
     assert!(matches!(
         application.binder_arguments[0].kind,
-        typed_trees::proposition::PropositionBinderArgumentKind::Type
+        crate::typed_trees::proposition::PropositionBinderArgumentKind::Type
     ));
     assert!(matches!(
         application.binder_arguments[1].kind,
-        typed_trees::proposition::PropositionBinderArgumentKind::Const
+        crate::typed_trees::proposition::PropositionBinderArgumentKind::Const
     ));
     assert_eq!(application.binder_arguments[0].display_name(), "i32");
     assert_eq!(application.binder_arguments[1].display_name(), "7");
@@ -239,12 +241,15 @@ fn proposition_type_and_const_arguments_forward_through_machine_binders() {
     else {
         panic!("machine should retain one resolved contract");
     };
-    let [symbol_resolved_trees::domain::ProofFact::Expression(resolved_application)] =
-        resolved_program.proof_facts(resolved_contract.facts)
+    let [
+        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact::Expression(
+            resolved_application,
+        ),
+    ] = resolved_program.proof_facts(resolved_contract.facts)
     else {
         panic!("requires should retain one resolved expression fact");
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Call(resolved_call) = resolved_program
+    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode::Call(resolved_call) = resolved_program
         .tables
         .bodies
         .expressions
@@ -267,7 +272,7 @@ fn proposition_type_and_const_arguments_forward_through_machine_binders() {
     let [contract] = typed.machine_contracts(machine) else {
         panic!("generic machine should retain its proposition requirement");
     };
-    let [typed_trees::domain::ProofFact::Proposition(application)] =
+    let [crate::typed_trees::domain::ProofFact::Proposition(application)] =
         typed.proof_facts.span_or_empty(contract.facts)
     else {
         panic!("requires should retain the proposition application");
@@ -299,14 +304,16 @@ fn retains_exact_sealed_quotient_operation_request_without_admitting_it() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::Call(call) => call.quotient_operation.as_ref(),
+            crate::typed_trees::expression::ExpressionNode::Call(call) => {
+                call.quotient_operation.as_ref()
+            }
             _ => None,
         })
         .expect("sealed quotient request");
 
     assert_eq!(
         request.kind,
-        typed_trees::expression::QuotientOperationKind::Lift
+        crate::typed_trees::expression::QuotientOperationKind::Lift
     );
     assert_eq!(
         typed.symbols.name(

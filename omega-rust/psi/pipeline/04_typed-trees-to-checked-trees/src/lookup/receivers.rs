@@ -1,17 +1,17 @@
 //! Complete projected receiver calls before validation and effect inference.
 
 use diagnostics::Diagnostic;
+use symbol_resolved_trees_to_typed_trees::typed_trees::{TypedTrees, statement::StatementNode};
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, statement::StatementNode};
 
 mod projections;
 
 pub(crate) fn projected_statement_receiver_place(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     before: usize,
-    call: &typed_trees::statement::TableCall,
-) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
+) -> Option<(SymbolHandle, Vec<crate::fact_plan::PlaceSegment>)> {
     let members = program.statement_table.name_path_members(call.receiver);
     let mut receiver = projections::root(
         program,
@@ -24,7 +24,7 @@ pub(crate) fn projected_statement_receiver_place(
     let mut segments = Vec::new();
     for member in members.iter().skip(1) {
         receiver = projections::field(program, receiver, member)?;
-        segments.push(facts::PlaceSegment::Field {
+        segments.push(crate::fact_plan::PlaceSegment::Field {
             symbol: receiver.symbol,
         });
     }
@@ -47,7 +47,7 @@ pub(crate) fn resolve_projected_receiver_calls(
                     &mut expressions,
                 );
                 for expression in expressions {
-                    let typed_trees::expression::ExpressionNode::Call(call) =
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
                         program.expression_table.expression(expression)
                     else {
                         continue;
@@ -135,8 +135,9 @@ pub(crate) fn resolve_projected_receiver_calls(
         call.target_symbol = target;
     }
     for (expression, target) in expression_updates {
-        let typed_trees::expression::ExpressionNode::Call(call) =
-            program.expression_table.expression_mut(expression)
+        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+            call,
+        ) = program.expression_table.expression_mut(expression)
         else {
             unreachable!("selected expression call changed shape")
         };
@@ -147,9 +148,9 @@ pub(crate) fn resolve_projected_receiver_calls(
 
 fn attached_target(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     target: SymbolHandle,
-    name: &typed_trees::name::Identifier,
+    name: &symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
     span: source::SourceSpan,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
     let nominal = super::machine_symbol_from_type_reference_handle(program, type_reference);

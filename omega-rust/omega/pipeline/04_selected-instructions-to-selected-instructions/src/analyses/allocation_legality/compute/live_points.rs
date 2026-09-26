@@ -1,12 +1,12 @@
 //! Candidate derivation at ordinary live-range points.
 
-use register_model::{RegisterClass, RegisterViewId};
-use selected_instructions::SelectedBlockId;
+use target_operations_to_selected_instructions::SelectedBlockId;
+use target_operations_to_selected_instructions::register_model::{RegisterClass, RegisterViewId};
 
 use super::{fixed_views, view_candidates::CandidateViews};
 use crate::AllocationLegalityError;
-use register_homes::VirtualPointLegality;
-use selected_instructions::{LiveRangePoint, VirtualLiveRange};
+use crate::register_homes::VirtualPointLegality;
+use target_operations_to_selected_instructions::{LiveRangePoint, VirtualLiveRange};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute(

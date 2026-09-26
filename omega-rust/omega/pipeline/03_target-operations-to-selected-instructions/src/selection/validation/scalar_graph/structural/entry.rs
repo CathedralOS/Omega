@@ -10,7 +10,7 @@ use crate::selection::validation::scalar_graph::structural::result;
 
 pub(in crate::selection) fn entry(
     source: &LegalizedScalarFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     if crate::structural_inputs::unobserved_owned_input::accepts(source) {
@@ -90,7 +90,7 @@ pub(in crate::selection) fn entry(
                 let address = result(replay, place, 0)?;
                 replay.check_instruction(
                     SelectedInstructionKind::FrameAddress {
-                        slot: selected_instructions::FrameStorageSlotId::Incoming {
+                        slot: crate::selected_instructions::FrameStorageSlotId::Incoming {
                             parameter_index: native_parameter
                                 .try_into()
                                 .map_err(|_| replay.invalid())?,
@@ -180,7 +180,7 @@ pub(in crate::selection) fn entry(
             let address = result(replay, place, 0)?;
             replay.check_instruction(
                 SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Incoming {
+                    slot: crate::selected_instructions::FrameStorageSlotId::Incoming {
                         parameter_index: native_parameter
                             .try_into()
                             .map_err(|_| replay.invalid())?,
@@ -262,19 +262,19 @@ pub(in crate::selection) fn entry(
 /// stand in for the owned input, even when a later field load has a valid width.
 fn retain_owned_home(
     source: &LegalizedScalarFunction,
-    parameter: &legalized_operations::LegalizedCallUnitParameter,
+    parameter: &crate::legalized_operations::LegalizedCallUnitParameter,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let place = parameter.semantic.place;
     if !crate::selection::aggregate_result_input::parameter_home_required(source, place) {
         return Ok(());
     }
-    let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+    let slot = crate::selected_instructions::LocalStorageSlotId::StructuralParameter { place };
     let shape = parameter.target.shape;
     replay
         .transport
         .local_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
+        .push(crate::selected_instructions::SelectedLocalStorageSlot {
             id: slot,
             byte_size: u32::from(shape.byte_size),
             alignment: shape.alignment,
@@ -286,11 +286,11 @@ fn retain_owned_home(
         place,
         0,
         u32::from(shape.byte_size),
-        selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
+        crate::selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
     )?;
     replay.check_instruction(
         SelectedInstructionKind::FrameAddress {
-            slot: selected_instructions::FrameStorageSlotId::Local(slot),
+            slot: crate::selected_instructions::FrameStorageSlotId::Local(slot),
             byte_offset: 0,
         },
         replay
@@ -328,7 +328,7 @@ fn retain_owned_home(
             place,
             offset,
             u32::from(width),
-            selected_instructions::SelectedMemoryAccessRole::WritePlace,
+            crate::selected_instructions::SelectedMemoryAccessRole::WritePlace,
         )?;
         super::super::aggregate_memory::store(replay, pointer, value, offset, width)?;
     }

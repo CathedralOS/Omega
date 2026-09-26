@@ -3,7 +3,7 @@
 //! The checked plan names an event, its place, its orderings, its operand
 //! rows and its result binding. None of that is trusted here: each fact is
 //! reread from the authored carrier through the shared decoder
-//! (`validation::atomic_load_carrier` / `atomic_assignment_carrier`) and the
+//! (`typed_trees_to_checked_trees::validation::atomic_load_carrier` / `atomic_assignment_carrier`) and the
 //! place through the same projected-receiver resolution a primitive store
 //! replays, so a plan that names another field, another operation, another
 //! ordering, a substituted operand or a different result local refuses.
@@ -12,12 +12,12 @@
 //! and the carrier assignment. The placeholder plans nothing; the event's
 //! coordinate is the carrier and its result binding is the placeholder's.
 
-use checked_trees::statement::StatementNode;
-use checked_trees::{
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite,
     CheckedScalarExpressionRole, CheckedTrees,
 };
-use validation::AtomicAccessOperation;
+use typed_trees_to_checked_trees::validation::AtomicAccessOperation;
 
 use crate::lowering_error::{LoweringError, unsupported};
 
@@ -36,19 +36,19 @@ pub(crate) fn result_placeholder(
         return false;
     };
     !local.is_mutable
-        && validation::atomic_assignment_carrier(checked, assignment)
+        && typed_trees_to_checked_trees::validation::atomic_assignment_carrier(checked, assignment)
             .is_some_and(|carrier| names_local(checked, carrier.result, local))
 }
 
 fn names_local(
     checked: &CheckedTrees,
-    result: checked_trees::expression::ExpressionHandle,
-    local: &checked_trees::statement::TableLocalData,
+    result: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
+    local: &typed_trees_to_checked_trees::checked_trees::statement::TableLocalData,
 ) -> bool {
     if !checked.expression_table.expression_is_valid(result) {
         return false;
     }
-    let checked_trees::expression::ExpressionNode::Name(path) =
+    let typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Name(path) =
         checked.expression_table.expression(result)
     else {
         return false;
@@ -78,9 +78,13 @@ pub(crate) fn validate(
     let statement = access.statement_index as usize;
     let carrier = match (statements.get(statement), &access.event) {
         (Some(StatementNode::LocalData(local)), CheckedAtomicEvent::Load { .. }) => {
-            let carrier = validation::atomic_load_carrier(checked, local.initial_value).ok_or(
-                LoweringError::Unsupported("atomic load lost its authored carrier"),
-            )?;
+            let carrier = typed_trees_to_checked_trees::validation::atomic_load_carrier(
+                checked,
+                local.initial_value,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "atomic load lost its authored carrier",
+            ))?;
             if local.is_mutable
                 || access.result.as_ref().is_none_or(|result| {
                     result.statement_index != access.statement_index
@@ -95,9 +99,12 @@ pub(crate) fn validate(
         (Some(StatementNode::Assignment(assignment)), event)
             if !matches!(event, CheckedAtomicEvent::Load { .. }) =>
         {
-            let carrier = validation::atomic_assignment_carrier(checked, assignment).ok_or(
-                LoweringError::Unsupported("atomic event lost its authored carrier"),
-            )?;
+            let carrier = typed_trees_to_checked_trees::validation::atomic_assignment_carrier(
+                checked, assignment,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "atomic event lost its authored carrier",
+            ))?;
             match &access.result {
                 Some(result) => {
                     let placeholder = result.statement_index as usize;
@@ -141,7 +148,7 @@ pub(crate) fn validate(
                 "atomic operand has no retained source row",
             ))?;
         if binding.expression != *authored
-            || !matches!(operand, checked_trees::CheckedCallScalarArgument::Pure(value)
+            || !matches!(operand, typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(value)
                 if value == retained)
         {
             return unsupported("atomic operand differs from its authored operand");
@@ -160,7 +167,7 @@ pub(crate) fn validate(
     if !destination.is_valid()
         || target.root != destination
         || carrier != access.carrier_path.as_slice()
-        || !matches!(field, checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+        || !matches!(field, typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
             if *identity == access.field_identity)
     {
         return unsupported("atomic event place differs from its authored place");

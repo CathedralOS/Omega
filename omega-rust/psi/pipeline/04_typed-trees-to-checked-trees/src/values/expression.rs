@@ -1,6 +1,6 @@
 use super::ExpressionHandle;
 use crate::values::ValueFactBuilder;
-use typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
 impl ValueFactBuilder<'_, '_> {
     pub(super) fn collect_expression_children(&mut self, expression: ExpressionHandle) {
@@ -8,7 +8,7 @@ impl ValueFactBuilder<'_, '_> {
             ExpressionNode::Match(dispatch) => {
                 self.collect_nested_expression(expression, dispatch.subject);
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         self.collect_nested_expression(expression, pattern);
                     }
                     self.collect_nested_expression(expression, arm.value);

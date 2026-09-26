@@ -29,7 +29,7 @@
 //! to the nominal input and field write checks, and domain queries used by
 //! flow facts, fact construction, content checks and proof.
 
-use checked_trees::{CheckFacts, FlowStateFact};
+use crate::checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use super::prover::semantic_contexts_prove_contract_fact;
@@ -53,9 +53,10 @@ pub(crate) use result_domains::{
 fn direct_result_float_meaning_reflexivity_proves_exit(
     facts: &CheckFacts,
     machine_symbol: symbols::SymbolHandle,
-    fact: &facts::Fact,
+    fact: &crate::fact_plan::Fact,
 ) -> bool {
-    let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
+    let crate::fact_plan::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload
+    else {
         return false;
     };
     facts
@@ -65,13 +66,13 @@ fn direct_result_float_meaning_reflexivity_proves_exit(
 }
 
 pub(super) fn check_exit_ensures(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
-    exit_flow: &checked_trees::FlowExitFact,
+    exit_flow: &crate::checked_trees::FlowExitFact,
     entailment: &super::entailment::MachineEntailmentOutcome,
-    content_plans: &[validation::ContentConservationSourcePlan],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    content_plans: &[crate::validation::ContentConservationSourcePlan],
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     cyclic_headers: &mut CyclicHeaderInvariants,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -90,10 +91,12 @@ pub(super) fn check_exit_ensures(
         let context = facts.semantic.contexts.get(ensures_context);
         for fact in facts.semantic.context_view(context).facts() {
             let contract = match fact.payload {
-                facts::FactPayload::ContractBooleanExpression { fact, .. }
-                | facts::FactPayload::ContractDomainMembership { fact, .. }
-                | facts::FactPayload::ContractCarryPermission { fact, .. }
-                | facts::FactPayload::ContractPropositionApplication { fact, .. } => Some(fact),
+                crate::fact_plan::FactPayload::ContractBooleanExpression { fact, .. }
+                | crate::fact_plan::FactPayload::ContractDomainMembership { fact, .. }
+                | crate::fact_plan::FactPayload::ContractCarryPermission { fact, .. }
+                | crate::fact_plan::FactPayload::ContractPropositionApplication { fact, .. } => {
+                    Some(fact)
+                }
                 _ => None,
             };
             // An owner-authorized boundary result is established at the admitted
@@ -101,12 +104,12 @@ pub(super) fn check_exit_ensures(
             // direct calls already refuse this authorization in call_contract_evidence.
             // Authored adapter guarantees have no such record and remain obligations.
             let admitted_boundary_result = facts.proof.contract_facts.iter().any(|(_, inherited)| {
-                inherited.kind == checked_trees::ContractProofFactKind::Ensures
+                inherited.kind == crate::checked_trees::ContractProofFactKind::Ensures
                     && Some(inherited.fact) == contract
                     && inherited.qualification_authorization.is_some()
                     && matches!(
                         inherited.owner,
-                        checked_trees::ContractProofFactOwner::MachineState { machine_symbol, state_symbol }
+                        crate::checked_trees::ContractProofFactOwner::MachineState { machine_symbol, state_symbol }
                             if machine_symbol == state_flow.machine_symbol
                                 && state_symbol == state_flow.state_symbol
                     )
@@ -132,7 +135,7 @@ pub(super) fn check_exit_ensures(
                 fact,
             );
             let authorized_route = match fact.payload {
-                facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program
+                crate::fact_plan::FactPayload::ContractDomainMembership { domain_symbol, .. } => program
                     .machines()
                     .iter()
                     .find(|machine| machine.symbol == state_flow.machine_symbol)
@@ -146,7 +149,9 @@ pub(super) fn check_exit_ensures(
                 _ => false,
             };
             let route_predicates_satisfied = match fact.payload {
-                facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program
+                crate::fact_plan::FactPayload::ContractDomainMembership {
+                    domain_symbol, ..
+                } => program
                     .domain_definitions()
                     .iter()
                     .find(|domain| domain.symbol == domain_symbol)
@@ -159,12 +164,13 @@ pub(super) fn check_exit_ensures(
             // single-assignment, and definite assignment on every exit; the
             // ordinary semantic prover has no runtime witness fact to consume.
             let evidence_assignment = match fact.payload {
-                facts::FactPayload::ContractPropositionApplication {
-                    fact: source_fact, ..
+                crate::fact_plan::FactPayload::ContractPropositionApplication {
+                    fact: source_fact,
+                    ..
                 } => facts.proof.contract_facts.iter().any(|(_, contract)| {
-                    contract.kind == checked_trees::ContractProofFactKind::Ensures
+                    contract.kind == crate::checked_trees::ContractProofFactKind::Ensures
                         && contract.owner
-                            == (checked_trees::ContractProofFactOwner::Machine {
+                            == (crate::checked_trees::ContractProofFactOwner::Machine {
                                 machine_symbol: state_flow.machine_symbol,
                             })
                         && contract.fact == source_fact
@@ -178,7 +184,7 @@ pub(super) fn check_exit_ensures(
                 fact,
             );
             let checked_entailment = match fact.payload {
-                facts::FactPayload::ContractBooleanExpression { expression, .. } => {
+                crate::fact_plan::FactPayload::ContractBooleanExpression { expression, .. } => {
                     entailment.expressions.contains(&expression)
                 }
                 _ => false,

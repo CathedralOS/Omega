@@ -1,42 +1,46 @@
 use super::lower_typed_trees;
-use crate::flow::{StateMutationSummaryCache, call_mutated_places};
-use arena::HandleSpan;
-use checked_trees::expression::{CallExpression, Expression, NamePath};
-use checked_trees::machine::{Machine, TraitConformance};
-use checked_trees::name::Identifier;
-use checked_trees::signature::{
+use crate::checked_trees::expression::{CallExpression, Expression, NamePath};
+use crate::checked_trees::machine::{Machine, TraitConformance};
+use crate::checked_trees::name::Identifier;
+use crate::checked_trees::signature::{
     SignatureContract, SignatureContractKind, StateParameter, StateSignature,
 };
-use checked_trees::state::State;
-use checked_trees::statement::{StatementNode, TableCall};
-use checked_trees::trait_definition::TraitDefinition;
-use checked_trees::types::TypeReferenceNode;
-use checked_trees::{BorrowAccessKind, ContractProofFactKind, ContractProofFactOwner};
-use facts::{FactPayload, FactPlace};
+use crate::checked_trees::state::State;
+use crate::checked_trees::statement::{StatementNode, TableCall};
+use crate::checked_trees::trait_definition::TraitDefinition;
+use crate::checked_trees::types::TypeReferenceNode;
+use crate::checked_trees::{BorrowAccessKind, ContractProofFactKind, ContractProofFactOwner};
+use crate::fact_plan::{FactPayload, FactPlace};
+use crate::flow::{StateMutationSummaryCache, call_mutated_places};
+use arena::HandleSpan;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
 fn mutable_borrow(target: Expression) -> Expression {
-    Expression::Borrow(Box::new(checked_trees::expression::BorrowExpression {
-        target,
-        access: language_semantics::ReferenceAccess::Mutable,
-    }))
+    Expression::Borrow(Box::new(
+        crate::checked_trees::expression::BorrowExpression {
+            target,
+            access: language_semantics::ReferenceAccess::Mutable,
+        },
+    ))
 }
 
 /// Bind one fused-service erasure authorization per declared boundary trait —
-/// the settled-state input `build_evaluation::settle_checked_providers`
+/// the settled-state input `omega::build_evaluation::settle_checked_providers`
 /// produces on the typed trees before checking when a Fused provider is
 /// selected. Unit-plan fixtures that hold `Binding<R>` carriers need this:
 /// without an authorization the carrier field stays unshaped and the machine
 /// fails closed. The digest is a stand-in; nothing in these harnesses compares
 /// it against a realized plan.
-pub(crate) fn bind_fixture_fused_service_erasures(typed: &mut typed_trees::TypedTrees) {
+pub(crate) fn bind_fixture_fused_service_erasures(
+    typed: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) {
     let authorizations = typed
         .traits()
         .iter()
         .filter(|definition| definition.is_boundary)
         .map(
-            |definition| typed_trees::typed_trees::FusedServiceErasureAuthorization {
+            |definition| symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::FusedServiceErasureAuthorization {
                 requirement: definition.symbol,
             },
         )

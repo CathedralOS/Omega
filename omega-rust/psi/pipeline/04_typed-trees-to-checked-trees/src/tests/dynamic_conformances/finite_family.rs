@@ -4,9 +4,9 @@
 //! every roster tuple's provider specialization.
 
 use super::{check_dynamic_source, sole_direct_dynamic_plan, sole_direct_dynamic_unit_plan};
+use crate::checked_trees::CheckedDynamicBinding::Direct;
+use crate::checked_trees::CheckedDynamicDispatchPlan::Scalar;
 use crate::tests::front_end::{checked_program_result, typed_program};
-use checked_trees::CheckedDynamicBinding::Direct;
-use checked_trees::CheckedDynamicDispatchPlan::Scalar;
 
 /// One `Value`-binder requirement declared as a finite two-tuple family,
 /// realized by a generic provider inside the selected conformance. No static
@@ -554,7 +554,7 @@ fn dynamic_family_unit_call_selects_its_tuple_and_the_complete_roster() {
         assert!(
             matches!(
                 callable.body,
-                checked_trees::CheckedDynamicRealizationBodyPlan::Unit
+                crate::checked_trees::CheckedDynamicRealizationBodyPlan::Unit
             ),
             "a Unit family callable keeps an operation-free body"
         );

@@ -3,18 +3,20 @@ use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode, PrimitiveType,
 };
-use crate::values::operator_is_builtin;
-use crate::values::scalar::expression_facts::is_integer;
-use crate::values::scalar::structural_fields::structural_parameter_field_path;
-use crate::values::scalar_expression_type;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedScalarComputationStructuralArgument, CheckedScalarDispatchArm,
     CheckedScalarDispatchPattern, CheckedStructuralAccess, CheckedStructuralPredicatePathSegment,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment,
 };
-use typed_trees::expression::{MatchPattern, TableMatchExpression};
-use validation::{MatchCaseDispatch, MatchCaseSubject};
+use crate::validation::{MatchCaseDispatch, MatchCaseSubject};
+use crate::values::operator_is_builtin;
+use crate::values::scalar::expression_facts::is_integer;
+use crate::values::scalar::structural_fields::structural_parameter_field_path;
+use crate::values::scalar_expression_type;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    MatchPattern, TableMatchExpression,
+};
 
 impl Builder<'_, '_> {
     /// Shared operand primitive when one use is an admitted selected
@@ -23,7 +25,7 @@ impl Builder<'_, '_> {
     /// Neither classification realizes provider semantics here.
     pub(super) fn selected_comparison_primitive(
         &self,
-        operator_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
+        operator_use: arena::Handle<crate::checked_trees::CheckedOperatorUseFact>,
     ) -> Option<PrimitiveType> {
         self.operators
             .selected_float_comparison(self.program, operator_use)
@@ -38,11 +40,11 @@ impl Builder<'_, '_> {
     pub(super) fn comparison_use(
         &self,
         expression: ExpressionHandle,
-        occurrence: checked_trees::CheckedOperatorOccurrence,
-    ) -> Option<arena::Handle<checked_trees::CheckedOperatorUseFact>> {
+        occurrence: crate::checked_trees::CheckedOperatorOccurrence,
+    ) -> Option<arena::Handle<crate::checked_trees::CheckedOperatorUseFact>> {
         let mut matching = self.operators.uses.iter().filter_map(|(handle, selected)| {
             (selected.expression == expression && selected.occurrence == occurrence
-                && matches!(selected.origin, checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, state_symbol, statement_index, .. }
+                && matches!(selected.origin, crate::checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, state_symbol, statement_index, .. }
                     if machine_symbol == self.machine && state_symbol == self.state && statement_index == self.statement_index)
                 && self.selected_comparison_primitive(handle).is_some()).then_some(handle)
         });
@@ -62,11 +64,11 @@ impl Builder<'_, '_> {
         // Anonymous comparisons have exact compile-time meaning without a
         // machine-width subject. Retain the selected arm's ordinary computation;
         // source custody rederives this selection from the unchanged Match root.
-        if let Some(selected) =
-            validation::select_anonymous_numeric_match_arm(self.program, dispatch, |expression| {
-                operator_is_builtin(self.operators, expression)
-            })
-        {
+        if let Some(selected) = crate::validation::select_anonymous_numeric_match_arm(
+            self.program,
+            dispatch,
+            |expression| operator_is_builtin(self.operators, expression),
+        ) {
             return self.expression(selected, result_type);
         }
         let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
@@ -80,7 +82,7 @@ impl Builder<'_, '_> {
         // wildcard (or the last case arm) as the tail. No pattern value is
         // ever evaluated, so the scalar subject gates below do not apply.
         if let Some(case_dispatch) =
-            validation::match_case_dispatch(self.program, machine, state, dispatch)
+            crate::validation::match_case_dispatch(self.program, machine, state, dispatch)
         {
             return self.case_dispatch(
                 source_expression,
@@ -92,7 +94,7 @@ impl Builder<'_, '_> {
             );
         }
         let subject = if let Some(subject_type) =
-            validation::match_subject_primitive_type(self.program, dispatch)
+            crate::validation::match_subject_primitive_type(self.program, dispatch)
         {
             if subject_type != PrimitiveType::Bool
                 && !is_integer(subject_type)
@@ -127,7 +129,7 @@ impl Builder<'_, '_> {
             {
                 self.comparison_use(
                     source_expression,
-                    checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm },
+                    crate::checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm },
                 )?
             } else {
                 arena::Handle::invalid()
@@ -181,8 +183,8 @@ impl Builder<'_, '_> {
     fn case_dispatch(
         &mut self,
         source_expression: ExpressionHandle,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         subject: ExpressionHandle,
         dispatch: &MatchCaseDispatch,
         result_type: PrimitiveType,
@@ -232,8 +234,8 @@ impl Builder<'_, '_> {
     fn case_dispatch_condition(
         &mut self,
         source_expression: ExpressionHandle,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         subject: &MatchCaseSubject,
         subject_expression: ExpressionHandle,
         case: symbols::SymbolHandle,
@@ -297,7 +299,7 @@ impl Builder<'_, '_> {
                         _ => None,
                     })
                     .collect::<Option<Vec<_>>>()?;
-                let type_reference = validation::declared_place_type_raw(
+                let type_reference = crate::validation::declared_place_type_raw(
                     self.program,
                     machine,
                     Some(state),

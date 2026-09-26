@@ -24,7 +24,7 @@ fn scalar_array_roster_composes_exact_primitive_local_producers() {
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             },
-            value: abstract_operations::AbstractResult {
+            value: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                 value: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Boolean,
             },
@@ -37,12 +37,12 @@ fn scalar_array_roster_composes_exact_primitive_local_producers() {
         ),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
     validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
 

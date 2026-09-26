@@ -12,15 +12,15 @@ use crate::{
     RuntimeRematerializationError, ValidatedRuntimeRematerialization,
     validate_runtime_rematerialization,
 };
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     SelectedBoundarySettlementPayload, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedInstructionProvenance, SelectedOperand, SelectedValueBinding,
     SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId};
-use target::NativeTarget;
 
 const VICTIM: VirtualRegisterId = VirtualRegisterId(1);
 
@@ -85,48 +85,49 @@ fn forged(source: &ValidatedRuntimeRematerialization) -> SelectedInstructionPlan
         .max()
         .unwrap_or(0)
         + 1;
-    let mut materialization = |function: &mut selected_instructions::SelectedFunction| {
-        let instruction = SelectedInstructionId(next_instruction);
-        next_instruction += 1;
-        let register = VirtualRegisterId(next_register);
-        next_register += 1;
-        let operand = &materialize.operands[0];
-        function.virtual_registers.push(VirtualRegister {
-            id: register,
-            scalar_type: victim_row.scalar_type,
-            class: victim_row.class,
-            origin: VirtualRegisterOrigin::InstructionResult {
-                instruction,
-                source_value,
-            },
-            definition_site: victim_row.definition_site,
-            entry_fixed_view: None,
-        });
-        (
-            register,
-            selected_instructions::SelectedInstruction {
-                id: instruction,
-                kind: SelectedInstructionKind::MaterializeI64 { value },
-                constraint: materialize.key,
-                operands: vec![SelectedOperand {
-                    operand: operand.operand,
-                    virtual_register: register,
-                    access: operand.access,
-                    class: operand.class,
-                    fixed_view: operand.fixed_view,
-                    tied_to: operand.tied_to,
-                    early_clobber: operand.early_clobber,
-                }],
-                implicit_uses: materialize.implicit_uses.clone(),
-                implicit_defs: materialize.implicit_defs.clone(),
-                clobbers: materialize.clobbers.clone(),
-                provenance: SelectedInstructionProvenance {
-                    values: vec![source_value],
-                    ..Default::default()
+    let mut materialization =
+        |function: &mut target_operations_to_selected_instructions::SelectedFunction| {
+            let instruction = SelectedInstructionId(next_instruction);
+            next_instruction += 1;
+            let register = VirtualRegisterId(next_register);
+            next_register += 1;
+            let operand = &materialize.operands[0];
+            function.virtual_registers.push(VirtualRegister {
+                id: register,
+                scalar_type: victim_row.scalar_type,
+                class: victim_row.class,
+                origin: VirtualRegisterOrigin::InstructionResult {
+                    instruction,
+                    source_value,
                 },
-            },
-        )
-    };
+                definition_site: victim_row.definition_site,
+                entry_fixed_view: None,
+            });
+            (
+                register,
+                target_operations_to_selected_instructions::SelectedInstruction {
+                    id: instruction,
+                    kind: SelectedInstructionKind::MaterializeI64 { value },
+                    constraint: materialize.key,
+                    operands: vec![SelectedOperand {
+                        operand: operand.operand,
+                        virtual_register: register,
+                        access: operand.access,
+                        class: operand.class,
+                        fixed_view: operand.fixed_view,
+                        tied_to: operand.tied_to,
+                        early_clobber: operand.early_clobber,
+                    }],
+                    implicit_uses: materialize.implicit_uses.clone(),
+                    implicit_defs: materialize.implicit_defs.clone(),
+                    clobbers: materialize.clobbers.clone(),
+                    provenance: SelectedInstructionProvenance {
+                        values: vec![source_value],
+                        ..Default::default()
+                    },
+                },
+            )
+        };
     for block_index in 0..function.blocks.len() {
         let mut instructions = Vec::new();
         let mut boundaries = Vec::new();
@@ -279,7 +280,7 @@ fn forged_proposal_does_not_launder_a_fixed_use() {
     let environment = baseline_target_register_environment(target).unwrap();
     let source = mutated(target, |function, _| {
         function.blocks[0].instructions[1].operands[0].fixed_view =
-            Some(register_model::RegisterViewId(0));
+            Some(target_operations_to_selected_instructions::register_model::RegisterViewId(0));
     });
     assert_eq!(
         validate_runtime_rematerialization(
@@ -359,7 +360,7 @@ fn forged_proposal_does_not_launder_an_outgoing_transport() {
             .unwrap();
         let mut edge = successor(1);
         edge.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(9).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -373,7 +374,7 @@ fn forged_proposal_does_not_launder_an_outgoing_transport() {
         });
         let tail_terminator = std::mem::replace(
             &mut function.blocks[0].terminator,
-            selected_instructions::SelectedTerminator::Jump {
+            target_operations_to_selected_instructions::SelectedTerminator::Jump {
                 instruction: instruction(
                     SelectedInstructionId(20),
                     SelectedInstructionKind::Jump,
@@ -383,14 +384,16 @@ fn forged_proposal_does_not_launder_an_outgoing_transport() {
                 successor: edge,
             },
         );
-        function.blocks.push(selected_instructions::SelectedBlock {
-            id: selected_instructions::SelectedBlockId(1),
-            origin: selected_instructions::SelectedBlockOrigin::Source(
-                semantic_vocabulary::BlockId::new(2).unwrap(),
-            ),
-            instructions: Vec::new(),
-            terminator: tail_terminator,
-        });
+        function
+            .blocks
+            .push(target_operations_to_selected_instructions::SelectedBlock {
+                id: target_operations_to_selected_instructions::SelectedBlockId(1),
+                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                    semantic_vocabulary::BlockId::new(2).unwrap(),
+                ),
+                instructions: Vec::new(),
+                terminator: tail_terminator,
+            });
     });
     assert_eq!(
         validate_runtime_rematerialization(
@@ -425,7 +428,7 @@ fn forged_proposal_does_not_launder_an_undominated_use() {
         let uses = std::mem::take(&mut function.blocks[0].instructions);
         let tail_terminator = std::mem::replace(
             &mut function.blocks[0].terminator,
-            selected_instructions::SelectedTerminator::ConditionalBranch {
+            target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranch {
                 instruction: instruction(
                     SelectedInstructionId(20),
                     SelectedInstructionKind::ConditionalBranchNonZero,
@@ -436,46 +439,52 @@ fn forged_proposal_does_not_launder_an_undominated_use() {
                 when_zero: successor(2),
             },
         );
-        function.blocks.push(selected_instructions::SelectedBlock {
-            id: selected_instructions::SelectedBlockId(1),
-            origin: selected_instructions::SelectedBlockOrigin::Source(
-                semantic_vocabulary::BlockId::new(2).unwrap(),
-            ),
-            instructions: vec![definition],
-            terminator: selected_instructions::SelectedTerminator::Jump {
-                instruction: instruction(
-                    SelectedInstructionId(21),
-                    SelectedInstructionKind::Jump,
-                    jump,
-                    &[],
+        function
+            .blocks
+            .push(target_operations_to_selected_instructions::SelectedBlock {
+                id: target_operations_to_selected_instructions::SelectedBlockId(1),
+                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                    semantic_vocabulary::BlockId::new(2).unwrap(),
                 ),
-                successor: successor(3),
-            },
-        });
-        function.blocks.push(selected_instructions::SelectedBlock {
-            id: selected_instructions::SelectedBlockId(2),
-            origin: selected_instructions::SelectedBlockOrigin::Source(
-                semantic_vocabulary::BlockId::new(3).unwrap(),
-            ),
-            instructions: Vec::new(),
-            terminator: selected_instructions::SelectedTerminator::Jump {
-                instruction: instruction(
-                    SelectedInstructionId(22),
-                    SelectedInstructionKind::Jump,
-                    jump,
-                    &[],
+                instructions: vec![definition],
+                terminator: target_operations_to_selected_instructions::SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(21),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(3),
+                },
+            });
+        function
+            .blocks
+            .push(target_operations_to_selected_instructions::SelectedBlock {
+                id: target_operations_to_selected_instructions::SelectedBlockId(2),
+                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                    semantic_vocabulary::BlockId::new(3).unwrap(),
                 ),
-                successor: successor(3),
-            },
-        });
-        function.blocks.push(selected_instructions::SelectedBlock {
-            id: selected_instructions::SelectedBlockId(3),
-            origin: selected_instructions::SelectedBlockOrigin::Source(
-                semantic_vocabulary::BlockId::new(4).unwrap(),
-            ),
-            instructions: uses,
-            terminator: tail_terminator,
-        });
+                instructions: Vec::new(),
+                terminator: target_operations_to_selected_instructions::SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(22),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(3),
+                },
+            });
+        function
+            .blocks
+            .push(target_operations_to_selected_instructions::SelectedBlock {
+                id: target_operations_to_selected_instructions::SelectedBlockId(3),
+                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                    semantic_vocabulary::BlockId::new(4).unwrap(),
+                ),
+                instructions: uses,
+                terminator: tail_terminator,
+            });
     });
     assert_eq!(
         validate_runtime_rematerialization(
@@ -499,7 +508,8 @@ fn forged_proposal_does_not_launder_an_entry_pinned_victim() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = mutated(target, |function, _| {
-        function.virtual_registers[1].entry_fixed_view = Some(register_model::RegisterViewId(0));
+        function.virtual_registers[1].entry_fixed_view =
+            Some(target_operations_to_selected_instructions::register_model::RegisterViewId(0));
     });
     assert_eq!(
         validate_runtime_rematerialization(

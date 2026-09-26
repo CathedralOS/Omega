@@ -34,10 +34,10 @@ use crate::rules::{
     built_in_psi_registry_for_selections,
 };
 use crate::{RuleAnalysisView, RuleProposalError, RuleRegistryError};
-use optimization::{PsiOptimization, PsiOptimizationSelections};
 use optimization_core::{
     AnalysisKind, Optimization, OptimizationPassIdentity, OptimizationSelections,
 };
+use terminal_codec::optimization::{PsiOptimization, PsiOptimizationSelections};
 
 #[test]
 fn ordered_catalog_covers_every_declared_psi_optimization_once() {

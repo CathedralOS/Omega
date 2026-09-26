@@ -1,13 +1,15 @@
 use super::lower_machine;
-use crate::TerminalMachineSelection;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::scalar_graph_lowering::prepare_scalar_graph_machine;
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
 use crate::terminal_identities::machine_id;
-use checked_trees::types::PrimitiveType;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::{OperationKind, Terminator};
 use terminal_verifier::reconstruct_operation_obligations;
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
 #[test]
 fn unconditional_and_expression_getters_retain_the_same_borrowed_field() {
     for completion in ["self.value", "transition { _ -> (self.value) }"] {
@@ -15,15 +17,18 @@ fn unconditional_and_expression_getters_retain_the_same_borrowed_field() {
             "data Record [copy] {{ value: i32; }}
              machine Record::read(&self) -> i32 {{ {completion} }}"
         ));
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name("Record::read"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("ordinary scalar completion publishes checked Terminal")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                    "Record::read",
+                ),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("ordinary scalar completion publishes checked Terminal")
+            .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         assert!(
             module
@@ -43,7 +48,7 @@ fn unconditional_and_expression_getters_retain_the_same_borrowed_field() {
                 plan.scalar_control
                     .as_ref()
                     .map(|control| &control.terminator),
-                Some(checked_trees::CheckedScalarStateTerminator::Return { .. })
+                Some(typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Return { .. })
             ));
         } else {
             assert!(plan.scalar_result.is_some());
@@ -74,12 +79,10 @@ fn unconditional_scalar_return_rejects_forged_coordinates_type_and_missing_prefi
             .find(|plan| plan.scalar_control.is_some())
             .unwrap();
         match corruption {
-            0 => {
-                plan.scalar_control.as_mut().unwrap().terminator =
-                    checked_trees::CheckedScalarStateTerminator::Return {
-                        statement_ordinal: 0,
-                    }
-            }
+            0 => plan.scalar_control.as_mut().unwrap().terminator =
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Return {
+                    statement_ordinal: 0,
+                },
             1 => plan.scalar_control.as_mut().unwrap().primitive_type = PrimitiveType::Bool,
             2 => {
                 plan.operations.remove(0);
@@ -131,7 +134,9 @@ fn unconditional_scalar_return_cannot_replace_or_omit_an_authored_guard() {
             .find(|plan| plan.scalar_control.is_some())
             .unwrap();
         plan.scalar_control.as_mut().unwrap().terminator =
-            checked_trees::CheckedScalarStateTerminator::Return { statement_ordinal };
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Return {
+                statement_ordinal,
+            };
         assert!(
             lower_machine(&changed, TerminalMachineSelection::Name("Record::read")).is_err(),
             "forged return at {statement_ordinal} cannot discard the authored guard"

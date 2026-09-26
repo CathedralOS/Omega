@@ -1,26 +1,26 @@
 //! Termination, blocking, suspension and synchronous invocation facts.
 
 use crate::facts::{MachineBlockingRow, MachineSuspensionRow};
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 pub(crate) fn build_termination_facts(
     program: &TypedTrees,
-    flow: &checked_trees::FlowFacts,
-    semantic: &facts::FactPlan,
-    validation: &validation::ProgramValidationFacts,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Result<checked_trees::TerminationFacts, Vec<diagnostics::Diagnostic>> {
+    flow: &crate::checked_trees::FlowFacts,
+    semantic: &crate::fact_plan::FactPlan,
+    validation: &crate::validation::ProgramValidationFacts,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+) -> Result<crate::checked_trees::TerminationFacts, Vec<diagnostics::Diagnostic>> {
     let summaries = crate::checks::termination::analyze_checked_progress_with_call_frames(
         program,
         flow,
         semantic,
         call_frames,
     )?;
-    Ok(checked_trees::TerminationFacts {
+    Ok(crate::checked_trees::TerminationFacts {
         machines: program
             .machines()
             .iter()
-            .map(|machine| checked_trees::MachineTerminationFact {
+            .map(|machine| crate::checked_trees::MachineTerminationFact {
                 machine: machine.symbol,
                 plan: crate::checks::termination::build_checked_termination_plan_with_summary(
                     program,
@@ -37,7 +37,7 @@ pub(crate) fn build_termination_facts(
             .into_iter()
             .filter(|summary| !summary.build_bound_demands.is_empty())
             .map(
-                |summary| checked_trees::MachineBuildBoundProgressDemands {
+                |summary| crate::checked_trees::MachineBuildBoundProgressDemands {
                     machine: summary.machine,
                     demands: summary.build_bound_demands,
                 },
@@ -47,54 +47,54 @@ pub(crate) fn build_termination_facts(
             .proof_recursive_components
             .iter()
             .map(
-                |component| checked_trees::CheckedProofRecursiveComponent {
+                |component| crate::checked_trees::CheckedProofRecursiveComponent {
                     members: component
                         .members
                         .iter()
-                        .map(|member| checked_trees::CheckedProofRecursiveMember {
+                        .map(|member| crate::checked_trees::CheckedProofRecursiveMember {
                             machine: member.machine,
                             rank_parameter: member.rank_parameter,
                         })
                         .collect(),
                     ranking_relation: match component.ranking_relation {
-                        validation::ValidatedProofRankingRelation::StructuralSubterm => {
-                            checked_trees::CheckedProofRankingRelation::StructuralSubterm
+                        crate::validation::ValidatedProofRankingRelation::StructuralSubterm => {
+                            crate::checked_trees::CheckedProofRankingRelation::StructuralSubterm
                         }
                     },
                     rank_type_identity: component.rank_type_identity.clone(),
                     edges: component
                         .edges
                         .iter()
-                        .map(|edge| checked_trees::CheckedProofRecursiveEdge {
+                        .map(|edge| crate::checked_trees::CheckedProofRecursiveEdge {
                             caller: edge.caller,
                             callee: edge.callee,
                             site: match edge.site {
-                                validation::ValidatedProofRecursiveCallSite::Statement {
+                                crate::validation::ValidatedProofRecursiveCallSite::Statement {
                                     state,
                                     statement_index,
-                                } => checked_trees::CheckedProofRecursiveCallSite::Statement {
+                                } => crate::checked_trees::CheckedProofRecursiveCallSite::Statement {
                                     state,
                                     statement_index,
                                 },
-                                validation::ValidatedProofRecursiveCallSite::Expression {
+                                crate::validation::ValidatedProofRecursiveCallSite::Expression {
                                     state,
                                     statement_index,
                                     expression_ordinal,
-                                } => checked_trees::CheckedProofRecursiveCallSite::Expression {
+                                } => crate::checked_trees::CheckedProofRecursiveCallSite::Expression {
                                     state,
                                     statement_index,
                                     expression_ordinal,
                                 },
-                                validation::ValidatedProofRecursiveCallSite::Transition {
+                                crate::validation::ValidatedProofRecursiveCallSite::Transition {
                                     state,
                                     statement_index,
                                     lane,
-                                } => checked_trees::CheckedProofRecursiveCallSite::Transition {
+                                } => crate::checked_trees::CheckedProofRecursiveCallSite::Transition {
                                     state,
                                     statement_index,
                                     lane: match lane {
-                                        validation::ValidatedProofRecursiveTransitionLane::Target => checked_trees::CheckedProofRecursiveTransitionLane::Target,
-                                        validation::ValidatedProofRecursiveTransitionLane::Continuation => checked_trees::CheckedProofRecursiveTransitionLane::Continuation,
+                                        crate::validation::ValidatedProofRecursiveTransitionLane::Target => crate::checked_trees::CheckedProofRecursiveTransitionLane::Target,
+                                        crate::validation::ValidatedProofRecursiveTransitionLane::Continuation => crate::checked_trees::CheckedProofRecursiveTransitionLane::Continuation,
                                     },
                                 },
                             },
@@ -112,7 +112,7 @@ pub(crate) fn build_termination_facts(
 pub(crate) fn build_blocking_facts(
     program: &TypedTrees,
     blocking: &[MachineBlockingRow],
-) -> checked_trees::BlockingFacts {
+) -> crate::checked_trees::BlockingFacts {
     let machines = program
         .machines()
         .iter()
@@ -120,7 +120,7 @@ pub(crate) fn build_blocking_facts(
             let blocking_row = blocking.iter().find(|row| row.symbol == machine.symbol);
             let publishes_operational_contract = machine.is_public
                 || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
-            checked_trees::MachineBlockingFact {
+            crate::checked_trees::MachineBlockingFact {
                 machine: machine.symbol,
                 plan: language_semantics::BlockingPlan {
                     interface: if publishes_operational_contract || machine.blocks {
@@ -133,13 +133,13 @@ pub(crate) fn build_blocking_facts(
             }
         })
         .collect();
-    checked_trees::BlockingFacts { machines }
+    crate::checked_trees::BlockingFacts { machines }
 }
 
 pub(crate) fn build_suspension_facts(
     program: &TypedTrees,
     suspensions: &[MachineSuspensionRow],
-) -> checked_trees::SuspensionFacts {
+) -> crate::checked_trees::SuspensionFacts {
     let machines = program
         .machines()
         .iter()
@@ -147,7 +147,7 @@ pub(crate) fn build_suspension_facts(
             let suspension_row = suspensions.iter().find(|row| row.symbol == machine.symbol);
             let publishes_operational_contract = machine.is_public
                 || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
-            checked_trees::MachineSuspensionFact {
+            crate::checked_trees::MachineSuspensionFact {
                 machine: machine.symbol,
                 plan: language_semantics::SuspensionPlan {
                     interface: if publishes_operational_contract || machine.suspends {
@@ -163,21 +163,24 @@ pub(crate) fn build_suspension_facts(
             }
         })
         .collect();
-    checked_trees::SuspensionFacts { machines }
+    crate::checked_trees::SuspensionFacts { machines }
 }
 
 pub(crate) fn build_synchronous_invocation_facts(
     program: &TypedTrees,
-) -> checked_trees::SynchronousInvocationFacts {
-    let inference = validation::infer_synchronous_invocations(program);
+) -> crate::checked_trees::SynchronousInvocationFacts {
+    let inference = crate::validation::infer_synchronous_invocations(program);
     let machines = program
         .machines()
         .iter()
         .map(|machine| {
             let invocation_summary = inference.for_machine(machine.symbol);
-            let canonical_invocation = |target: flow_effects::InvocationTarget| match target {
-                flow_effects::InvocationTarget::Parameter(index) => format!("parameter:{index}"),
-                flow_effects::InvocationTarget::Service(symbol) => program
+            let canonical_invocation = |target: crate::flow_effects::InvocationTarget| match target
+            {
+                crate::flow_effects::InvocationTarget::Parameter(index) => {
+                    format!("parameter:{index}")
+                }
+                crate::flow_effects::InvocationTarget::Service(symbol) => program
                     .traits()
                     .iter()
                     .find(|definition| definition.symbol == symbol)
@@ -209,7 +212,7 @@ pub(crate) fn build_synchronous_invocation_facts(
                 || machine.is_public
                 || !program.machine_invokes(machine).is_empty();
 
-            checked_trees::MachineSynchronousInvocationFact {
+            crate::checked_trees::MachineSynchronousInvocationFact {
                 machine: machine.symbol,
                 published_targets,
                 checked_inferred_targets,
@@ -225,5 +228,5 @@ pub(crate) fn build_synchronous_invocation_facts(
             }
         })
         .collect();
-    checked_trees::SynchronousInvocationFacts { machines }
+    crate::checked_trees::SynchronousInvocationFacts { machines }
 }

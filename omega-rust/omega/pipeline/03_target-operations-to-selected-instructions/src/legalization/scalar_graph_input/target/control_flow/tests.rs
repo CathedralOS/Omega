@@ -6,7 +6,6 @@ use super::{
     TargetFunction, TargetUnitOperation,
 };
 use crate::legalization::scalar_graph_input::u64_type;
-use abstract_operations::{AbstractBlockEntry, AbstractParameter};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId, StructuralTypeId,
 };
@@ -14,6 +13,9 @@ use terminal_psi::{
     ByteSequenceCarrier, SemanticFingerprint, StructuralAccess, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractParameter,
 };
 
 #[test]
@@ -75,10 +77,11 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
             operations: vec![
                 AbstractOperation::ByteSequenceLength {
                     psi_operation: OperationId::new(1).unwrap(),
-                    result: abstract_operations::AbstractResult {
-                        value: values[2],
-                        scalar_type,
-                    },
+                    result:
+                        terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                            value: values[2],
+                            scalar_type,
+                        },
                     source: place,
                 },
                 AbstractOperation::ByteSequenceSubslice {
@@ -114,7 +117,7 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
         ),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -136,10 +139,14 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
     else {
         panic!("subslice");
     };
-    let target_operations::TargetByteView::Subslice { source, .. } = view else {
+    let abstract_operations_to_target_operations::target_operations::TargetByteView::Subslice {
+        source,
+        ..
+    } = view
+    else {
         panic!("view");
     };
-    **source = target_operations::TargetByteView::BlockParameter {
+    **source = abstract_operations_to_target_operations::target_operations::TargetByteView::BlockParameter {
         block: unit.functions[0].entry,
         place,
         structural_type,
@@ -156,7 +163,7 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
         else {
             panic!("subslice");
         };
-        let target_operations::TargetByteView::Subslice {
+        let abstract_operations_to_target_operations::target_operations::TargetByteView::Subslice {
             psi_operation,
             place,
             obligation,

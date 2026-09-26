@@ -10,8 +10,8 @@
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId};
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::{SelectedBlockOrigin, SelectedInstructionId};
 
 use super::MemberRunRelocationError;
 use crate::ValidatedSelectedAnalysis;

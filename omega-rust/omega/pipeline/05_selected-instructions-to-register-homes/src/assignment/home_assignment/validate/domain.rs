@@ -2,13 +2,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::{RegisterClassId, RegisterViewId};
-use selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::{RegisterClassId, RegisterViewId};
 
 use super::conflicts;
 use crate::RegisterHomeError;
-use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
-use selected_instructions::{FunctionLiveRanges, LiveRangePoint};
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
+};
+use target_operations_to_selected_instructions::{FunctionLiveRanges, LiveRangePoint};
 
 #[derive(Debug, Clone)]
 pub(super) struct ReplayDomain {

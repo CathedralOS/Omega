@@ -5,7 +5,6 @@
 //! copy refused. Each one lowers, passes independent verification after both
 //! codec roundtrips, and executes on every selected state.
 
-use checked_trees::{CheckedStructuralAccess, CheckedUnitEffectOperationPlan};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
@@ -13,6 +12,9 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
     interpret_terminal_artifact_measured,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
 };
 
 /// Lower `root`, verify the decoded artifact independently, run it once per

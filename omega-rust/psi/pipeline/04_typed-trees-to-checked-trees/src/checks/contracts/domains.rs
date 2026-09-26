@@ -1,4 +1,4 @@
-use facts::{FactPayload, FactPlace};
+use crate::fact_plan::{FactPayload, FactPlace};
 use symbols::SymbolHandle;
 
 use super::labels::{
@@ -7,10 +7,10 @@ use super::labels::{
 };
 
 pub(super) fn prove_boolean_expression_via_context_domain_membership(
-    program: &typed_trees::TypedTrees,
-    semantic: &facts::FactPlan,
-    context: &facts::FactContext,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    semantic: &crate::fact_plan::FactPlan,
+    context: &crate::fact_plan::FactContext,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let candidate_label = program.expression_table.display_name(expression);
 
@@ -50,14 +50,14 @@ pub(super) fn prove_boolean_expression_via_context_domain_membership(
 }
 
 pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membership(
-    program: &typed_trees::TypedTrees,
-    semantic: &facts::FactPlan,
-    context: &facts::FactContext,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    semantic: &crate::fact_plan::FactPlan,
+    context: &crate::fact_plan::FactContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &crate::semantic::calls::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let candidate_label = instantiate_call_contract_expression_label(
         program,

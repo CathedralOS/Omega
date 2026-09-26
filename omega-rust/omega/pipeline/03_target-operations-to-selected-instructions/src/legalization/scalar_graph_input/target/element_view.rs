@@ -1,9 +1,11 @@
 //! Independent custody correspondence for element descriptor derivations.
 use super::Checker;
-use abstract_operations::AbstractOperation;
+use abstract_operations_to_target_operations::target_operations::{
+    TargetElementView, TargetStructuralArgumentSource,
+};
 use semantic_vocabulary::{PlaceId, ValueId};
-use target_operations::{TargetElementView, TargetStructuralArgumentSource};
 use terminal_psi::StructuralTypeShape;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 impl Checker<'_> {
     pub(super) fn element_view(

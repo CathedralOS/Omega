@@ -15,7 +15,7 @@ use crate::{
     LiveRangeError, ValidatedLiveRanges, ValidatedLiveness, ValidatedSelectedAnalysis,
     validate_liveness,
 };
-use selected_instructions::LiveRangePlan;
+use target_operations_to_selected_instructions::LiveRangePlan;
 
 pub fn validate_live_ranges(
     selected: &impl crate::ValidatedSelectedAnalysis,

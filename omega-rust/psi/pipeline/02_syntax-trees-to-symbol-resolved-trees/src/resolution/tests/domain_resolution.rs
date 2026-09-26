@@ -7,13 +7,13 @@ use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 
 mod semantic_identity_tests {
     use crate::resolution::{ResolutionRequest, resolve};
+    use crate::symbol_resolved_trees::SymbolResolvedTrees;
     use language_semantics::SemanticDomainTable;
     use semantic_vocabulary::PackageKeyIdentity;
     use source::{DependencyScope, SourceMap, SourceOrigin, SourceResolutionStratum};
     use source_files_to_tokens::Lexer;
     use std::path::PathBuf;
     use std::sync::Arc;
-    use symbol_resolved_trees::SymbolResolvedTrees;
     use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
     fn add_domain_source(
@@ -36,7 +36,7 @@ mod semantic_identity_tests {
     }
 
     fn resolve_domain_sources(sources: SourceMap) -> SymbolResolvedTrees {
-        let mut syntax = syntax_trees::SyntaxTrees::default();
+        let mut syntax = tokens_to_syntax_trees::syntax_trees::SyntaxTrees::default();
         for file in sources.files() {
             let tokens = Lexer::new(&file.source)
                 .tokenize()
@@ -285,10 +285,11 @@ mod semantic_identity_tests {
             .machine_contracts(machine)
             .iter()
             .find(|contract| {
-                contract.kind == symbol_resolved_trees::signature::SignatureContractKind::Ensures
+                contract.kind
+                    == crate::symbol_resolved_trees::signature::SignatureContractKind::Ensures
             })
             .expect("fill should retain its ensures contract");
-        let [symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
+        let [crate::symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
             program.proof_facts(contract.facts)
         else {
             panic!("ensures should contain one domain membership")
@@ -401,7 +402,7 @@ fn retains_ordinary_via_call_as_resolved_expression_without_fabricated_binding()
         panic!("external leaf must retain one exact satisfaction row");
     };
     assert!(conformance.external_binding.is_none());
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
         .tables
         .bodies
         .expressions
@@ -479,7 +480,7 @@ fn lowers_domain_definitions() {
     assert_eq!(domain.name.as_str(), "Player::Alive");
     let facts = program.proof_facts(domain.facts);
     assert_eq!(facts.len(), 2);
-    let symbol_resolved_trees::domain::ProofFact::Membership(membership) = &facts[0] else {
+    let crate::symbol_resolved_trees::domain::ProofFact::Membership(membership) = &facts[0] else {
         panic!("first domain fact should be membership")
     };
     assert!(membership.domain_symbol.is_valid());
@@ -550,7 +551,9 @@ fn resolves_exact_case_symbols_in_domain_proof_expressions() {
         .data_members(command.members)
         .iter()
         .filter_map(|member| match member {
-            symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
+            crate::symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                Some(variant.symbol)
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -559,19 +562,19 @@ fn resolves_exact_case_symbols_in_domain_proof_expressions() {
         .iter()
         .find(|domain| domain.name.as_str() == "Command::Interactive")
         .expect("interactive domain");
-    let [symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
+    let [crate::symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
         program.proof_facts(domain.facts)
     else {
         panic!("case union should remain one proof expression");
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Binary(union) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Binary(union) =
         program.tables.bodies.expressions.expression(*expression)
     else {
         panic!("proof expression should remain a case union");
     };
 
     for (expression, expected_case) in [union.left, union.right].into_iter().zip(expected_cases) {
-        let symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
+        let crate::symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
             program.tables.bodies.expressions.expression(expression)
         else {
             panic!("union operand should remain a case membership");
@@ -607,12 +610,12 @@ fn resolves_free_machine_calls_in_domain_predicates() {
         .iter()
         .find(|domain| domain.name.as_str() == "Region::Valid")
         .expect("valid domain");
-    let [symbol_resolved_trees::domain::ProofFact::Expression(predicate)] =
+    let [crate::symbol_resolved_trees::domain::ProofFact::Expression(predicate)] =
         program.proof_facts(domain.facts)
     else {
         panic!("one predicate call");
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         program.tables.bodies.expressions.expression(*predicate)
     else {
         panic!("predicate should remain a call");
@@ -668,10 +671,10 @@ fn resolves_repeated_capacity_specializations_as_one_domain_identity() {
         .machine_contracts(machine)
         .iter()
         .find(|contract| {
-            contract.kind == symbol_resolved_trees::signature::SignatureContractKind::Ensures
+            contract.kind == crate::symbol_resolved_trees::signature::SignatureContractKind::Ensures
         })
         .expect("fill should retain its ensures contract");
-    let [symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
+    let [crate::symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
         program.proof_facts(contract.facts)
     else {
         panic!("ensures should contain one domain membership")
@@ -732,8 +735,8 @@ fn resolves_operator_const_parameter_carriers() {
     let [parameter] = program.data_type_parameters(operator.type_parameters) else {
         panic!("one const parameter")
     };
-    let symbol_resolved_trees::data::TypeParameterKind::Const {
-        type_reference: symbol_resolved_trees::types::TypeReference::Named { symbol, name },
+    let crate::symbol_resolved_trees::data::TypeParameterKind::Const {
+        type_reference: crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name },
     } = &parameter.kind
     else {
         panic!("const parameter carrier")
@@ -1337,7 +1340,7 @@ fn signature_free_route_still_rejects_a_contested_same_package_leaf() {
         established by Shared::issue;
     "#;
     let mut sources = SourceMap::default();
-    let mut syntax = syntax_trees::SyntaxTrees::default();
+    let mut syntax = tokens_to_syntax_trees::syntax_trees::SyntaxTrees::default();
     for (index, text) in [first, second, user].into_iter().enumerate() {
         let source_id = sources
             .add_with_metadata(

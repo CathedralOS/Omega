@@ -1,0 +1,233 @@
+//! Exact checked occurrence join for closed conformance static arguments.
+
+use crate::package_evidence::capture::PackageReviewInput;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+
+use super::ContractCallStaticParameterKind;
+use crate::package_evidence::capture::contracts::facts::ContractProjectionContext;
+use crate::package_evidence::capture::semantics::declarations::nominal_identity;
+use crate::package_evidence::record::PackageReviewContractStaticArgument;
+
+pub(crate) fn require_exact_conformance_static_argument_selections(
+    compilation: &PackageReviewInput<'_>,
+    context: &ContractProjectionContext<'_>,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
+) -> Result<(), Vec<Diagnostic>> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    };
+
+    let authored = arguments
+        .iter()
+        .filter(|argument| {
+            argument.symbol.is_valid()
+                && compilation.typed.symbols.get(argument.symbol).kind
+                    == symbols::SymbolKind::Conformance
+        })
+        .map(|argument| argument.symbol)
+        .collect::<Vec<_>>();
+    let mut retained = Vec::new();
+    for occurrence in compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        let Some(selection) = compilation
+            .authored_declaration_selections()
+            .get(occurrence)
+        else {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` retains an unknown conformance static-argument selection occurrence",
+                context.subject_kind, context.subject_name,
+            ))]);
+        };
+        if selection.kind() != AuthoredDeclarationSelectionKind::Conformance {
+            continue;
+        }
+        let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+            continue;
+        };
+        if compilation.typed.symbols.get(target.selected_symbol()).kind
+            != symbols::SymbolKind::Conformance
+        {
+            continue;
+        }
+        if selection.exposure() != context.selection_exposure {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` conformance static argument has the wrong retained selection exposure",
+                context.subject_kind, context.subject_name,
+            ))]);
+        }
+        retained.push(target.selected_symbol());
+    }
+    if retained != authored {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` conformance static arguments do not match their exact authored selections",
+            context.subject_kind, context.subject_name,
+        ))]);
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn project_contract_conformance_application(
+    compilation: &PackageReviewInput<'_>,
+    context: &ContractProjectionContext<'_>,
+    binders: &[(SymbolHandle, String)],
+    checked_fact: Option<
+        arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+    >,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    static_argument_position: usize,
+    argument: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument,
+    parameter_kind: ContractCallStaticParameterKind,
+    depth: usize,
+) -> Result<PackageReviewContractStaticArgument, Vec<Diagnostic>> {
+    let rejected = |reason: &str| {
+        vec![Diagnostic::error(format!(
+            "reviewed {} `{}` uses a static conformance application {reason}",
+            context.subject_kind, context.subject_name,
+        ))]
+    };
+    if depth != 0 || parameter_kind != ContractCallStaticParameterKind::Conformance {
+        return Err(rejected(
+            "outside the admitted top-level conformance-binder cohort",
+        ));
+    }
+    let checked_fact = checked_fact
+        .ok_or_else(|| rejected("without an exact checked proof-fact occurrence owner"))?;
+    let matching = compilation
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications
+        .iter()
+        .filter(|candidate| {
+            candidate.owner == context.owner
+                && candidate.fact == checked_fact
+                && candidate.expression == expression
+                && candidate.static_argument_position == static_argument_position
+        })
+        .collect::<Vec<_>>();
+    let [checked] = matching.as_slice() else {
+        return Err(rejected(&format!(
+            "with {} exact checked occurrence rows; expected one",
+            matching.len()
+        )));
+    };
+    let closed =
+        typed_trees_to_checked_trees::close_conformance_application(&compilation.typed, argument)
+            .map_err(|diagnostic| vec![diagnostic])?;
+    if checked.application != closed {
+        return Err(rejected(
+            "whose retained checked occurrence disagrees with the authored application",
+        ));
+    }
+    let declarations = compilation
+        .conformances()
+        .iter()
+        .filter(|declaration| declaration.symbol == argument.symbol)
+        .collect::<Vec<_>>();
+    let [declaration] = declarations.as_slice() else {
+        return Err(rejected(&format!(
+            "that rejoins {} conformance declarations; expected one",
+            declarations.len()
+        )));
+    };
+    let parameters = compilation.conformance_type_parameters(declaration);
+    let supplied = argument
+        .application
+        .as_ref()
+        .map_or(&[][..], |application| application.arguments.as_ref());
+    let const_parameter_count = parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { .. }
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { .. }
+            )
+        })
+        .count();
+    if !declaration.lifetime_parameters.is_empty()
+        || parameters.len() != supplied.len()
+        || parameters
+            .iter()
+            .zip(supplied)
+            .any(|(parameter, argument)| match parameter.kind {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type => false,
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { .. }
+                | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { .. } => {
+                    argument.const_literal.is_none()
+                        && !binders.iter().any(|(symbol, _)| {
+                            *symbol == argument.symbol
+                                && compilation.typed.symbols.get(*symbol).kind
+                                    == symbols::SymbolKind::TypeParameter
+                        })
+                        && (!argument.symbol.is_valid()
+                            || compilation.typed.symbols.get(argument.symbol).kind
+                                != symbols::SymbolKind::Const)
+                }
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { .. }
+                | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Proposition { .. } => true,
+            })
+        || !closed.lifetime_arguments.is_empty()
+        || closed.const_arguments.len() != const_parameter_count
+        || !closed.machine_arguments.is_empty()
+    {
+        return Err(rejected(
+            "outside the lifetime-free cohort with type parameters and exact literal, caller-binder, or named canonical const parameters",
+        ));
+    }
+    let projected =
+        crate::package_evidence::capture::semantics::conformances::project_selected_conformance_application(
+            compilation,
+            argument,
+            binders,
+            context.lifetime_binders,
+            context.lifetime_substitutions,
+            context.subject_kind,
+            context.subject_name,
+        )?;
+    if !projected.lifetime_arguments.is_empty() || !projected.trait_lifetime_arguments.is_empty() {
+        return Err(rejected(
+            "whose declaration or target trait carries an erased lifetime",
+        ));
+    }
+    let matching_traits = compilation
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == projected.trait_symbol)
+        .collect::<Vec<_>>();
+    let [trait_definition] = matching_traits.as_slice() else {
+        return Err(rejected(&format!(
+            "whose target rejoins {} trait declarations; expected one",
+            matching_traits.len()
+        )));
+    };
+    if context.requires_public_nominals() && !trait_definition.is_public {
+        return Err(rejected("that exposes a non-public target trait"));
+    }
+    let trait_parameters = compilation.trait_type_parameters(trait_definition);
+    if trait_parameters.len() != projected.trait_arguments.len()
+        || trait_parameters.iter().any(|parameter| {
+            !matches!(
+                parameter.kind,
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type
+            )
+        })
+    {
+        return Err(rejected(
+            "whose target trait is outside the type-only closed cohort",
+        ));
+    }
+    Ok(
+        PackageReviewContractStaticArgument::ConformanceApplication {
+            declaration: projected.declaration,
+            arguments: projected.arguments,
+            subject: Box::new(projected.subject),
+            trait_identity: nominal_identity(compilation, projected.trait_symbol)?,
+            trait_arguments: projected.trait_arguments,
+        },
+    )
+}

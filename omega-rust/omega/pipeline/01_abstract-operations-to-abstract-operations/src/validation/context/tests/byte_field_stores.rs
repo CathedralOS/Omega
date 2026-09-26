@@ -93,7 +93,7 @@ fn indexed_byte_field_rejoins_original_field_even_when_current_bounds_match() {
     }
     refresh_identity(&mut changed);
     assert_ne!(baseline.identity, changed.identity);
-    optimization_unit_semantics::validate_psi_optimization_unit(&changed).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed).unwrap();
     assert!(validate_transformed_psi_optimization_unit(&input, &changed).is_err());
 }
 
@@ -201,7 +201,7 @@ fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
         assert_ne!(redirected.identity, baseline.identity);
         // Both fields have identical capacity, type and permission. Current-IR
         // validation passes; only the retained original effect rejects redirection.
-        optimization_unit_semantics::validate_psi_optimization_unit(&redirected).unwrap();
+        terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&redirected).unwrap();
         assert!(matches!(
             validate_transformed_psi_optimization_unit(&input, &redirected),
             Err(OptimizationUnitValidationError::OperationObligationOwnerMismatch { .. })
@@ -218,7 +218,7 @@ fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
         );
         refresh_identity(&mut changed_capacity);
         assert!(matches!(
-            optimization_unit_semantics::validate_psi_optimization_unit(&changed_capacity),
+            terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed_capacity),
             Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)
         ));
 
@@ -226,7 +226,7 @@ fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
         missing_proof.accepted_obligation_facts.clear();
         refresh_identity(&mut missing_proof);
         assert!(matches!(
-            optimization_unit_semantics::validate_psi_optimization_unit(&missing_proof),
+            terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&missing_proof),
             Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)
         ));
 
@@ -244,7 +244,7 @@ fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
         *source = *destination;
         refresh_identity(&mut wrong_source);
         assert!(matches!(
-            optimization_unit_semantics::validate_psi_optimization_unit(&wrong_source),
+            terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&wrong_source),
             Err(OptimizationUnitValidationError::InvalidByteSequenceRead { .. })
         ));
     }

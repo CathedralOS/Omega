@@ -1,10 +1,12 @@
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::{
+    ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
+};
+use crate::fact_plan::PlaceHandle;
+use crate::fact_plan::{FactPlace, FactPlan};
 use crate::flow::effective_member_symbol;
 use crate::semantic::calls::call_target_parameters;
 use crate::semantic::places::{append_place_segment, resolve_place_member_symbol};
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ProofFacts};
-use facts::PlaceHandle;
-use facts::{FactPlace, FactPlan};
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
@@ -12,22 +14,26 @@ use symbols::SymbolHandle;
 mod tests;
 
 pub(crate) fn contract_fact_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
 ) -> FactPlace {
     match program.proof_facts.get(contract.fact) {
-        typed_trees::domain::ProofFact::Expression(expression) => FactPlace::Place(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            expression,
+        ) => FactPlace::Place(
             contract_expression_place(program, facts, contract, *expression)
                 .unwrap_or_else(|| facts.append_place_from_expression(program, *expression)),
         ),
-        typed_trees::domain::ProofFact::Membership(membership) => FactPlace::Place(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) => FactPlace::Place(
             contract_expression_place(program, facts, contract, membership.value)
                 .unwrap_or_else(|| facts.append_place_from_expression(program, membership.value)),
         ),
-        typed_trees::domain::ProofFact::Proposition(application) => {
-            FactPlace::Place(facts.append_symbol_place(application.proposition))
-        }
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+            application,
+        ) => FactPlace::Place(facts.append_symbol_place(application.proposition)),
     }
 }
 
@@ -36,7 +42,7 @@ pub(crate) fn contract_fact_place(
 /// mutating any operand invalidates the whole assumption rather than leaving
 /// a comparison alive under an opaque expression root.
 pub(crate) fn contract_fact_dependency_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
 ) -> Vec<PlaceHandle> {
@@ -56,11 +62,11 @@ pub(crate) fn contract_fact_dependency_places(
 /// point; parameter and `result` paths are instantiated through the exact
 /// source call rather than reconstructed from normalized display labels.
 pub(crate) fn outcome_specific_fact_dependency_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     proof: &ProofFacts,
-    arm: &checked_trees::OutcomeSpecificArmFact,
-    row: &checked_trees::OutcomeSpecificArmRowFact,
+    arm: &crate::checked_trees::OutcomeSpecificArmFact,
+    row: &crate::checked_trees::OutcomeSpecificArmRowFact,
 ) -> Vec<PlaceHandle> {
     let mut places = Vec::new();
     if let Some(result) = crate::semantic::places::canonical_place_to_fact_place_in_state(
@@ -133,7 +139,7 @@ fn push_unique_place(facts: &FactPlan, places: &mut Vec<PlaceHandle>, candidate:
 }
 
 fn contract_expression_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
     expression: ExpressionHandle,
@@ -142,7 +148,7 @@ fn contract_expression_place(
         return None;
     }
 
-    if let Some(result) = validation::reserved_result_place(program, expression) {
+    if let Some(result) = crate::validation::reserved_result_place(program, expression) {
         let owner_matches = match contract.owner {
             ContractProofFactOwner::Machine { machine_symbol }
             | ContractProofFactOwner::MachineState { machine_symbol, .. } => {
@@ -180,16 +186,21 @@ fn contract_expression_place(
                         .unwrap_or_else(SymbolHandle::invalid)
                 }
             };
-            let receiver = if let Some(variant) = facts::payload_variant_for_field(program, symbol)
+            let receiver = if let Some(variant) =
+                crate::fact_plan::payload_variant_for_field(program, symbol)
             {
-                append_place_segment(facts, receiver, facts::PlaceSegment::Case { variant })
+                append_place_segment(
+                    facts,
+                    receiver,
+                    crate::fact_plan::PlaceSegment::Case { variant },
+                )
             } else {
                 receiver
             };
             Some(append_place_segment(
                 facts,
                 receiver,
-                facts::PlaceSegment::Field { symbol },
+                crate::fact_plan::PlaceSegment::Field { symbol },
             ))
         }
         ExpressionNode::Indexed(indexed) => {
@@ -209,10 +220,10 @@ fn contract_expression_place(
 }
 
 fn contract_name_path_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
-    path: &typed_trees::expression::TableNamePath,
+    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
 ) -> Option<PlaceHandle> {
     let members = program.expression_table.name_path_members(path.members);
     let member_symbols = program
@@ -229,11 +240,11 @@ fn contract_name_path_place(
         // keep that declaration root even once name resolution stamps the path.
         let attachment_root = crate::flow::normalized_event_place_root(
             program,
-            facts::PlaceRoot::Symbol(self_symbol),
+            crate::fact_plan::PlaceRoot::Symbol(self_symbol),
         );
         if path.head_symbol.is_valid()
             && path.head_symbol != self_symbol
-            && attachment_root != facts::PlaceRoot::Symbol(path.head_symbol)
+            && attachment_root != crate::fact_plan::PlaceRoot::Symbol(path.head_symbol)
         {
             return None;
         }
@@ -265,13 +276,17 @@ fn contract_name_path_place(
             .filter(|symbol| symbol.is_valid())
             .or_else(|| resolve_place_member_symbol(program, facts, place, member_name.as_str()))
             .unwrap_or_else(SymbolHandle::invalid);
-        if let Some(variant) = facts::payload_variant_for_field(program, member_symbol) {
-            place = append_place_segment(facts, place, facts::PlaceSegment::Case { variant });
+        if let Some(variant) = crate::fact_plan::payload_variant_for_field(program, member_symbol) {
+            place = append_place_segment(
+                facts,
+                place,
+                crate::fact_plan::PlaceSegment::Case { variant },
+            );
         }
         place = append_place_segment(
             facts,
             place,
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: member_symbol,
             },
         );
@@ -281,7 +296,7 @@ fn contract_name_path_place(
 }
 
 fn contract_owner_self_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     owner: ContractProofFactOwner,
 ) -> Option<SymbolHandle> {
     contract_owner_parameter(program, owner, |parameter| parameter.is_self)
@@ -293,10 +308,10 @@ fn contract_owner_self_symbol(
 /// the parameter symbol so the fact place is rooted at the parameter, which
 /// is how call-site obligations instantiate the same contract.
 fn contract_owner_parameter_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     owner: ContractProofFactOwner,
-    path: &typed_trees::expression::TableNamePath,
-    head_name: Option<&typed_trees::name::Identifier>,
+    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
+    head_name: Option<&symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier>,
 ) -> Option<SymbolHandle> {
     let head_name = head_name?.as_str();
     if is_self_receiver(head_name) {
@@ -312,10 +327,12 @@ fn contract_owner_parameter_symbol(
 }
 
 fn contract_owner_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     owner: ContractProofFactOwner,
-    mut matches: impl FnMut(&typed_trees::signature::StateParameter) -> bool,
-) -> Option<&typed_trees::signature::StateParameter> {
+    mut matches: impl FnMut(
+        &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    ) -> bool,
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter> {
     let state_symbol = match owner {
         ContractProofFactOwner::MachineState { state_symbol, .. }
         | ContractProofFactOwner::StateSignature { state_symbol, .. } => state_symbol,
@@ -334,7 +351,7 @@ fn contract_owner_parameter(
                 });
         }
         ContractProofFactOwner::OperatorDeclaration { operator_symbol } => {
-            return typed_trees::operator::declaration_by_symbol(program, operator_symbol)
+            return symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(program, operator_symbol)
                 .and_then(|operator| {
                     program
                         .operator_parameters(operator)

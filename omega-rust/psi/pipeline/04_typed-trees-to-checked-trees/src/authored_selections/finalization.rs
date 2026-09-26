@@ -19,7 +19,7 @@ use crate::authored_selections::selection_collection::{
     collect_checked_proof_view_call_selections, collect_checked_statement_selections,
 };
 use crate::authored_selections::{CheckedResolution, CheckedResolutionTarget};
-use checked_trees::CheckFacts;
+use crate::checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionFinalizationError,
@@ -27,9 +27,9 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
     AuthoredDeclarationSelectionTarget, BuildOperation,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
 
 pub(crate) fn finalize_checked_authored_selections_with_policy(
     program: &mut TypedTrees,
@@ -55,7 +55,7 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                 .iter()
                 .enumerate()
             {
-                let typed_trees::statement::StatementNode::RootBinding(binding) = statement else {
+                let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::RootBinding(binding) = statement else {
                     continue;
                 };
                 let receiver_type = crate::flow::expression_type_reference_in_state(
@@ -80,7 +80,7 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                 }
                 if !receiver_type.is_some_and(|receiver_type| {
                     matches!(program.type_reference_table.type_reference(receiver_type),
-                        typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
                             if *access == language_semantics::ReferenceAccess::Mutable && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
                 })
                 {
@@ -216,10 +216,10 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                         .with_source_span(selection.source_span()));
                     }
                     Some(CheckedResolutionTarget::Intrinsic(match request.kind {
-                        typed_trees::expression::QuotientOperationKind::Define => {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::QuotientOperationKind::Define => {
                             AuthoredDeclarationSelectionIntrinsic::QuotientDefine
                         }
-                        typed_trees::expression::QuotientOperationKind::Lift => {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::QuotientOperationKind::Lift => {
                             AuthoredDeclarationSelectionIntrinsic::QuotientLift
                         }
                     }))

@@ -1,10 +1,12 @@
 use super::fixture_source;
 use crate::tests::front_end::typed_program;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
 
-fn origin(program: &typed_trees::TypedTrees) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+fn origin(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> Option<(SymbolHandle, Vec<crate::fact_plan::PlaceSegment>)> {
     let machine = program
         .machines()
         .iter()
@@ -21,7 +23,7 @@ fn origin(program: &typed_trees::TypedTrees) -> Option<(SymbolHandle, Vec<facts:
             _ => None,
         })
         .unwrap();
-    let resolver = validation::CallFrameResolver::new(program).unwrap();
+    let resolver = crate::validation::CallFrameResolver::new(program).unwrap();
     let frame = resolver.inferred_state_write_frame(machine, state);
     let origin = resolver.local_reference_origin_before_statement(
         machine,
@@ -90,7 +92,7 @@ fn an_input_reference_query_selects_the_exact_nominal_field() {
         root,
         program.state_parameters(&program.machine_states(machine)[0])[0].symbol
     );
-    let [facts::PlaceSegment::Field { symbol }] = segments.as_slice() else {
+    let [crate::fact_plan::PlaceSegment::Field { symbol }] = segments.as_slice() else {
         panic!("one field: {segments:?}")
     };
     assert_eq!(

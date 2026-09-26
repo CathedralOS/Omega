@@ -4,10 +4,12 @@ use super::{
     CheckedScalarComputationHandle, CheckedTrees, ExpressionNode, LoweringError, PrimitiveType,
     TypeReferenceHandle,
 };
-use crate::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::SemanticDomainId;
 
-fn root(checked: &CheckedTrees) -> checked_trees::CheckedScalarComputationRoot {
+fn root(
+    checked: &CheckedTrees,
+) -> typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationRoot {
     let machine = checked
         .machines()
         .iter()
@@ -148,8 +150,11 @@ fn qualification_match_replays_checked_custody_and_publishes_exact_terminal_memb
     let checked = crate::front_end::checked_program(SOURCE);
     assert_eq!(qualifications(&checked).len(), 2);
     replay(&checked).expect("exact source, membership, and operand custody");
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
-        .expect("qualified Terminal graph");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("qualified Terminal graph");
     let catalog = &lowered.semantic_module.scalar_qualifications;
     assert_eq!(catalog.domains.len(), 1);
     assert_eq!(catalog.sets.len(), 1);
@@ -415,18 +420,22 @@ fn indexed_call_replay_rechecks_parameter_contract_instance() {
     ));
     for erase_arguments in [false, true] {
         let mut checked = crate::front_end::checked_program(source);
-        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
-            .expect("original exact call contract");
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("choose"),
+        )
+        .expect("original exact call contract");
         let membership = checked
             .typed
             .proof_facts
             .iter()
             .find_map(|(handle, fact)| {
-                matches!(fact, typed_trees::domain::ProofFact::Membership(_)).then_some(handle)
+                matches!(fact, symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(_)).then_some(handle)
             })
             .expect("qualified parameter requirement");
-        let typed_trees::domain::ProofFact::Membership(membership) =
-            checked.typed.proof_facts.get_mut(membership)
+        let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) = checked.typed.proof_facts.get_mut(membership)
         else {
             panic!("membership");
         };
@@ -436,7 +445,11 @@ fn indexed_call_replay_rechecks_parameter_contract_instance() {
             membership.semantic_domain = SemanticDomainId::NULL;
         }
         assert!(
-            crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("choose")
+            )
+            .is_err(),
             "erase_arguments={erase_arguments}"
         );
     }

@@ -37,7 +37,7 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn lowered(source: &str) -> lowered_psi::LoweredPsi {
+fn lowered(source: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("Root::enter"),
@@ -250,8 +250,9 @@ fn one_unit_resume_preserves_selected_views_and_emits_each_call_once() {
     let decoded_proof = terminal_codec::decode_proof_bundle(&proof).unwrap();
     let verified = terminal_verifier::verify_module(&decoded_module, &decoded_proof, &profile)
         .expect("serialized acyclic bindings verify under ordinary execution");
-    let certificate = terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, decoded_module.entry)
-        .expect("acyclic structural transfers retain the existing logical fuel schedule");
+    let certificate =
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, decoded_module.entry)
+            .expect("acyclic structural transfers retain the existing logical fuel schedule");
     let unlimited = interpret_terminal_artifact_measured(
         &semantic,
         &proof,
@@ -649,10 +650,10 @@ fn unranked_self_bindings_validate_without_claiming_finite_fuel() {
     )
     .expect("an unchanged immutable view may be carried by a productive loop");
     assert!(matches!(
-        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, changed.entry),
-        Err(terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, changed.entry),
+        Err(omega::terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
             component,
-            cause: terminal_fixed_fuel::UnboundedCycleCause::Unranked,
+            cause: omega::terminal_fixed_fuel::UnboundedCycleCause::Unranked,
         }) if component == expected_component
     ));
     let mut execution = TerminalExecution::start_artifact(

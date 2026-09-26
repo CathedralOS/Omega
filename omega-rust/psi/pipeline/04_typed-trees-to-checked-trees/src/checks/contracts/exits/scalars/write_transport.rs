@@ -12,8 +12,10 @@
 //! expression statements, and root bindings — stop the transport entirely
 //! rather than guess at what they may have written.
 
-use facts::{FactPayload, PlaceRoot};
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use crate::fact_plan::{FactPayload, PlaceRoot};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
 
 use crate::flow::{
     CanonicalPlace, canonical_place_from_expression_in_state, normalize_attached_place_root,
@@ -88,7 +90,7 @@ impl ExitScalars<'_, '_> {
         for index in (0..self.exit.statement_index.min(statements.len())).rev() {
             let statement = &statements[index];
             match statement {
-                typed_trees::statement::StatementNode::Assignment(assignment) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Assignment(assignment) => {
                     let Some(mut written) = statement_mutated_place(
                         self.program,
                         self.machine.symbol,
@@ -111,7 +113,7 @@ impl ExitScalars<'_, '_> {
                     }
                     later_writes.push(written);
                 }
-                typed_trees::statement::StatementNode::LocalData(local) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) => {
                     // A declaration writes only its own fresh root; it is the
                     // last write exactly when the goal place is that local.
                     if matches!(place.root, PlaceRoot::Symbol(root) if root == local.symbol)
@@ -124,8 +126,8 @@ impl ExitScalars<'_, '_> {
                         break;
                     }
                 }
-                typed_trees::statement::StatementNode::AssemblyFact(_)
-                | typed_trees::statement::StatementNode::Transition(_) => {}
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::AssemblyFact(_)
+                | symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(_) => {}
                 // Calls, expression statements, and root bindings write through
                 // frames this scan does not own; stop rather than undercount.
                 _ => return false,
@@ -153,7 +155,7 @@ impl ExitScalars<'_, '_> {
     /// the writes between it and the exit.
     fn write_substitutions(
         &self,
-        state: &typed_trees::state::State,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         write_index: usize,
         writes: &[CanonicalPlace],
     ) -> Vec<WriteSubstitution> {
@@ -193,13 +195,14 @@ impl ExitScalars<'_, '_> {
             {
                 if matches!(
                     fact.origin,
-                    facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
+                    crate::fact_plan::FactOrigin::CallRequires
+                        | crate::fact_plan::FactOrigin::CallEnsures
                 ) {
                     continue;
                 }
                 let expressions = match fact.payload {
                     FactPayload::ContractBooleanExpression {
-                        kind: facts::ContractFactKind::Requires,
+                        kind: crate::fact_plan::ContractFactKind::Requires,
                         expression,
                         instantiated,
                         ..
@@ -281,7 +284,7 @@ impl ExitScalars<'_, '_> {
         _place: &CanonicalPlace,
         substitution: ExpressionHandle,
         writes: &[CanonicalPlace],
-        state: &typed_trees::state::State,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         write_index: usize,
     ) -> bool {
         let mut nodes = Vec::new();
@@ -318,7 +321,7 @@ impl ExitScalars<'_, '_> {
         goal: ExpressionHandle,
         substitutions: &[WriteSubstitution],
         writes: &[CanonicalPlace],
-        state: &typed_trees::state::State,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         write_index: usize,
     ) -> bool {
         if let Some(mut leaf) = canonical_place_from_expression_in_state(
@@ -416,7 +419,7 @@ fn places_overlap(a: &CanonicalPlace, b: &CanonicalPlace) -> bool {
 /// values, or aggregate structure that `expressions_structurally_equal` does
 /// not decompose stay out of its language entirely.
 fn transport_expression_is_pure(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> bool {
     let mut nodes = Vec::new();
@@ -439,7 +442,7 @@ fn transport_expression_is_pure(
 
 /// `A && B` asserts both conjuncts; each `==` conjunct supplies an edge.
 fn equality_conjuncts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Vec<(ExpressionHandle, ExpressionHandle)> {
     match program.expression_table.expression(expression) {

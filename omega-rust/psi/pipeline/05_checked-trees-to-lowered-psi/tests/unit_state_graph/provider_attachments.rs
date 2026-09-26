@@ -1,4 +1,3 @@
-use checked_trees::{CheckedComposedUnitControlMachinePlan, CheckedUnitEffectOperationPlan};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
 use terminal_interpreter::AcceptTerminalEffects;
@@ -8,6 +7,9 @@ use terminal_interpreter::{
     TerminalScalarValue, TerminalStructuralValue,
 };
 use terminal_psi::{StructuralAccess, StructuralFieldType, StructuralTypeShape};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedComposedUnitControlMachinePlan, CheckedUnitEffectOperationPlan,
+};
 
 const SOURCE: &str = r#"
     boundary trait Output {
@@ -199,7 +201,7 @@ fn cyclic_provider_fields_reload_with_exact_roots_and_ordered_stores() {
 }
 
 fn graph_plan_mut(
-    checked: &mut checked_trees::CheckedTrees,
+    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
 ) -> &mut CheckedComposedUnitControlMachinePlan {
     let machine = checked
         .machines()
@@ -217,7 +219,7 @@ fn graph_plan_mut(
         .expect("general graph has a checked composed plan")
 }
 
-fn baseline() -> checked_trees::CheckedTrees {
+fn baseline() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let checked = crate::front_end::checked_program(SOURCE);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -244,7 +246,9 @@ fn reject_authored_provider_receiver_mutation(mutation: &str) {
         .data_members(owner)
         .iter()
         .find_map(|member| {
-            let checked_trees::data::DataMember::Field(field) = member else {
+            let typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(field) =
+                member
+            else {
                 return None;
             };
             (field.name.as_str() == "counter").then_some(field.symbol)
@@ -256,14 +260,15 @@ fn reject_authored_provider_receiver_mutation(mutation: &str) {
         for member in ["self", "counter"] {
             changed.typed.statement_table.push_name_path_member(
                 &mut scalar_path,
-                checked_trees::name::Identifier::generated(member),
+                typed_trees_to_checked_trees::checked_trees::name::Identifier::generated(member),
             );
         }
     }
-    let checked_trees::statement::StatementNode::Call(call) = &mut changed
-        .typed
-        .statement_table
-        .statements_mut(state.statement_nodes)[1]
+    let typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Call(call) =
+        &mut changed
+            .typed
+            .statement_table
+            .statements_mut(state.statement_nodes)[1]
     else {
         panic!("provider invocation is an authored statement call");
     };
