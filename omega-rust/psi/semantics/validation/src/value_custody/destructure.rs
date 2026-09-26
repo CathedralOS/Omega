@@ -24,7 +24,7 @@ pub(crate) fn validate_destructure_exhaustiveness(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let proof_only = typed_trees::proof_only::classify(program);
+    let proof_only = crate::proof_only_classification(program);
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {

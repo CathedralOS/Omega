@@ -86,9 +86,8 @@ pub use crate::machine_calls::call_cycles::{
     validated_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
-    AssignmentWriteTarget, CallFrameResolver, CallFrameScope, LocalWriteOrigin,
-    enter_call_frame_scope, frame_paths_overlap, generic_bound_call_requirement,
-    generic_bound_value_call_requirement, operand_call_plans,
+    AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, frame_paths_overlap,
+    generic_bound_call_requirement, generic_bound_value_call_requirement, operand_call_plans,
     state_reference_parameter_binding_is_stable,
 };
 pub use crate::proof_contracts::slice_ranking::{
@@ -269,6 +268,7 @@ pub use proof_contracts::proof_embeddings::{
 };
 
 mod declarations;
+mod frozen_program;
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;
@@ -279,6 +279,9 @@ mod value_custody;
 #[cfg(test)]
 #[path = "../tests/support/front_end.rs"]
 mod front_end;
+pub use frozen_program::{
+    FrozenProgramScope, enter_frozen_program_scope, proof_only_classification,
+};
 pub use machine_calls::reference_result_custody;
 pub use program_validation::{
     ContractEntailmentStandDown, ContractEntailmentStandDownReason, ExactIntegerCastFact,

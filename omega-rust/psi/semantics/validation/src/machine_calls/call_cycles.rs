@@ -300,7 +300,7 @@ pub fn validated_runtime_recursive_components(program: &TypedTrees) -> Vec<Vec<S
     if diagnostics.iter().any(Diagnostic::is_error) {
         return Vec::new();
     }
-    let proof_only = typed_trees::proof_only::classify(program);
+    let proof_only = crate::proof_only_classification(program);
     let graph = build_machine_call_graph(program, &symbols, &proof_only);
     runtime_ranking::admitted_components(program, &proof_only, &graph.edges)
         .into_iter()
@@ -355,7 +355,7 @@ pub(crate) fn validate_machine_call_cycles(
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<ValidatedProofRecursiveComponent> {
-    let proof_only = typed_trees::proof_only::classify(program);
+    let proof_only = crate::proof_only_classification(program);
     let machines = program.machines();
     let MachineCallGraph {
         edges,

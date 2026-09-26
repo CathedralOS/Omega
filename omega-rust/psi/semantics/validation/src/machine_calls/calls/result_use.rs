@@ -33,7 +33,7 @@ pub(super) fn validate_result_use(
     }
 
     if call.receiver.is_empty() {
-        let classification = typed_trees::proof_only::classify(program);
+        let classification = crate::proof_only_classification(program);
         let is_citation = program
             .machines()
             .iter()

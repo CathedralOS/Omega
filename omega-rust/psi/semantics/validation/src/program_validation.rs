@@ -203,7 +203,7 @@ fn validate(
     // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
     // spelled); every runtime consumption face refuses with the
     // classification named.
-    let proof_only = typed_trees::proof_only::classify(program);
+    let proof_only = crate::proof_only_classification(program);
     proof_embeddings::validate_proof_embeddings(program, &proof_only, &mut diagnostics);
     let integer_embedding_calls =
         proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics);

@@ -224,7 +224,7 @@ pub(in super::super) fn zero_value_structural_term(
     type_reference: TypeReferenceHandle,
 ) -> Option<StructuralTerm> {
     if !type_reference.is_valid()
-        || typed_trees::proof_only::classify(program)
+        || crate::proof_only_classification(program)
             .proof_only_mention(program, type_reference)
             .is_some()
     {

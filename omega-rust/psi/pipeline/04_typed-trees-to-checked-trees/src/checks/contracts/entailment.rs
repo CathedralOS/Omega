@@ -250,7 +250,7 @@ pub(super) fn structural_call_requirement(
     expression: ExpressionHandle,
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let classification = typed_trees::proof_only::classify(program);
+    let classification = validation::proof_only_classification(program);
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };

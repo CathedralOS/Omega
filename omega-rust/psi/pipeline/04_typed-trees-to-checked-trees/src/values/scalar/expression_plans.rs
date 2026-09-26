@@ -104,7 +104,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
     let mut expressions = Vec::new();
     let mut source_bindings = arena::Arena::default();
     let mut binding_symbols = arena::Arena::default();
-    let proof_only = typed_trees::proof_only::classify(program);
+    let proof_only = validation::proof_only_classification(program);
     for machine in program.machines() {
         let states = program.machine_states(machine);
         for state in states {

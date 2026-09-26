@@ -41,7 +41,7 @@ pub fn structural_call_requirement_entailed(
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
-    let classification = typed_trees::proof_only::classify(program);
+    let classification = crate::proof_only_classification(program);
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
     };

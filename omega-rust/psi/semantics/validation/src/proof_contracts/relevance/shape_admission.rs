@@ -67,7 +67,7 @@ pub(super) fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut 
 /// otherwise surface with no name. Proof machines are exempt: their erased
 /// formals are proof-side occurrences that never need a runtime plan.
 fn validate_erased_runtime_scalar_formals(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    let proof_only = typed_trees::proof_only::classify(program);
+    let proof_only = crate::proof_only_classification(program);
     for machine in program.machines() {
         if proof_only.is_proof_machine(program, machine) {
             continue;
