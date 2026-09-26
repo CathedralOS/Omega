@@ -225,6 +225,85 @@ pub(super) fn emit_prefix(
     Ok(bindings)
 }
 
+/// Direct payload reads in one successor argument: each `[Case, Field]` path
+/// binds `(parameter position, case name, field name)` so the case edge can
+/// stage the field as a block formal the expression reads back. Longer paths
+/// are the nested walker below's shape; other shapes stay on the ordinary
+/// observation path.
+pub(in crate::unit::attached_unit::composed_control) fn flat_case_payload_reads<'a>(
+    expression: &'a checked_trees::CheckedScalarExpression,
+    reads: &mut Vec<(u32, &'a str, &'a str)>,
+) {
+    use checked_trees::{
+        CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
+        CheckedStructuralPredicatePathSegment as Segment,
+    };
+    fn flat(path: &[Segment]) -> Option<(&str, &str)> {
+        let [Segment::Case(case), Segment::Field(field)] = path else {
+            return None;
+        };
+        Some((case.as_str(), field.as_str()))
+    }
+    fn scalar<'a>(
+        expression: &'a checked_trees::CheckedScalarExpression,
+        reads: &mut Vec<(u32, &'a str, &'a str)>,
+    ) {
+        match expression {
+            Scalar::StructuralParameterField {
+                parameter_position,
+                path,
+                ..
+            } => {
+                if let Some((case, field)) = flat(path) {
+                    reads.push((*parameter_position, case, field));
+                }
+            }
+            Scalar::IntegerBinary { left, right, .. } => {
+                scalar(left, reads);
+                scalar(right, reads);
+            }
+            Scalar::IntegerBitwiseNot { operand, .. }
+            | Scalar::IntegerWiden { operand, .. }
+            | Scalar::IntegerExactCast { operand, .. }
+            | Scalar::IntegerSaturatingCast { operand, .. }
+            | Scalar::IntegerWrappingCast { operand, .. }
+            | Scalar::IntegerTrappingCast { operand, .. } => scalar(operand, reads),
+            Scalar::StructuralParameterIndexedRead { index, .. } => scalar(index, reads),
+            Scalar::Boolean(expression) => boolean(expression, reads),
+            _ => {}
+        }
+    }
+    fn boolean<'a>(
+        expression: &'a checked_trees::CheckedBooleanExpression,
+        reads: &mut Vec<(u32, &'a str, &'a str)>,
+    ) {
+        match expression {
+            Boolean::StructuralParameterField {
+                parameter_position,
+                path,
+            } => {
+                if let Some((case, field)) = flat(path) {
+                    reads.push((*parameter_position, case, field));
+                }
+            }
+            Boolean::Not(operand) => boolean(operand, reads),
+            Boolean::Equal { left, right }
+            | Boolean::And { left, right }
+            | Boolean::Or { left, right } => {
+                boolean(left, reads);
+                boolean(right, reads);
+            }
+            Boolean::IntegerComparison { left, right, .. }
+            | Boolean::ScalarIeeeFloatComparison { left, right, .. } => {
+                scalar(left, reads);
+                scalar(right, reads);
+            }
+            _ => {}
+        }
+    }
+    scalar(expression, reads);
+}
+
 /// Reads below a case payload's record member in one successor argument: each
 /// `[Case, Field(member), Field(leaf)]` path binds `(parameter position, case,
 /// member, leaf)` so the staged block can mint the member copy and its scalar
