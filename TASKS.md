@@ -674,7 +674,7 @@ the complete product bar; focused successes below do not establish that baseline
   row to the lane that moved it before re-pinning; a bulk re-record would pin
   whatever those lanes broke as expected.
 
-  Four fail fixtures reject for a reason other than their own subject, so
+  Six fail fixtures reject for a reason other than their own subject, so
   they pin nothing. `fail/build/uefi_program_entry_wrong_calling_policy`
   declares its own `UefiApplication` beside the one its
   `use omega::language::std::calling;` pulls in from
@@ -712,11 +712,36 @@ the complete product bar; focused successes below do not establish that baseline
      and native lanes owe operand support.
   So this is a producer/verifier gap in the borrowed-argument lane, not a
   missing checked-stage rejection. Re-pinning stays wrong, but so does
-  repairing the caller: fix the fixture's stated cause when the gap closes. `fail/ranges/index_signed_guard_below_zero` and
-  `fail/ranges/loop_increment_index_unbounded` are masked by
-  **IMPLICIT-STORE-CONVERSION**'s new refusal on a `__hoist_0` local and are
-  recorded there. All four are pinned `unexpected` in the golden rather than
-  hidden.
+  repairing the caller: fix the fixture's stated cause when the gap closes.
+
+  The other four are one root, and they are regressions rather than
+  long-standing: `fail/operators/operand_requires_invalidated`,
+  `fail/slices/index_operator_contract_unproven`,
+  `fail/slices/subslice_range_operator_contract_unproven` and
+  `fail/providers/checked_boundary_operator_const_application_unselected`
+  were each `expected` in the golden until the `operator` introducer's
+  retirement reached their declarations. A token-bearing spelled use records
+  no row in `facts.operators.uses` and routes as an ordinary call, so three
+  readers that watch only the operator path go blind: the ranges seam
+  (`checks/ranges/indexes/validation/selected.rs::obligation` is never
+  reached), `checks/operators/requires.rs` (`uses` is empty), and
+  build-time-evaluation's binary-operator selection authority (const-generic
+  `call_custody` answers instead, though
+  `machine_execution/admission/selection_authority.rs`'s message still
+  exists). Each program still rejects, at a different rung, so this is lost
+  attribution rather than a soundness hole -- what the fixtures lose is the
+  array-bounds phrasing and the clause-by-name form.
+  Whether a token-bearing spelled use must still record an operator-use row,
+  or that single call-contract message is the settled post-migration shape
+  and these four repin, belongs with **OPERATOR-BOUNDARY-CALLS**; the
+  ranges-seam bounds diagnostic has no other customer either way.
+
+  All six are pinned `unexpected` in the golden rather than hidden.
+  `fail/ranges/index_signed_guard_below_zero` and
+  `fail/ranges/loop_increment_index_unbounded` are no longer among them: both
+  now reject with their own expected fragment, so the
+  **IMPLICIT-STORE-CONVERSION** `__hoist_0` masking they were recorded under
+  is finished.
 
   When an item's acceptance names a pass fixture, check that the fixture's
   entry runs the thing. 102 of 685 pass fixtures end in an empty

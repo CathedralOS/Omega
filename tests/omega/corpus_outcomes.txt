@@ -558,8 +558,8 @@ fail/operators/domain_operator_return_only_overload rejected 0ms expected
 	domain `Quantity::Additive` has duplicate operator `combine`
 fail/operators/named_operator_result_overload_duplicate_dispatch rejected 0ms expected
 	duplicate named requirement overload `Convert::value` with parameter signature `operands(named(name(i32)));flags(self=false;mutable=false;const=false)` and result dispatch set `arithmetic:Trapping`; predicate-only result refinements do not distinguish overloads
-fail/operators/operand_requires_invalidated rejected 1ms expected
-	cannot prove `value >= 0` — the `requires` of `Integer::equal` (spelled `==`)
+fail/operators/operand_requires_invalidated rejected 148ms unexpected
+	cannot prove requires contract for call equal from compare: value >= 0 (needs fact `right >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/operators/root_operator_alpha_equivalent_generic_duplicate rejected 0ms expected
 	duplicate operator declaration `Slice::index`
 fail/operators/selected_crash_invocation rejected 0ms expected
@@ -720,8 +720,8 @@ fail/proofs/zero_value_gated_home_rejected rejected 1ms expected
 	machine `zero_is_none` cannot establish zero-value representation obligation `zero_value<type>() == Gated::None` for `Gated`: all-zero storage is gated, has no payload-free authored home case, or is not a cased data representation
 fail/providers/boundary_requirement_direct_call_unselected rejected 2ms expected
 	direct call `offset_zero` names public boundary requirement `CheckedMath::offset_zero`, which has no selected provider; select an admitted provider whose checked machine `satisfies CheckedMath::offset_zero` before calling it
-fail/providers/checked_boundary_operator_const_application_unselected rejected 142ms expected
-	const-generic application: const evaluation failed: machine `limit` is not build-time admissible: build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/providers/checked_boundary_operator_const_application_unselected rejected 186ms unexpected
+	const-generic application evaluation failed: constant call lost its exact authored target selection
 fail/providers/checked_boundary_operator_missing_contract rejected 1ms expected
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
 fail/providers/provider_type_slot_ambiguous rejected 0ms expected
@@ -789,8 +789,8 @@ fail/relevance/erased_nonscalar_parameter rejected 0ms expected
 	machine `Main::record::record` erased parameter `w` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier
 fail/relevance/erased_parameter_runtime_read rejected 0ms expected
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
-fail/slices/index_operator_contract_unproven rejected 1ms expected
-	cannot prove index `3` is within length 3; cannot prove `index < items.len` — the `requires` of `Slice::index` (spelled `[]`)
+fail/slices/index_operator_contract_unproven rejected 152ms unexpected
+	cannot prove requires contract for call index from Main::main: 3 < self.values.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/invalid_slice_reassigned_local_index_unchecked rejected 1ms expected
 	cannot prove index `index` is within length 4
 fail/slices/invalid_subslice_bounded_order_unchecked rejected 1ms expected
@@ -803,8 +803,8 @@ fail/slices/signed_slice_index_upper_only rejected 1ms expected
 	cannot prove index `index` is non-negative
 fail/slices/signed_slice_range_upper_only rejected 1ms expected
 	cannot prove every subslice range endpoint of `start..end` is non-negative
-fail/slices/subslice_range_operator_contract_unproven rejected 1ms expected
-	cannot prove subslice range start bound `9..` is within slice length 4; cannot prove `start <= end && end <= items.len` — the `requires` of `Slice::range` (spelled `[..]`)
+fail/slices/subslice_range_operator_contract_unproven rejected 40ms unexpected
+	`range` was selected for its fixed operator token `[..]` but the range use omits its end; the omitted endpoint would be the collection's length, which a declared telescope cannot form -- closed `start..end`, `..end`, `start..=end`, and `..=end` uses bind the declaration's own body
 fail/slices/termination_slice_length_order_unimplemented rejected 1ms expected
 	cannot prove the `terminates by` ranking for machine Main::walk
 fail/slices/unguarded_slice_parameter_index_compile rejected 1ms expected
