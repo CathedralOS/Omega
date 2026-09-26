@@ -6,9 +6,9 @@ install/update. The project trusts whoever lands accepted policy; these
 records do not certify acceptance or prove an audit.
 
 The [evidence entrance](README.md) maps capture and encoding.
-The [lock owner](../../manager/src/lock/README.md) owns source/target joins,
+The [lock owner](../../src/package_manager/lock/README.md) owns source/target joins,
 historical decision framing, and aggregate recovery limits. The
-[lock specification](../../../../../wiki/spec/packages/locks.md) owns user-visible meaning.
+[lock specification](../../../../wiki/spec/packages/locks.md) owns user-visible meaning.
 
 ## Compiler projection and component recovery
 

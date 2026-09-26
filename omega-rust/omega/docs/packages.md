@@ -1,6 +1,6 @@
 # Omega Package Subsystem
 
-Start in [`manager/src/operations/`](manager/src/operations) to follow a
+Start in [`manager/src/operations/`](../src/package_manager/operations/) to follow a
 complete package operation.
 
 ```text
@@ -35,14 +35,14 @@ Follow the supported source-change flow through:
 
 `omega install` and `omega update` use that flow, including selective updates,
 per-target review files, `--resume`, and recoverable publication. Start at the
-[command operation](manager/src/package_manager/README.md) for usage
+[command operation](../src/package_manager/package_manager/README.md) for usage
 and its source map. The [task board](../../../TASKS.md) contains
 only remaining work. Source-code diffs are separate from editable capability decisions;
 verified old local snapshots can be recovered from the existing cache. Install
 can select a Git workspace member with `--package <declared-name>`; its declared name still
 supplies the default import alias.
 
-[`omega audit packages`](manager/src/operations/inspect_packages/README.md)
+[`omega audit packages`](../src/package_manager/operations/inspect_packages/README.md)
 checks current project source with accepted dependency pins and reports graph,
 API, reach, and assumptions without changing acceptance. Missing analysis stays
 explicit; `--details` expands the normalized policy behind the default summary.
@@ -74,7 +74,7 @@ approval file. Its proof, reachability, ABI, and artifact checks are not an addi
 install/update certification requirement. Invalid or unsupported source still
 rejects during candidate checking.
 
-[`topology/`](topology/README.md) is the reference implementation of the
+[`topology/`](topology-plan/README.md) is the reference implementation of the
 checked deployment-plan contract: an ordinary build-only package composes a
 finite instance graph over verified component artifacts, evaluates the fixed
 `no_route`/`only_via` policy set with checkable certificates, and serializes a
@@ -88,4 +88,4 @@ Design and acquisition references:
   [package acceptance](../../../wiki/spec/packages/acceptance.md)
 - [Package workflow](../../../wiki/language_guide/packages.md)
 - [Acceptance contract](../../../wiki/spec/packages/acceptance.md)
-- [Source Resolver Security](sources/acquisition/SOURCE_RESOLVER_SECURITY.md)
+- [Source Resolver Security](package-source/SOURCE_RESOLVER_SECURITY.md)

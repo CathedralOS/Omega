@@ -1,13 +1,13 @@
 # Checked-tree interpreter
 
-Start at [interpreter.rs](src/interpreter.rs). It owns worker creation, entry
+Start at [interpreter.rs](../src/checked_interpreter/interpreter.rs). It owns worker creation, entry
 selection, filesystem authority setup, execution, and result/evidence handling.
 The crate-root exports preserve the existing callers; `lib.rs` is module wiring.
 
 This Psi-owned source interpreter supports build-time evaluation and differential
 execution. Canonical portable execution belongs to `terminal-interpreter`.
-[Semantic evaluation](../../../../wiki/spec/language/evaluation.md) and
-[build execution](../../../../wiki/spec/build/execution.md) retain distinct
+[Semantic evaluation](../../../wiki/spec/language/evaluation.md) and
+[build execution](../../../wiki/spec/build/execution.md) retain distinct
 admission contracts. These entrypoints execute caller-admitted inputs; they do
 not replace those admission checks.
 
@@ -30,16 +30,16 @@ machine by name.
 
 Follow the operation into its subordinate owner:
 
-- [interpreter/evaluator.rs](src/interpreter/evaluator.rs) owns invocation-local
-  runtime state; its [execution methods](src/interpreter/evaluator/execution.rs)
+- [interpreter/evaluator.rs](../src/checked_interpreter/interpreter/evaluator.rs) owns invocation-local
+  runtime state; its [execution methods](../src/checked_interpreter/interpreter/evaluator/execution.rs)
   bind entries, execute machines, and recover values from interpreter storage.
   Expression, statement/call, value, and filesystem operations live below it.
-- [filesystem.rs](src/filesystem.rs) owns path authority, metadata layouts, and
+- [filesystem.rs](../src/checked_interpreter/filesystem.rs) owns path authority, metadata layouts, and
   exact operation-attempt vocabulary.
-- [evaluation.rs](src/evaluation.rs) owns measured work, observations, included
+- [evaluation.rs](../src/checked_interpreter/evaluation.rs) owns measured work, observations, included
   sources, and result/failure records. Those records do not grant execution authority.
-- [filesystem_sponsor.rs](src/filesystem_sponsor.rs) and
-  [build_evaluation_sponsor.rs](src/build_evaluation_sponsor.rs) retain the separate
+- [filesystem_sponsor.rs](../src/checked_interpreter/filesystem_sponsor.rs) and
+  [build_evaluation_sponsor.rs](../src/checked_interpreter/build_evaluation_sponsor.rs) retain the separate
   filesystem-storage and evaluator-resource accounts.
 
 Focused coverage is in `tests/const_values.rs`, `tests/build_arguments.rs`, and

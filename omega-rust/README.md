@@ -40,15 +40,15 @@ implies deletion.
   Terminal-to-native route, and placement rules for new work.
 - [Psi](psi/README.md) and its [frontend](psi/pipeline/README.md): source identity,
   syntax, typing, checking, and portable publication.
-- [Compiler coordination](omega/compiler/README.md): product boundaries,
+- [Compiler coordination](omega/docs/compiler/README.md): product boundaries,
   optional reports, and multi-target source reuse.
-- [Native realization](omega/compiler/README.md#native-realization): source-free
+- [Native realization](omega/docs/compiler/README.md#native-realization): source-free
   lowering with separately supplied authority.
-- [Native representations](omega/representations/README.md) and
+- [Representation planning](omega/docs/representation-planning/README.md) and
   [optimization](optimization.md): current data, exact rewrites, and replay.
-- [Packages](omega/packages/README.md),
-  [build evaluation](omega/build/build-evaluation/README.md), and
-  [component deployment](omega/build/component-deployment/README.md): their own
+- [Packages](omega/docs/packages.md),
+  [build evaluation](omega/docs/build-evaluation/README.md), and
+  [component deployment](omega/docs/component-deployment/README.md): their own
   loading, execution, policy, and runtime coordination boundaries.
 
 Run the product through `omega/`; repository commands and validation policy are

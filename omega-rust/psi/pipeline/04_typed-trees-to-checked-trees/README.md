@@ -93,7 +93,7 @@ specialization retains canonical template bytes, exact arguments, conformance
 and contract commitments, and admission custody. Replay its domain-separated
 commitment before using it as proof-producer identity; compact reports are not
 authority. Omega's coordinator owns the
-[ordered settlement boundary](../../../omega/compiler/README.md#checked-settlement)
+[ordered settlement boundary](README.md#checked-settlement)
 outside this crate.
 
 [Specialization](src/monomorphization/mod.rs) runs explicit fixed-point rounds:
@@ -446,7 +446,7 @@ target task activation and stack realization remain outside checked Psi.
 ## Mutation and reference origins
 
 The shared implementation and conservative fallback rules live beside
-[validation](../../semantics/validation/README.md#write-frames-and-reference-origins).
+[validation](src/validation/README.md#write-frames-and-reference-origins).
 Flow invalidation projects its complete-or-opaque result into structured places;
 do not create a second recursion or alias-admission policy here.
 
@@ -659,7 +659,7 @@ entry arithmetic, and mutable value-origin transport remain distinct work.
 
 ## Scalar convergence inputs
 
-[shared_convergence.rs](src/execution/unit/shared_convergence.rs) collects
+[shared_convergence.rs](src/execution/terminal_unit/shared_convergence.rs) collects
 runtime inputs by walking supported scalar operations. Arithmetic association,
 cast-chain length, and combinations of exact and proof-free operations do not
 select separate producer families. Collection establishes input coordinates and

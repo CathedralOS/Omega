@@ -90,7 +90,7 @@ authored-selection admission or establish total package admission by itself.
 
 ## Early evaluation
 
-[Build-time selection authority](../../semantics/build-time-evaluation/src/machine_execution/admission/selection_authority.rs)
+[Build-time selection authority](../../../omega/src/build_time_evaluation/machine_execution/admission/selection_authority.rs)
 checks concrete call closures and authored body selections against the reconciled
 direct graph before const-generic/array/domain, layout, wire, or calling-policy
 execution. Shared policy requires every application site to pass. Unresolved

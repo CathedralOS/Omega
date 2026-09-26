@@ -1,6 +1,6 @@
 # Terminal verifier
 
-Contract: [verification](../../../../wiki/spec/terminal-psi/verification.md).
+Contract: [verification](../../../wiki/spec/terminal-psi/verification.md).
 [lib.rs](src/lib.rs) is the entry map for structural validation, obligation
 reconstruction, certificate checking, control cycles, and observation replay.
 
@@ -114,16 +114,16 @@ with a nonempty crash contract still require explicit refinement support.
 Source-free verification does not imply executable boundary-crash support:
 the interpreter and Omega lowering retain their outcome-handling fences.
 
-Contracts: [call substitution](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#call-contracts)
-and [entry facts](../../../../wiki/spec/terminal-psi/verification.md#entry-facts-and-crash-coverage).
-[entry_requirements.rs](src/validation/crash/entry_requirements.rs) proves a
+Contracts: [call substitution](../../../wiki/spec/terminal-psi/calls_and_outcomes.md#call-contracts)
+and [entry facts](../../../wiki/spec/terminal-psi/verification.md#entry-facts-and-crash-coverage).
+[entry_requirements.rs](../pipeline/04_typed-trees-to-checked-trees/src/checks/crashes/entry_requirements.rs) proves a
 same-cause published union from caller entry requirements. It supplies no CFG
 facts or current body values, preserves exact callee continuations, and shares
 4,096 search steps and depth 64 across one proof rather than resetting per route.
 Checked discreteness/weakening and explicit equality symmetry connect existing
 integer encodings without recanonicalizing the obligation.
 
-[site_truth.rs](src/validation/crash/site_truth.rs) separately checks each direct
+[site_truth.rs](src/validation/crash.rs) separately checks each direct
 site against independent pre-terminator facts. The private path reconstruction
 retains raw branch polarities and bounded alternatives through joins; every path
 must prove the guard or contradiction. Acyclic joins replay identical ordered
@@ -161,7 +161,7 @@ Proof reconstruction builds its own tree lazily, once per borrowed machine
 context, when a byte-length observation needs it. Neither route reuses a
 producer's dominance claim or grants facts across a proof-loop cut.
 
-Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_flow.md).
+Contract: [control flow and ranking](../../../wiki/spec/terminal-psi/control_flow.md).
 [control_cycles](src/control_cycles.rs) reconstructs complete SCC topology,
 rank substitution, and proof questions. The natural carrier selects one fixed
 integer type per component; a signed carrier is a finite order too, and its sign
@@ -261,7 +261,7 @@ not be reported as fully derived merely because producer reductions now emit
 checked certificates. A second proof-kernel implementation does not reconstruct
 a ledger and supplies no reconstruction assurance by itself.
 
-The [execution board](../../../../TASKS.md) owns that work. Do not preserve old
+The [execution board](../../../TASKS.md) owns that work. Do not preserve old
 format-bound feasibility implementations or version-by-version migration
 reports here.
 

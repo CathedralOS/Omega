@@ -1,10 +1,10 @@
 # Semantic validation
 
-Start at [program_validation.rs](src/program_validation.rs): declaration checks,
+Start at [program_validation.rs](program_validation.rs): declaration checks,
 machine/state validation, and result publication run there in order.
-[Statement validation](src/program_validation/statements.rs) owns ordered value
-updates; [contract queries](src/program_validation/contract_queries.rs) owns
-entailment queries and pristine-template checks. [lib.rs](src/lib.rs) wires the API.
+[Statement validation](program_validation/statements.rs) owns ordered value
+updates; [contract queries](program_validation/contract_queries.rs) owns
+entailment queries and pristine-template checks. [lib.rs](../../../../../omega/pipeline/00_terminal-psi-to-abstract-operations/src/lib.rs) wires the API.
 
 Standalone validation checks generic contracts itself. Post-specialization
 validation requires the earlier template check and explicitly selects required
@@ -14,17 +14,17 @@ checking consumes those analyses instead of rerunning their fixed points.
 This is local analysis reuse, not portable verification authority.
 
 Source automation must preserve the
-[mathematical proof contract](../../../../wiki/spec/proofs/contracts.md) and
-feed the separately reconstructed [Terminal questions](../../../../wiki/spec/terminal-psi/verification.md).
+[mathematical proof contract](../../../../../../wiki/spec/proofs/contracts.md) and
+feed the separately reconstructed [Terminal questions](../../../../../../wiki/spec/terminal-psi/verification.md).
 
 ## Domain issuer migration
 
-The [establishment contract](../../../../wiki/spec/resources/authority.md#establishment-routes)
+The [establishment contract](../../../../../../wiki/spec/resources/authority.md#establishment-routes)
 permits exact machine routes and public-domain catalogs containing private issuer
 requirements or machines. This does not describe completed compiler support.
 Source route normalization, result-provenance checking, package exposure, and
 artifact evidence must migrate together under `DOMAIN-ISSUER-ROUTES` on the
-[execution board](../../../../TASKS.md). Existing requirement-only and private-route
+[execution board](../../../../../../TASKS.md). Existing requirement-only and private-route
 rejections are implementation limits, not the settled language rule.
 
 An exact issuer result must discharge carrier, predicate, and ordinary custody
@@ -35,7 +35,7 @@ rules; a machine route is not blanket trust or a new capacity origin.
 
 ## Source proof automation
 
-[contract_entailment.rs](src/proof_contracts/contract_entailment.rs) handles a bounded contract
+[contract_entailment.rs](proof_contracts/contract_entailment.rs) handles a bounded contract
 fragment: canonical integer polynomials, substitutions from equalities,
 difference-bound closure, congruence, correlated intervals, signed remainder
 bounds, and accumulator-style self induction. Each recursive hypothesis needs
@@ -43,7 +43,7 @@ strict descent at its exact edge. This is trusted source automation, not yet
 the source-to-kernel certificate bridge.
 
 Closed `FloatMeaning` equalities use the exact sealed float catalog through
-[semantic_values.rs](src/proof_contracts/float_projection_bindings/semantic_values.rs).
+[semantic_values.rs](proof_contracts/float_projection_bindings/semantic_values.rs).
 The source judgment composes nested meaning-valued applications over literal
 projections, keeps IEEE format identity, distinguishes signed zeros, and uses
 payload-erased NaN equality. It checks the selected equality operation using
@@ -52,21 +52,21 @@ type. Unknown operands and exhausted work budgets provide no fact. Format and
 contract recognition are shared with checked application binding; portable
 contract-obligation retention and certificate production remain separate work.
 
-The [proof pass corpus](../../../../tests/omega/pass/proofs) and
-[false twins](../../../../tests/omega/fail/proofs) test this fragment;
-[math_proofs](../../../../samples/cli/proofs/math_proofs) is a readable example.
+The [proof pass corpus](../../../../../../tests/omega/pass/proofs) and
+[false twins](../../../../../../tests/omega/fail/proofs) test this fragment;
+[math_proofs](../../../../../../samples/cli/proofs/math_proofs) is a readable example.
 Unsupported judgments are not proved because this engine stands down. General
 quantified contracts, arbitrary mathematical functions/predicates, noncomputable
 values, proof views, and broader recursive proofs remain separate work.
 
 `PROOF-CERTIFICATION-BRIDGE` and `PROOF-CONTRACT-MIGRATION` on the
-[execution board](../../../../TASKS.md) own portable production: per-component
+[execution board](../../../../../../TASKS.md) own portable production: per-component
 well-foundedness, per-edge descent, exact normalization licenses, transitive
-assumptions, and certificate-derived review. The [proof admission kernel](../proof-admission/README.md)
+assumptions, and certificate-derived review. The [proof admission kernel](README.md)
 already has bounded recursion and normalization certificate checkers; that
 does not establish that source automation emits them or that general
 mathematical foundations are implemented. The
-[selected foundation](../../../../wiki/spec/proofs/foundation.md) owns the
+[selected foundation](../../../../../../wiki/spec/proofs/foundation.md) owns the
 general core and its remaining profile joins. `PROOF-KERNEL-CORE` and
 `PROOF-CERTIFICATION-BRIDGE` replace parallel general truth routes with one
 checked term/declaration model; the bounded automation remains useful as a
@@ -74,8 +74,8 @@ producer, not an implementation precedent that changes the foundation.
 
 ## Arithmetic and arrival analysis
 
-The source rules are [numeric values](../../../../wiki/spec/language/numeric_values.md)
-and [state contracts](../../../../wiki/spec/language/state_contracts.md).
+The source rules are [numeric values](../../../../../../wiki/spec/language/numeric_values.md)
+and [state contracts](../../../../../../wiki/spec/language/state_contracts.md).
 `bound_expression_meaning.rs` checks builtin meaning with original expression
 handles and declared operand types before bounds readers interpret comparisons.
 Boolean decomposition checks each consumed child; an authored operator in one
@@ -160,7 +160,7 @@ These ranking ranges belong to `terminates by ... in 0..N`, not a scalar
 type-annotation suffix. The current premise-carrier query also protects legacy
 range-constrained entries. Removing those source annotations must preserve the
 same protection for facts supplied by contracts, guards, and domain predicates;
-`CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the [board](../../../../TASKS.md) tracks
+`CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the [board](../../../../../../TASKS.md) tracks
 that migration without removing ranking-range reasoning.
 
 `contract_entailment/ranking_range/` uses one arithmetic entry/edge judgment for
@@ -301,8 +301,8 @@ full source acceptance or executable Terminal realization.
 
 ## Quotient correspondence
 
-The [published correspondence contract](../../../../wiki/spec/proofs/quotients.md#published-quotient-correspondence)
-is implemented through [quotients/terminal_bridge.rs](src/proof_contracts/quotients/terminal_bridge.rs)
+The [published correspondence contract](../../../../../../wiki/spec/proofs/quotients.md#published-quotient-correspondence)
+is implemented through [quotients/terminal_bridge.rs](proof_contracts/quotients/terminal_bridge.rs)
 and the relation-plan bridge. Current direct `define`/transport-backed `lift`
 retention and proof-only package review do not admit executable quotient calls.
 Adapted, permuted, repeated, generic/private applications and broader lift forms
@@ -311,7 +311,7 @@ Do not retain schema-bump history as a substitute for those acceptance condition
 
 ## Structural algebra automation
 
-[structural_judgment.rs](src/proof_contracts/contract_entailment/structural_judgment.rs) retains
+[structural_judgment.rs](proof_contracts/contract_entailment/structural_judgment.rs) retains
 operation licenses and paired add/multiply semiring licenses. The paired form
 requires both operations' associativity/commutativity and a conformed
 distributivity law. Natural-coefficient polynomial expansion is bounded;
@@ -328,4 +328,4 @@ The specialized entailment engine does not establish that arbitrary mathematical
 function/predicate binders, nonconstructive values, or full foundation semantics
 are implemented. Preserve useful derivations while replacing obsolete source
 and evidence machinery under `PROOF-CONTRACT-MIGRATION` on the
-[execution board](../../../../TASKS.md).
+[execution board](../../../../../../TASKS.md).

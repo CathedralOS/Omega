@@ -1,14 +1,14 @@
 # Review capture joins
 
-The [review contract](../../../../../wiki/spec/packages/review.md) owns public
+The [review contract](../../../../wiki/spec/packages/review.md) owns public
 meaning. This note maps that contract to current compiler custody. Start at
-[src/capture/mod.rs](src/capture/mod.rs); [record](src/record) remains independent
+[src/capture/mod.rs](../../src/package_evidence/capture.rs); [record](../../src/package_evidence/record) remains independent
 of compiler state. Canonical support and private bounds live in
 [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md).
 
 ## Immutable custody and supplied semantics
 
-[PackageReviewInput](src/capture/input.rs) borrows a semantic candidate and the
+[PackageReviewInput](../../src/package_evidence/capture/input.rs) borrows a semantic candidate and the
 original compilation's immutable source/selection custody separately. Normal
 entrances accept `&CheckedCompilation` directly; adversarial reconstruction can
 explicitly supply raw trees without manufacturing or modifying a checked result.
@@ -23,7 +23,7 @@ type handle cannot be interpreted against an unrelated source or proof arena.
 
 ## Source roles
 
-[Source capture](src/capture/source) retains exact symbols and authored spans
+[Source capture](../../src/package_evidence/capture/source) retains exact symbols and authored spans
 beside semantic rows before canonical sorting. Paths are relative to exact
 package/toolchain owners. Package-less user source, missing owner joins, and
 owner drift cannot become exact toolchain provenance.
@@ -63,7 +63,7 @@ signature-free resolution, even when equal semantic routes deduplicate.
 
 ## Structural identity
 
-[Semantic capture](src/capture/semantics) joins authored nominals through exact
+[Semantic capture](../../src/package_evidence/capture/semantics) joins authored nominals through exact
 package ownership or private source identity. Only the canonical source
 commitment crosses into toolchain review bytes. Generic binders receive no
 invented owner. Root builtin-type slots are selected by compiler position and
@@ -98,7 +98,7 @@ result annotation does not grant the authority of an admitted boundary requireme
 
 ## Realization joins
 
-[Callable capture](src/capture/callables) cross-checks supply mode, exact
+[Callable capture](../../src/package_evidence/capture/callables) cross-checks supply mode, exact
 `satisfies` edge, structural binding, and requirement declaration. External
 leaves have one complete application even when private and absent from public
 callable rows. Table-field bindings require the exact attached data declaration.

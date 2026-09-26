@@ -1,7 +1,7 @@
 # Executable-installation foundation
 
-Contract: [admitted executable installation](../../../../../wiki/spec/build/executable_installation.md).
-Start at [executable_installation.rs](src/executable_installation.rs). Its opening
+Contract: [admitted executable installation](../../../wiki/spec/build/executable_installation.md).
+Start at [executable_installation.rs](../src/executable_installation/executable_installation.rs). Its opening
 operations expose admission, materialization/freeze, final-byte validation,
 installation, and retirement in lifecycle order. These are separate consuming
 transitions: callers bring each provider's evidence, and failed transitions
@@ -10,18 +10,18 @@ operations; `lib.rs` only exports the owner.
 
 Follow the subordinate protocols as needed:
 
-- [Container validation](src/executable_installation/container.rs) and its
-  [byte codec](src/executable_installation/container_bytes.rs) reconstruct candidates.
-- [Materialization](src/executable_installation/materializer.rs) resolves sealed
+- [Container validation](../src/executable_installation/artifacts/container.rs) and its
+  [byte codec](../src/executable_installation/artifacts/container_bytes.rs) reconstruct candidates.
+- [Materialization](../src/executable_installation/placement/materializer.rs) resolves sealed
   sources without granting execution authority.
-- [Post-handoff writers](src/executable_installation/post_handoff_writer.rs) own
+- [Post-handoff writers](../src/executable_installation/post_handoff_writer.rs) own
   destination custody, resolved contexts, writing, and consumer replay.
-- [Replacement](src/executable_installation/replacement.rs) patches the declared
+- [Replacement](../src/executable_installation/retirement/replacement.rs) patches the declared
   sites of a live realization with admitted fragments, then drains the
   superseded custody.
-- [Replacement quarantine](src/executable_installation/replacement_quarantine.rs)
+- [Replacement quarantine](../src/executable_installation/retirement/quarantine.rs)
   retains incompletely drained installed realizations.
-- [Owned-image provider](src/executable_installation/owned_image_provider.rs)
+- [Owned-image provider](../src/executable_installation/owned_image_provider.rs)
   performs the contracted install, patch, entry-sealing, retirement, and
   quarantine operations over resident image buffers it owns — real byte
   writes, ordering fence, read-back, custody write-suspension,
@@ -54,7 +54,7 @@ post-handoff writer similarly produces unpublished bytes, not an established
 hardware table or publication authority. Physical invocation, consumer semantic
 validation, source linear integration, and PCC/final-code admission must each
 be supplied by their actual consumers; structural lifecycle tests do not attest
-those operations. [TASKS.md](../../../../../TASKS.md) owns unfinished work.
+those operations. [TASKS.md](../../../TASKS.md) owns unfinished work.
 
 ## Native container codec
 

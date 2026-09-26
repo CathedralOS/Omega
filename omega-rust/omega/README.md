@@ -77,7 +77,7 @@ normal invocations do not collect optional timing measurements.
 summary, and publication lines) as a plain-text observation file; there is no
 `--output-only` switch. Required proof and installation
 records remain governed by the requested product. See the
-[compiler product contract](compiler/README.md#product-boundaries-and-observations).
+[compiler product contract](docs/compiler/README.md#product-boundaries-and-observations).
 
 The bundled `source/library/` location is derived from the compiler checkout
 captured at build time. Rebuild the binary from the retained checkout before

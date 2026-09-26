@@ -1,8 +1,8 @@
 # Proof admission
 
-Contracts: [verification](../../../../wiki/spec/terminal-psi/verification.md),
-[integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md),
-and [mathematical proof values](../../../../wiki/spec/terminal-psi/mathematical_values.md).
+Contracts: [verification](../../../wiki/spec/terminal-psi/verification.md),
+[integer certificates](../../../wiki/spec/terminal-psi/integer_certificates.md),
+and [mathematical proof values](../../../wiki/spec/terminal-psi/mathematical_values.md).
 
 [lib.rs](src/lib.rs) exposes kernel judgments, proof checking, recursion,
 normalization, and producer-visible witness checks. [proof.rs](src/proof.rs)
@@ -27,12 +27,12 @@ cache or storage ledger. A positive unrepresentable shift count refuses as a
 resource limit rather than changing its mathematical meaning.
 
 [mathematical_core.rs](src/mathematical_core.rs) owns the common mathematical
-core for the [selected foundation](../../../../wiki/spec/proofs/foundation.md):
+core for the [selected foundation](../../../wiki/spec/proofs/foundation.md):
 de Bruijn dependent terms, stratified `Type`/`Strict` sorts with closed levels,
 Π/λ/application typing without cumulativity, dependent pairs, and typed
 conversion whose strict collapse is decided by the shared type's sort, never by
 term shape. It also owns the first primitive of the selected
-[W-based inductive profile](../../../../wiki/spec/proofs/inductive_profile.md):
+[W-based inductive profile](../../../wiki/spec/proofs/inductive_profile.md):
 the `Two` type with `zero`/`one` and dependent `caseTwo` elimination computing
 on each constructor, restricted to motives landing in relevant `Type`. It is the
 `PROOF-KERNEL-CORE` model; the bounded `Proposition` kernel above is a producer

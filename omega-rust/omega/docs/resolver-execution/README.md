@@ -8,12 +8,12 @@ backend around the absolute Git path frozen before package input.
 
 ## Start here
 
-[resolver_execution.rs](src/resolver_execution.rs) owns the frozen executable,
+[resolver_execution.rs](../../src/resolver_execution/resolver_execution.rs) owns the frozen executable,
 closed phase vocabulary, root validation, command preparation, and resource
 limits. `prepare(phase, working_root)` requires one working root for every phase;
 there is no optional-root combination or second phase dispatch to reconstruct it.
 
-Its [path custody checks](src/resolver_execution/path_custody.rs) enforce absolute,
+Its [path custody checks](../../src/resolver_execution/resolver_execution/path_custody.rs) enforce absolute,
 lexically canonical, bounded paths and keep the executable outside controlled
 roots, including their canonical targets. Tests live below the same owner.
 `lib.rs` exports these operations and the shared bounded-process carriers.
@@ -74,4 +74,4 @@ matrices, and canonical command/policy/completion observations are absent.
 Stronger host or CI isolation is an operator concern, not package evidence.
 
 The full source-resolution contract is maintained in
-[`SOURCE_RESOLVER_SECURITY.md`](../acquisition/SOURCE_RESOLVER_SECURITY.md).
+[`SOURCE_RESOLVER_SECURITY.md`](../package-source/SOURCE_RESOLVER_SECURITY.md).

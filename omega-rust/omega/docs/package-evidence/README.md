@@ -2,7 +2,7 @@
 
 This crate records checked compiler facts for package review. Its output is
 inert evidence: it is not package admission, an accepted lock, or proof that an
-audit occurred. Start at [`src/lib.rs`](src/lib.rs), then follow the question
+audit occurred. Start at [`src/lib.rs`](../../src/package_evidence.rs), then follow the question
 you are asking:
 
 ```text
@@ -20,7 +20,7 @@ baselines, and decisions; the project trusts whoever lands it. The existing
 ledger and manager promotion machinery described here is not a requirement
 for certified lock acceptance and is to be simplified where it duplicates
 compiler checks. Compiler proof/reach and native artifact checks retain their
-independent roles. The [review specification](../../../../../wiki/spec/packages/review.md)
+independent roles. The [review specification](../../../../wiki/spec/packages/review.md)
 owns those distinctions; [capture joins](capture.md) maps their compiler inputs
 and explanatory source roles.
 
@@ -36,7 +36,7 @@ The representation projection records package-owned opaque data as `Unbound`
 and separately records each public producer candidate as exact
 opaque/conformance/carrier availability. Availability accepts no consumer
 choice and may coexist with `Unbound`; it says only what the producer exposes.
-[Opaque consumer demand](../../../../../wiki/spec/build/opaque_representations.md)
+[Opaque consumer demand](../../../../wiki/spec/build/opaque_representations.md)
 is owned by the selecting consumer and exists only for an
 actual runtime by-value crossing. It retains the exact boundary requirement
 application, complete checked shape graph, every opaque carrier occurrence and
@@ -76,10 +76,10 @@ The producer rechecks the public callable owner, exact operator declaration,
 nonempty telescope, and direct type-binder ordinal/symbol correspondence.
 Private callables do not export rows; nested symbolic types, const/lifetime/
 machine binders, fixed-token uses, and statement uses are outside this bounded
-producer. [Boundary application controls](tests/boundary_application_policy.rs)
+producer. [Boundary application controls](../../tests/package_evidence/boundary_application_policy.rs)
 pin the receipt-free projection. Checked supplied substitutions must not be
 reported as the complete reachable demand set; the
-[application contract](../../../../../wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children)
+[application contract](../../../../wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children)
 keeps that obligation distinct from coverage and admission.
 
 ## Encoding and ledger
@@ -248,7 +248,7 @@ without nested envelopes or budget resets. Recovery checks component
 package/target agreement, declaration scopes, canonical ordering and retained
 cross-component associations, then exact re-encoding. It needs no old checkout.
 This is not a lock or a policy decision: the manager's
-[lock format](../../manager/src/lock/README.md) joins it to source pins, the graph,
+[lock format](../../src/package_manager/lock/README.md) joins it to source pins, the graph,
 and historical decisions. Source locations, proof certificates,
 stand-down/discharge records and replay receipts are excluded. Fresh compiler
 stand-down and discharge validation remains independently required at admission.

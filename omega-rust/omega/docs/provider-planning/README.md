@@ -2,16 +2,16 @@
 
 [Provider selection](../../../../wiki/spec/build/provider_selection.md) and
 [opaque representation selection](../../../../wiki/spec/build/opaque_representations.md)
-own the public contract. Start at [provider_planning.rs](src/provider_planning.rs):
+own the public contract. Start at [provider_planning.rs](../../src/provider_planning/provider_planning.rs):
 it selects exact provider plans and binds them to a checked program. The binding
 operation resolves grants, plans receipt and operator evidence, resolves
-installation reach, then publishes the checked updates together. [lib.rs](src/lib.rs)
+installation reach, then publishes the checked updates together. [lib.rs](../../src/provider_planning.rs)
 only wires the public API.
 
-[Receipt binding](src/provider_planning/receipt_binding.rs) validates admitted
-receipts against exact granted requirements; [installation reach](src/provider_planning/installation_reach.rs)
+[Receipt binding](../../src/provider_planning/provider_planning/receipt_binding.rs) validates admitted
+receipts against exact granted requirements; [installation reach](../../src/provider_planning/provider_planning/installation_reach.rs)
 resolves the selected realization's reach. Both return planned results without
-mutating the checked program. [selection_provenance.rs](src/provider_planning/selection_provenance.rs) owns authored
+mutating the checked program. [selection_provenance.rs](../../src/provider_planning/provider_planning/selection_provenance.rs) owns authored
 selection inputs and target defaults.
 
 Target defaults preserve their exact producer roster through target-marker
@@ -19,8 +19,8 @@ erasure and typed construction, then rejoin those typed machines before plan
 selection. Do not replace the consuming carrier with a raw machine-name channel.
 Authored selection identity/order and build-over-default precedence remain intact.
 
-[Calling-policy planning](src/calling_policy_plans/mod.rs) consumes closed plans.
-Its [opaque-use records](src/calling_policy_plans/opaque_representations.rs)
+[Calling-policy planning](../../src/provider_planning/calling_policy_plans/mod.rs) consumes closed plans.
+Its [opaque-use records](../../src/provider_planning/calling_policy_plans/opaque_representations.rs)
 retain exact source joins, shape roots, application commitments, and explicit
 lifecycle/movement dispositions. Arena symbols are private join coordinates;
 canonical evidence uses package-qualified declarations, not arena identity.

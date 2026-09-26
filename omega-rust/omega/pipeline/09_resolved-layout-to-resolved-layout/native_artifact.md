@@ -1,6 +1,6 @@
 # Native artifact custody
 
-Start at [native_artifact.rs](src/native_artifact.rs). `NativeArtifact` keeps
+Start at [native_artifact.rs](src/native_artifact/native_artifact.rs). `NativeArtifact` keeps
 the canonical Terminal artifact, target object, executable image, selected
 provider projections, and replay evidence together.
 
@@ -13,27 +13,27 @@ removal is tracked by `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW`.
 
 Follow its subordinate owners for:
 
-- [dynamic_elf.rs](src/native_artifact/dynamic_elf.rs): the distinct,
+- [dynamic_elf.rs](src/native_artifact/native_artifact/dynamic_elf.rs): the distinct,
   non-installable dynamic-ELF product and its own reconstruction and validation.
-- [identity.rs](src/native_artifact/identity.rs): exact identity-field
+- [identity.rs](src/native_artifact/native_artifact/identity.rs): exact identity-field
   serialization, including foreign-call custody. This is not a substitute for
   replaying those fields.
-- [boundary_applications.rs](src/native_artifact/boundary_applications.rs) and
-  [mixed_structural_scalar.rs](src/native_artifact/mixed_structural_scalar.rs):
+- [boundary_applications.rs](src/native_artifact/native_artifact/boundary_applications.rs) and
+  [mixed_structural_scalar.rs](src/native_artifact/native_artifact/mixed_structural_scalar.rs):
   focused semantic-to-object checks used by both products.
 
-[callable_entry.rs](src/callable_entry.rs) is the separate entrance for staging
+[callable_entry.rs](src/native_artifact/callable_entry.rs) is the separate entrance for staging
 and replaying optimized ordinary callable entries. Its model, reconstruction,
 and codec live under `callable_entry/`.
-[semantic_wrapper_object.rs](src/semantic_wrapper_object.rs) declares the
+[semantic_wrapper_object.rs](src/native_artifact/semantic_wrapper_object.rs) declares the
 durable records of the optimized ProgramStorage semantic-wrapper object: plan,
 container, manifest, and custody receipt. Its composition, shape and template
 validation, manifest replay, and codec live under `semantic_wrapper_object/`.
 The native-realization stage that binds these records to settlement and
 encoding custody stays in
-[native-realization](../../../compiler/src/native/optimized_semantic_wrapper_object/mod.rs). Follow
-[physical/derivation.rs](src/physical/derivation.rs) for independent physical
-evidence reconstruction and [physical/mod.rs](src/physical/mod.rs) for its
+[native-realization](src/native_artifact/mod.rs). Follow
+[physical/derivation.rs](src/native_artifact/physical/derivation.rs) for independent physical
+evidence reconstruction and [physical/mod.rs](src/native_artifact/physical/mod.rs) for its
 retained carriers.
 
 This crate consumes source-free inputs. It does not select source providers,

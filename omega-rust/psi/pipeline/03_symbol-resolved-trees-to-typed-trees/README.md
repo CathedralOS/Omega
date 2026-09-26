@@ -6,18 +6,18 @@ limits, not a different generated-source language.
 
 ## Entry points
 
-- [filesystem_scope.rs](../../../omega/build/build-evaluation/src/evidence/filesystem_scope.rs) binds request staging and sponsor
+- [filesystem_scope.rs](../../../omega/src/build_evaluation/evidence/filesystem_scope.rs) binds request staging and sponsor
   inputs to the package/root filesystem scope. It checks canonical Source metadata
   before reopening review-only replay; it does not admit or execute the build.
-- [build_continuation.rs](../../../omega/compiler/src/checked/checking/build_continuation.rs): `AdmittedBuildCheckpoint`
+- [build_continuation.rs](../../../omega/src/compiler/checked/checking/build_continuation.rs): `AdmittedBuildCheckpoint`
   couples the coherent frontend, admitted build, package verdict, and base source
   map. Execution verifies the returned build symbol. `try_seeded_extension`
   continues the retained frontend rather than reconstructing it.
-- [build-evaluation](../../../omega/build/build-evaluation/src/lib.rs):
+- [build-evaluation](src/lib.rs):
   `AdmittedBuildProgram` retains the prepared program and program-bound entry
   token with reach/admission, initial Build value, target, scope, and sponsor.
   Evaluation and replay consume the admitted route.
-- [source assembly](../../../omega/build/build-evaluation/src/sources/source_assembly.rs): generated units and
+- [source assembly](../../../omega/src/compiler/sources/source_assembly.rs): generated units and
   dependency bundles retain source bytes, logical paths, and producer custody.
 - [seeded resolution](../02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
   appends the later stratum and rebases only extension-owned selections.

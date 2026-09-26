@@ -1,8 +1,8 @@
 # Function and final-image custody
 
-The [native product contract](../../../../../wiki/spec/build/component_publication.md)
+The [native product contract](../../../../wiki/spec/build/component_publication.md)
 requires exact object/image and publication relationships. The
-[footprint note](footprint_replay.md) separately states the test-only certificate
+[footprint note](image_footprint_replay.md) separately states the test-only certificate
 path; function/byte checks must not be reported as that missing production join.
 
 Function identities keep source, wrapper, and private-callback roles distinct.

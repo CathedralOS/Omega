@@ -3,7 +3,7 @@
 The canonical review schema is version 134 and row schema version 92. This file
 records the closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance. Proof-interface sections follow the
-[contract/bundle direction](../../../../../wiki/spec/proofs/contracts.md)
+[contract/bundle direction](../../../../wiki/spec/proofs/contracts.md)
 and require encoding migration; they are not a claim that replacement proof
 rows already exist in version 134. The source/codec changes and exact-version
 rejection controls belong to `PROOF-CONTRACT-MIGRATION`.
@@ -220,7 +220,7 @@ predicate occurrence and independently retained definition evidence, without an
 invented executable owner. Projected subjects through indexes, case payloads or
 unsubstituted generic carriers still need their own custody.
 Legacy `proposition` declarations
-remain subject to the [proof-contract migration](../../../../../wiki/spec/proofs/contracts.md#delivery-obligations);
+remain subject to the [proof-contract migration](../../../../wiki/spec/proofs/contracts.md#delivery-obligations);
 their implementation fences are not requests to expand the retired surface.
 Declared indexing requires its exact
 application result, not an assumed collection element type.
@@ -342,7 +342,7 @@ conformance, plan, and target-origin joins precede physical realization. A
 targetless inferred row cannot close physical execution. Unit result or a
 provider-known nonreturning implementation does not establish semantic terminal
 completion. That separate unresolved contract is owned by
-[Terminal observations](../../../../../wiki/spec/terminal-psi/observations.md).
+[Terminal observations](../../../../wiki/spec/terminal-psi/observations.md).
 The bounded write-byte native path binds the exact scalar source and syscall
 materialization span; constants and preceding internal Unit-call homes are
 supported, while incoming parameters require their own replayable ABI ledger.
@@ -379,7 +379,7 @@ The selecting package owns its selections/demands even for foreign opaques.
 Unused/reference-only choices do not create by-value demand. Capture records
 shape roots during materialization rather than guessing from equal layouts.
 Representation changes recommend audit; they do not assert native verification.
-See the [representation contract](../../../../../wiki/spec/build/opaque_representations.md).
+See the [representation contract](../../../../wiki/spec/build/opaque_representations.md).
 
 ### Proof obligations and non-executable quotient rows
 

@@ -1,6 +1,6 @@
 # Standalone compiler admission custody
 
-[admission_policy.rs](src/admission_policy.rs) owns reading and explicitly
+[admission_policy.rs](../../src/trust_ledger/admission_policy.rs) owns reading and explicitly
 replacing `omega.admissions`, including format validation.
 The sibling [trust-model](../trust-model/README.md) owns filesystem-free
 obligation/report construction. This is separate from the

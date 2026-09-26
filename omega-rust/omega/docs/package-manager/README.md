@@ -1,13 +1,13 @@
 # Omega Package Manager
 
-Start at [`src/package_manager.rs`](src/package_manager.rs): recover the project
+Start at [`src/package_manager.rs`](../../src/package_manager/package_manager.rs): recover the project
 transaction, dispatch install/update/resume/discard, resolve the candidate,
 review it, then publish. Compiler preparation and read-only inspection have
-separate entrances in [`operations`](src/operations/mod.rs).
+separate entrances in [`operations`](../../src/package_manager/operations/mod.rs).
 
 [Source selection](../../../../wiki/spec/packages/sources.md) owns the
 requester-local graph and workspace-member contract. Acquisition enforces the
-[resolver security boundary](../sources/acquisition/SOURCE_RESOLVER_SECURITY.md).
+[resolver security boundary](../package-source/SOURCE_RESOLVER_SECURITY.md).
 
 The ratified destination is Cargo-like repository install/update with
 compiler-derived reachability, unsafe API, and assumption review. The lock
@@ -36,7 +36,7 @@ manager/
 ```
 
 `package_manager.rs` owns command orchestration and composes `operations`.
-[`operations::inspect_packages`](src/operations/inspect_packages/README.md)
+[`operations::inspect_packages`](../../src/package_manager/operations/inspect_packages/README.md)
 drives `omega audit packages`: current project source, pinned dependencies,
 fresh compiler findings, and comparison with accepted policy without publishing
 changes. Default summaries and `--details` separate readable inspection from
@@ -81,8 +81,8 @@ retained target reviews to exact current project bytes, then records commit
 intent and publishes the pair under a project mutex. Interruption recovery
 completes forward only from recorded old/new contents; unrelated edits stop it.
 Ordinary project preparation coordinates with existing pending state before
-snapshotting. See [publication](src/operations/publication/README.md) for the
-file protocol and platform limits. The [command operation](src/package_manager/README.md)
+snapshotting. See [publication](../../src/package_manager/operations/publication/README.md) for the
+file protocol and platform limits. The [command operation](../../src/package_manager/package_manager/README.md)
 owns package/alias selection, persisted per-target findings, exact candidate
 resume, and reviewed publication for `omega install` and `omega update`.
 
@@ -173,14 +173,14 @@ exemption. Broader host scopes still project restricted requests, whose retained
 lock meaning is distinct from actual invocation grants.
 
 Start candidate compilation at
-[`compilation.rs`](src/review/candidate/compilation.rs): product selection,
+[`compilation.rs`](../../src/package_manager/review/candidate/compilation.rs): product selection,
 binding discovery, final checking, session disposal, then result handoff.
 Its `package_pass.rs` owns dependency-order compilation and projection for each
 required build/product occurrence, using the same roster as lock comparison and
 reconstruction. Acquisition and parsed source are shared; checked targets,
 generated bundles, bindings, component descriptions and reviews are not.
 Session, policy budgeting, and ledger budgeting live beneath that same owner.
-[`review_set.rs`](src/review/candidate/review_set.rs) describes the issued output.
+[`review_set.rs`](../../src/package_manager/review/candidate/review_set.rs) describes the issued output.
 
 `compile_resolved_package_reviews` with `SemanticBindingReview::Discover` is
 the install/update candidate entrance. `Explicit(inputs)` checks exactly the
@@ -392,7 +392,7 @@ certificate, reviewer receipt, or authentication of the project author.
 permission to publish. Reviewed publication joins these choices to candidate
 and project-file checks. Review-file loading/resume is command-owned.
 
-Return to the [package subsystem map](../README.md), or consult:
+Return to the [package subsystem map](README.md), or consult:
 
 - [Package workflow](../../../../wiki/language_guide/packages.md)
 - [Build declarations and identity](../../../../wiki/spec/build/declarations.md)

@@ -1,6 +1,6 @@
 # Layout evaluation implementation
 
-The [layout specification](../../../../wiki/spec/layouts/plans.md) owns language
+The [layout specification](../../../wiki/spec/layouts/plans.md) owns language
 meaning. These are implementation boundaries, not limits on the language.
 
 ## Ownership
@@ -12,8 +12,8 @@ owns concrete view probing, evaluation, and exact accessor synthesis. Omega
 schedules these target-neutral services and supplies target realization inputs;
 it does not reinterpret their semantics.
 
-The [layout-plans foundation](../../foundation/layout-plans/src/layout_reports/mod.rs) holds
-normalized geometry/report carriers. The [target layout owner](../../../omega/backend/layout/src/sum_materialization/mod.rs)
+The [layout-plans foundation](../../psi/terminal-psi/src/layout_plans/layout_reports/mod.rs) holds
+normalized geometry/report carriers. The [target layout owner](../pipeline/09_resolved-layout-to-resolved-layout/src/layout/sum_materialization/mod.rs)
 projects conventional sum reports from its runtime layout. Compact fingerprints
 are compatibility reports; exact schema rows and complete layouts govern replay.
 
@@ -84,7 +84,7 @@ Plan-laid value and byte-region projection cover fixed scalars, recursive fixed
 records/arrays, and supported gapped outer-array layouts in native and
 interpreter paths. Equal-width semantic widening is distinct from foreign
 stored-width decode. Recasts have a separate
-[validation note](../validation/recasts.md).
+[validation note](../../psi/pipeline/04_typed-trees-to-checked-trees/src/validation/recasts.md).
 
 Wire-plan evaluation supports bounded scalar repetition; symbolic
 materialization uses sealed data/entry identities. Source relocation derivation,
@@ -118,5 +118,5 @@ a field kind with no decode-side realization (borrowed scalar slices, owned
 text) is named as a coverage gap and the row stays generator-admitted; a proven
 divergence is a compile diagnostic. The current strict decoder cannot satisfy a
 preservation demand; preserving realization remains separate work.
-The [codec specification](../../../../wiki/spec/layouts/codecs.md) owns byte
+The [codec specification](../../../wiki/spec/layouts/codecs.md) owns byte
 grammar, destination establishment, and failure behavior.

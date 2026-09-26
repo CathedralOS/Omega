@@ -1,8 +1,8 @@
 # Terminal interpreter
 
 Start at [terminal_interpreter.rs](src/terminal_interpreter.rs). Execution follows verified
-[calls and outcomes](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
-and [structural ownership](../../../../wiki/spec/terminal-psi/ownership.md).
+[calls and outcomes](../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
+and [structural ownership](../../../wiki/spec/terminal-psi/ownership.md).
 
 The domain entrance owns artifact admission and startup: every entry decodes,
 verifies, constructs and runs. [execution.rs](src/execution.rs) is the engine —
@@ -23,10 +23,10 @@ allocation, and does not establish a measured speedup.
 
 ## Embedding contract and probe limits
 
-The accepted [embedding contract](../../../../wiki/spec/build/embedding.md)
+The accepted [embedding contract](../../../wiki/spec/build/embedding.md)
 is broader than this low-level execution entrance. The public program/instance,
 binding-adapter, shutdown, and interpreter-backed replacement library remains
-tracked under [embedding tasks](../../../../TASKS.md#embedding-and-interpreted-components).
+tracked under [embedding tasks](../../../TASKS.md#embedding-and-interpreted-components).
 Do not expose the raw effect hook as an admitted binding API.
 
 The source-free [embedding lifetime probes](tests/unit/embedding_lifetimes.rs)
@@ -46,7 +46,7 @@ cargo nextest run -p terminal-interpreter --test unit -E 'test(embedding_lifetim
 
 Ordinary interpretation accepts verified natural-ranked scalar, plain-owned-input,
 immutable-view, receiver, and primitive-local
-graphs under the [control contract](../../../../wiki/spec/terminal-psi/control_flow.md).
+graphs under the [control contract](../../../wiki/spec/terminal-psi/control_flow.md).
 The legacy one-machine structural Unit countdown uses its own verifier entrance:
 it reconstructs `0 < remaining` as the unsigned `1 <= remaining` premise and
 checks exact subtraction before creating resumable state. This interpreter
@@ -99,7 +99,7 @@ the current scalar, so earlier snapshots survive later writes. Suspension retain
 the storage, and departure reclaims it without affine cleanup. Local identities
 cannot collide with declared places or supplied host identities. This support
 does not provide native allocation or permit owned local escape; see
-[structural access](../../../../wiki/spec/terminal-psi/structural_access.md).
+[structural access](../../../wiki/spec/terminal-psi/structural_access.md).
 
 ## References stored in records
 
@@ -170,7 +170,7 @@ Shared immutable backing detaches on mutation, preserving sibling values and
 the destination's untouched suffix. External boundary replacement remains its
 separate existing contract.
 
-The settled [bounded-input contract](../../../../wiki/spec/resources/bounded_input.md)
+The settled [bounded-input contract](../../../wiki/spec/resources/bounded_input.md)
 does not use this owner-replacement behavior: it writes within a supplied slice
 and returns a count plus line/EOF/full outcome, with ZII Invalid reserved for no
 result. Migrate line-input callers, checked providers, and interpreter/native

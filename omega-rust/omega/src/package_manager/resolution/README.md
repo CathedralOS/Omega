@@ -1,7 +1,7 @@
 # Package resolution
 
 [mod.rs](mod.rs) assembles source resolution and the complete graph.
-[Source selection](../../../../../../wiki/spec/packages/sources.md) owns the
+[Source selection](../../../../../wiki/spec/packages/sources.md) owns the
 public contract; acquisition owns immutable tree custody, not package approval.
 
 [graph/resolve/git_pins.rs](graph/resolve/git_pins.rs) separates two policies:
