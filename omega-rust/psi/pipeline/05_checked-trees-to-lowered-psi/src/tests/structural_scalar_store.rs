@@ -808,6 +808,86 @@ fn record_patterns_and_projected_record_replacement_lower_in_either_body_route()
     }
 }
 
+#[test]
+fn single_field_record_replacement_lowers_in_either_body_route() {
+    for tail in [
+        "",
+        "transition self.cell.value == 10 { true -> good() false -> bad() }
+         state good(&mut self) { self.cell.value = 70; }
+         state bad(&mut self) { self.cell.value = 1; }",
+    ] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Cell {{ value: i32; }}
+             data Holder {{ cell: Cell; }}
+             machine Holder::replace(&mut self) {{
+                 self.cell = Cell {{ value: 10 }};
+                 {tail}
+             }}"
+        ));
+        lower_machine(&checked, TerminalMachineSelection::Name("Holder::replace"))
+            .expect("a whole record remains a record replacement when it has one field");
+    }
+}
+
+#[test]
+fn record_replacement_rejects_missing_duplicate_and_redirected_stores() {
+    let checked = crate::front_end::checked_program(
+        "data Pair { x: i32; y: i32; }
+         data Holder { pair: Pair; other: Pair; }
+         machine Holder::replace(&mut self) { self.pair = Pair { x: 30, y: 40 }; }",
+    );
+    lower_machine(&checked, TerminalMachineSelection::Name("Holder::replace"))
+        .expect("the complete record store roster lowers");
+    for corruption in 0..3 {
+        let mut changed = checked.clone();
+        let machine = changed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Holder::replace")
+            .unwrap()
+            .symbol;
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == machine)
+            .expect("ordinary replacement plan");
+        let position = plan
+            .operations
+            .iter()
+            .position(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                )
+            })
+            .unwrap();
+        match corruption {
+            0 => {
+                plan.operations.remove(position);
+            }
+            1 => {
+                plan.operations
+                    .insert(position, plan.operations[position].clone());
+            }
+            _ => {
+                let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) =
+                    &mut plan.operations[position]
+                else {
+                    panic!("field store");
+                };
+                store.carrier_path = vec![CheckedUnitStructuralPathSegment::Field("other".into())];
+            }
+        }
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("Holder::replace")).is_err(),
+            "corrupted record replacement {corruption} must reject"
+        );
+    }
+}
+
 /// A record literal passed by value is a fresh owned temporary the call
 /// consumes whole, established at the call statement like a `let`
 /// initializer; and a guarded state graph whose edges do not forward an owned
