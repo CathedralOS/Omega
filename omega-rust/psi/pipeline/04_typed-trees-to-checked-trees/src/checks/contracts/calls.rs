@@ -201,6 +201,15 @@ pub(super) fn check_call_requires(
                         &entry_contexts,
                         fact,
                         call_frames,
+                    ) || proven_predicates_grant_domain(
+                        program,
+                        facts,
+                        state_flow,
+                        call_flow,
+                        &entry_contexts,
+                        incoming_guards,
+                        fact,
+                        call_frames,
                     )));
 
             let satisfied = satisfied
@@ -464,6 +473,433 @@ fn value_call_return_domain_grants(
         })
 }
 
+/// PREDICATE -> MEMBERSHIP: a predicate-only domain's whole content is the
+/// `requires self ...` proof facts it declares, so a caller that has already
+/// proven every one of them AT THE SUBJECT has established membership without
+/// a validating boundary call. This is the direction opposite to the
+/// membership -> predicate reading `contracts::domains` runs at use sites,
+/// and the same discharge `transition_guard_proves_requires` applies to a
+/// call on the guarded arm itself -- extended here to the premises an
+/// ordinary statement call can see. `predicate_only_domain_labels` refuses
+/// routed, aliased or indexed domains, so no provenance obligation is ever
+/// bypassed, and `predicate_only_domain_interval` declines a domain whose
+/// predicates are not all readable bounds, so interval containment never
+/// stands in for an unrecognized conjunct.
+///
+/// Two premise shapes qualify:
+/// - a LIVE entry-context boolean fact (an authored `requires`, a `where`, a
+///   transported call guarantee). Flow's mutation invalidation has already
+///   retired anything a prior write could have staled, so what the context
+///   states is what the call receives: an exact label, an `&&` clause, or the
+///   subject's proven interval landing inside the domain's own.
+/// - a DOMINATING incoming guard the ranges walk-back reconstructed at this
+///   state's entry. The walk fences intermediate-state writes but not the
+///   caller's OWN statements, so a guard premise additionally owes the gates
+///   `incoming_guard_proves_requires` applies, re-expressed over the
+///   substituted labels and the subject place -- never over the domain
+///   predicate's bare `self`: every field the subject and the instantiated
+///   predicates read preserved by `caller_state_preserves_field`, every name
+///   the labels spell preserved by `caller_state_preserves_label_names`.
+/// Whatever the premise, the jump's own earlier operands must leave the
+/// membership's callee-formal reads unwritten (`guard_operands`).
+fn proven_predicates_grant_domain(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    entry_contexts: &[facts::FactContextHandle],
+    incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
+    fact: &facts::Fact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let FactPayload::ContractDomainMembership { domain_symbol, .. } = fact.payload else {
+        return false;
+    };
+    let Some(predicate_expressions) = predicate_only_domain_predicates(program, domain_symbol)
+    else {
+        return false;
+    };
+    let Some(labels) = predicate_only_domain_labels(program, facts, fact) else {
+        return false;
+    };
+    let Some(call_site) = crate::semantic::calls::find_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        call_flow.call_ordinal,
+    ) else {
+        return false;
+    };
+    let Some(target_parameters) =
+        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
+    else {
+        return false;
+    };
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_flow.state_symbol)
+    else {
+        return false;
+    };
+    // Every instantiated predicate clause must be established; splitting `&&`
+    // lets each piece come from a different premise, and a missing piece fails
+    // the whole membership.
+    let required_labels: Vec<String> = labels
+        .iter()
+        .flat_map(|label| {
+            split_label_conjuncts(label)
+                .into_iter()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    // The caller-terms boolean premises the live entry contexts carry. An
+    // instantiated contract fact keeps only its label -- its raw expression
+    // names the producer's scope, not this one's -- while a declaration-shaped
+    // fact still owns the authored handle for conjunct and interval reads.
+    let context_premises: Vec<(Option<typed_trees::expression::ExpressionHandle>, String)> =
+        entry_contexts
+            .iter()
+            .flat_map(|&handle| {
+                let context = facts.semantic.contexts.get(handle);
+                facts
+                    .semantic
+                    .context_view(context)
+                    .facts()
+                    .filter_map(|candidate| {
+                        let label = crate::labels::semantic_boolean_fact_label(
+                            program,
+                            &facts.semantic,
+                            candidate,
+                        )
+                        .or_else(|| {
+                            facts
+                                .semantic
+                                .proposition_fact_label(program, candidate)
+                                .and_then(|label| label.strip_prefix("boolean:").map(str::to_owned))
+                        })?;
+                        let expression = match candidate.payload {
+                            FactPayload::BooleanExpression(expression) => Some(expression),
+                            FactPayload::ContractBooleanExpression {
+                                expression,
+                                instantiated,
+                                ..
+                            } if !instantiated.is_valid() => Some(expression),
+                            _ => None,
+                        };
+                        Some((expression, label))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+    // The domain's interval is whole-domain evidence: when every predicate is
+    // a recognized bound, proving the subject inside it establishes all of
+    // them at once, and no per-label match is needed.
+    let interval = predicate_only_domain_interval(program, facts, fact).map(
+        |(subject_label, required_low, required_high)| {
+            let contains = |(low, high): (numerics::bignum::BigInt, numerics::bignum::BigInt)| {
+                low >= required_low && high <= required_high
+            };
+            let by_context = context_premises.iter().any(|(expression, label)| {
+                expression.is_some_and(|expression| {
+                    super::intervals::guard_interval_for_label(program, expression, &subject_label)
+                        .is_some_and(contains)
+                }) || label_subject_interval(label, &subject_label).is_some_and(contains)
+            }) || requirement_subject_expression(facts, fact).is_some_and(
+                |argument| {
+                    let context_expressions: Vec<typed_trees::expression::ExpressionHandle> =
+                        context_premises
+                            .iter()
+                            .filter_map(|(expression, _)| *expression)
+                            .collect();
+                    super::intervals::expression_interval(
+                        program,
+                        machine,
+                        state,
+                        &context_expressions,
+                        argument,
+                    )
+                    .is_some_and(contains)
+                },
+            );
+            let by_guard = !by_context
+                && incoming
+                    .iter()
+                    .filter(|guard| guard.holds_at(state_flow.state_symbol))
+                    .any(|guard| {
+                        super::intervals::guard_interval_for_label(
+                            program,
+                            guard.guard(),
+                            &subject_label,
+                        )
+                        .is_some_and(contains)
+                            || guard.direct_arguments().is_some_and(|arguments| {
+                                let renamed = instantiate_state_parameter_label(
+                                    program,
+                                    state,
+                                    arguments,
+                                    &subject_label,
+                                );
+                                super::intervals::guard_interval_for_label(
+                                    program,
+                                    guard.guard(),
+                                    &renamed,
+                                )
+                                .is_some_and(contains)
+                            })
+                    });
+            (by_context, by_guard)
+        },
+    );
+    let mut premise_used_guard = interval.as_ref().is_some_and(|(_, by_guard)| *by_guard);
+    let proven = interval
+        .as_ref()
+        .is_some_and(|(by_context, by_guard)| *by_context || *by_guard)
+        || required_labels.iter().all(|required| {
+            context_premises.iter().any(|(expression, label)| {
+                label_conjunct_matches(label, required)
+                    || expression.is_some_and(|expression| {
+                        guard_conjunct_matches(program, expression, required)
+                    })
+            }) || {
+                let proven = incoming
+                    .iter()
+                    .filter(|guard| guard.holds_at(state_flow.state_symbol))
+                    .any(|guard| {
+                        guard_conjunct_matches(program, guard.guard(), required)
+                            || guard.direct_arguments().is_some_and(|arguments| {
+                                let renamed = instantiate_state_parameter_label(
+                                    program, state, arguments, required,
+                                );
+                                guard_conjunct_matches(program, guard.guard(), &renamed)
+                            })
+                    });
+                premise_used_guard |= proven;
+                proven
+            }
+        });
+    proven
+        // Only the guard half needs caller-state gates: the walk-back has
+        // already fenced intermediate-state writes, so what remains is this
+        // state's own statements up to the call.
+        && (!premise_used_guard
+            || caller_state_preserves_predicate_premise(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                state,
+                fact,
+                &predicate_expressions,
+                &required_labels,
+            ))
+        // The statement scans above stop where the statement begins; the
+        // jump's own operands run after them and before the membership's read.
+        && super::guard_operands::requirement_reads_survive_earlier_operand_writes(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            crate::semantic::calls::call_site_argument_expressions(program, &call_site),
+            target_parameters,
+            &super::guard_operands::fact_requirement_mentions(program, facts, fact),
+            call_frames,
+        )
+}
+
+/// Whole-caller-state preservation for a premise established BEFORE this
+/// state's statements ran. `caller_state_preserves_field` matches member names
+/// anywhere in a write target, so `pair.cap = ...` defeats a predicate's
+/// `self.cap` read at a `pair` subject exactly as `self.cap = ...` does; the
+/// field set is the subject place's own field segments plus every member the
+/// domain predicates and a subject expression name. The label-name scan keeps
+/// any unqualified token -- the subject's root, a rebound local -- quoting a
+/// live premise rather than a stale one.
+#[allow(clippy::too_many_arguments)]
+fn caller_state_preserves_predicate_premise(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    state: &typed_trees::state::State,
+    fact: &facts::Fact,
+    predicate_expressions: &[typed_trees::expression::ExpressionHandle],
+    required_labels: &[String],
+) -> bool {
+    let mut fields: Vec<typed_trees::name::Identifier> = Vec::new();
+    for expression in predicate_expressions {
+        collect_expression_self_fields(program, *expression, &mut fields);
+    }
+    if let Some(argument) = requirement_subject_expression(facts, fact) {
+        collect_expression_self_fields(program, argument, &mut fields);
+    }
+    if let FactPlace::Place(place_handle) = fact.place {
+        let place = facts.semantic.places.get(place_handle);
+        for segment in facts.semantic.place_segments.span_or_empty(place.segments) {
+            if let PlaceSegment::Field { symbol } = segment {
+                fields.push(typed_trees::name::Identifier::from(
+                    symbol_name(program, *symbol).as_str(),
+                ));
+            }
+        }
+    }
+    fields
+        .iter()
+        .all(|field| caller_state_preserves_field(program, state, field))
+        && required_labels.iter().all(|label| {
+            caller_state_preserves_label_names(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                state,
+                label,
+            )
+        })
+        // The name gate cannot see a `self`-rooted write (`self` is skipped
+        // as a label token), so a prior CALL writing `self.limit` would leave
+        // the guard premise quoting stale storage. Compare the mutated place
+        // itself -- root-normalized to the machine's storage identity --
+        // against the membership's subject place.
+        && !facts
+            .flow
+            .state_call_prior_invalidations(state_flow, call_flow)
+            .any(|invalidation| {
+                let FactPlace::Place(place_handle) = fact.place else {
+                    return false;
+                };
+                let subject = facts.semantic.places.get(place_handle);
+                crate::flow::normalized_event_place_root(program, invalidation.mutated_root)
+                    == crate::flow::normalized_event_place_root(program, subject.root)
+                    && crate::flow::canonical_place_segments_may_overlap(
+                        program,
+                        facts
+                            .flow
+                            .invalidations
+                            .segments
+                            .span_or_empty(invalidation.mutated_segments),
+                        facts.semantic.place_segments.span_or_empty(subject.segments),
+                    )
+            })
+}
+
+/// `&&`-clause splitting over a display label, depth-aware so an `f(a && b)`
+/// argument or a `match` body is never mistaken for a top-level clause.
+fn split_label_conjuncts(label: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    let mut cursor = 0usize;
+    while cursor < label.len() {
+        match label.as_bytes()[cursor] {
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' | b'}' => depth = depth.saturating_sub(1),
+            b'&' if depth == 0 && label[cursor..].starts_with(" && ") => {
+                parts.push(&label[start..cursor]);
+                cursor += " && ".len();
+                start = cursor;
+                continue;
+            }
+            _ => {}
+        }
+        cursor += 1;
+    }
+    parts.push(&label[start..]);
+    parts
+}
+
+/// The label analogue of `guard_conjunct_matches`: equality, `x == true`
+/// unwrapping, and `&&` decomposition on the CANDIDATE only -- an `||` never
+/// discharges the conjunct the requirement states.
+fn label_conjunct_matches(candidate_label: &str, required_label: &str) -> bool {
+    let candidate = candidate_label
+        .strip_suffix(" == true")
+        .unwrap_or(candidate_label);
+    if candidate == required_label {
+        return true;
+    }
+    let conjuncts = split_label_conjuncts(candidate);
+    conjuncts.len() > 1
+        && conjuncts
+            .iter()
+            .any(|part| label_conjunct_matches(part, required_label))
+}
+
+/// The interval an instantiated boolean label states for `subject_label`,
+/// accumulating every `&&` clause that is a closed comparison over that exact
+/// spelling. The label analogue of `intervals::guard_interval_for_label`, for
+/// contract facts whose caller-terms survive only as text.
+fn label_subject_interval(
+    label: &str,
+    subject_label: &str,
+) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    let mut bounds: Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> = None;
+    for conjunct in split_label_conjuncts(label) {
+        let Some((low, high)) = comparison_label_bound(conjunct, subject_label) else {
+            continue;
+        };
+        bounds = Some(match bounds {
+            Some((prior_low, prior_high)) => (prior_low.max(low), prior_high.min(high)),
+            None => (low, high),
+        });
+    }
+    bounds
+}
+
+/// One clause's interval contribution: `{subject} <op> <literal>` or the
+/// mirrored `{literal} <op> <subject>`, whitespace-checked so `index` never
+/// prefix-matches `index2`.
+fn comparison_label_bound(
+    conjunct: &str,
+    subject_label: &str,
+) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    if let Some(rest) = conjunct
+        .strip_prefix(subject_label)
+        .and_then(|rest| rest.strip_prefix(' '))
+        && let Some((operator, literal)) = rest.split_once(' ')
+    {
+        return comparison_label_endpoints(operator, literal, true);
+    }
+    if let Some(rest) = conjunct
+        .strip_suffix(subject_label)
+        .and_then(|rest| rest.strip_suffix(' '))
+        && let Some((literal, operator)) = rest.split_once(' ')
+    {
+        return comparison_label_endpoints(operator, literal, false);
+    }
+    None
+}
+
+/// The interval `subject OP value` states -- the label rendering of
+/// `intervals`' comparison reader, with the unconstrained side at the
+/// carrier-independent extreme.
+fn comparison_label_endpoints(
+    operator: &str,
+    literal: &str,
+    subject_on_left: bool,
+) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    use numerics::bignum::BigInt;
+    let value = BigInt::from_decimal_str(literal)?;
+    let one = BigInt::from_i64(1);
+    let (low, high) = match (operator, subject_on_left) {
+        ("<=", true) | (">=", false) => (None, Some(value)),
+        ("<", true) | (">", false) => (None, Some(value.sub(&one))),
+        (">=", true) | ("<=", false) => (Some(value), None),
+        (">", true) | ("<", false) => (Some(value.add(&one)), None),
+        ("==", _) => (Some(value.clone()), Some(value)),
+        _ => return None,
+    };
+    Some((
+        low.unwrap_or_else(|| BigInt::from_i64(i64::MIN)),
+        high.unwrap_or_else(|| BigInt::from_i64(i64::MAX)),
+    ))
+}
+
 /// Clear "needs fact X here" guidance for a proof-backed operator/contract that
 /// is missing a required boolean fact (for example an index bound or a
 /// domain-sensitive operator precondition). The caller has not established the
@@ -620,6 +1056,9 @@ fn incoming_guard_proves_requires(
     fields
         .iter()
         .all(|field| caller_state_preserves_field(program, state, field))
+        && caller_state_preserves_self_fields_against_call_writes(
+            program, facts, state_flow, call_flow, &fields,
+        )
         && caller_state_preserves_label_names(
             program,
             facts,
@@ -1027,6 +1466,45 @@ fn caller_state_preserves_field(
         }
     }
     true
+}
+
+/// The field walk above sees ASSIGNMENTS only: `self.clear()` is a call whose
+/// write lands in the state's prior-invalidation list instead. A mutation
+/// rooted at this machine's own `self` storage and naming one of the fields
+/// the premise reads stales that premise. Writes through a non-`self` root
+/// stay with `caller_state_preserves_label_names`, which matches the root's
+/// caller-visible name.
+fn caller_state_preserves_self_fields_against_call_writes(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    fields: &[typed_trees::name::Identifier],
+) -> bool {
+    !facts
+        .flow
+        .state_call_prior_invalidations(state_flow, call_flow)
+        .any(|invalidation| {
+            if crate::flow::normalized_event_place_root(program, invalidation.mutated_root)
+                != PlaceRoot::Symbol(state_flow.machine_symbol)
+            {
+                return false;
+            }
+            let segments = facts
+                .flow
+                .invalidations
+                .segments
+                .span_or_empty(invalidation.mutated_segments);
+            // A whole-`self` write, or a segment that is not a plain field,
+            // cannot be ruled out by the field names.
+            segments.is_empty()
+                || segments.iter().any(|segment| match segment {
+                    PlaceSegment::Field { symbol } => fields
+                        .iter()
+                        .any(|field| field.as_str() == symbol_name(program, *symbol).as_str()),
+                    _ => true,
+                })
+        })
 }
 
 fn assignment_target_mentions_field(
@@ -1615,8 +2093,297 @@ mod transition_arm_guard_probes {
     }
 }
 
-/// The predicates a PREDICATE-ONLY domain membership reduces to, each rendered
-/// at the subject, or `None` when the domain is not predicate-only.
+#[cfg(test)]
+mod predicate_only_domain_statement_probes {
+    //! `proven_predicates_grant_domain` discharges a predicate-only domain
+    //! membership for ORDINARY statement calls — the premises a transition
+    //! arm's guard never reaches: a live `requires` fact already in the
+    //! entry context, and a dominating incoming guard reconstructed at this
+    //! state's entry. The gates are what keep both honest: a premise quoted
+    //! from before a write is no premise at all.
+
+    use crate::tests::front_end::checked_program_result;
+
+    fn accepted(source: &str) -> bool {
+        checked_program_result(source).is_ok()
+    }
+
+    const STORE: &str = "domain u64::Slot16 requires self <= 15;
+        data Store { arr: [u64; 16]; }
+        machine Store::read(&mut self, index: u64 in Slot16) -> u64 {
+            transition { _ -> (self.arr[index]) }
+        }";
+
+    /// A live `requires` fact states the predicate at the actual subject; the
+    /// statement call discharges membership from it. Strict and non-strict
+    /// spellings of the same interval both qualify, a wider premise does not,
+    /// and a domain carrying a second predicate the premise cannot state does
+    /// not.
+    #[test]
+    fn a_requires_fact_establishes_predicate_only_membership_at_a_statement_call() {
+        let program = |clause: &str| {
+            format!(
+                "{STORE}
+                machine Store::scan(&mut self, index: u64) -> u64
+                    requires {clause};
+                {{
+                    let v: u64 = self.read(index);
+                    transition {{ _ -> v }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )
+        };
+        assert!(
+            accepted(&program("index <= 15")),
+            "requires `index <= 15` is the domain's whole content at `index`"
+        );
+        assert!(
+            accepted(&program("index < 16")),
+            "`index < 16` is the same closed interval"
+        );
+        assert!(
+            !accepted(&program("index < 32")),
+            "`index < 32` admits 16..=31, outside the domain"
+        );
+        assert!(
+            !accepted(&format!(
+                "domain u64::NotSeven requires self <= 15 && self != 7;
+                data Store {{ arr: [u64; 16]; }}
+                machine Store::read(&mut self, index: u64 in NotSeven) -> u64 {{
+                    transition {{ _ -> (self.arr[index]) }}
+                }}
+                machine Store::scan(&mut self, index: u64) -> u64
+                    requires index <= 15;
+                {{
+                    let v: u64 = self.read(index);
+                    transition {{ _ -> v }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the interval proves `self <= 15` but cannot state `self != 7`"
+        );
+    }
+
+    /// A ROUTED domain keeps its provenance obligation at a statement call
+    /// exactly as at a transition arm: proving the predicate is not the same
+    /// as being authorized to mint membership.
+    #[test]
+    fn a_routed_domain_still_needs_its_established_by_route() {
+        assert!(
+            !accepted(
+                "pub boundary trait Granter { machine grant(v: u64) -> u64 in Slot16; }
+                pub domain u64::Slot16 requires self <= 15 established by Granter::grant;
+                data Store { arr: [u64; 16]; }
+                machine Store::read(&mut self, index: u64 in Slot16) -> u64 {
+                    transition { _ -> (self.arr[index]) }
+                }
+                machine Store::scan(&mut self, index: u64) -> u64
+                    requires index <= 15;
+                {
+                    let v: u64 = self.read(index);
+                    transition { _ -> v }
+                }
+                data Main {}
+                machine Main::main(&mut self) {}"
+            ),
+            "a `requires` fact must never mint membership a route owns"
+        );
+    }
+
+    /// A dominating incoming guard is a premise the state's own statements
+    /// must preserve: untouched it discharges, an ASSIGNMENT to the field
+    /// stales it, and so does a CALL whose write frame covers the field —
+    /// the prior-invalidation list, not the statement scan, is what sees it.
+    #[test]
+    fn an_incoming_guard_premise_must_survive_the_states_own_statements() {
+        const SETUP: &str = "domain u64::Limit requires self <= 8;
+            data Store { limit: u64; }
+            machine Store::clear(&mut self) -> u64 {
+                self.limit = 99;
+                transition { _ -> (0) }
+            }
+            machine Store::done(&mut self, a: u64, v: u64 in Limit) -> u64 {
+                transition { _ -> v }
+            }";
+        let program = |inner_body: &str| {
+            format!(
+                "{SETUP}
+                machine Store::scan(&mut self) -> u64 {{
+                    transition self.limit <= 8 {{
+                        true -> inner()
+                        false -> (0)
+                    }}
+                    state inner(&mut self) -> u64 {{
+                        {inner_body}
+                        let v: u64 = self.done(0, self.limit);
+                        transition {{ _ -> v }}
+                    }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )
+        };
+        assert!(
+            accepted(&program("")),
+            "the edge guard must reach the call in an untouched state"
+        );
+        assert!(
+            !accepted(&program("self.limit = 99;")),
+            "an assignment rewriting the field stales the quoted guard"
+        );
+        assert!(
+            !accepted(&program("let a: u64 = self.clear();")),
+            "a call whose write frame covers the field stales it the same way"
+        );
+    }
+
+    /// The same self-field write through a prior CALL stales a quoted guard
+    /// for a plain boolean `requires` too; the membership route is not the
+    /// only one that had to learn to look at prior invalidations.
+    #[test]
+    fn a_boolean_requires_cannot_quote_a_guard_staled_by_a_call() {
+        assert!(
+            !accepted(
+                "data Store { limit: u64; }
+                machine Store::clear(&mut self) -> u64 {
+                    self.limit = 99;
+                    transition { _ -> (0) }
+                }
+                machine Store::done(&mut self, a: u64) -> u64
+                    requires self.limit <= 8;
+                {
+                    transition { _ -> a }
+                }
+                machine Store::scan(&mut self) -> u64 {
+                    transition self.limit <= 8 {
+                        true -> inner()
+                        false -> (0)
+                    }
+                    state inner(&mut self) -> u64 {
+                        let a: u64 = self.clear();
+                        let v: u64 = self.done(a);
+                        transition { _ -> v }
+                    }
+                }
+                data Main {}
+                machine Main::main(&mut self) {}"
+            ),
+            "`self.clear()` wrote the premise the guard spelled"
+        );
+    }
+
+    /// The jump's own operands evaluate between the guard and the callee's
+    /// read of the membership subject: `self.clear()` rewrites `self.limit`
+    /// before `done` reads it, so the guard's `self.limit <= 8` no longer
+    /// describes the delivered value. Ordering decides: the same pair with
+    /// the read FIRST is the pre-write value and remains sound, and a
+    /// non-writing operand never disturbs it.
+    #[test]
+    fn an_earlier_operand_write_defeats_the_guard_premise_it_follows() {
+        const SETUP: &str = "domain u64::Limit requires self <= 8;
+            data Store { limit: u64; }
+            machine Store::clear(&mut self) -> u64 {
+                self.limit = 99;
+                transition { _ -> (0) }
+            }
+            machine Store::noop(&mut self) -> u64 {
+                transition { _ -> (0) }
+            }";
+        assert!(
+            !accepted(&format!(
+                "{SETUP}
+                machine Store::done(&mut self, a: u64, v: u64 in Limit) -> u64 {{
+                    transition {{ _ -> v }}
+                }}
+                machine Store::scan(&mut self) -> u64 {{
+                    transition self.limit <= 8 {{
+                        true -> (self.done(self.clear(), self.limit))
+                        false -> (0)
+                    }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "`clear()` wrote the subject between the guard and the read"
+        );
+        assert!(
+            accepted(&format!(
+                "{SETUP}
+                machine Store::done(&mut self, v: u64 in Limit, a: u64) -> u64 {{
+                    transition {{ _ -> v }}
+                }}
+                machine Store::scan(&mut self) -> u64 {{
+                    transition self.limit <= 8 {{
+                        true -> (self.done(self.limit, self.clear()))
+                        false -> (0)
+                    }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the subject operand is read before `clear()` runs"
+        );
+        assert!(
+            accepted(&format!(
+                "{SETUP}
+                machine Store::done(&mut self, a: u64, v: u64 in Limit) -> u64 {{
+                    transition {{ _ -> v }}
+                }}
+                machine Store::scan(&mut self) -> u64 {{
+                    transition self.limit <= 8 {{
+                        true -> (self.done(self.noop(), self.limit))
+                        false -> (0)
+                    }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "an operand that writes nothing leaves the premise intact"
+        );
+    }
+
+    /// An edge argument renamed at the transition still grounds the premise:
+    /// `walk(remaining)` arrives at `remaining <= 5` and the domain is read at
+    /// the callee's own spelling. The control keeps both directions honest:
+    /// the constraint belongs to the delivered argument, not the name.
+    #[test]
+    fn a_renamed_edge_argument_carries_the_premise_to_its_parameter() {
+        let program = |guard: &str| {
+            format!(
+                "domain u64::Fuel requires self <= 5;
+                data Store {{}}
+                machine Store::take(&mut self, value: u64 in Fuel) -> u64 {{
+                    transition {{ _ -> (0) }}
+                }}
+                machine Store::scan(&mut self, n: u64) -> u64 {{
+                    transition {guard} {{
+                        true -> inner(n)
+                        false -> (0)
+                    }}
+                    state inner(&mut self, remaining: u64) -> u64 {{
+                        let v: u64 = self.take(remaining);
+                        transition {{ _ -> v }}
+                    }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )
+        };
+        assert!(
+            accepted(&program("n <= 5")),
+            "`n <= 5` on the edge is `remaining <= 5` in the state"
+        );
+        assert!(
+            !accepted(&program("n <= 9")),
+            "`n <= 9` does not bound `remaining` inside the domain"
+        );
+    }
+}
+
+/// The proof-fact expressions of a PREDICATE-ONLY domain, or `None` when the
+/// domain is not predicate-only.
 ///
 /// [Domains](wiki/spec/language/domains.md#declaration-and-membership) settles
 /// the rule: "Predicates alone establish predicate-only membership", and a
@@ -1625,21 +2392,10 @@ mod transition_arm_guard_probes {
 /// keeps its provenance obligation; only a domain whose whole content is
 /// predicates over `self` reduces, and then EVERY predicate must be
 /// established, never a subset.
-///
-/// The rendering is `instantiate_domain_expression_label`, the same
-/// substitution `contracts::domains` already runs in the MEMBERSHIP ->
-/// PREDICATE direction. This is that rendering read the other way.
-fn predicate_only_domain_labels(
+fn predicate_only_domain_predicates(
     program: &typed_trees::TypedTrees,
-    facts: &CheckFacts,
-    fact: &facts::Fact,
-) -> Option<Vec<String>> {
-    let FactPayload::ContractDomainMembership { domain_symbol, .. } = fact.payload else {
-        return None;
-    };
-    let FactPlace::Place(place_handle) = fact.place else {
-        return None;
-    };
+    domain_symbol: SymbolHandle,
+) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
     let domain = program
         .domain_definitions()
         .iter()
@@ -1661,17 +2417,10 @@ fn predicate_only_domain_labels(
         // could discharge; whatever it asks for is not this.
         return None;
     }
-    let subject_label = facts.semantic.place_label(program, place_handle);
     declared
         .iter()
         .map(|declared_fact| match declared_fact {
-            typed_trees::domain::ProofFact::Expression(expression) => {
-                Some(super::labels::instantiate_domain_expression_label(
-                    program,
-                    *expression,
-                    &subject_label,
-                ))
-            }
+            typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
             // A nested membership or a proposition needs more than this
             // substitution gives; refuse the whole domain rather than
             // establish a subset of its obligations.
@@ -1680,8 +2429,45 @@ fn predicate_only_domain_labels(
         .collect()
 }
 
+/// The predicates a PREDICATE-ONLY domain membership reduces to, each rendered
+/// at the subject, or `None` when the domain is not predicate-only.
+///
+/// The rendering is `instantiate_domain_expression_label`, the same
+/// substitution `contracts::domains` already runs in the MEMBERSHIP ->
+/// PREDICATE direction. This is that rendering read the other way.
+fn predicate_only_domain_labels(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    fact: &facts::Fact,
+) -> Option<Vec<String>> {
+    let FactPayload::ContractDomainMembership { domain_symbol, .. } = fact.payload else {
+        return None;
+    };
+    let FactPlace::Place(place_handle) = fact.place else {
+        return None;
+    };
+    let subject_label = facts.semantic.place_label(program, place_handle);
+    Some(
+        predicate_only_domain_predicates(program, domain_symbol)?
+            .iter()
+            .map(|expression| {
+                super::labels::instantiate_domain_expression_label(
+                    program,
+                    *expression,
+                    &subject_label,
+                )
+            })
+            .collect(),
+    )
+}
+
 /// The closed interval a PREDICATE-ONLY domain requires of its subject, paired
 /// with that subject's label, or `None` when the domain states no interval.
+///
+/// Establishment direction, so the interval must be EXACT: every predicate a
+/// recognized bound on `self`, or containing the subject inside it would grant
+/// membership while a predicate it cannot see -- `self != 7` beside
+/// `self <= 15` -- stays unproven.
 fn predicate_only_domain_interval(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -1708,11 +2494,11 @@ fn predicate_only_domain_interval(
         symbol: domain_symbol,
         ..Default::default()
     };
-    let (minimum, maximum) = validation::declared_domain_predicate_bounds(program, &constraint)?;
+    let (minimum, maximum) = validation::exact_declared_domain_interval(program, &constraint)?;
     Some((
         facts.semantic.place_label(program, place_handle),
-        minimum,
-        maximum,
+        minimum.unwrap_or_else(|| numerics::bignum::BigInt::from_i64(i64::MIN)),
+        maximum.unwrap_or_else(|| numerics::bignum::BigInt::from_i64(i64::MAX)),
     ))
 }
 
