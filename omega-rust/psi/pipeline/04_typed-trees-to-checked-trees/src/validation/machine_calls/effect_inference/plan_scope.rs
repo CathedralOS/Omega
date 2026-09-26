@@ -59,6 +59,37 @@ impl DataDefinitionLookup {
     }
 }
 
+/// Every data-definition symbol's lookup answer, from one pass over the
+/// declaration table.
+pub(crate) struct DataDefinitionIndex(
+    symbols::SymbolKeyMap<symbols::SymbolHandle, DataDefinitionLookup>,
+);
+
+impl DataDefinitionIndex {
+    fn of(program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees) -> Self {
+        let mut lookups = symbols::SymbolKeyMap::default();
+        for (position, definition) in program.data_definitions().iter().enumerate() {
+            let position = u32::try_from(position).expect("data definition position overflow");
+            lookups
+                .entry(definition.symbol)
+                .and_modify(|lookup| {
+                    if let DataDefinitionLookup::Unique(first) = *lookup {
+                        *lookup = DataDefinitionLookup::Duplicate(first);
+                    }
+                })
+                .or_insert(DataDefinitionLookup::Unique(position));
+        }
+        Self(lookups)
+    }
+
+    fn lookup(&self, symbol: symbols::SymbolHandle) -> DataDefinitionLookup {
+        self.0
+            .get(&symbol)
+            .copied()
+            .unwrap_or(DataDefinitionLookup::Missing)
+    }
+}
+
 type DataDefinitionLookupSlot = Option<
     Option<(
         *const symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
@@ -317,6 +348,13 @@ pub(crate) fn memoized_data_definition_lookup(
     program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: symbols::SymbolHandle,
 ) -> DataDefinitionLookup {
+    // A frozen check program answers every symbol from one table pass.
+    if let Some(memos) = crate::validation::frozen_program::frozen_program_memos(program) {
+        return memos
+            .data_definitions
+            .get_or_init(|| std::sync::Arc::new(DataDefinitionIndex::of(program)))
+            .lookup(symbol);
+    }
     enum SlotState {
         NoScope,
         Hit(DataDefinitionLookup),
