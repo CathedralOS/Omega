@@ -112,11 +112,11 @@ fail/borrow/vec_view_invalidated_by_push rejected 3ms expected
 	state `push` receives mutable receiver while local borrow `view` is still active
 fail/borrow/view_return_ambiguous_ref_inputs rejected 8ms expected
 	machine `pick_either` returns a view but takes 2 candidate ref inputs (`a`, `b`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
-fail/borrow/write_only_implicit_attenuation rejected 0ms
+fail/borrow/write_only_implicit_attenuation rejected 202ms expected
 	argument `value` for state `entry` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)
-fail/borrow/write_only_mutable_widening rejected 0ms
+fail/borrow/write_only_mutable_widening rejected 203ms expected
 	machine `widen` state `entry` widens write-only parameter `value` to `&mut`; forward it explicitly as `&write value` instead
-fail/borrow/write_only_observation rejected 0ms
+fail/borrow/write_only_observation rejected 216ms expected
 	machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/borrows/borrow_duplicate_mut rejected 1ms expected
 	state `swap` receives `value` as mutable more than once
@@ -970,8 +970,8 @@ pass/blockexec/blocking_executor_custody_claims_compile checked 80ms
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 2ms
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 2ms
 pass/borrow/runtime_method_view_write_after_last_use_exit checked 189ms
-pass/borrow/write_only_constrained_record_field checked 3ms
-pass/borrow/write_only_whole_scalar_replace checked 2ms
+pass/borrow/write_only_constrained_record_field checked 515ms
+pass/borrow/write_only_whole_scalar_replace checked 488ms
 pass/borrows/borrow_domain_window_write_and_call checked 3ms
 pass/borrows/borrow_guarded_window_write_and_call checked 2ms
 pass/borrows/borrow_returned_window_write_and_call checked 4ms
