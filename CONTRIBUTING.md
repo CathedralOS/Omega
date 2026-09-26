@@ -49,7 +49,7 @@ Use that exact local copy; these repository contracts take precedence.
 - Source text is source-loading, diagnostic, and debug payload. Beyond resolution, source-backed names are technical debt unless they are literal program strings, diagnostics/debug metadata, or final-image import/export payload.
 - Use stable handles when data needs references across phases; use redirect tables only when arena contents need reordering.
 - Comments should explain non-obvious intent. Do not add “doing X unlike Rust” commentary unless the contrast changes implementation.
-- Crate `lib.rs` headers carry the reasoning signatures cannot: mechanism, justification, honest boundaries, and provenance. `omega-rust/omega/backend/images/image/src/lib.rs` and `omega-rust/psi/semantics/terminal-fixed-fuel/src/lib.rs` are the established exemplars.
+- Crate `lib.rs` headers carry the reasoning signatures cannot: mechanism, justification, honest boundaries, and provenance. `omega-rust/omega/src/terminal_fixed_fuel.rs` and a `omega-rust/psi/pipeline/` stage's `src/lib.rs` are the established exemplars.
 
 Configuration that looks wrong but is deliberate:
 
@@ -357,13 +357,13 @@ implementation; those meanings must stay distinct in commit subjects.
 | `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/5_omega/` and tests specifically of that implementation. Never shorten this to `omega`. |
 | `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, and chain hygiene; includes `tests/bootstrap/` and shared `tools/bootstrap/` orchestration. A helper specific to one rung uses that rung's lane. |
 | `psi` | Target-neutral source semantics through Terminal Psi: parsing, resolution, typing, checking, proof, interpretation, and Psi optimization in `omega-rust/psi/` or `source/psi/`. |
-| `omega` | The Terminal-Psi-consuming compiler stage: Omega representations, transforms, optimization, and realization semantics in `omega-rust/omega/{representations,pipeline,semantics}/` or corresponding `source/omega/` implementation. Never a project-wide default. |
-| `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/backend/` and their product-source equivalents. Transform policy in `pipeline/` remains `omega`. |
-| `compiler` | Product compilation coordination and reports in `omega-rust/omega/docs/compiler/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
-| `build` | The product's build evaluation, composition, provider planning, deployment, and trust ledger in `omega-rust/omega/build/`, plus product build declarations such as `source/omega/build.omg`. Repository build commands and CI use `repo`. |
-| `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/packages/`. Package command wiring accompanying those changes keeps `packages`. |
+| `omega` | The Terminal-Psi-consuming compiler stage: Omega transforms, optimization, and realization semantics in `omega-rust/omega/pipeline/` or corresponding `source/omega/` implementation. Never a project-wide default. |
+| `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives — the realizing `omega-rust/omega/pipeline/` stage or the `omega` binary's custody modules (`omega-rust/omega/src/`) — and their product-source equivalents. Transform policy in `pipeline/` remains `omega`. |
+| `compiler` | Product compilation coordination and reports in `omega-rust/omega/src/compiler.rs` and `omega-rust/omega/src/compiler/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
+| `build` | The product's build evaluation, composition, provider planning, deployment, and trust ledger in `omega-rust/omega/src/{build_evaluation,build_declarations,provider_planning,trust_ledger}/`, plus product build declarations such as `source/omega/build.omg`. Repository build commands and CI use `repo`. |
+| `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/src/package_*/`. Package command wiring accompanying those changes keeps `packages`. |
 | `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |
-| `tooling` | Shipped compiler support such as artifact views, profiles, language-server/docs-generator behavior, and host custody in `omega-rust/omega/tooling/`. |
+| `tooling` | Shipped compiler support such as artifact views, profiles, language-server/docs-generator behavior, and host custody in `omega-rust/omega/src/` (`inspection`, `platform_custody`, and kin). |
 | `library` | Bundled packages in `source/library/`, including `core`, `alloc`, and `std`. A compiler semantic fix exercised by library code keeps its compiler lane. |
 | `samples` | Standalone sample/example content and presentation in `samples/` or example directories. A regression fixture for an implementation fix keeps that implementation's lane. |
 | `tests` | Shared test infrastructure, corpus registration, fixtures, or architecture gates spanning multiple owners. Tests for one responsibility use that responsibility's lane, even in a test-only commit. |
@@ -375,7 +375,7 @@ Apply these selection rules in order:
 
 1. Read the diff and identify the responsibility whose behavior or contract
    changed. The more specific table row wins over an enclosing directory:
-   `omega-rust/omega/packages/` is `packages`, not `omega` or `repo`.
+   `omega-rust/omega/src/package_*/` is `packages`, not `omega` or `repo`.
 2. Supporting tests, fixtures, documentation, task-board updates, and mechanical
    call-site edits inherit that responsibility's lane. `tests/omega/` names the
    language corpus; a typing regression there is `psi`, an encoding regression

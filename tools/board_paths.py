@@ -23,7 +23,7 @@ Exits 1 when any cited path is dead, so it can gate a board sweep.
 
 Citation forms it understands, because the boards use all three:
 
-  - a repo-relative path, `omega-rust/omega/build/build-evaluation/src/lib.rs`;
+  - a repo-relative path, `omega-rust/omega/src/build_evaluation.rs`;
   - a path relative to some enclosing directory, resolved as a suffix of a
     real file, `checks/ranges/incoming_guards.rs`;
   - brace alternatives, `admission/{declarations,behavior_exclusions}.rs`,
