@@ -45,6 +45,23 @@ fn repository_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// Paths `.gitmodules` declares, relative to the repository root.
+///
+/// A submodule is a separate repository vendored under this tree. Its build
+/// declarations are not this repository's to hold to this repository's
+/// conventions, and it need not be checked out, so a scan that descends into
+/// one counts packages nobody here owns.
+fn submodule_roots() -> Vec<PathBuf> {
+    let root = repository_root();
+    let Ok(text) = fs::read_to_string(root.join(".gitmodules")) else {
+        return Vec::new();
+    };
+    text.lines()
+        .filter_map(|line| line.trim().strip_prefix("path = "))
+        .map(|path| root.join(path.trim()))
+        .collect()
+}
+
 fn collect_build_roots(directory: &Path, roots: &mut Vec<PathBuf>) {
     let mut entries = fs::read_dir(directory)
         .unwrap_or_else(|error| panic!("read sample directory {}: {error}", directory.display()))
@@ -56,9 +73,10 @@ fn collect_build_roots(directory: &Path, roots: &mut Vec<PathBuf>) {
         roots.push(directory.to_owned());
     }
 
+    let submodules = submodule_roots();
     for entry in entries {
         let path = entry.path();
-        if path.is_dir() {
+        if path.is_dir() && !submodules.iter().any(|root| path == *root) {
             collect_build_roots(&path, roots);
         }
     }
@@ -96,7 +114,24 @@ fn expected_omega_case_application_name(root: &Path) -> String {
     if root.ends_with("pass/float/build_runtime_semantics_twins_x86_baseline") {
         return "x86_baseline_float_semantic_edge_twin".to_owned();
     }
-    leaf.to_owned()
+    // Three package fixtures name the behavior their application asserts
+    // rather than their directory, and the topology root names the product
+    // it deploys.
+    for (suffix, declared) in [
+        (
+            "packages/behavior-exclusions/checking-app",
+            "checking_assert_app",
+        ),
+        ("packages/behavior-exclusions/no-op-app", "no_op_assert_app"),
+        ("packages/build-scope-topology/root", "payments_deployment"),
+    ] {
+        if root.ends_with(suffix) {
+            return declared.to_owned();
+        }
+    }
+    // A package fixture's directory carries the repository-style spelling its
+    // remote uses; the package identity it declares is the snake_case form.
+    leaf.replace('-', "_")
 }
 
 const DECLARATION_REJECTION_CASES: &[&str] = &["fail/build/build-machine-wrong-arity"];
@@ -120,18 +155,36 @@ const DEPENDENCY_FREE_SAMPLES: &[&str] = &[
 /// declared package names. A root-level package declaration requests package
 /// identity under the managed harness without a dependency edge.
 const PACKAGE_MEMBER_CASES: &[(&str, &str)] = &[
+    ("package-remotes/file-journal", "file_journal"),
+    ("package-remotes/graph-workbench", "graph_workbench"),
+    ("package-remotes/process-exit", "process_exit"),
+    ("package-remotes/remote-journal", "remote_journal"),
     (
-        "pass/proofs/quotient-define-managed-compile",
-        "quotient_define_managed_compile",
+        "package-workspaces/library-workbench/libraries/exact-math",
+        "exact_math",
     ),
     (
-        "pass/proofs/quotient-lift-managed-compile",
-        "quotient_lift_managed_compile",
+        "package-workspaces/library-workbench/libraries/integer-constants",
+        "integer_constants",
     ),
-    (
-        "pass/traits/equatable-qualified-field-reference-exit/leaf",
-        "qualified_region",
-    ),
+    ("packages/arithmetic-kernels", "arithmetic_kernels"),
+    ("packages/axiom-ledger", "axiom_ledger"),
+    ("packages/behavior-exclusions/assert-kit", "assert_kit"),
+    ("packages/behavior-exclusions/logger-kit", "logger_kit"),
+    ("packages/build-purposes/alpha", "alpha"),
+    ("packages/build-purposes/beta", "beta"),
+    ("packages/build-scope-topology/topology", "topology"),
+    ("packages/capability-vault", "capability_vault"),
+    ("packages/file-journal", "file_journal"),
+    ("packages/generated-consumer", "generated_consumer"),
+    ("packages/generated-table", "generated_table"),
+    ("packages/graph-workbench", "graph_workbench"),
+    ("packages/host-services", "host_services"),
+    ("packages/network-overreach", "network_overreach"),
+    ("packages/opaque-carrier", "opaque_carrier"),
+    ("packages/process-exit", "process_exit"),
+    ("packages/provider-switchboard", "provider_switchboard"),
+    ("packages/remote-journal", "remote_journal"),
     ("pass/build/runtime-depend-mapping-exit/lib", "mylib"),
     ("pass/modules/package-bare-cases", "package_bare_cases"),
     ("pass/modules/package-bare-cases/leaf", "bare_case_values"),
@@ -142,6 +195,18 @@ const PACKAGE_MEMBER_CASES: &[(&str, &str)] = &[
     (
         "pass/modules/qualified-case-membership/leaf",
         "membership_values",
+    ),
+    (
+        "pass/proofs/quotient-define-managed-compile",
+        "quotient_define_managed_compile",
+    ),
+    (
+        "pass/proofs/quotient-lift-managed-compile",
+        "quotient_lift_managed_compile",
+    ),
+    (
+        "pass/providers/specialized-mixed-structural-result-operator-hosted-native",
+        "specialized_mixed_structural_result_operator_hosted_native",
     ),
 ];
 
@@ -465,7 +530,7 @@ fn assert_mixed_canary_category_standard_library_edges(
 fn time_canaries_declare_ordinary_standard_library_edges() {
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/time"),
-        17,
+        6,
     );
 }
 
@@ -473,25 +538,24 @@ fn time_canaries_declare_ordinary_standard_library_edges() {
 fn filesystem_canaries_declare_ordinary_standard_library_edges() {
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/filesystem"),
-        86,
+        21,
     );
 }
 
 #[test]
 fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
     for (category, expected_count) in [
-        ("atomics", 10),
-        ("backend", 2),
-        ("borrow", 3),
-        ("comptime", 5),
-        ("constants", 3),
-        ("data", 20),
-        ("dependent", 34),
+        ("atomics", 3),
+        ("borrow", 2),
+        ("comptime", 3),
+        ("constants", 1),
+        ("data", 8),
+        ("dependent", 9),
         ("errors", 1),
-        ("generics", 37),
-        ("layouts", 19),
-        ("recast", 24),
-        ("structs", 13),
+        ("generics", 14),
+        ("layouts", 7),
+        ("recast", 13),
+        ("structs", 3),
     ] {
         assert_canaries_declare_ordinary_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -509,8 +573,8 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
 fn proof_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/proofs"),
-        17,
-        14,
+        12,
+        9,
     );
 }
 
@@ -518,15 +582,15 @@ fn proof_canaries_declare_only_their_consumed_standard_library_edges() {
 fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/slices"),
-        70,
-        69,
+        18,
+        18,
     );
 }
 
 #[test]
 fn expression_and_storage_canaries_declare_only_their_consumed_standard_library_edges() {
     for (category, expected_roots, expected_consumers) in
-        [("expressions", 53, 51), ("storage", 12, 10)]
+        [("expressions", 13, 11), ("storage", 3, 3)]
     {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -540,8 +604,8 @@ fn expression_and_storage_canaries_declare_only_their_consumed_standard_library_
 fn wire_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/wire"),
-        46,
-        39,
+        13,
+        12,
     );
 }
 
@@ -549,8 +613,8 @@ fn wire_canaries_declare_only_their_consumed_standard_library_edges() {
 fn text_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/text"),
-        79,
-        72,
+        21,
+        18,
     );
 }
 
@@ -558,8 +622,8 @@ fn text_canaries_declare_only_their_consumed_standard_library_edges() {
 fn collection_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/collections"),
-        94,
-        94,
+        16,
+        16,
     );
 }
 
@@ -567,8 +631,8 @@ fn collection_canaries_declare_only_their_consumed_standard_library_edges() {
 fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/arithmetic"),
-        142,
-        141,
+        27,
+        27,
     );
 }
 
@@ -576,15 +640,15 @@ fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
 fn call_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/calls"),
-        183,
-        180,
+        47,
+        46,
     );
 }
 
 #[test]
 fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_edges() {
     for (category, expected_roots, expected_consumers) in
-        [("capabilities", 16, 2), ("control_flow", 61, 51)]
+        [("capabilities", 7, 1), ("control_flow", 19, 16)]
     {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -598,8 +662,8 @@ fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_e
 fn float_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/float"),
-        50,
-        49,
+        21,
+        21,
     );
 }
 
@@ -607,8 +671,8 @@ fn float_canaries_declare_only_their_consumed_standard_library_edges() {
 fn trait_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/traits"),
-        35,
-        30,
+        11,
+        9,
     );
 }
 
@@ -616,12 +680,12 @@ fn trait_canaries_declare_only_their_consumed_standard_library_edges() {
 fn operator_and_type_runtime_canaries_declare_ordinary_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/operators"),
-        12,
-        11,
+        8,
+        7,
     );
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/types"),
-        8,
+        3,
     );
 }
 
@@ -634,7 +698,7 @@ fn ownership_and_reference_runtime_canaries_declare_ordinary_standard_library_ed
     ];
     let mut ownership_roots = Vec::new();
     collect_build_roots(&ownership, &mut ownership_roots);
-    assert_eq!(ownership_roots.len(), 13);
+    assert_eq!(ownership_roots.len(), 4);
     for root in ownership_roots {
         if dependency_free.contains(&root) {
             let projection = extract_build_dependency_projection(&root).unwrap();
@@ -649,23 +713,23 @@ fn ownership_and_reference_runtime_canaries_declare_ordinary_standard_library_ed
 
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/references"),
-        3,
+        1,
     );
 }
 
 #[test]
 fn small_mixed_runtime_categories_declare_only_their_required_standard_library_edges() {
     for (category, expected_roots, expected_standard_library_consumers) in [
-        ("ranges", 3, 2),
-        ("targets", 22, 2),
-        ("versioning", 4, 4),
-        ("termination", 4, 4),
-        ("range", 6, 6),
-        ("core", 14, 7),
-        ("dungeon", 19, 15),
-        ("domains", 29, 27),
-        ("host", 23, 23),
-        ("providers", 40, 24),
+        ("ranges", 1, 1),
+        ("targets", 3, 2),
+        ("versioning", 2, 2),
+        ("termination", 1, 1),
+        ("range", 2, 2),
+        ("core", 9, 3),
+        ("dungeon", 2, 2),
+        ("domains", 7, 6),
+        ("host", 6, 6),
+        ("providers", 16, 8),
     ] {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -686,6 +750,7 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
     let mut applications = 0;
     let mut declaration_rejections = 0;
     let mut package_members = 0;
+    let mut workspaces = 0;
     for root in roots {
         let key = omega_case_key(&cases, &root);
         if DECLARATION_REJECTION_CASES.contains(&key.as_str()) {
@@ -721,6 +786,17 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
             continue;
         }
 
+        // A workspace root declares its members and is neither an
+        // application nor a package member; its directory carries no package
+        // identity to derive a name from.
+        if matches!(
+            extract_build_declaration(&root),
+            Ok(BuildDeclaration::Workspace(_))
+        ) {
+            workspaces += 1;
+            continue;
+        }
+
         let expected_name = expected_omega_case_application_name(&root);
         assert_eq!(
             extract_build_declaration(&root).unwrap_or_else(|error| {
@@ -732,7 +808,10 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
             BuildDeclaration::Application(
                 omega::package_manager::declarations::ApplicationDeclaration {
                     name: PackageName::parse(&expected_name).unwrap(),
-                    artifact_only: false,
+                    // The topology root is the corpus's one artifact-only
+                    // application; it publishes a plan rather than an
+                    // executable.
+                    artifact_only: root.ends_with("packages/build-scope-topology/root"),
                 }
             ),
             "unexpected Omega case application declaration in {}",
@@ -744,7 +823,7 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
     assert_eq!(declaration_rejections, DECLARATION_REJECTION_CASES.len());
     assert_eq!(package_members, PACKAGE_MEMBER_CASES.len());
     assert_eq!(
-        applications + declaration_rejections + package_members,
+        applications + declaration_rejections + package_members + workspaces,
         root_count
     );
 }
