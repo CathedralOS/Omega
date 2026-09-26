@@ -142,20 +142,18 @@ pub(in crate::legalization) fn case_source(
     {
         return Err(LegalizationError::custody());
     }
-    Ok(
-        crate::legalized_operations::LegalizedStructuralCaseSource::Parameter {
-            declaration: declaration.clone(),
-        },
-    )
     match declaration.access {
         terminal_psi::StructuralAccess::SharedBorrow
         | terminal_psi::StructuralAccess::MutableBorrow => Ok(
-            legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+            crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
                 declaration: declaration.clone(),
             },
         ),
         terminal_psi::StructuralAccess::Owned if !declaration.is_self => Ok(
-            legalized_operations::LegalizedStructuralCaseSource::Parameter {
+            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter {
+                declaration: declaration.clone(),
+            },
+        ),
         _ => Err(LegalizationError::custody()),
     }
 }

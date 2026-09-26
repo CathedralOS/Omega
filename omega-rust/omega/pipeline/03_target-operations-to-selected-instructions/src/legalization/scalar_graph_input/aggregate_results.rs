@@ -274,11 +274,10 @@ pub(super) fn cleanup(
                     && declaration.qualifications.is_empty()
                     && declaration.projected_qualifications.is_empty()
             }
-            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => false,
-            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
-                false
-            }
+            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+            | crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+                ..
+            } => false,
         })
     };
     actions.iter().all(|action| {
@@ -795,9 +794,10 @@ pub(super) fn result_home(
             )
         }
         // A function parameter is an arrival, not an activation-local home.
-        crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
-        legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-        | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
+        crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+        | crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+            ..
+        } => {
             return Err(LegalizationError::custody());
         }
     };

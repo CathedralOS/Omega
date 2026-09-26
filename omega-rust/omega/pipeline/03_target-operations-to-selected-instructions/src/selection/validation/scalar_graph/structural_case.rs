@@ -42,13 +42,11 @@ pub(super) fn validate(
     {
         return Err(SelectedInstructionError::custody());
     }
-    let slot = match subject {
-        crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
     let dispatch_source = match subject {
-        legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+        crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
             result,
-        } => selected_instructions::SelectedCaseDispatchSource::Local {
+        } => crate::selected_instructions::SelectedCaseDispatchSource::Local {
             slot: LocalStorageSlotId::Structural {
                 operation: *operation,
                 place: result.place,
@@ -57,7 +55,7 @@ pub(super) fn validate(
         crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
             block,
             declaration,
-        } => selected_instructions::SelectedCaseDispatchSource::Local {
+        } => crate::selected_instructions::SelectedCaseDispatchSource::Local {
             slot: LocalStorageSlotId::StructuralBlockParameter {
                 block: *block,
                 place: declaration.place,
@@ -65,10 +63,7 @@ pub(super) fn validate(
         },
         // The entry retains an owned parameter's value copy in its own slot.
         crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
-            LocalStorageSlotId::StructuralParameter {
-                place: declaration.place,
-        legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
-            selected_instructions::SelectedCaseDispatchSource::Local {
+            crate::selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::StructuralParameter {
                     place: declaration.place,
                 },
@@ -76,7 +71,9 @@ pub(super) fn validate(
         }
         // A borrowed parameter's referent pointer was retained at entry; the
         // exact register is recorded on every selected case edge.
-        legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { declaration } => {
+        crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+            declaration,
+        } => {
             let SelectedTerminator::ConditionalBranch { when_zero, .. } = &replay.block.terminator
             else {
                 return Err(SelectedInstructionError::custody());
@@ -85,11 +82,14 @@ pub(super) fn validate(
                 .structural_case
                 .as_ref()
                 .ok_or_else(SelectedInstructionError::custody)?;
-            let selected_instructions::SelectedCaseDispatchSource::Borrowed {
+            let crate::selected_instructions::SelectedCaseDispatchSource::Borrowed {
                 place,
                 pointer,
                 byte_size,
             } = retained.source
+            else {
+                return Err(SelectedInstructionError::custody());
+            };
             if place != declaration.place
                 || byte_size != u32::from(layout.shape.byte_size)
                 || !matches!(
@@ -118,12 +118,17 @@ pub(super) fn validate(
                             })
                 )
             {
-            selected_instructions::SelectedCaseDispatchSource::Borrowed {
+                return Err(SelectedInstructionError::custody());
+            }
+            crate::selected_instructions::SelectedCaseDispatchSource::Borrowed {
+                place,
+                pointer,
+                byte_size,
             }
         }
     };
     let address = match dispatch_source {
-        selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+        crate::selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
             if replay
                 .transport
                 .local_slots
@@ -162,7 +167,9 @@ pub(super) fn validate(
             )?;
             address
         }
-        selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => pointer,
+        crate::selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => {
+            pointer
+        }
     };
     let tag = temporary(replay, subject.place(), 0, true)?;
     memory(
@@ -279,10 +286,7 @@ pub(super) fn validate(
 fn successor(
     expected: &crate::legalized_operations::LegalizedStructuralCaseSuccessor,
     actual: &crate::selected_instructions::SelectedSuccessor,
-    slot: LocalStorageSlotId,
-    expected: &legalized_operations::LegalizedStructuralCaseSuccessor,
-    actual: &selected_instructions::SelectedSuccessor,
-    dispatch_source: selected_instructions::SelectedCaseDispatchSource,
+    dispatch_source: crate::selected_instructions::SelectedCaseDispatchSource,
     replay: &Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let destination = replay

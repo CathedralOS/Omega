@@ -151,18 +151,17 @@ pub fn x86_64_machine_effect_catalog(
     })
 }
 
-pub fn validate_x86_64_machine_effect_catalog(
 /// The canonical catalog is a pure function of the target and the validated
 /// constraint catalog, whose identity digests its content. Validation
 /// compares against it on every call, so each (target, identity) pair builds
 /// it once per process; a failed build is never recorded.
-fn canonical_aarch64_machine_effect_catalog(
+fn canonical_x86_64_machine_effect_catalog(
     target: NativeTarget,
     constraints: &ValidatedRegisterConstraintCatalog,
-) -> Result<std::sync::Arc<MachineEffectCatalog>, Aarch64MachineEffectCatalogValidationError> {
+) -> Result<std::sync::Arc<MachineEffectCatalog>, X86_64MachineEffectCatalogValidationError> {
     type Canonical = (
         NativeTarget,
-        register_model::RegisterConstraintCatalogIdentity,
+        crate::register_model::RegisterConstraintCatalogIdentity,
         std::sync::Arc<MachineEffectCatalog>,
     );
     static CANONICAL: std::sync::OnceLock<std::sync::Mutex<Vec<Canonical>>> =
@@ -179,12 +178,14 @@ fn canonical_aarch64_machine_effect_catalog(
     }) {
         return Ok(catalog);
     }
-    let catalog = std::sync::Arc::new(aarch64_machine_effect_catalog(target, constraints)?);
+    let catalog = std::sync::Arc::new(x86_64_machine_effect_catalog(target, constraints)?);
     if let Ok(mut cached) = cache.lock() {
         cached.push((target, identity, catalog.clone()));
+    }
     Ok(catalog)
 }
-pub fn validate_aarch64_machine_effect_catalog(
+
+pub fn validate_x86_64_machine_effect_catalog(
     target: NativeTarget,
     constraints: &ValidatedRegisterConstraintCatalog,
     catalog: MachineEffectCatalog,
@@ -194,15 +195,11 @@ pub fn validate_aarch64_machine_effect_catalog(
     {
         return Err(X86_64MachineEffectCatalogValidationError::TargetArchitectureMismatch);
     }
-    let canonical = x86_64_machine_effect_catalog(target, constraints)?;
+    let canonical = canonical_x86_64_machine_effect_catalog(target, constraints)?;
     let validated = validate_machine_effect_catalog(constraints, catalog)
         .map_err(X86_64MachineEffectCatalogValidationError::Structural)?;
-    if validated.catalog() != &canonical {
-        return Err(X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch);
-    let canonical = canonical_aarch64_machine_effect_catalog(target, constraints)?;
-        .map_err(Aarch64MachineEffectCatalogValidationError::Structural)?;
     if validated.catalog() != &*canonical {
-        return Err(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch);
+        return Err(X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch);
     }
     Ok(validated)
 }

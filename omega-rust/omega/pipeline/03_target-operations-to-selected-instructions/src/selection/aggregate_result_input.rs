@@ -517,12 +517,12 @@ pub(super) fn returned<'a>(
                 parameter.multiplicity,
             )
         }
-        // A returned parameter uses `StructuralParameter`, never this owner.
-        crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
         // A returned parameter uses `StructuralParameter`, never this owner;
         // a borrowed dispatch source has no local custody slot at all.
-        legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-        | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
+        crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+        | crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+            ..
+        } => {
             return None;
         }
     };

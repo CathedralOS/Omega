@@ -196,7 +196,7 @@ fn borrowed_parameter_available(
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     parameter: &TargetStructuralParameter,
-    layout: &target_operations::TargetStructuralHomeLayout,
+    layout: &abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout,
     expected_source: PlaceId,
 ) -> bool {
     let Some(declaration) = optimized
@@ -225,13 +225,13 @@ fn borrowed_parameter_available(
         && parameter.multiplicity == declaration.multiplicity
         && parameter.projected_qualifications.is_empty()
         // The carrier is the pointer; the layout describes the referent.
-        && parameter.shape.class == calling_conventions::ValueClass::BorrowedReference
+        && parameter.shape.class == abstract_operations_to_target_operations::calling_conventions::ValueClass::BorrowedReference
         && super::super::super::aggregate_results::sum_type_layout(
             parameter.structural_type,
             plan,
         )
         .ok()
-        .map(target_operations::TargetStructuralHomeLayout::Sum)
+        .map(abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Sum)
         .as_ref()
             == Some(layout)
 }

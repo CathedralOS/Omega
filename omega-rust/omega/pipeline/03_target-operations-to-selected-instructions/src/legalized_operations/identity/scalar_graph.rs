@@ -775,7 +775,9 @@ fn encode_structural_source(
             bytes.push(2);
             super::structural_types::encode_structural_parameter(bytes, declaration);
         }
-        crate::LegalizedStructuralCaseSource::BorrowedParameter { declaration } => {
+        crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+            declaration,
+        } => {
             bytes.push(3);
             super::structural_types::encode_structural_parameter(bytes, declaration);
         }

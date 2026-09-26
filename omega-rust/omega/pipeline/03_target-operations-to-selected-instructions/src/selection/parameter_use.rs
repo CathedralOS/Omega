@@ -16,7 +16,7 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
         || source.blocks.iter().any(|block| {
             matches!(
                 &block.terminator,
-                legalized_operations::LegalizedScalarTerminator::StructuralCase {
+                crate::legalized_operations::LegalizedScalarTerminator::StructuralCase {
                     source,
                     ..
                 } if source.place() == place

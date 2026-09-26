@@ -49,13 +49,11 @@ pub(super) fn build(
     {
         return Err(invalid());
     }
-    let slot = match subject {
-        crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
     let dispatch_source = match subject {
-        legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+        crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
             result,
-        } => selected_instructions::SelectedCaseDispatchSource::Local {
+        } => crate::selected_instructions::SelectedCaseDispatchSource::Local {
             slot: LocalStorageSlotId::Structural {
                 operation: *operation,
                 place: result.place,
@@ -64,7 +62,7 @@ pub(super) fn build(
         crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
             block,
             declaration,
-        } => selected_instructions::SelectedCaseDispatchSource::Local {
+        } => crate::selected_instructions::SelectedCaseDispatchSource::Local {
             slot: LocalStorageSlotId::StructuralBlockParameter {
                 block: *block,
                 place: declaration.place,
@@ -72,9 +70,7 @@ pub(super) fn build(
         },
         // The entry retains an owned parameter's value copy in its own slot.
         crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
-            LocalStorageSlotId::StructuralParameter {
-        legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
-            selected_instructions::SelectedCaseDispatchSource::Local {
+            crate::selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::StructuralParameter {
                     place: declaration.place,
                 },
@@ -82,7 +78,9 @@ pub(super) fn build(
         }
         // A borrowed parameter has no activation copy; the entry-retained
         // referent pointer addresses the caller's bytes directly.
-        legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { declaration } => {
+        crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+            declaration,
+        } => {
             let pointer = builder
                 .transport
                 .pointers
@@ -90,7 +88,7 @@ pub(super) fn build(
                 .find(|(stored, _)| *stored == declaration.place)
                 .map(|(_, pointer)| *pointer)
                 .ok_or_else(|| invalid())?;
-            selected_instructions::SelectedCaseDispatchSource::Borrowed {
+            crate::selected_instructions::SelectedCaseDispatchSource::Borrowed {
                 place: declaration.place,
                 pointer,
                 byte_size: u32::from(layout.shape.byte_size),
@@ -98,7 +96,7 @@ pub(super) fn build(
         }
     };
     let pointer = match dispatch_source {
-        selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+        crate::selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
             if builder
                 .transport
                 .local_slots
@@ -137,7 +135,7 @@ pub(super) fn build(
             )?;
             pointer
         }
-        selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => {
+        crate::selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => {
             if builder
                 .registers
                 .get(pointer.0 as usize)
@@ -317,7 +315,7 @@ fn successor(
     source: &LegalizedScalarFunction,
     order: &[usize],
     builder: &Builder<'_>,
-    dispatch_source: selected_instructions::SelectedCaseDispatchSource,
+    dispatch_source: crate::selected_instructions::SelectedCaseDispatchSource,
     case: &LegalizedStructuralCaseSuccessor,
 ) -> Result<SelectedSuccessor, SelectedInstructionError> {
     let block = order
