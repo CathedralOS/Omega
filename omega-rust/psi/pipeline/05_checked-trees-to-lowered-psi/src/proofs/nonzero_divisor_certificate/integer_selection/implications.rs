@@ -7,6 +7,10 @@
 //! without adding a kernel rule or teaching every arithmetic builder to search
 //! conditional facts. The shared search budget and active implication roster
 //! prevent cyclic laws from manufacturing their own premises.
+//! Try already-provable premises before recursively deriving other premises.
+//! Otherwise a stronger unavailable guard can spend the whole search budget on
+//! permutations of weaker implications before a usable bound is considered.
+//! This changes search order only; every selected law keeps its original citation.
 
 use std::collections::BTreeMap;
 
@@ -48,6 +52,22 @@ struct Search<'input, Ordinary> {
 }
 
 impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_, Ordinary> {
+    fn ordinary_proof(
+        &mut self,
+        goal: &Proposition,
+        assumptions: &[Proposition],
+    ) -> Option<ProofNode> {
+        let key = (goal.clone(), assumptions.to_vec());
+        match self.proved.get(&key) {
+            Some(proof) => proof.clone(),
+            None => {
+                let proof = (self.ordinary)(goal, assumptions);
+                self.proved.insert(key, proof.clone());
+                proof
+            }
+        }
+    }
+
     fn goal(
         &mut self,
         goal: &Proposition,
@@ -59,16 +79,7 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
             return None;
         }
         self.remaining = self.remaining.checked_sub(1)?;
-        let key = (goal.clone(), assumptions.to_vec());
-        let ordinary = match self.proved.get(&key) {
-            Some(proof) => proof.clone(),
-            None => {
-                let proof = (self.ordinary)(goal, assumptions);
-                self.proved.insert(key, proof.clone());
-                proof
-            }
-        };
-        if let Some(proof) = ordinary {
+        if let Some(proof) = self.ordinary_proof(goal, assumptions) {
             return Some(proof);
         }
         let logical = match goal {
@@ -103,7 +114,18 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
         // Only implications connected to the goal's values can shorten its
         // proof; an unrelated guard would otherwise be tried, and its premise
         // proved, at every depth of the search.
-        for fact in case_analysis::connected_implications(goal, assumptions, self.semantic_axioms) {
+        let mut implications =
+            case_analysis::connected_implications(goal, assumptions, self.semantic_axioms);
+        // Premise probes spend the same search budget as recursive questions;
+        // their ordinary proofs are memoized for the subsequent selected goal.
+        self.remaining = self.remaining.checked_sub(implications.len())?;
+        implications.sort_by_cached_key(|fact| match fact.proposition {
+            Proposition::Implication { premise, .. } => {
+                self.ordinary_proof(premise, assumptions).is_none()
+            }
+            _ => true,
+        });
+        for fact in implications {
             let Proposition::Implication {
                 premise,
                 conclusion,

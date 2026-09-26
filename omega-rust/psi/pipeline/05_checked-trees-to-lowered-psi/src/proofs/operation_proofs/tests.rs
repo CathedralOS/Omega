@@ -8,6 +8,84 @@ use crate::TerminalMachineSelection;
 use crate::terminal_identities::block_id;
 
 #[test]
+fn field_division_loop_proves_each_nonzero_divisor() {
+    for digits in [3, 5, 8] {
+        let lowered = lower_digit_field_loop(digits);
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .unwrap();
+    }
+}
+
+fn lower_digit_field_loop(digits: u32) -> LoweredPsi {
+    let source =
+        "data Main { p: u64; place: u32 in Wrapping; n: u32 in Wrapping; digit: u32 in Wrapping; }
+         machine Main::run(&mut self) {
+             self.p = 0;
+             self.n = 12345;
+             self.place = 10000;
+             transition { _ -> head() }
+             state head(&mut self) {
+                 transition self.p < 5 { true -> digit() _ -> done() }
+             }
+             state digit(&mut self) {
+                 self.digit = self.n / self.place;
+                 transition { _ -> advance() }
+             }
+             state advance(&mut self) {
+                 self.place = self.place / 10;
+                 self.p = self.p + 1;
+                 transition { _ -> head() }
+             }
+             state done(&mut self) { }
+         }"
+        .replace("10000", &10_u32.pow(digits - 1).to_string())
+        .replace("self.p < 5", &format!("self.p < {digits}"));
+    let checked = crate::front_end::checked_program(&source);
+    lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("each guarded iteration retains a nonzero divisor")
+}
+
+#[test]
+fn field_division_loop_rejects_an_insufficient_starting_divisor() {
+    let mut lowered = lower_digit_field_loop(5);
+    let start = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(10000)
+                }
+            )
+        })
+        .expect("the divisor has an emitted initial value");
+    start.kind = terminal_psi::OperationKind::IntegerConstant {
+        value: semantic_vocabulary::IntegerValue::Unsigned(9999),
+    };
+    assert!(
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err()
+    );
+    // After four divisions the changed start is zero. Neither existing evidence
+    // nor fresh search may justify the fifth iteration from the authored start.
+    lowered.semantic_module.scalar_block_invariants.clear();
+    lowered.proof_bundle = terminal_verifier::ProofBundle::default();
+    assert!(finalize_operation_proofs(&mut lowered).is_err());
+}
+
+#[test]
 fn sequential_clamps_prove_exact_arithmetic_on_an_observed_field() {
     for expression in ["bounded + 70", "70 + bounded", "bounded + -70"] {
         let lowered = clamped_field_addition(expression);
