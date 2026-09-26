@@ -3275,6 +3275,25 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   judgement -- incidental conversion, or a subject the new rule now refuses
   earlier -- which wants this item's context.
 
+  The corpus migration landed in c6e04262f5: 34 of the 40 corpus fixtures the
+  rule rejected now check or reject as their golden records say. Two of them
+  needed `as` inside `std`'s UEFI handoff and `core`'s float order keys. Four
+  pass fixtures stay rejected because the right spelling is a compiler
+  decision, not a fixture repair:
+  - `domains/domain_operator_unproven_keeps_builtin_meaning`: binary result
+    typing selects the declared `i32::Degrees::add` for `i32 in Wrapping`
+    operands, but the fixture pins that the builtin `+` stays selected.
+  - `float/named_provider_multiply_then_add_exit`: its saturating case needs
+    `f32 in Saturating` arguments to `F32::multiply_then_add(f32, ...)`, and
+    core declares no Saturating overload.
+  - `slices/runtime_saturating_array_element_guard_exit` and every array
+    declared `[T; N] in P`: validation reads an element as plain `T`, while
+    the index hoist types its `__hoist_N` temp as `T in P`, so a hoisted
+    element read is rejected at a store the author never wrote. `[T in P; N]`
+    checks, but a whole-array literal store into it then stops native
+    lowering at `structural field store: scalar field type`.
+  - `types/runtime_addr_algebra_exit`: validation types `addr - addr` as
+    `addr`, though the address rule calls the difference a count.
 - **TARGET-SET-COMPILATION.** (new-scope) Multi-target compilation is
   repeated single-target compilation at two layers
   ([plan](wiki/drafts/designs/target_set_compilation.md), measured at
