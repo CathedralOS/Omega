@@ -4,6 +4,8 @@
 
 mod closed_requirement;
 
+pub use closed_requirement::resolve as resolve_closed_requirement_application;
+
 use crate::validation::declarations::traits::conformance::signature_matching::{
     TraitTypeBinding, TraitTypeBindingTarget, parameter_shape_label,
     type_reference_lifetimes_match_requirement_application,

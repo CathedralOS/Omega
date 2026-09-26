@@ -16,7 +16,12 @@ use symbol_resolved_trees_to_typed_trees::typed_trees::operator::{
 };
 use symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecialization;
 
-pub(super) fn resolve<'program>(
+/// Resolve the exact requirement application named by a checked provider.
+///
+/// This joins retained specialization identities, not provider selection or
+/// execution authority. Consumers must still replay checked commitments and
+/// validate the provider's signature, body and conformance.
+pub fn resolve<'program>(
     program: &'program TypedTrees,
     provider: &Machine,
     requirement: &'program Machine,

@@ -118,8 +118,8 @@ pub use declarations::operators::{
 pub use declarations::traits::{
     DynamicConformanceSelection, DynamicDescriptorStorage, collect_dynamic_conformance_selections,
     collect_dynamic_descriptor_storages, compose_forwarded_trait_arguments,
-    generic_bound_operator_requirement, resolve_dynamic_call_targets,
-    revalidate_top_level_requirement_realization,
+    generic_bound_operator_requirement, resolve_closed_requirement_application,
+    resolve_dynamic_call_targets, revalidate_top_level_requirement_realization,
 };
 pub use machine_calls::effect_inference::{
     ProgramPlanScopeGuard, declared_machine_invocations, declared_signature_invocations,

@@ -16,6 +16,11 @@ use super::{
     ProviderSignature, ProviderSignatureParameter, TerminalMachine, UnitBody, lookup_machine_id,
     unique_unit_boundary, unsupported,
 };
+use typed_trees_to_checked_trees::checked_trees::machine::{Machine, TraitConformance};
+use typed_trees_to_checked_trees::validation::{
+    TopLevelSymbols, resolve_closed_requirement_application,
+    validate_checked_machine_specialization_commitments,
+};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ProviderBody {
     Callable,
@@ -94,6 +99,81 @@ enum CatalogRequirement<'a> {
     TopLevel(&'a typed_trees_to_checked_trees::checked_trees::machine::Machine),
 }
 
+/// A closed requirement keeps its authored conformance coordinate on the
+/// provider. Rejoin through checked applications, never through equal runtime
+/// signatures: two const tuples may have identical layouts and still name
+/// different boundary obligations.
+fn satisfies_requirement<'program>(
+    checked: &'program CheckedTrees,
+    machine: &Machine,
+    conformance: &TraitConformance,
+    requirement: CatalogRequirement<'program>,
+    symbols: &mut Option<TopLevelSymbols<'program>>,
+    specializations: &mut Vec<symbols::SymbolHandle>,
+) -> Result<bool, LoweringError> {
+    if conformance.external_binding.is_some() {
+        return Ok(false);
+    }
+    let requirement = match requirement {
+        CatalogRequirement::Trait {
+            definition,
+            signature,
+        } => {
+            return Ok(conformance.symbol == definition.symbol
+                && if conformance.requirement_symbol.is_valid() {
+                    conformance.requirement_symbol == signature.symbol
+                } else {
+                    conformance
+                        .requirement
+                        .as_ref()
+                        .is_some_and(|name| name == &signature.name)
+                });
+        }
+        CatalogRequirement::TopLevel(requirement) => requirement,
+    };
+    if conformance.symbol == requirement.symbol
+        && conformance.requirement_symbol == requirement.symbol
+    {
+        return Ok(true);
+    }
+    if conformance.symbol != conformance.requirement_symbol
+        || !checked.typed.machine_type_parameters(machine).is_empty()
+    {
+        return Ok(false);
+    }
+    let Some(template) = checked.machines().iter().find(|candidate| {
+        candidate.symbol == conformance.symbol
+            && candidate.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+            && !checked.typed.machine_type_parameters(candidate).is_empty()
+    }) else {
+        return Ok(false);
+    };
+    // Start at the authored satisfaction edge, not the optional receipt
+    // roster. Deleting a closed requirement's receipt must fail its join
+    // rather than silently turning a checked candidate into an absent one.
+    if symbols.is_none() {
+        let mut diagnostics = Vec::new();
+        *symbols = Some(TopLevelSymbols::build(&checked.typed, &mut diagnostics));
+        if !diagnostics.is_empty() {
+            return unsupported("provider catalog contains invalid declaration identities");
+        }
+    }
+    let Some(symbols) = symbols.as_ref() else {
+        return unsupported("provider catalog has no declaration identities");
+    };
+    let closed = resolve_closed_requirement_application(&checked.typed, machine, template, symbols)
+        .map_err(|_| {
+            LoweringError::Unsupported(
+                "provider catalog cannot rejoin the exact closed requirement application",
+            )
+        })?;
+    if closed.symbol != requirement.symbol {
+        return Ok(false);
+    }
+    specializations.extend([machine.symbol, requirement.symbol]);
+    Ok(true)
+}
+
 pub(super) fn checked_unit_provider_candidates(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
@@ -118,6 +198,8 @@ pub(super) fn checked_unit_provider_candidates(
     boundary_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     boundary_symbols.dedup();
     let mut output = Vec::new();
+    let mut symbols = None;
+    let mut specializations = Vec::new();
     for boundary_symbol in boundary_symbols {
         let boundary = unique_unit_boundary(plans, boundary_symbol)?;
         let exact_requirements = checked
@@ -174,41 +256,27 @@ pub(super) fn checked_unit_provider_candidates(
         if requirement_identity.is_empty() {
             return unsupported("Unit boundary requirement has an empty overload identity");
         }
-        let candidates = checked.typed.machines().iter().filter(|machine| {
+        for machine in checked.typed.machines().iter().filter(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
                 && machine.attached_data.is_some()
-                && checked
-                    .typed
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .any(|conformance| {
-                        conformance.external_binding.is_none()
-                            && match requirement {
-                                // Same-named requirements may differ only by
-                                // their result domain; the conformance's exact
-                                // overload decides which one a provider serves.
-                                CatalogRequirement::Trait {
-                                    definition,
-                                    signature,
-                                } => {
-                                    conformance.symbol == definition.symbol
-                                        && if conformance.requirement_symbol.is_valid() {
-                                            conformance.requirement_symbol == signature.symbol
-                                        } else {
-                                            conformance
-                                                .requirement
-                                                .as_ref()
-                                                .is_some_and(|name| name == &signature.name)
-                                        }
-                                }
-                                CatalogRequirement::TopLevel(requirement) => {
-                                    conformance.symbol == requirement.symbol
-                                        && conformance.requirement_symbol == requirement.symbol
-                                }
-                            }
-                    })
-        });
-        for machine in candidates {
+        }) {
+            let mut matches = false;
+            for conformance in checked.typed.machine_trait_conformances(machine) {
+                if satisfies_requirement(
+                    checked,
+                    machine,
+                    conformance,
+                    requirement,
+                    &mut symbols,
+                    &mut specializations,
+                )? {
+                    matches = true;
+                    break;
+                }
+            }
+            if !matches {
+                continue;
+            }
             let body = match &boundary.result {
                 typed_trees_to_checked_trees::checked_trees::CheckedBoundaryMachineResultPlan::Unit => {
                     let candidate = callable_candidate(checked, machine.symbol).map_err(
@@ -317,6 +385,15 @@ pub(super) fn checked_unit_provider_candidates(
                     .identity(),
             });
         }
+    }
+    // Discovery never grants authority to self-consistent but substituted
+    // applications. Replay both sides once for this catalog batch before any
+    // candidate can be published or contribute its body closure.
+    if !specializations.is_empty() {
+        specializations.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        specializations.dedup();
+        validate_checked_machine_specialization_commitments(checked, &specializations)
+            .map_err(LoweringError::Unsupported)?;
     }
     output.sort_by(|left, right| {
         (
