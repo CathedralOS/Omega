@@ -162,6 +162,33 @@ def resolves(candidate, files):
     )
 
 
+def apply_moves(text, files):
+    """Rewrite each citation whose file merely moved, and report the pairs.
+
+    Only a citation with exactly one probable successor is touched, and only
+    when it does not already resolve. A move leaves the item's claim intact
+    -- the file is right there under another path -- which is the one case
+    the boards' "restate rather than substitute" guidance does not cover.
+    Anything genuinely gone is left for a reader.
+    """
+    applied = []
+    for citation in sorted(cited_paths(text), key=len, reverse=True):
+        alternatives = expand_braces(citation)
+        if len(alternatives) != 1 or "*" in citation:
+            continue
+        if resolves(citation, files):
+            continue
+        successor = probable_successor(citation, files)
+        if not successor or successor == citation.lstrip("./"):
+            continue
+        marked = "`" + citation + "`"
+        if marked not in text:
+            continue
+        text = text.replace(marked, "`" + successor + "`")
+        applied.append((citation, successor))
+    return text, applied
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -175,6 +202,11 @@ def main():
     )
     parser.add_argument(
         "--quiet", action="store_true", help="print the counts only",
+    )
+    parser.add_argument(
+        "--apply-moves", action="store_true",
+        help="rewrite citations whose file merely moved, to its repo-relative "
+             "path; leaves every other dead citation alone",
     )
     options = parser.parse_args()
 
@@ -194,7 +226,16 @@ def main():
             print(f"board_paths: no such board {board}", file=sys.stderr)
             return 2
         with open(board_path, encoding="utf-8") as handle:
-            citations = cited_paths(handle.read())
+            board_text = handle.read()
+        if options.apply_moves:
+            board_text, applied = apply_moves(board_text, files)
+            if applied:
+                with open(board_path, "w", encoding="utf-8") as handle:
+                    handle.write(board_text)
+                print(f"{board}: rewrote {len(applied)} moved citation(s)")
+                for before, after in applied:
+                    print(f"  {before}\n      -> {after}")
+        citations = cited_paths(board_text)
         cited_total += len(citations)
         dead = []
         stale = []
