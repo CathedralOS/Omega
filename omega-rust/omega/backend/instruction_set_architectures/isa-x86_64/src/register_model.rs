@@ -62,5 +62,5 @@ pub use operation_keys::{
 pub use packed_memory::{X86_64_LOAD_PACKED, X86_64_STORE_PACKED};
 pub use physical_model::{
     canonical_x86_64_physical_register_model_identity, validated_x86_64_physical_register_model,
-    x86_64_fixed_register_view, x86_64_physical_register_model,
+    x86_64_fixed_register_view, x86_64_physical_register_model, x86_64_physical_register_model_ref,
 };

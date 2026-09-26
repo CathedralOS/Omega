@@ -20,7 +20,7 @@ pub(super) fn declaration(
         .iter()
         .find(|row| row.key == constraint)
         .expect("canonical memory instruction constraint");
-    let stack_pointer = crate::x86_64_physical_register_model()
+    let stack_pointer = crate::x86_64_physical_register_model_ref()
         .view_named("rsp")
         .expect("canonical stack pointer")
         .id;
