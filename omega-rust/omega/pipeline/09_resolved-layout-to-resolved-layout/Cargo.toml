@@ -27,6 +27,7 @@ sha2 = { version = "0.10.9" }
 symbols = { path = "../../../psi/foundation/symbols" }
 terminal-codec = { path = "../../../psi/terminal-codec" }
 terminal-psi = { path = "../../../psi/terminal-psi" }
+terminal-semantics = { path = "../../../psi/terminal-semantics" }
 terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 
 source = { path = "../../../psi/foundation/source" }

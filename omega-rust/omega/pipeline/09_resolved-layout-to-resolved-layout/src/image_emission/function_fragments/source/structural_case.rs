@@ -63,7 +63,7 @@ pub(super) fn retained(
 // A function's own owned parameter dispatches from its entry-retained slot,
 // and a readable borrow dispatches through its referent pointer.
 fn source_slot_matches(
-    dispatch: &selected_instructions::SelectedCaseDispatchSource,
+    dispatch: &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource,
     source: PlaceId,
     blocks: &[AbstractBlockEntry],
     parameters: &[StructuralParameterDeclaration],
@@ -75,8 +75,8 @@ fn source_slot_matches(
             .filter_map(move |parameter| (parameter.place == source).then_some(block.block))
     });
     let slot = match dispatch {
-        selected_instructions::SelectedCaseDispatchSource::Local { slot } => *slot,
-        selected_instructions::SelectedCaseDispatchSource::Borrowed { place, .. } => {
+        target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot } => *slot,
+        target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Borrowed { place, .. } => {
             let mut declared = parameters
                 .iter()
                 .filter(|parameter| parameter.place == source);
@@ -136,7 +136,7 @@ mod tests {
         let slot = LocalStorageSlotId::StructuralParameter { place: source };
         let parameter = owned(source);
         assert!(source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot },
             source,
             &[],
             std::slice::from_ref(&parameter)
@@ -144,7 +144,7 @@ mod tests {
         // No declared parameter, a borrowed one, a duplicate, or a block
         // arrival at the same place cannot stand in for the owned parameter.
         assert!(!source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot },
             source,
             &[],
             &[]
@@ -152,13 +152,13 @@ mod tests {
         let mut borrowed = parameter.clone();
         borrowed.access = StructuralAccess::SharedBorrow;
         assert!(!source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot },
             source,
             &[],
             &[borrowed]
         ));
         assert!(!source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot },
             source,
             &[],
             &[parameter.clone(), parameter.clone()]
@@ -170,7 +170,7 @@ mod tests {
             structural_parameters: vec![parameter.clone()],
         };
         assert!(!source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot },
             source,
             &[arrival],
             std::slice::from_ref(&parameter)
@@ -179,7 +179,7 @@ mod tests {
             place: PlaceId::new(8).unwrap(),
         };
         assert!(!source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local { slot: other },
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot: other },
             source,
             &[],
             &[parameter]
@@ -210,19 +210,19 @@ mod tests {
             }],
         };
         assert!(source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot },
             source,
             std::slice::from_ref(&entry),
             &[]
         ));
         assert!(!source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot },
             source,
             &[],
             &[]
         ));
         assert!(!source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot },
             source,
             &[entry.clone(), entry.clone()],
             &[]
@@ -230,7 +230,7 @@ mod tests {
         let mut substituted = entry.clone();
         substituted.block = BlockId::new(4).unwrap();
         assert!(!source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot },
             source,
             &[substituted],
             &[]
@@ -240,7 +240,7 @@ mod tests {
             place: source,
         };
         assert!(!source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local {
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
                 slot: operation_slot
             },
             source,
@@ -248,7 +248,7 @@ mod tests {
             &[]
         ));
         assert!(source_slot_matches(
-            &selected_instructions::SelectedCaseDispatchSource::Local {
+            &target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
                 slot: operation_slot
             },
             source,
