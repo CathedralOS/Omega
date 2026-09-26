@@ -25,14 +25,14 @@ machine Main::main(&mut self) reaches Console {
         FieldPlan::At { offset, width } -> first((offset as i64 in Wrapping) + (width as i64 in Wrapping))
         FieldPlan::Skip -> bad()
     }
-    state first(&mut self, v: i64) {
+    state first(&mut self, v: i64 in Wrapping) {
         self.a = v;
         transition self.plans[2] {
             FieldPlan::At { offset, width } -> second((offset as i64 in Wrapping) + (width as i64 in Wrapping))
             FieldPlan::Skip -> bad()
         }
     }
-    state second(&mut self, v: i64) {
+    state second(&mut self, v: i64 in Wrapping) {
         self.b = v;
         self.r = narrow_i64_to_i32_trapping((self.a + self.b) as i64);
         self.console.exit_process(self.r);

@@ -24,7 +24,7 @@ data Main {
 machine Counter::from_v1(old: CounterV1, out: &mut Counter)
 satisfies FormatMigration<CounterDisk, CounterV1, Counter>::migrate
 {
-    out.count = old.counter + 4;
+    out.count = (old.counter + 4) as i32;
     out.timestamp = 7;
 }
 

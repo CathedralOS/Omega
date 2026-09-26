@@ -90,7 +90,7 @@ machine Main::main(&mut self) reaches Console {
         // Duration::MAX round-trips full-width: u64::MAX + 1 wraps to exactly
         // 0 only if every bit was set (const -> struct-literal field -> store).
         self.a = Duration::MAX;
-        self.mask = self.a.seconds;
+        self.mask = self.a.seconds as u64 in Wrapping;
         self.mask = self.mask + 1;
         transition self.mask == 0 && self.a.subsecond_nanoseconds == 999999999 {
             true -> check_saturating_add()
@@ -100,7 +100,7 @@ machine Main::main(&mut self) reaches Console {
     state check_saturating_add(&mut self) {
         // MAX + anything clamps at MAX (checked_add's Overflow arm).
         self.clamped = self.a.saturating_add(self.b);
-        self.mask = self.clamped.seconds;
+        self.mask = self.clamped.seconds as u64 in Wrapping;
         self.mask = self.mask + 1;
         transition self.mask == 0 && self.clamped.subsecond_nanoseconds == 999999999 {
             true -> good()

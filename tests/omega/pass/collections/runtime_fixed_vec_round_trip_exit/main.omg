@@ -70,7 +70,7 @@ requires
 {
     let slots: &[i32] = self.items.as_slice();
     let index: u64 in Wrapping = self.length - 1;
-    let value: i32 in Wrapping = slots[index];
+    let value: i32 in Wrapping = slots[index] as i32 in Wrapping;
     self.length = index;
     let raw_value: i32 = value as i32;
     raw_value
