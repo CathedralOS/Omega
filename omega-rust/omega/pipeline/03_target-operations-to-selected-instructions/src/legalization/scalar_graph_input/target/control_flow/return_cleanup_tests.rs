@@ -166,7 +166,7 @@ fn branch_local_read_returns_replay_exact_cleanup_and_graph_custody() {
     ] {
         let plan = source_fixture(native);
         let unit = current(&plan);
-        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
         let target = target(&plan, native);
         super::super::validate_target(
             &target.functions[0],
@@ -216,7 +216,7 @@ fn branch_local_read_returns_replay_exact_cleanup_and_graph_custody() {
 #[test]
 fn current_unit_rejects_inexact_branch_return_frontier_even_with_recomputed_metadata() {
     let source = source_fixture(::target::NativeTarget::linux_x64());
-    optimization_unit_semantics::validate_psi_optimization_unit(&current(&source)).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&current(&source)).unwrap();
     for mutation in [
         "missing",
         "sibling",
@@ -235,7 +235,7 @@ fn current_unit_rejects_inexact_branch_return_frontier_even_with_recomputed_meta
         // Reconstruct ownership metadata and canonical identity from the changed
         // operation: rejection must not rely on an accidentally stale digest.
         assert!(
-            optimization_unit_semantics::validate_psi_optimization_unit(&current(&changed))
+            terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&current(&changed))
                 .is_err(),
             "accepted {mutation}"
         );

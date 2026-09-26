@@ -840,6 +840,7 @@ dependencies = [
  "installation-evidence",
  "mimalloc",
  "optimization-core",
+ "proof-admission",
  "semantic-vocabulary",
  "sha2",
  "target",
@@ -847,6 +848,7 @@ dependencies = [
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
+ "terminal-verifier",
 ]
 
 [[package]]

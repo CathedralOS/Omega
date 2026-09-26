@@ -11,8 +11,6 @@ use super::{
     VirtualRegisterId, VirtualRegisterOrigin, prepare,
 };
 use crate::selected_instructions::{
-    LocalStorageSlotId, SelectedCasePayloadBinding, SelectedStructuralCaseEdge,
-use selected_instructions::{
     LocalStorageSlotId, SelectedCaseDispatchSource, SelectedCasePayloadBinding,
     SelectedStructuralCaseEdge,
 };
