@@ -1062,6 +1062,15 @@ pub(crate) fn erased_scalar_parameter_plans(
     program: &TypedTrees,
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedStructuralScalarParameterPlan>> {
+    // Classifying proof-only data walks every data definition; a state
+    // without an erased formal selects nothing and needs no classification.
+    if !program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.relevance.is_erased())
+    {
+        return Some(Vec::new());
+    }
     let proof_only = typed_trees::proof_only::classify(program);
     program
         .state_parameters(state)
@@ -1088,6 +1097,15 @@ pub(crate) fn erased_proof_parameter_plans(
     program: &TypedTrees,
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedErasedProofParameterPlan>> {
+    // Classifying proof-only data walks every data definition; a state
+    // without an erased formal selects nothing and needs no classification.
+    if !program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.relevance.is_erased())
+    {
+        return Some(Vec::new());
+    }
     let proof_only = typed_trees::proof_only::classify(program);
     program
         .state_parameters(state)
