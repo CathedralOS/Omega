@@ -178,8 +178,13 @@ fn packaged_root_build_materializes_a_private_captured_source_snapshot() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
+    // The snapshot is staged in a private directory the child creates under
+    // its own temp root, so that is the directory it cannot create.
     assert!(
-        stderr.contains("failed to create the captured source snapshot"),
+        stderr.contains(&format!(
+            "could not create the private captured-source snapshot staging directory `{}/",
+            missing_temp.display()
+        )),
         "the bound snapshot must materialize under the child's temp root: {stderr}"
     );
 }

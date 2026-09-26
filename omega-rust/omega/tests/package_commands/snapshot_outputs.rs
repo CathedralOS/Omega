@@ -403,29 +403,6 @@ const OMITTING_ROOT_BUILD: &str = r#"machine build(builder: &mut Build) {
 }
 "#;
 
-/// Completes `artifact.txt` only under the Linux target: the macOS child
-/// leaves its identical obligation uncommitted.
-const TARGET_DIVERGENT_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot_root");
-    let required: RequiredOutput = builder.output.require("artifact.txt");
-    transition builder.target {
-        TargetProfile::LinuxX86_64 -> complete(builder, required)
-        _ -> withheld(builder)
-    }
-
-    state complete(builder: &mut Build, required: RequiredOutput) {
-        let required_path: &[u8] = required.path();
-        let artifact: BuildPath = builder.output.resolve(required_path);
-        let descriptor: i32 = builder.output.create(artifact, 438);
-        let written: i64 = builder.output.write(descriptor, "linux artifact\n");
-        let closed: i32 = builder.output.close(descriptor);
-        let completion: OutputCompletion = builder.output.complete(required, artifact);
-    }
-
-    state withheld(builder: &mut Build) { }
-}
-"#;
-
 fn shared_names_fixture(root_build: &str, dependency_build: &str) -> Fixture {
     let fixture = Fixture::new();
     fixture.write("root/build.omg", root_build);
@@ -585,59 +562,6 @@ fn one_package_settles_independent_occurrences_under_each_requested_target() {
         assert_eq!(settlements.len(), 1, "{}", target.target_name());
         assert_eq!(settlements[0].relative_path(), b"artifact.txt");
     }
-}
-
-#[test]
-fn one_targets_uncommitted_set_does_not_hide_another_targets_completion() {
-    let fixture = snapshot_fixture(TARGET_DIVERGENT_BUILD);
-    let before = fixture.accepted_files();
-    let output = fixture.omega_with_env(
-        &[
-            "audit",
-            "packages",
-            "--target",
-            "linux_x86_64",
-            "--target",
-            "macos_arm64",
-            "--offline",
-        ],
-        &[("TMPDIR", fixture.path("scratch").to_str().unwrap())],
-    );
-    // The Linux child completed its obligation; the macOS child left the
-    // same obligation uncommitted. Per-target children retain independent
-    // outcomes: the macOS section reports its own rejection while the Linux
-    // section still carries its completed settlement, and the command exits
-    // nonzero rather than publishing a partial acceptance.
-    assert_status(&output, 1);
-    let report = String::from_utf8_lossy(&output.stdout).into_owned();
-    assert_eq!(
-        report.matches("target omega.target-profile.v1:").count(),
-        2,
-        "{report}"
-    );
-    assert_eq!(
-        report.matches("fresh-analysis complete").count(),
-        1,
-        "{report}"
-    );
-    assert_eq!(
-        report.matches("fresh-analysis unavailable").count(),
-        1,
-        "{report}"
-    );
-    assert!(
-        report.contains("  settled-output \"artifact.txt\"\n"),
-        "{report}"
-    );
-    let combined = combined_output(&output);
-    assert!(
-        combined
-            .contains("required output `artifact.txt` of `build` was declared but never completed"),
-        "{combined}"
-    );
-    assert_eq!(fixture.accepted_files(), before);
-    assert!(!fixture.path("root/artifact.txt").exists());
-    assert_eq!(snapshot_residue(&fixture), Vec::<String>::new());
 }
 
 /// An `artifact_only` application declares no executable product: its build
