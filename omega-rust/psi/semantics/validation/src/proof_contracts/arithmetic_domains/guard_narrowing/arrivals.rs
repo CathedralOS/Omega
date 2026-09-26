@@ -55,7 +55,7 @@ pub fn arrival_integer_expression_bounds(
         program,
         machine,
         frames: frames.as_ref(),
-        joined: vec![None; program.machine_states(machine).len()],
+        arrivals: Vec::new(),
     };
     if !walk.statements(state, &statements[..statement_index], &mut environment) {
         return None;
@@ -349,22 +349,36 @@ pub(super) fn incoming_environments(
             )
         })
         .collect::<Vec<_>>();
+    // The entry's external arrival is the same in every round.
+    let external = states
+        .first()
+        .zip(seeds.first())
+        .map(|(entry, entry_seeds)| {
+            let mut external = ValueEnvironment::new();
+            entry_seeds.apply(program, machine, entry, &mut external);
+            external
+        });
     // One round per state propagates acyclic chains. Cycles also contribute in
     // every round, starting with their full declared parameter domains. There
     // is no assumption that a seed guard is an inductive loop invariant.
+    // A state's walk reads only its own incoming environment, so its arrivals
+    // are kept until that environment changes, and every round rejoins all
+    // kept arrivals in state order.
+    let mut arrivals = vec![Vec::new(); states.len()];
+    let mut stale = vec![true; states.len()];
     for _ in 0..=states.len() {
-        let mut walk = ArrivalWalk {
-            program,
-            machine,
-            frames,
-            joined: vec![None; states.len()],
-        };
-        if let (Some(entry), Some(entry_seeds)) = (states.first(), seeds.first()) {
-            let mut external = ValueEnvironment::new();
-            entry_seeds.apply(program, machine, entry, &mut external);
-            walk.joined[0] = Some(external);
-        }
-        for ((state, (_, environment)), state_seeds) in states.iter().zip(&current).zip(&seeds) {
+        for (index, ((state, (_, environment)), state_seeds)) in
+            states.iter().zip(&current).zip(&seeds).enumerate()
+        {
+            if !stale[index] {
+                continue;
+            }
+            let mut walk = ArrivalWalk {
+                program,
+                machine,
+                frames,
+                arrivals: Vec::new(),
+            };
             let mut environment = environment.clone();
             state_seeds.apply(program, machine, state, &mut environment);
             walk.statements(
@@ -372,14 +386,28 @@ pub(super) fn incoming_environments(
                 program.statement_table.statements(state.statement_nodes),
                 &mut environment,
             );
+            arrivals[index] = walk.arrivals;
+        }
+        let mut joined: Vec<Option<ValueEnvironment>> = vec![None; states.len()];
+        if let Some(external) = &external {
+            joined[0] = Some(external.clone());
+        }
+        for (target, environment) in arrivals.iter().flatten() {
+            joined[*target] = Some(match joined[*target].take() {
+                Some(previous) => previous.join(environment),
+                None => environment.clone(),
+            });
         }
         let next = states
             .iter()
-            .zip(walk.joined)
+            .zip(joined)
             .map(|(state, environment)| (state.symbol, environment.unwrap_or_default()))
             .collect::<Vec<_>>();
         if next == current {
             return next;
+        }
+        for ((stale, (_, next)), (_, current)) in stale.iter_mut().zip(&next).zip(&current) {
+            *stale = next != current;
         }
         current = next;
     }
@@ -390,7 +418,8 @@ struct ArrivalWalk<'program, 'frames> {
     program: &'program TypedTrees,
     machine: &'program Machine,
     frames: Option<&'frames CallFrameResolver<'program>>,
-    joined: Vec<Option<ValueEnvironment>>,
+    /// Each arrival this walk delivers, by target state position, in order.
+    arrivals: Vec<(usize, ValueEnvironment)>,
 }
 
 impl ArrivalWalk<'_, '_> {
@@ -406,10 +435,7 @@ impl ArrivalWalk<'_, '_> {
         else {
             return;
         };
-        self.joined[index] = Some(match &self.joined[index] {
-            Some(previous) => previous.join(&environment),
-            None => environment,
-        });
+        self.arrivals.push((index, environment));
     }
 
     fn interval(
