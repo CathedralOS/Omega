@@ -10,6 +10,11 @@ use arguments::Invocation;
 use cli::{arguments, compilation, execution, inspection, packages};
 use std::process::ExitCode;
 
+// Checking allocates and frees many small tree and fact nodes; the macOS
+// system allocator's tiny-zone paths dominated package commands' profiles.
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 // Compile-bearing operations provision their own large-stack worker inside
 // `run_on_compile_thread`; their recursive paths never touch this stack. But
 // every command that reaches a package project first runs the package arm's

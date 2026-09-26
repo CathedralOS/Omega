@@ -11,6 +11,7 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
+mimalloc = { version = "0.1", default-features = false }
 lowered-psi = { path = "../../psi/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../psi/pipeline/06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../psi/pipeline/07_lowered-psi-to-terminal-psi" }
