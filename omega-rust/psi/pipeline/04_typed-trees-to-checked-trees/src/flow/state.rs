@@ -137,6 +137,69 @@ pub(super) fn build_state_flow_fact<'plans>(
         &mut state_constraints,
         borrow_state.writable_roots,
     );
+    // Requires constrain the incoming storage, not every later version of it.
+    // Materialize their bounds before statements so selected assignments can
+    // capture them and ordinary write invalidation retires the old observation.
+    // Machine requires apply only at the entry state, never afresh at each
+    // state of the machine.
+    let is_entry = program
+        .machine_states(machine)
+        .first()
+        .is_some_and(|entry| entry.symbol == state.symbol);
+    let state_origin = facts::FactOrigin::StateContract {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+    };
+    let machine_origin = facts::FactOrigin::MachineContract {
+        machine_symbol: machine.symbol,
+    };
+    for (contract, origin) in program
+        .state_contracts(state)
+        .iter()
+        .map(|contract| (contract, state_origin))
+        .chain(
+            program
+                .machine_contracts(machine)
+                .iter()
+                .filter(|_| is_entry)
+                .map(|contract| (contract, machine_origin)),
+        )
+        .filter(|(contract, _)| {
+            contract.kind == typed_trees::signature::SignatureContractKind::Requires
+        })
+    {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            // In particular, do not peel a Boolean equality whose selected
+            // operator does not mean builtin equality.
+            if !validation::has_builtin_bound_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                *expression,
+            ) {
+                continue;
+            }
+            super::exits::append_comparison_bounds_context(
+                program,
+                semantic,
+                build,
+                machine.symbol,
+                state.symbol,
+                0,
+                *expression,
+                ProgramPoint::State {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                },
+                origin,
+                &mut state_contexts,
+                &mut state_constraints,
+            );
+        }
+    }
     let mut active_contexts =
         retained_flow_contexts(&build.contexts.semantic_context_refs, state_contexts);
     let mut active_constraints =

@@ -60,7 +60,7 @@ pub(super) fn append_guard_context(
             active_contexts,
             active_constraints,
         );
-        append_guard_bounds_context(
+        append_comparison_bounds_context(
             program,
             semantic,
             build,
@@ -69,23 +69,24 @@ pub(super) fn append_guard_context(
             statement_index,
             expression,
             point,
+            FactOrigin::TransitionGuard,
             active_contexts,
             active_constraints,
         );
     }
 }
 
-/// The satisfied arm of a comparison guard bounds each compared stable place
-/// by the literal endpoint: `self.i >= 1 && self.i <= 9` carries
-/// `self.i in [1, 9]` onto that edge. Conjuncts of one guard INTERSECT into a
+/// A satisfied entry requirement or guard bounds each compared stable place
+/// by the constant endpoint: `self.i >= 1 && self.i <= 9` carries
+/// `self.i in [1, 9]`. Conjuncts of one expression INTERSECT into a
 /// single bounds fact per place, so `>=`/`<=` pairs keep their meet rather
-/// than hulling to the carrier. Only literal endpoints bound here --
-/// place-versus-place endpoints belong to the range checker's declared-range
-/// seeders. Ordinary write invalidation retires the observation on
+/// than hulling to the carrier. Only literal or type-owned fixed-length
+/// endpoints bound here; place-versus-place endpoints belong to the range
+/// checker's declared-range seeders. Ordinary write invalidation retires the observation on
 /// reassignment, and the destination's incoming-field meet drops it on edges
 /// that do not all prove it.
 #[allow(clippy::too_many_arguments)]
-fn append_guard_bounds_context(
+pub(in crate::flow) fn append_comparison_bounds_context(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
@@ -94,6 +95,7 @@ fn append_guard_bounds_context(
     statement_index: usize,
     expression: ExpressionHandle,
     point: ProgramPoint,
+    origin: FactOrigin,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
@@ -122,6 +124,21 @@ fn append_guard_bounds_context(
     let mut bounds: Vec<GuardBound> = Vec::new();
     let literal = |operand: ExpressionHandle| match program.expression_table.expression(operand) {
         ExpressionNode::Integer(value) => value.value_bignum(),
+        ExpressionNode::Member(_) => {
+            let checked_trees::CheckedScalarExpression::IntegerLiteral { literal } =
+                crate::values::lower_unit_scalar_argument(
+                    program,
+                    build.operators,
+                    state,
+                    statement_index,
+                    operand,
+                    typed_trees::types::PrimitiveType::U64,
+                )?
+            else {
+                return None;
+            };
+            literal.value_bignum()
+        }
         _ => None,
     };
     let mirrored = |operator: typed_trees::expression::BinaryOperator| {
@@ -257,7 +274,7 @@ fn append_guard_bounds_context(
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(row.place),
             point,
-            origin: FactOrigin::TransitionGuard,
+            origin,
             evidence: QualificationEvidence::default(),
             payload: FactPayload::AssignedIntegerBounds { bounds },
         });

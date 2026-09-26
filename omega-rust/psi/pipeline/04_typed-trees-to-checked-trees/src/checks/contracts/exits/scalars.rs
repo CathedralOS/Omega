@@ -173,7 +173,7 @@ impl ExitScalars<'_, '_> {
 
     fn proves_immutable_result_comparison(&self, expression: ExpressionHandle) -> bool {
         use typed_trees::expression::{BinaryOperator, ExpressionNode};
-        if self.proves_result_bounds(expression) {
+        if self.proves_bounds(expression) {
             return true;
         }
         let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
@@ -342,6 +342,24 @@ impl ExitScalars<'_, '_> {
             return self.return_value();
         }
         let entry = self.program.machine_states(self.machine).first()?;
+        // A fixed array's length is owned by its type, not by a live storage
+        // snapshot. Reuse scalar lowering's exact projection checks; only a
+        // literal result is usable here, never a dynamic view/carrier length.
+        if matches!(
+            self.program.expression_table.expression(expression),
+            typed_trees::expression::ExpressionNode::Member(_)
+        ) && let Some(checked_trees::CheckedScalarExpression::IntegerLiteral { literal }) =
+            crate::values::lower_unit_scalar_argument(
+                self.program,
+                &self.facts.operators,
+                entry,
+                0,
+                expression,
+                typed_trees::types::PrimitiveType::U64,
+            )
+        {
+            return literal.value_bignum().map(ScalarValue::Integer);
+        }
         let mut place =
             canonical_place_from_expression_in_state(self.program, entry.symbol, 0, expression)?;
         let PlaceRoot::Symbol(root) = place.root else {
