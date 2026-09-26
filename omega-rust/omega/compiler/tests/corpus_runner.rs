@@ -345,6 +345,32 @@ fn realize_fail_fixture(
     result
 }
 
+/// Every target the fixture's own `build.omg` binds a program-entry root for,
+/// in declaration order. Empty for a fixture with no build declaration or no
+/// bound root: such a fixture claims no realizable program, and asking for one
+/// answers "native-artifact production requires one exact selected program
+/// entry", which is this harness demanding an entry the fixture never
+/// declared.
+fn declared_realization_targets(root_path: &Path) -> Vec<String> {
+    let Some(parent) = root_path.parent() else {
+        return Vec::new();
+    };
+    let Ok(text) = fs::read_to_string(parent.join("build.omg")) else {
+        return Vec::new();
+    };
+    let mut targets = Vec::new();
+    for occurrence in text.split("roots.bind(").skip(1) {
+        let Some(end) = occurrence.find("::") else {
+            continue;
+        };
+        let target = occurrence[..end].trim();
+        if !target.is_empty() && !targets.iter().any(|seen| seen == target) {
+            targets.push(target.to_owned());
+        }
+    }
+    targets
+}
+
 /// The first target the fixture's own `build.omg` binds a program-entry root
 /// for. A fixture that declares only `uefi_x86_64` or `windows_x86_64` refuses
 /// an absent `--target` with "selected target `<host>` has no bound required
@@ -352,11 +378,19 @@ fn realize_fail_fixture(
 /// declared, not the refusal the fixture pins. `None` keeps the host default
 /// for a fixture with no build declaration.
 fn declared_realization_target(root_path: &Path) -> Option<String> {
-    let text = fs::read_to_string(root_path.parent()?.join("build.omg")).ok()?;
-    let marker = "roots.bind(";
-    let rest = &text[text.find(marker)? + marker.len()..];
-    let target = rest[..rest.find("::")?].trim();
-    (!target.is_empty()).then(|| target.to_string())
+    declared_realization_targets(root_path).into_iter().next()
+}
+
+/// The target the native leg realizes one pass/run fixture for, and whether
+/// the product can also execute here. A fixture binding the host runs; one
+/// binding only foreign targets is still realized, for its declared target,
+/// because target lowering and emission are most of what the leg measures.
+fn pass_realization_target(root_path: &Path, host: &str) -> Option<(String, bool)> {
+    let declared = declared_realization_targets(root_path);
+    if declared.iter().any(|target| target == host) {
+        return Some((host.to_owned(), true));
+    }
+    declared.into_iter().next().map(|target| (target, false))
 }
 
 /// Whether the fixture's expected fragments all appear in the diagnostics it
@@ -398,12 +432,20 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         .to_string_lossy()
         .replace('\\', "/");
     let mut facts = Vec::new();
-    let mut outcome = match (tier, native_target()) {
+    // A pass/run fixture is realized only for a target it binds a program
+    // entry for. Realizing one that binds none, or binding the host in its
+    // place, reports this harness's own selection rather than the fixture's
+    // behavior.
+    let realization = native_target().and_then(|host| pass_realization_target(main, host));
+    let mut realized = false;
+    let mut outcome = match (tier, &realization) {
         ("fail", _) => check_fail_fixture(main),
-        (_, Some(target)) => {
+        (_, Some((target, executes_here))) => {
+            realized = true;
             let build_dir = unique_build_dir(sequence);
             let built = build_native_fixture(main, &build_dir, target);
             if let Ok(executable) = &built
+                && *executes_here
                 && (tier == "run" || rel.ends_with("_exit"))
             {
                 facts = execute_fixture(executable, &fixture_dir, sequence);
@@ -424,9 +466,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     }
     let errors: &[diagnostics::Diagnostic] =
         outcome.as_ref().err().map(Vec::as_slice).unwrap_or(&[]);
-    let status = match (&outcome, native_target()) {
-        (Ok(()), Some(_)) => "built",
-        (Ok(()), None) => "checked",
+    let status = match (&outcome, realized) {
+        (Ok(()), true) => "built",
+        (Ok(()), false) => "checked",
         (Err(_), _) => "rejected",
     };
     let diagnostics = errors
