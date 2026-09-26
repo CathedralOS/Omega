@@ -1,10 +1,8 @@
 # Omega
 
-Omega is a systems language built around explicit state machines, checked contracts, and ownership of memory and resources.
+Omega is a systems language built around explicit state machines, checked contracts, and ownership of memory and resources. This eliminates entire classes of bugs while keeping performance on par with C.
 
-This eliminates entire classes of bugs while keeping performance on par with C.
-
-By making trust explicit, narrow, and auditable, an Omega program can keep all of its promises. Instability can only arise under faulty premises. For example, an Omega program will trust that the OS APIs do what they claim. As long as this is true, it can prove safety. There is no `unsafe` escape hatch: even inline assembly must satisfy checked contracts.
+Instability can only arise under faulty premises. For example, an Omega program will trust that the OS APIs do what they claim. As long as this is true, it can prove safety. There is no `unsafe` escape hatch: even inline assembly must satisfy checked contracts.
 
 The state-machine structure of Omega allows us to answer otherwise difficult questions at compile-time:
 - Does an API access the filesystem, including through its dependencies?
