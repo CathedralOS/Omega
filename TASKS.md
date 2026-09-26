@@ -2086,11 +2086,11 @@ syntax and other terminal services are not prerequisites.
   indexed-store delivery does not complete that larger contract.
 
 - **ADDRESS-EXPOSURE.** (new-scope) Implement the settled
-  [machine/reference conversions to `addr`](wiki/spec/language/counts_and_addresses.md#address-exposure)
+  [`address_of` queries](wiki/spec/language/counts_and_addresses.md#address-exposure)
   for low-level entry/storage observation. Carry selected declaration/application
   or referent identity through source checking, Terminal Psi, independent
   verification, interpreter execution, and native relocation/materialization.
-  A retained machine cast is an executable-entry dependency even without a
+  A retained machine query is an executable-entry dependency even without a
   direct call; do not introduce a separate registration or lowering route.
   Owners: Psi expression admission and executable-demand lowering; Terminal
   encoding/verification/interpreter; Omega entry retention and backend emission.
@@ -2102,9 +2102,10 @@ syntax and other terminal services are not prerequisites.
   never truncate existing IDs to fit tag bits. Do not build a virtual byte-memory
   system or a duplicate registry merely to expose identity.
 
-  Acceptance: authored casts of a generic executable machine, a selected
-  machine binder, a local and a borrowed field execute in both modes. Repeated
-  exposure agrees; distinct live storage occurrences and code/storage IDs do
+  Acceptance: `address_of<Selected<Arguments>>()` and `address_of(reference)`
+  cover a generic executable machine, selected machine binder, local and borrowed
+  field in both modes. Machine/reference `as addr` is not a compatibility alias.
+  Repeated exposure agrees; distinct live storage occurrences and code/storage IDs do
   not collide. Native entry demand survives absence/inlining of direct calls;
   interpreted demand retains its body without zero or a native trampoline.
   Reject unresolved selections, proof-only entities without executable meaning,
@@ -2115,6 +2116,52 @@ syntax and other terminal services are not prerequisites.
   selection and custody. This does not depend on or settle
   `interpreted-inline-assembly`, and does not implement indirect-call syntax,
   arbitrary code patching, or native-address interchange for interpreter IDs.
+
+- **DATA-LAYOUT-QUERIES.** (new-scope) Implement core `size_of<T>()` and
+  `align_of<T>()` from the selected target's validated layout, following
+  [layout queries](wiki/spec/layouts/plans.md#size-and-alignment-queries).
+  Owners: Psi static-query admission/evaluation, existing layout production,
+  and ordinary constant materialization; no second size calculator or keyword.
+  Acceptance: default/custom layouts report size including padding and alignment
+  in authored constants and runtime uses; erased fields, zero-sized layouts,
+  reference-versus-referent storage, and target variation agree with actual
+  layout/ABI. Reject unavailable fixed size, missing runtime layout, circular
+  layout queries and machine declarations. A known alignment may remain available
+  for a dynamic-size plan; no interpreter-host allocation size escapes.
+
+- **NATIVE-CODE-LAYOUT-QUERIES.** (new-scope) Deliver
+  [`code_layout<Machine>()`](wiki/spec/language/counts_and_addresses.md#native-code-layout-queries)
+  for a selected application: entry address plus exact emitted instruction
+  regions with `addr` bases and `u64` lengths. The low-level editor customer
+  needs actual regions, not a guessed 2 KiB window or next-symbol subtraction.
+  Reuse ADDRESS-EXPOSURE's demand and Omega's final layout/relocation products;
+  Psi records the query without executing a second compiler or exposing the
+  unfinished native product to semantic evaluation. Acceptance: an otherwise
+  uncalled generic body is retained and its runtime metadata matches the final
+  artifact, including split/shared regions without claiming exclusive ownership
+  or including padding, pools and callees. Reject missing native realization
+  and use in the same product's type/constant/layout computation. Interpreted
+  entry IDs do not receive a fabricated code size or byte region.
+
+- **ASSUMED-BINDING-CONTRACTS.** (new-scope) Implement the root-only
+  [`Build::assume_binding_contract<Required::operation, Supplied::operation>()`](wiki/spec/build/assumed_binding_contracts.md)
+  relationship through existing Build/provider installation, Terminal evidence,
+  interpreter/native call custody and package review. Both sides stay checked
+  against their own contracts; retain the exact assumed entry/exit difference,
+  authorized issuer/subject mapping and selected implementation closure, never
+  a forged `satisfies` row or unchecked assembly body.
+  Acceptance: source caller -> root-selected link -> honestly checked supplier
+  executes with the caller-facing qualification; direct supplier calls gain no
+  qualification. Cover input-side authority too. Reject carrier, order, passing
+  mode, ABI, lifetime/custody and operational incompatibility, incomplete or
+  cyclic supply, unapproved roots and stale project acceptance. Install/update/
+  audit surface **Extremely high risk** transitively and require renewed approval
+  for changed contract/implementation identities while keeping lock rows compact.
+  Build helpers, generators, const/layout evaluation and automatic tests reject
+  execution or use of the link's assumptions, including erased evidence. A direct
+  independently checked supplier call remains eligible on its own merits.
+  Only the checker-refutable exception awaits `assumed-binding-refutable-claim`;
+  keep the existing veto while delivering the non-refutable admitted cases.
 
 - **RECAST-SOURCE-POSITIONS.** Finish native execution of inline recasts in
   guards, call arguments and nested expressions. Reuse their checked admission

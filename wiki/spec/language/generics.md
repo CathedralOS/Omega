@@ -446,8 +446,8 @@ ordinary sums/wrappers or eligible dynamic conformances.
 
 A static parameter cannot be stored as a field type or returned as a runtime
 callback reference. A fully selected executable machine application may instead
-be explicitly converted to inert `addr` under
-[address exposure](counts_and_addresses.md#address-exposure). That conversion
+be observed with `address_of<Selected<Arguments>>()` under
+[address exposure](counts_and_addresses.md#address-exposure). That query
 creates an entry demand, not a callable value or an implicit callback selection.
 [Private callback realization](../build/private_callbacks.md) remains contextual:
 an exact selected requirement and destination authorize the private ABI entry

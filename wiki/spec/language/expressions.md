@@ -22,7 +22,7 @@ language behavior, not the current compiler's supported expression shapes.
 
 Every evaluated child runs exactly once. Unary operations, borrows, value casts,
 membership tests, and member access have one immediate runtime child. A
-[machine-to-address conversion](counts_and_addresses.md#address-exposure)
+[machine-entry address query](counts_and_addresses.md#address-exposure)
 instead selects a static declaration application; it has no runtime operand to
 evaluate and does not invoke the machine. The short-circuit and dispatch rows
 are the closed selective set for these forms;
@@ -57,10 +57,14 @@ result may be another function term. This grants no implicit machine-to-function
 conversion, runtime closure, pending execution or obligation to finish applying
 the term. Expected-type and executable-demand checks still apply.
 
-`Selected<Arguments> as addr` is the explicit executable-entry exposure form;
-`reference as addr` exposes the referenced storage location. These follow
-[address exposure](counts_and_addresses.md#address-exposure), not equal-size
-bit reinterpretation. An attached machine name does not capture a receiver.
+`address_of<Selected<Arguments>>()` exposes a selected executable entry;
+`address_of(reference)` exposes the referenced storage location. These are
+compiler-known core queries, not casts or equal-size bit reinterpretation.
+An attached machine name does not capture a receiver. See
+[address exposure](counts_and_addresses.md#address-exposure). `size_of<T>()`
+and `align_of<T>()` query a data layout; `code_layout<Selected<Arguments>>()`
+queries late native code regions. Static arguments select types or exact machine
+applications without introducing runtime type objects or first-class machines.
 
 Assignment requires writable storage, compatible value type, and the applicable
 [invariant-window obligations](dependent_values.md#invariant-windows). It

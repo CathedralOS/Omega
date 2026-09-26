@@ -21,34 +21,40 @@ A future explicitly admitted integer-width family would not change `.len`,
 
 ## Address exposure
 
-`as addr` exposes the address of an ordinary storage reference or one selected
-executable machine application:
+The compiler-known core query `address_of` exposes an ordinary storage
+reference's referent or one selected executable machine application:
 
 ```omega
-let storage_address = (&myVar) as addr;
-let machine_address = Something::SomeFunc<u32> as addr;
+let storage_address = address_of(&myVar);
+let machine_address = address_of<Something::SomeFunc<u32>>();
 ```
 
 The storage operand identifies the referent, not the temporary reference
 descriptor. It must satisfy ordinary borrowing and addressable-storage rules;
-the conversion cannot establish a loan to otherwise inaccessible storage.
+the query cannot establish a loan to otherwise inaccessible storage.
 Compatible views of the same storage location expose the same address while
 that location remains in place. The result retains neither a loan nor access
-authority. Nonaddressable projections cannot acquire an address by this cast.
+authority. Nonaddressable projections cannot acquire an address by this query.
 
-The machine operand selects a declaration and its required static arguments,
+The static machine argument selects a declaration and its required arguments,
 including selected conformances and machine arguments, not merely a signature.
 Overloaded or unresolved application families reject. No ordinary arguments are
 supplied or evaluated, no body is invoked, and no receiver is captured. An
 attached machine still has its ordinary receiver contract. A static machine
 binder may supply the selected application under the same rule.
 
-This is a compiler-supported address conversion, not a size-compatible
-[representation recast](../layouts/recasts.md). A machine signature is not a
-runtime value whose bits are reinterpreted. The conversion introduces neither
-first-class machine values nor a new `address_of` keyword or intrinsic spelling.
-It does not admit arbitrary value-to-address conversions or the inverse
-address-to-borrow/callable conversion.
+This is a representation query, not a value conversion or size-compatible
+[representation recast](../layouts/recasts.md). `address_of` is a core name,
+not a reserved keyword. Its static machine form does not make a declaration a
+runtime value or capture an attached receiver. Ordinary machine calls still
+require their complete argument lists. Machine/reference `as addr` is not an
+alternate spelling; neither arbitrary value-to-address conversions nor the
+inverse address-to-borrow/callable conversion follow from these queries.
+
+The companion [data queries](../layouts/plans.md#size-and-alignment-queries)
+are `size_of<T>()` and `align_of<T>()`, both returning `u64`. A numeric result
+type does not choose a property to inspect: sizes and alignments are not casts
+to a count or a distinct alignment carrier.
 
 ### Executable demand and native realization
 
@@ -66,7 +72,7 @@ executable realization rejects in both native and interpreted execution. Do not
 fabricate an empty body, a zero result, or an entry ID for it. Use by a proof
 alone does not classify an otherwise executable machine as proof-only. Dead or
 erased address expressions need not force emission; erasure does not excuse an
-ill-formed conversion.
+ill-formed query.
 
 The address belongs to the selected realization, not to a permanent declaration
 identity. Code sharing may give distinct applications the same native entry;
@@ -91,7 +97,7 @@ IDs into portable constants, or give a `const` declaration its own storage.
 For interpreted execution, address exposure returns a stable numeric identity
 for the retained machine entry or runtime storage location, not a native host
 pointer. A valid interpreted machine does not return zero merely because it has
-no native body. No native trampoline is created by the cast.
+no native body. No native trampoline is created by the query.
 
 Code-entry and storage-location encodings occupy disjoint namespaces. Reserved
 high-order kind bits are a valid implementation; their exact allocation is not
@@ -116,6 +122,60 @@ layout. Their numeric order or difference does not establish byte adjacency or
 an offset within Psi instructions. This feature requires neither a virtual
 byte-addressed memory system nor execution of assembly against these numbers.
 It does not settle the `interpreted-inline-assembly` owner decision.
+
+## Native code layout queries
+
+`code_layout<SelectedMachine<Arguments>>()` describes the exact selected native
+realization. Like `address_of`, it is a compiler-known core query, not a keyword
+or an invocation of that machine. Its retained use creates the same executable
+demand. The description contains an entry `addr` and a finite sequence of code
+regions, each with `base: addr` and `length: u64`. It grants no authority or
+storage lifetime extension.
+
+Regions cover the emitted instruction spans attributed to that realization,
+including its retained entry and any split instruction regions. They do not
+include unrelated intervening bytes, padding, data pools or transitively called
+machines merely because those lie nearby or are needed for execution. Shared
+code can appear in more than one realization's description; a region is not
+exclusive ownership. The final layout producer owns the complete description,
+not source-order subtraction or a guessed next-symbol address. Unsupported or
+unavailable realization metadata rejects rather than inventing a region.
+
+Lengths are finalized by native lowering, layout and any later size-changing
+realization; bases may remain link/load relocations. This is late artifact
+metadata, not hermetic evaluation of the program being produced. Neither its
+sizes nor its addresses may feed that same program's semantic constants, type
+arguments, layout policies or optimization decisions through a circular query.
+A separately completed artifact may be inspected as an ordinary explicit input.
+
+`size_of<Machine>()` and `align_of<Machine>()` reject: a machine declaration is
+not a data carrier. A sum of code-region lengths does not make the interval
+`[entry, entry + sum)` valid. A purely interpreted body has no native regions;
+its entry ID is not a bytecode address, and this query supplies neither a fake
+native size nor an implicit Psi representation-size API.
+
+The queries do not force other calls to avoid inlining, prevent code sharing,
+make pages writable, or guarantee that editing an exposed entry edits every
+invocation. Patching remains subject to the program's selected boundaries and
+the exact [assumed contract](../build/assumed_binding_contracts.md), if any.
+
+### Describing an address window
+
+An ordinary range may describe bytes beginning at an entry:
+
+```omega
+let region = Extent {
+    base: address_of<Obstacle::check>(),
+    length: 2048
+};
+```
+
+This describes a 2 KiB window, not the machine's actual size and not access
+authority. Establishing valid geometry proves
+`embed(region.base) + embed(region.length) <= addr::Bound` in unbounded proof
+integers. It does not compute a wrapping one-past address. Backing, read/write
+rights, lifetime and custody are separate [extent](../resources/extents.md)
+obligations. Interpreted address identities do not supply this byte geometry.
 
 ## Bounds and lowering
 

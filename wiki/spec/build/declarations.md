@@ -97,6 +97,12 @@ that value and the checked call graph, not a helper name or receiver spelling.
 Transitive reach, invocation, blocking/suspension, termination, observations, and
 authority demands compose into the root's published ceiling.
 
+`assume_binding_contract<Required::operation, Supplied::operation>()` is an
+evaluated root-authorized product selection under the
+[assumed-binding contract](assumed_binding_contracts.md), not a statically
+projected project/dependency declaration. Its exact product references do not
+execute either requirement or grant any assumption to the build-host context.
+
 `BuildSource`, `BuildOutput`, and `BuildLog` are compiler-owned, activation-scoped
 facets. They do not enter normalized Build output. The sponsor enforces source
 read/output write roots, containment, limits, and custody; the confined view

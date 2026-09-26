@@ -155,6 +155,12 @@ conformance cannot itself establish a routed qualification.
 
 ## Transparent refinements
 
+A root [assumed binding contract](../build/assumed_binding_contracts.md) is an
+explicit runtime installation relationship, not a conformance or transparent
+refinement. Each implementation still checks against its own declared contract.
+Neither `satisfies` nor ordinary generic conformance selection may use the
+unproved relationship as though it were checked conformance evidence.
+
 ```omega
 pub trait LocalLogger = Logger {
     machine *

@@ -33,6 +33,13 @@ not relax constant/proof evaluation admission or expose host state to it.
 
 ## Invocation admission
 
+[Assumed binding contracts](../build/assumed_binding_contracts.md#runtime-only)
+are runtime-only. Neither executing such a relationship nor using its admitted
+facts to justify computation is eligible here, including through helpers,
+selected providers or erased evidence. Empty reach and root runtime acceptance
+cannot override that exclusion. Inspecting runtime declarations and checking
+their conditional proofs is not execution of the relationship.
+
 Specialize the selected machine's complete contract at its concrete arguments
 and available facts. Admission requires all of the following:
 
@@ -85,6 +92,11 @@ interpreter identity or host pointer through that value snapshot. Runtime
 address observations are not canonical target-semantic observations. Recording
 an executable entry relocation for later realization is distinct from evaluating
 its eventual numeric address as a constant, type argument, or proof input.
+
+Data `size_of<T>()` and `align_of<T>()` consume the selected validated layout
+under these ordinary rules. `code_layout<Machine>()` is late native artifact
+metadata, not a value computed here from an unfinished product. Its code-region
+sizes cannot feed that same product's types, constants or layout evaluation.
 
 Fixed arrays and recursively owned records may cross as values. A byte literal
 in an exact fixed-array result copies its bytes into the array; a width mismatch

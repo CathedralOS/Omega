@@ -12,8 +12,8 @@ It preserves backing-address identity, provenance, and lifetime. It is not an
 unchecked transmute or executable conversion. Conversion and fallible foreign
 validation are ordinary contracted machines.
 
-The compiler-supported [address conversions](../language/counts_and_addresses.md#address-exposure)
-`reference as addr` and `SelectedMachine<Arguments> as addr` are not recasts.
+The compiler-known [address queries](../language/counts_and_addresses.md#address-exposure)
+`address_of(reference)` and `address_of<SelectedMachine<Arguments>>()` are not recasts.
 They expose a storage or executable-entry address without establishing a new
 view, calling contract, or inverse conversion from `addr`.
 

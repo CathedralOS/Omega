@@ -13,7 +13,7 @@ Symbolic mathematical definitions instead use
 They name checked terms without requesting evaluation. This distinction does
 not change local `let` or make `const` a noncomputability escape.
 
-Constants are not fields and do not contribute to `sizeof`. Their complete
+Constants are not fields and do not contribute to `size_of<T>()`. Their complete
 types recursively permit copying and have no cleanup obligation, shared
 ownership, or interior mutability. Fixed arrays, records, and copy-eligible sums
 are eligible; selecting an unrestricted active case does not make a structurally
@@ -33,6 +33,11 @@ Effectful [build execution](../build/execution.md) is a separate operation.
 runtime storage address, load-resolved entry address, or interpreter identity
 a canonical constant input. An executable entry relocation is a realization
 dependency, not a license to bake evaluator addresses into `const` values.
+
+Data `size_of<T>()` and `align_of<T>()` may be ordinary constants once the
+selected target and validated layout are known. Native `code_layout<Machine>()`
+is instead late artifact metadata; its sizes cannot feed the same product's
+semantic constants or layout decisions. See [layout queries](../layouts/plans.md#size-and-alignment-queries).
 
 Evaluation does not make an already-typed value anonymous. Anonymous numeric
 initializers retain exact arithmetic, including rational division, until their

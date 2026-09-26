@@ -75,7 +75,7 @@ independently checked.
 
 ## Address observations
 
-The ordinary [address conversions](../language/counts_and_addresses.md#address-exposure)
+The ordinary [address queries](../language/counts_and_addresses.md#address-exposure)
 also apply to interpreted components. A selected executable machine yields a
 stable entry identity; a borrowed storage location yields its runtime location
 identity. Code and storage have disjoint encodings, including across instances
@@ -84,12 +84,15 @@ values; a second address registry is not a language requirement. Proof-only
 entities with no executable realization reject instead of receiving fake entries
 or zero. Address demand retains an otherwise uncalled executable body.
 
-These numbers are neither host pointers nor native trampolines. The cast creates
+These numbers are neither host pointers nor native trampolines. The query creates
 no host ABI adapter, indirect-call permission, byte-addressed memory model, or
 reflective edit operation. Native interoperation still uses the selected
 import/export adapters. The identities do not make native address arithmetic or
 checked assembly execute under interpretation; `interpreted-inline-assembly`
-remains a separate owner decision.
+remains a separate owner decision. `code_layout<Machine>()` cannot describe a
+purely interpreted body's native regions: those do not exist. Data
+`size_of<T>()` and `align_of<T>()` instead observe the selected target layout,
+not the interpreter's host storage.
 
 ## Ownership and lifetime
 

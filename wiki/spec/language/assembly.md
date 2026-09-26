@@ -59,6 +59,13 @@ A checked block may separately establish a conformance for callers when its
 instruction model proves it. Permitted admitted evidence remains identified in
 receipts and reports. Admission never leaves an emitted obligation open.
 
+An [assumed binding contract](../build/assumed_binding_contracts.md) can supply
+explicitly admitted premises at an authorized runtime crossing. It cannot exempt
+an assembly block from the instruction catalog, reinterpret `asm where` as an
+assumption, admit raw emitted bytes, or suppress instruction obligations. The
+checked body consumes authority under its own contract, just like non-assembly
+code; the potentially false relationship belongs to the root-selected boundary.
+
 ## Control flow and machine state
 
 Catalog availability distinguishes user-checked instructions from deriver-only

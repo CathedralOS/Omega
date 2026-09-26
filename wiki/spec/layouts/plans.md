@@ -51,6 +51,38 @@ host-size conversion is checked only at the consuming allocation or slice
 boundary. Compact schema/layout fingerprints are report coordinates, not
 authority: consumers retain and replay the exact schema and validated plan.
 
+## Size and alignment queries
+
+The compiler-known core queries `size_of<T>()` and `align_of<T>()` return `u64`
+byte counts for the exact selected target and validated layout of `T`. These
+are core names, not keywords, casts, or permission to replace the layout policy.
+
+```omega
+const descriptor_bytes: u64 = size_of<Descriptor>();
+const descriptor_alignment: u64 = align_of<Descriptor>();
+```
+
+`size_of` requires a fixed complete extent and includes the plan's padding.
+It measures that carrier's own storage, not recursively owned allocations or
+the pointee of a reference. `align_of` requires a known validated alignment;
+it may be available even when the value's encoded length is dynamic. A dynamic
+wire layout needs an ordinary value-specific sizing machine for its byte
+length, not a fabricated fixed `size_of`. Erased fields contribute no physical
+storage; a valid zero-sized layout can report zero, but a proof-only carrier
+with no runtime layout cannot receive a fabricated size or alignment.
+
+Queries consume the same exact schema, target and layout-policy application as
+placement and ABI. They run under ordinary semantic-evaluation admission once
+those inputs are available. Interpretation reports the selected target's
+layout, never the host interpreter object's allocation size. Unresolved or
+circular layout dependencies reject. A query exposes geometry only: it neither
+reveals private fields nor establishes backing, a valid resident value, access
+rights, or recast compatibility.
+
+These forms take data types. Executable machine entries and their late code
+regions instead use [address and code-layout queries](../language/counts_and_addresses.md#native-code-layout-queries).
+Neither `usize` nor a dedicated alignment carrier is introduced.
+
 ## Placement vocabulary
 
 The compiler owns a closed placement vocabulary; policies select and compose
