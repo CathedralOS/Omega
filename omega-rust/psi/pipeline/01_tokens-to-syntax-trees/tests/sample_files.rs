@@ -43,7 +43,11 @@ fn sample_projects_ignore_local_build_output() {
     let sample_root = repo_root.join("samples");
     let mut sample_projects = Vec::new();
 
-    collect_project_roots(&sample_root, &mut sample_projects);
+    collect_project_roots(
+        &sample_root,
+        &mut sample_projects,
+        &submodule_roots(repo_root),
+    );
     sample_projects.sort();
 
     assert!(
@@ -107,7 +111,24 @@ fn collect_omega_files(path: &Path, files: &mut Vec<PathBuf>) {
     }
 }
 
-fn collect_project_roots(path: &Path, projects: &mut Vec<PathBuf>) {
+/// Paths `.gitmodules` declares, relative to the repository root.
+///
+/// A submodule is a separate repository vendored under `samples/`. Its files
+/// are not this repository's to hold to this repository's conventions, and it
+/// need not even be checked out, so a scan that descends into one either
+/// enforces a rule against someone else's tree or fails on an absent
+/// directory.
+fn submodule_roots(repo_root: &Path) -> Vec<PathBuf> {
+    let Ok(text) = fs::read_to_string(repo_root.join(".gitmodules")) else {
+        return Vec::new();
+    };
+    text.lines()
+        .filter_map(|line| line.trim().strip_prefix("path = "))
+        .map(|path| repo_root.join(path.trim()))
+        .collect()
+}
+
+fn collect_project_roots(path: &Path, projects: &mut Vec<PathBuf>, skip: &[PathBuf]) {
     let entries = fs::read_dir(path)
         .unwrap_or_else(|error| panic!("failed to read directory {}: {error}", path.display()));
 
@@ -116,10 +137,13 @@ fn collect_project_roots(path: &Path, projects: &mut Vec<PathBuf>) {
         let path = entry.path();
 
         if path.is_dir() {
+            if skip.iter().any(|root| path == *root) {
+                continue;
+            }
             if path.join("main.omg").is_file() {
                 projects.push(path);
             } else {
-                collect_project_roots(&path, projects);
+                collect_project_roots(&path, projects, skip);
             }
         }
     }
