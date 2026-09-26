@@ -104,7 +104,7 @@ impl<'field> RangeFacts<'field> {
                 self.checked_operators,
                 &mut selector_reads,
                 0,
-                &*self.bound_lookup(),
+                &self.bound_lookup(),
             ) || !same_reads(program, Some(&captured_reads), Some(&selector_reads))
             {
                 continue;

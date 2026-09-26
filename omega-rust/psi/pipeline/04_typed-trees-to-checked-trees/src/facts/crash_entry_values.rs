@@ -512,13 +512,11 @@ fn entry_operand_at(
             Some(CrashPredicateExpression::Float(value.text().to_owned()))
         }
         ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
-            let Some((machine, state)) = crate::lookup::symbols::machine_state_by_symbol(
+            let (machine, state) = crate::lookup::symbols::machine_state_by_symbol(
                 program,
                 machine_symbol,
                 state_symbol,
-            ) else {
-                return None;
-            };
+            )?;
             let source = program.primitive_type_reference(
                 validation::expression_result_type_reference(program, machine, state, cast.value)?,
             )?;
@@ -792,11 +790,8 @@ fn entry_operand_name_at(
     {
         return None;
     }
-    let Some((machine, state)) =
-        crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)
-    else {
-        return None;
-    };
+    let (machine, state) =
+        crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
     let preceding = program
         .statement_table
         .statements(state.statement_nodes)

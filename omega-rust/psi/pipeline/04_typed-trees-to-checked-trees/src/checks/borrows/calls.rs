@@ -41,10 +41,7 @@ use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 
 /// Initial construction is deliberately separate from replay: a checked
 /// program with deleted evidence must not be mistaken for an unbuilt ledger.
-pub(super) fn initialize_compatibility<'p>(
-    program: &'p typed_trees::TypedTrees,
-    facts: &mut CheckFacts,
-) {
+pub(super) fn initialize_compatibility(program: &typed_trees::TypedTrees, facts: &mut CheckFacts) {
     let mut diagnostics = Vec::new();
     let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards = IncomingGuardIndex::build(program, call_frames.as_ref());
