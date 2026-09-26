@@ -40,11 +40,7 @@ pub(super) fn build_call_entry_contexts(
     // Coordinates repeat across states. The state owns the call identity;
     // a global first-match can attach another invocation's authority.
     let owned_call = crate::flow::fact_rows::with_borrow_state_index(borrow, |index| {
-        index
-            .bucket(machine_symbol, state_symbol)
-            .iter()
-            .copied()
-            .collect::<Vec<_>>()
+        index.bucket(machine_symbol, state_symbol).to_vec()
     })
     .into_iter()
     .find_map(|state_handle| {

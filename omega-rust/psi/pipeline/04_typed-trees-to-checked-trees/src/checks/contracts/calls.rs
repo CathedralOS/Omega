@@ -500,6 +500,7 @@ fn value_call_return_domain_grants(
 ///   predicate's bare `self`: every field the subject and the instantiated
 ///   predicates read preserved by `caller_state_preserves_field`, every name
 ///   the labels spell preserved by `caller_state_preserves_label_names`.
+///
 /// Whatever the premise, the jump's own earlier operands must leave the
 /// membership's callee-formal reads unwritten (`guard_operands`).
 fn proven_predicates_grant_domain(
@@ -2147,21 +2148,21 @@ mod predicate_only_domain_statement_probes {
             "`index < 32` admits 16..=31, outside the domain"
         );
         assert!(
-            !accepted(&format!(
+            !accepted(
                 "domain u64::NotSeven requires self <= 15 && self != 7;
-                data Store {{ arr: [u64; 16]; }}
-                machine Store::read(&mut self, index: u64 in NotSeven) -> u64 {{
-                    transition {{ _ -> (self.arr[index]) }}
-                }}
+                data Store { arr: [u64; 16]; }
+                machine Store::read(&mut self, index: u64 in NotSeven) -> u64 {
+                    transition { _ -> (self.arr[index]) }
+                }
                 machine Store::scan(&mut self, index: u64) -> u64
                     requires index <= 15;
-                {{
+                {
                     let v: u64 = self.read(index);
-                    transition {{ _ -> v }}
-                }}
-                data Main {{}}
-                machine Main::main(&mut self) {{}}"
-            )),
+                    transition { _ -> v }
+                }
+                data Main {}
+                machine Main::main(&mut self) {}"
+            ),
             "the interval proves `self <= 15` but cannot state `self != 7`"
         );
     }
