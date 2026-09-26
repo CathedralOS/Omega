@@ -255,9 +255,33 @@ impl<'a> Destination<'a> {
             return None;
         }
         trace.phase("structural field store: parameter access");
-        if crate::execution::terminal_unit::types::abi_parameter_count(
-            program.state_parameters(state),
-        ) != scalar.len() + structural.len()
+        // Signature planning can leave borrowed self in the ambient attachment.
+        // Its omitted row must not shift authored positions or allow an ordinary
+        // argument to disappear. Rejoin every row by position, not total arity.
+        let mut planned_parameters = 0;
+        for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+            let rows = structural
+                .iter()
+                .filter(|plan| plan.position as usize == position)
+                .count()
+                + scalar
+                    .iter()
+                    .filter(|plan| plan.source_position as usize == position)
+                    .count();
+            planned_parameters += rows;
+            if parameter.relevance.is_erased() {
+                if rows != 0 {
+                    return None;
+                }
+            } else if rows != 1
+                && !(rows == 0
+                    && parameter.is_self
+                    && super::super::types::is_reference(program, parameter.type_reference))
+            {
+                return None;
+            }
+        }
+        if planned_parameters != scalar.len() + structural.len()
             || parameter.is_self != plan.is_self
             || parameter.is_const
             || !parameter.is_mutable
