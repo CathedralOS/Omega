@@ -5281,6 +5281,16 @@ but report the missing runtime leg explicitly; it does not close that host row.
   free three times in one session. RE-MEASURE BEFORE WORKING A TARGET:
   twenty-one of the targets once listed here were already green when re-run.
 
+  Dead source citations are widespread in this file, not only in this table.
+  Of 255 `.rs` paths cited across `TASKS.md`, 34 resolve to nothing in
+  `omega-rust`. Eleven are under `compiler/tests/`, removed by `c60792d7bd`
+  ("repo: the compiler is tested through the corpus gate alone"); four name a
+  `selected_operator.rs` removed with the selected-operator plan vocabulary.
+  An earlier revision of this note reported those citations as clean; that
+  measurement only covered paths written from a repository root and missed
+  every crate-relative one, which is most of them. Resolve a cited path before
+  planning against it.
+
   This table predates `c60792d7bd` ("repo: the compiler is tested through the
   corpus gate alone"), which deleted the compiler test suites most of it was
   measured from. Eight of its thirteen targets no longer appear anywhere in
