@@ -279,6 +279,7 @@ impl StateGraphEmission<'_, '_> {
         };
         let body_end = operations.len();
         let prepared_cases = case_emission::prepare(
+            checked,
             state,
             self.catalogs,
             &state_parameters,
@@ -818,7 +819,32 @@ impl StateGraphEmission<'_, '_> {
                     .cases
                     .iter()
                     .map(|case| {
-                        let edge = successor(case.successor, &case.values, true, &values, &[])?;
+                        // The edge binds this case's payloads as its staged
+                        // block's formals; an argument expression reads one
+                        // back through its tail position in the edge's
+                        // namespace, which `successor_edge` appends in this
+                        // same payload order.
+                        let established = case
+                            .values
+                            .iter()
+                            .zip(&case.fields)
+                            .enumerate()
+                            .map(|(ordinal, ((_, _), field))| {
+                                crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload {
+                                    source: prepared.source,
+                                    case: case.identity,
+                                    field: *field,
+                                    position: values.len() + ordinal,
+                                }
+                            })
+                            .collect::<Vec<_>>();
+                        let edge = successor(
+                            case.successor,
+                            &case.values,
+                            true,
+                            &values,
+                            &established,
+                        )?;
                         Ok(StructuralCaseSuccessorEdge {
                             edge: edge.edge,
                             target: edge.target,
