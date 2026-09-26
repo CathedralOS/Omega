@@ -4200,16 +4200,30 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
 
-  A traced omission that is general and cheap to reproduce. A reference-typed
-  local bound to a place loan has no producer:
-  `execution/terminal_unit/control/statement_sequence/local_data.rs` routes
-  every structural local through `structural call binding`, which returns
-  `None` unless the initializer is a `Call`. Both `let bits: &bool =
-  &self.flag;` and `let bits: &u8 = &self.flag as &u8;` omit the plan there,
-  while the same read inline in a guard operand plans and reaches realization.
+  A traced omission that is general and cheap to reproduce. No reference-typed
+  local bound to a place loan plans, in any polarity or referent shape: `let r:
+  &bool = &self.flag;`, `let r: &mut u8 = &mut self.byte;` and `let r: &Inner =
+  &self.inner;` all omit at `statement sequence: local data: structural call
+  binding`, while `(&self.flag as &u8) == 1` and `(&self.inner).v == 0` inline
+  in a guard operand plan and reach realization.
+  `local_data.rs` routes every structural local through that phase and returns
+  `None` unless the initializer is a `Call`; a loan is not a call result.
   This holds every `tests/omega/pass/recast/*_exit` fixture at
-  **RECAST-SOURCE-POSITIONS**. A loan is not a call result; give it its own
-  plan rather than widening the call recognizer.
+  **RECAST-SOURCE-POSITIONS**.
+
+  The plan variant and its Terminal operation already exist:
+  `CheckedUnitEffectOperationPlan::EstablishReference` and
+  `terminal-psi`'s `EstablishReference`, produced today only for a `(place)`
+  or `(place[a..b])` return target by `state_graph/returns.rs` and
+  `statement_sequence/completion.rs`, both at `Multiplicity::Affine` with a
+  returned-carrier release. What is missing is a producer at the `let` site
+  and the observation route that reads a scalar leaf through the resulting
+  structural local; `05_`'s `runtime field observation` binder resolves a
+  `StructuralParameterField`, not a structural local result. Do not make the
+  local alias its loaned place instead:
+  `resolve_contextual_name_path_root` deliberately roots a local at its own
+  symbol, and collapsing that erases the loan identity that borrow facts,
+  write frames and releases are keyed on.
 
   A traced omission to start from. `samples/cli/collections/matrix_multiply`
   stops at `structural field store: scalar field type` (state 0, statement 0),
