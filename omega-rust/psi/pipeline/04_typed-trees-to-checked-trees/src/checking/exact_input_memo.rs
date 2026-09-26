@@ -22,9 +22,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, PoisonError};
 use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
-/// Retained results; a review alternates between a closure's packages and
-/// checks each at two checkpoints.
-const RETAINED_RESULTS: usize = 4;
+/// Retained results. A review pass checks each package of its closure at two
+/// checkpoints, in the same order every pass, so a table smaller than one
+/// pass's checks evicts each result just before it is asked for again. This
+/// covers closures of up to eight packages.
+const RETAINED_RESULTS: usize = 16;
 const REMEMBERED_FINGERPRINTS: usize = 64;
 
 /// The request's content: what a check reads besides the program.
