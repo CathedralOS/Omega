@@ -8,6 +8,124 @@ use crate::TerminalMachineSelection;
 use crate::terminal_identities::block_id;
 
 #[test]
+fn clamped_private_helpers_prove_cross_signed_exact_conversions() {
+    for (source_type, destination_type, cap) in [("u16", "i8", 127), ("i16", "u8", 255)] {
+        let checked = crate::front_end::checked_program(&format!(
+            "machine capped(value: {source_type}) -> {destination_type} {{
+                 let bounded: {source_type} = clamp(value, 0, {cap});
+                 bounded as {destination_type}
+             }}
+             machine root(value: {source_type}) -> {destination_type} {{ capped(value) }}"
+        ));
+        let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("root"))
+            .unwrap_or_else(|error| panic!("{source_type} -> {destination_type}: {error:?}"));
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            lowered
+                .semantic_module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .filter(|operation| matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::IntegerLessOrEqual { .. }
+                ))
+                .count(),
+            2,
+            "each of min and max is evaluated once",
+        );
+        let cap_operation = lowered
+            .semantic_module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| {
+                matches!(operation.kind,
+                terminal_psi::OperationKind::IntegerConstant { value }
+                if value == semantic_vocabulary::IntegerValue::Signed(cap)
+                    || value == semantic_vocabulary::IntegerValue::Unsigned(cap as u128))
+            })
+            .unwrap();
+        cap_operation.kind = terminal_psi::OperationKind::IntegerConstant {
+            value: if source_type == "u16" {
+                semantic_vocabulary::IntegerValue::Unsigned((cap + 1) as u128)
+            } else {
+                semantic_vocabulary::IntegerValue::Signed(cap + 1)
+            },
+        };
+        assert!(
+            terminal_verifier::verify_module(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .is_err(),
+            "changed emitted bounds cannot replay the old proof"
+        );
+        lowered.semantic_module.scalar_block_invariants.clear();
+        lowered.proof_bundle = terminal_verifier::ProofBundle::default();
+        assert!(
+            finalize_operation_proofs(&mut lowered).is_err(),
+            "an out-of-range clamp endpoint cannot receive fresh conversion evidence"
+        );
+    }
+}
+
+#[test]
+fn retained_selection_values_do_not_evaluate_an_unselected_crash() {
+    use terminal_interpreter::{
+        TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
+    };
+    let lowered = lower_source(
+        "machine abort() -> bool crashes Abort { crash Abort; }
+         machine root(first: bool, second: bool) -> bool crashes Abort {
+             (first && second) && abort()
+         }",
+    );
+    let semantic_bytes = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let proof_bytes =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
+    for (first, second) in [(false, false), (false, true), (true, false), (true, true)] {
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic_bytes,
+            &proof_bytes,
+            &proof_admission::AdmissionProfile::default(),
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+            ],
+            Default::default(),
+        )
+        .unwrap();
+        let status = execution
+            .resume(
+                &mut terminal_fuel::TerminalFuelMeter::unbounded(),
+                &mut terminal_interpreter::AcceptTerminalEffects,
+            )
+            .unwrap();
+        if first && second {
+            assert!(matches!(status, TerminalExecutionStatus::Crashed(crash)
+                if crash.cause == terminal_psi::CrashCause::Abort));
+        } else {
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                    TerminalScalarValue::Boolean(false)
+                ))
+            );
+        }
+    }
+}
+
+#[test]
 fn field_division_loop_proves_each_nonzero_divisor() {
     for digits in [3, 5, 8] {
         let lowered = lower_digit_field_loop(digits);

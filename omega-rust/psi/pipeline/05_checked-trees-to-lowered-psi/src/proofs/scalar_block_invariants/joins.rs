@@ -520,6 +520,7 @@ fn transport_math_leaves(
                     *remaining = remaining.checked_sub(1)?;
                     match term {
                         IntegerMathTerm::MathValue { source_type, value } => {
+                            let mut visited = Vec::new();
                             while let Some(definition) =
                                 equations.iter().find_map(|equation| match equation {
                                     Proposition::Equal(ScalarTerm::Value { id, .. }, right)
@@ -530,7 +531,13 @@ fn transport_math_leaves(
                                     _ => None,
                                 })
                             {
-                                // Alias cycles exhaust this shared search budget.
+                                // A cyclic alias cannot transport this demand.
+                                // Reject it locally instead of exhausting the
+                                // budget needed by other joins in the module.
+                                if visited.contains(value) {
+                                    return None;
+                                }
+                                visited.push(*value);
                                 *remaining = remaining.checked_sub(1)?;
                                 match definition {
                                     ScalarTerm::Value { id, scalar_type }
@@ -573,6 +580,42 @@ fn transport_math_leaves(
 pub(super) struct ArrivalEquations<'input> {
     definitions: BTreeMap<ValueId, &'input Proposition>,
     reversed: BTreeMap<ValueId, Proposition>,
+}
+
+#[test]
+fn cyclic_math_aliases_leave_budget_for_other_join_demands() {
+    use semantic_vocabulary::{IntegerSign, IntegerType};
+    let integer = IntegerType::new(IntegerSign::Signed, 16).unwrap();
+    let left = ValueId::new(1).unwrap();
+    let right = ValueId::new(2).unwrap();
+    let aliases = [
+        Proposition::Equal(
+            ScalarTerm::value(left, ScalarType::Integer(integer)),
+            ScalarTerm::value(right, ScalarType::Integer(integer)),
+        ),
+        Proposition::Equal(
+            ScalarTerm::value(right, ScalarType::Integer(integer)),
+            ScalarTerm::value(left, ScalarType::Integer(integer)),
+        ),
+    ];
+    let mut predicate = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::MathValue {
+            source_type: integer,
+            value: left,
+        },
+        IntegerMathTerm::literal(IntegerValue::Signed(127)),
+    );
+    let mut remaining = 64;
+    assert!(
+        transport_math_leaves(&mut predicate, &[&aliases[0], &aliases[1]], &mut remaining)
+            .is_none()
+    );
+    assert!(
+        remaining > 32,
+        "a local cycle must not exhaust the shared discovery budget"
+    );
+    assert!(transport_math_leaves(&mut predicate, &[], &mut remaining).is_some());
+    assert!(scalar_math_demands(&mut predicate, &mut remaining).is_some());
 }
 
 impl<'input> ArrivalEquations<'input> {

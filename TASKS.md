@@ -2525,17 +2525,7 @@ syntax and other terminal services are not prerequisites.
     `can_exact_cast_to`, which asks only that both be `Fixed`, and
     `scalar_graph_input/exact_cast_carrier_tests.rs` asserts
     `(Signed, 16) -> (Signed, 8)` is admitted. Rerun the fixture for its
-    current stop rather than reusing the `SourceCustodyMismatch` attribution;
-    `core/numeric_cross_signed_conversion_surface` reaches exact-cast proof
-    production but cannot prove the clamped bounds. Reproduce on macOS arm64
-    with `python3 tools/corpus_gate.py --native --filter
-    core/numeric_cross_signed_conversion_surface`. Checked min/max computations
-    share operand handles, but `scalar_graph/scalar_computations.rs` expands
-    a selection arm again after evaluating its condition. Nested `max` results
-    used by the `min` comparison and its selected arm consequently have distinct
-    identities. Preserve completed operand values through selection without
-    hoisting lazy branch effects; do not add proof guesses to compensate for
-    recomputation. The unchanged fixture must still reach native exit 70.
+    current stop rather than reusing the `SourceCustodyMismatch` attribution.
     `runtime_addr_field_exit`
     plans no value because `addr as i32 in Trapping` has no checked cast
     (address carriers have no Trapping denotation). Guarded `Trap` ceilings

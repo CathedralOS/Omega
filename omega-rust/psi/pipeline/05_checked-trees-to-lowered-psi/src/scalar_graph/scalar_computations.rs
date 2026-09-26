@@ -30,6 +30,7 @@ pub(crate) mod cases;
 pub(crate) mod comparisons;
 mod dispatch;
 pub(crate) mod fields;
+mod selection;
 mod source_custody;
 mod structural_arguments;
 mod value_types;
@@ -62,6 +63,8 @@ pub(crate) struct Expansion<'a> {
     arrays: Vec<arrays::Slot>,
     cases: Vec<cases::Slot>,
     fields: &'a [fields::Binding],
+    /// Selection-local computations already carried in the current input prefix.
+    completed: Vec<(Computation, usize)>,
 }
 
 impl<'a> Expansion<'a> {
@@ -82,6 +85,7 @@ impl<'a> Expansion<'a> {
             arrays: Vec::new(),
             cases: Vec::new(),
             fields: &[],
+            completed: Vec::new(),
         }
     }
 
@@ -564,6 +568,17 @@ impl<'a> Expansion<'a> {
             return unsupported("scalar computation contains a cycle");
         }
         let result_type = self.argument_type(argument, site, input_types)?;
+        if let Some((_, position)) = self.completed.iter().find(|(node, _)| node == handle) {
+            if input_types.get(*position) != Some(&result_type) {
+                return unsupported("completed computation disagrees with its carried value");
+            }
+            return Ok(self.binding(
+                input_types,
+                input_types.len(),
+                target,
+                LoweredScalarBinding::Expression(parameter(*position, result_type)),
+            ));
+        }
         active.push(*handle);
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
@@ -670,61 +685,16 @@ impl<'a> Expansion<'a> {
                 when_true,
                 when_false,
                 ..
-            } => {
-                if self.argument_type(&Argument::Computation(condition), site, input_types)?
-                    != ScalarType::Boolean.into()
-                    || self.argument_type(&Argument::Computation(when_true), site, input_types)?
-                        != result_type
-                    || self.argument_type(&Argument::Computation(when_false), site, input_types)?
-                        != result_type
-                {
-                    return unsupported("scalar computation selection carriers disagree");
-                }
-                let when_true_target = self.argument(
-                    &Argument::Computation(when_true),
-                    input_types,
-                    target,
-                    site,
-                    active,
-                )?;
-                let when_false_target = self.argument(
-                    &Argument::Computation(when_false),
-                    input_types,
-                    target,
-                    site,
-                    active,
-                )?;
-                let mut condition_types = input_types.to_vec();
-                condition_types.push(ScalarType::Boolean.into());
-                let dispatch = self.push(LoweredScalarBranchState {
-                    structural_parameters: Vec::new(),
-                    structural_effects: Vec::new(),
-                    parameter_types: condition_types,
-                    erased_formal_types: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    bindings: Vec::new(),
-                    terminator: LoweredScalarBranchTerminator::Conditional {
-                        condition: LoweredBooleanReturnExpression::Parameter {
-                            position: input_types.len(),
-                        },
-                        when_true_target,
-                        when_true_arguments: parameters(input_types),
-                        when_true_erased_arguments: Vec::new(),
-                        when_true_erased_proof_arguments: Vec::new(),
-                        when_false_target,
-                        when_false_arguments: parameters(input_types),
-                        when_false_erased_arguments: Vec::new(),
-                        when_false_erased_proof_arguments: Vec::new(),
-                    },
-                });
-                self.argument(
-                    &Argument::Computation(condition),
-                    input_types,
-                    dispatch,
-                    site,
-                    active,
-                )?
-            }
+            } => self.selection(
+                condition,
+                when_true,
+                when_false,
+                result_type,
+                input_types,
+                target,
+                site,
+                active,
+            )?,
             CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                 // The conversion is exactly one conditional landing of 0 or 1
                 // in the destination carrier; the authored cast keeps source
