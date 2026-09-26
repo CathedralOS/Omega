@@ -53,10 +53,11 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
 2. The named leaf: title, the board's acceptance text verbatim, the
    witness/repro lane or file, the current owned-walls roster (one
    `<wall> -> z<N>` line per blocker another worker owns), and the gates
-   (`cargo check -p <touched-crates> --all-targets` +
-   `cargo nextest run -p <touched-crates>`; for e2e-visible leaves also
+   (`mbx check -p <touched-crates> --all-targets` +
+   `mbx nextest run -p <touched-crates>`; for e2e-visible leaves also
    `python3 tools/corpus_gate.py --filter <domain>` — a domain diff against
-   the recorded golden instead of chained suites; `mbx` if present).
+   the recorded golden instead of chained suites; `cargo`/`cargo nextest`
+   only when `mbx` is absent).
 3. The lane: `git push -f origin HEAD:leaf/<kebab-item>` — one lane per chain
    link. Workers NEVER merge, NEVER touch board files, NEVER run landing.py.
    Commits on the lane are semantically whole: run `python tools/fmt.py`
@@ -180,8 +181,8 @@ next settle actually wakes you.
    `terminal_unit::Y` → `calls::Y`) — resolve by keeping BOTH intents:
    union the signatures and import lists, never drop a side. Substantive
    conflicts follow the conflict rules (escalate ambiguous intent).
-3. Scoped gate: `cargo check -p <touched crates>` +
-   `cargo nextest run -p <touched> --lib`, plus `python tools/fmt.py`; add
+3. Scoped gate: `mbx check -p <touched crates>` +
+   `mbx nextest run -p <touched> --lib`, plus `python tools/fmt.py`; add
    `python3 tools/corpus_gate.py --filter <domain>` when the lane moved
    e2e-visible behavior. On a structural corpus diff, `--jev` annotates
    each diff with a `record_safe` verdict — batch contamination and the

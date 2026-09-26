@@ -13,8 +13,8 @@
       "item": "MACOS-APPLICATION-PUBLICATION",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/build",
-        "omega-rust/omega/backend/object"
+        "omega-rust/omega/src/build_evaluation",
+        "omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/image_emission"
       ],
       "suggested_first_slice": "the identifier field in ordinary build vocabulary",
       "host_gates": ["which mbx || which cargo"],
