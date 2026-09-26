@@ -1,9 +1,9 @@
-use build_evaluation::sources::AssembledSyntax;
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{
     SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
     TYPED_TREES_TO_CHECKED_TREES,
 };
+use build_evaluation::sources::AssembledSyntax;
 use checked_trees::CheckedTrees as CheckedProgram;
 use diagnostics::Diagnostic;
 use std::sync::Arc;

@@ -52,7 +52,7 @@ use typed_trees::TypedTrees;
 /// consumes it exactly once when rebinding the corresponding typed machines.
 /// Each retained name carries its declaring source so two checked instances
 /// of one path rebind to their own typed machine rather than colliding.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SelectedTargetMachineDeclarations {
     provider_default_machine_names: Vec<(String, source::SourceId)>,
     selected_machine_origins: Vec<(String, String, source::SourceId)>,
@@ -77,8 +77,7 @@ struct TargetMachineOrigin {
 /// family's canonical body (the first recognized target in name order), so the
 /// frontend is the same program for every realized target; the realized
 /// target's body replaces it before checking
-/// (`SelectedTargetMachineDeclarations::select_product_target`). A generated
-/// extension, typed per target, still selects the product target.
+/// (`SelectedTargetMachineDeclarations::select_product_target`).
 struct ScopeTargets<'a> {
     product: ProductSelection,
     execution: NativeTarget,
@@ -87,7 +86,6 @@ struct ScopeTargets<'a> {
 
 enum ProductSelection {
     Canonical(BTreeMap<String, String>),
-    Target(NativeTarget),
 }
 
 impl ScopeTargets<'_> {
@@ -106,7 +104,6 @@ impl ScopeTargets<'_> {
     fn selects(&self, machine: &syntax_trees::item::Machine, target: &str) -> bool {
         let scope_target = match (self.scope_of(machine), &self.product) {
             (source::DependencyScope::Build, _) => self.execution,
-            (source::DependencyScope::Product, ProductSelection::Target(product)) => *product,
             (source::DependencyScope::Product, ProductSelection::Canonical(canonical)) => {
                 return canonical.get(machine.name.as_str()).map(String::as_str) == Some(target);
             }
@@ -160,13 +157,17 @@ impl SelectedTargetMachineDeclarations {
         syntax: &mut SyntaxTrees,
         target_name: Option<&str>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        // Generated source is product source: it selects against the
-        // product target only.
+        // Generated source is product source: like the base, it selects each
+        // family's canonical body, and the realized target's body replaces it
+        // before checking. The target is only validated here.
         let selected = NativeTarget::from_omega_target_name(target_name)
             .map_err(|diagnostic| vec![diagnostic])?;
         let no_build_scope = HashSet::new();
         let scopes = ScopeTargets {
-            product: ProductSelection::Target(selected),
+            product: ProductSelection::Canonical(canonical_product_targets(
+                syntax,
+                &no_build_scope,
+            )),
             execution: selected,
             build_scope_sources: &no_build_scope,
         };
