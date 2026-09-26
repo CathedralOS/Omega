@@ -98,6 +98,8 @@ pub(crate) fn rechecked_data_definition_evidence(
     data_symbols: &[SymbolHandle],
 ) -> Option<RecheckedDataDefinitionEvidence> {
     fact_plan_arena_links_are_well_formed(facts).then_some(())?;
+    let data_symbol_set: std::collections::HashSet<SymbolHandle> =
+        data_symbols.iter().copied().collect();
     let definitions = facts
         .data_definition_facts
         .iter()
@@ -138,8 +140,8 @@ pub(crate) fn rechecked_data_definition_evidence(
         .filter_map(|(_, fact_ref)| {
             let fact = facts
                 .facts
-                .iter()
-                .find_map(|(handle, fact)| (handle == fact_ref.fact).then_some(fact))?;
+                .is_valid(fact_ref.fact)
+                .then(|| facts.facts.get(fact_ref.fact))?;
             matches!(
                 fact.origin,
                 typed_trees_to_checked_trees::fact_plan::FactOrigin::DataDefinition { .. }
@@ -154,7 +156,7 @@ pub(crate) fn rechecked_data_definition_evidence(
             let at_data_definition = matches!(
                 context.point,
                 typed_trees_to_checked_trees::fact_plan::ProgramPoint::Definition { symbol }
-                    if data_symbols.contains(&symbol)
+                    if data_symbol_set.contains(&symbol)
             );
             let references = match facts.refs.span(context.facts) {
                 Some(references) => references,
@@ -162,10 +164,11 @@ pub(crate) fn rechecked_data_definition_evidence(
                 None => return None,
             };
             let contains_data_fact = references.iter().any(|fact_ref| {
-                facts.facts.iter().any(|(handle, fact)| {
-                    handle == fact_ref.fact
-                        && matches!(fact.origin, typed_trees_to_checked_trees::fact_plan::FactOrigin::DataDefinition { .. })
-                })
+                facts.facts.is_valid(fact_ref.fact)
+                    && matches!(
+                        facts.facts.get(fact_ref.fact).origin,
+                        typed_trees_to_checked_trees::fact_plan::FactOrigin::DataDefinition { .. }
+                    )
             });
             (at_data_definition || contains_data_fact).then(|| {
                 Some(RecheckedDataFactContext {
@@ -184,16 +187,17 @@ pub(crate) fn rechecked_data_definition_evidence(
         .filter_map(|(_, set)| {
             let references = match facts.refs.span(set.facts) {
                 Some(references) => references,
-                None if data_symbols.contains(&set.symbol) => return Some(None),
+                None if data_symbol_set.contains(&set.symbol) => return Some(None),
                 None => return None,
             };
             let contains_data_fact = references.iter().any(|fact_ref| {
-                facts.facts.iter().any(|(handle, fact)| {
-                    handle == fact_ref.fact
-                        && matches!(fact.origin, typed_trees_to_checked_trees::fact_plan::FactOrigin::DataDefinition { .. })
-                })
+                facts.facts.is_valid(fact_ref.fact)
+                    && matches!(
+                        facts.facts.get(fact_ref.fact).origin,
+                        typed_trees_to_checked_trees::fact_plan::FactOrigin::DataDefinition { .. }
+                    )
             });
-            (data_symbols.contains(&set.symbol) || contains_data_fact).then(|| {
+            (data_symbol_set.contains(&set.symbol) || contains_data_fact).then(|| {
                 Some(RecheckedDataSymbolFactSet {
                     symbol: set.symbol,
                     facts: references
@@ -247,10 +251,10 @@ pub(crate) fn rechecked_semantic_fact(
     facts: &typed_trees_to_checked_trees::fact_plan::FactPlan,
     fact_handle: typed_trees_to_checked_trees::fact_plan::FactHandle,
 ) -> Option<RecheckedSemanticFact> {
-    let fact = facts
-        .facts
-        .iter()
-        .find_map(|(handle, fact)| (handle == fact_handle).then_some(fact))?;
+    if !facts.facts.is_valid(fact_handle) {
+        return None;
+    }
+    let fact = facts.facts.get(fact_handle);
     rechecked_semantic_fact_value(facts, fact)
 }
 
@@ -294,10 +298,10 @@ pub(crate) fn rechecked_fact_place(
     facts: &typed_trees_to_checked_trees::fact_plan::FactPlan,
     place_handle: typed_trees_to_checked_trees::fact_plan::PlaceHandle,
 ) -> Option<RecheckedFactPlace> {
-    let place = facts
-        .places
-        .iter()
-        .find_map(|(handle, place)| (handle == place_handle).then_some(place))?;
+    if !facts.places.is_valid(place_handle) {
+        return None;
+    }
+    let place = facts.places.get(place_handle);
     Some(RecheckedFactPlace {
         root: place.root,
         segments: facts.place_segments.span(place.segments)?.to_vec(),
