@@ -39,6 +39,7 @@ pub(super) mod indirect_results;
 mod record;
 mod scalar_array;
 mod scalar_case;
+mod zeroed;
 pub(super) use primitive_locals::read;
 mod runtime_address;
 mod scalar_store;
@@ -257,6 +258,13 @@ pub(super) fn operation(
         LegalizedScalarInstructionKind::EstablishScalarArray { .. }
     ) {
         scalar_array::establish(source, node, replay)?;
+        return Ok(true);
+    }
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
+    ) {
+        zeroed::establish(source, node, replay)?;
         return Ok(true);
     }
     if matches!(

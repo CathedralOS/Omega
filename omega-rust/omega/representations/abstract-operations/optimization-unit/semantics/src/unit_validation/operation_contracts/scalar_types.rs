@@ -115,6 +115,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishZeroedStructural { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::EstablishRecord { .. }

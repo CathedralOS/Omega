@@ -161,6 +161,7 @@ impl LegalizedScalarInstruction {
             LegalizedScalarInstructionKind::Constant(_)
             | LegalizedScalarInstructionKind::StoreStructuralField { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
+            | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
             | LegalizedScalarInstructionKind::EstablishReference { .. }
             | LegalizedScalarInstructionKind::ReleaseReference { .. }
             | LegalizedScalarInstructionKind::HostedReadByte { .. }
@@ -244,6 +245,12 @@ pub enum LegalizedScalarInstructionKind {
     EstablishRecord {
         result: terminal_psi::StructuralOperationResult,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
+        shape: calling_conventions::ValueShape,
+    },
+    /// Establish a whole zero-constructible structural value: every scalar
+    /// leaf begins zero and the op carries no element roster.
+    EstablishZeroedStructural {
+        result: terminal_psi::StructuralOperationResult,
         shape: calling_conventions::ValueShape,
     },
     EstablishScalarCase {

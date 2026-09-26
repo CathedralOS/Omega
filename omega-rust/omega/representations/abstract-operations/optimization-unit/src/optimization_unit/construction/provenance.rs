@@ -41,6 +41,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::EstablishScalarCase { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
+        | O::EstablishZeroedStructural { psi_operation, .. }
         | O::EstablishReference { psi_operation, .. }
         | O::ReleaseReference { psi_operation, .. }
         | O::MoveStructuralField { psi_operation, .. }

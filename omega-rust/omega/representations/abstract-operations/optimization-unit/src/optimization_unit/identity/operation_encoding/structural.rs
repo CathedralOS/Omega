@@ -202,6 +202,14 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_place_declaration(bytes, *place);
             encode_structural_type(bytes, structural_type);
         }
+        O::EstablishZeroedStructural {
+            psi_operation,
+            result,
+        } => {
+            bytes.u8(90);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+        }
         O::EstablishRecord {
             psi_operation,
             result,

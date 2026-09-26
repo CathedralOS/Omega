@@ -55,6 +55,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::MoveStructuralField { .. }
                         | AbstractOperation::StoreStructuralField { .. }
                         | AbstractOperation::EstablishTrivialAffineLocal { .. }
+                        | AbstractOperation::EstablishZeroedStructural { .. }
                         | AbstractOperation::CallStructural { .. }
                         | AbstractOperation::BoundaryCall { result: abstract_operations::AbstractBoundaryResult::Structural(_), .. }
                 ) || matches!(&node.operation,

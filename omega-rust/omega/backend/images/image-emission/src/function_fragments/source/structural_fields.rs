@@ -717,6 +717,10 @@ fn read_access(
                 result,
                 ..
             }
+            | AbstractOperation::EstablishZeroedStructural {
+                psi_operation,
+                result,
+            }
             | AbstractOperation::StructuralLeafCopy {
                 psi_operation,
                 result,
@@ -747,6 +751,7 @@ fn read_access(
                 .any(|operation| {
                     let home = match operation {
                         TargetUnitOperation::EstablishRecord { result_home, .. }
+                        | TargetUnitOperation::EstablishZeroedStructural { result_home, .. }
                         | TargetUnitOperation::StructuralLeafCopy { result_home, .. }
                         | TargetUnitOperation::Call {
                             result:

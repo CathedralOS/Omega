@@ -39,6 +39,8 @@ pub(crate) fn rewrite_block_parameter_operation(
                 }
             }
         }
+        // A zeroed establishment spells no operands — nothing to rewrite.
+        O::EstablishZeroedStructural { .. } => {}
         // Only the stored value is rewritten. A runtime-selected path
         // element's selector stays as spelled: its accepted certificate names
         // that exact value, so a rewrite that would retire it leaves the use

@@ -434,6 +434,7 @@ fn operation_observations(
         | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishZeroedStructural { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::EstablishRecord { .. }

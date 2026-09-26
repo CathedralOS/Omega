@@ -181,6 +181,22 @@ pub(super) fn validate_operation(
             aggregate_results::validate(target, abstracted, sources, optimized, plan, unit)?;
         }
         (
+            TargetUnitOperation::EstablishZeroedStructural {
+                psi_operation,
+                result_home,
+            },
+            AbstractOperation::EstablishZeroedStructural {
+                psi_operation: expected_operation,
+                result,
+            },
+        ) if psi_operation == expected_operation
+            && *result_home
+                == super::super::aggregate_results::result_home(optimized, result.place, plan)?
+            && terminal_semantics::zeroed_structural_shape(
+                plan.structural_types.iter(),
+                result.structural_type,
+            ) => {}
+        (
             _,
             AbstractOperation::MoveStructuralField { .. }
             | AbstractOperation::StoreStructuralField { .. },

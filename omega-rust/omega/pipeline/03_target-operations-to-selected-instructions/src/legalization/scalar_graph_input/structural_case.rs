@@ -26,6 +26,11 @@ pub(in crate::legalization) fn source_result(
                 result,
                 ..
             }
+            | AbstractOperation::EstablishZeroedStructural {
+                psi_operation,
+                result,
+                ..
+            }
             | AbstractOperation::EstablishScalarCase {
                 psi_operation,
                 result,
