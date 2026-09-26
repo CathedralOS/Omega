@@ -969,6 +969,7 @@ pass/atomics/shared_receiver_atomic_store checked 171ms
 pass/blockexec/blocking_executor_custody_claims_compile checked 80ms
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 2ms
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 2ms
+pass/borrow/runtime_exclusive_loan_local_write_exit checked 1254ms
 pass/borrow/runtime_method_view_write_after_last_use_exit checked 189ms
 pass/borrow/write_only_constrained_record_field checked 515ms
 pass/borrow/write_only_whole_scalar_replace checked 488ms

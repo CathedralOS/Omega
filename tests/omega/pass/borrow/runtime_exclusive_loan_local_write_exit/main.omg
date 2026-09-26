@@ -1,0 +1,25 @@
+// RUN CANARY (exit 70). An immutable `&mut` local naming a place is that
+// place: it plans no operation, and the write through the name is the
+// ordinary store of `self.raw`. Nothing reseats the binding, so the loan
+// carries no runtime value of its own. Reading the field back afterwards
+// proves the store reached the loaned storage and not a copy.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    raw: u8;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.raw = 1;
+    let seen: &mut u8 = &mut self.raw;
+    seen = 0;
+    transition self.raw == 0 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
