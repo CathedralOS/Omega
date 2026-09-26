@@ -2,6 +2,13 @@
 //! shared support modules are declared once, and `cargo nextest run -p <crate> --test suite`
 //! runs them all. A new `tests/<topic>.rs` joins by one `mod` line below.
 
+// Each test compiles real packages on several threads, and every compile
+// allocates heavily. The macOS system allocator spends much of that time in
+// its zone locks and free lists; mimalloc's per-thread heaps do not.
+// Test-only: the product keeps the system allocator.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 mod capability_conflicts;
 
 // Support shared across topics is mounted here exactly once; a topic reaches it
