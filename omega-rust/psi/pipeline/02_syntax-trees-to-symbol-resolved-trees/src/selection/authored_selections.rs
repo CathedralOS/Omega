@@ -1379,6 +1379,10 @@ fn finalize_expression_groups(
 ) -> Result<(), Diagnostic> {
     let contract_clause_expressions = contract_clause_expression_handles(program);
     let mut groups: Vec<CandidateGroup> = Vec::new();
+    // Groups stay in first-seen order; the index only replaces the linear
+    // search for a candidate's group, which made this pass quadratic in the
+    // number of authored selections a large package carries.
+    let mut group_index: HashMap<_, usize> = HashMap::new();
     for (expression, exposure) in authored_expressions {
         let compiler_partition = program
             .tables
@@ -1386,12 +1390,13 @@ fn finalize_expression_groups(
             .expressions
             .compiler_selection_partition(expression);
         for candidate in expression_candidates(program, expression, &contract_clause_expressions)? {
-            if let Some(group) = groups.iter_mut().find(|group| {
-                group.source_span == candidate.source_span
-                    && group.exposure == exposure
-                    && group.kind == candidate.kind
-                    && group.compiler_partition == compiler_partition
-            }) {
+            let key = (
+                candidate.source_span,
+                exposure,
+                candidate.kind,
+                compiler_partition,
+            );
+            if let Some(group) = group_index.get(&key).map(|&index| &mut groups[index]) {
                 group.target = reconcile_copy_targets(
                     program,
                     candidate.source_span,
@@ -1403,6 +1408,7 @@ fn finalize_expression_groups(
                     group.expressions.push(candidate.expression);
                 }
             } else {
+                group_index.insert(key, groups.len());
                 groups.push(CandidateGroup {
                     source_span: candidate.source_span,
                     exposure,
