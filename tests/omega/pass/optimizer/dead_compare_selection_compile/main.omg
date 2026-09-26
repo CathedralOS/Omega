@@ -1,0 +1,30 @@
+// `SelectedDeadCompareRemovalV1` removes a flag-publisher compare whose
+// published units die unread on every path. `value < value` is a real
+// selected `CompareI64`/`ConditionalBranchI64LessThan` pair — no frontend
+// constant sees it — whose branch the constant-branch fold replaces with
+// the decided jump, leaving the compare's publication with no reader on
+// any path. `Main::main` keeps a runtime `==` compare beside it whose
+// flags a live branch reads — a candidate the same pass must decline.
+
+data Main {
+}
+
+machine decide(value: i64) -> i64 {
+    transition value < value {
+        true -> taken()
+        _ -> untaken()
+    }
+
+    state taken() -> i64 { 41i64 }
+    state untaken() -> i64 { 43i64 }
+}
+
+machine Main::main(&mut self) {
+    let decided: i64 = decide(7i64);
+    transition decided == 0i64 {
+        true -> done()
+        _ -> done()
+    }
+
+    state done(&mut self) { }
+}

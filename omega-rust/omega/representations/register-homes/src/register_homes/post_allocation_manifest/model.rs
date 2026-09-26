@@ -5,8 +5,9 @@ use optimization_core::{
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
     AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, CopyRemovalIdentity,
-    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
-    PressureRematerializationIdentity, RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
+    DeadCompareIdentity, EquivalentCompareIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
+    LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
+    RedundantCompareIdentity, RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
 };
 use target::NativeTarget;
 
@@ -54,6 +55,9 @@ pub enum PostAllocationSelectedTransformation {
     AddressFold(AddressFoldIdentity),
     ConstantBoolean(ConstantBooleanIdentity),
     ConstantBranch(ConstantBranchIdentity),
+    DeadCompare(DeadCompareIdentity),
+    RedundantCompare(RedundantCompareIdentity),
+    EquivalentCompare(EquivalentCompareIdentity),
 }
 
 /// Structured report at the first independently validated physical-home

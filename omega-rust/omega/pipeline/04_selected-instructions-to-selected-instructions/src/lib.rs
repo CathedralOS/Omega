@@ -70,17 +70,18 @@ pub use rewrites::unexecuted;
 pub use rewrites::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AddressFoldError, AllocationRecoveryRuleCatalogEntry,
     AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload, ConstantBooleanError,
-    ConstantBranchError, CopyRemovalError, FixedPrecoloredSegmentHomeDecline, FixedViewCopy,
-    FixedViewCopyError, FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence,
-    LiteralFoldIdentity, LiteralFoldPolicy, OptimizedFixedPrecoloredSegmentHomeCustodyError,
-    OptimizedFixedViewCopyCustodyError, OptimizedLiteralFoldCustodyError,
-    OptimizedPreAllocationCustodyError, PRE_ALLOCATION_RULE_CATALOG, PairConsumerBindingAdmission,
-    PairFaultDischarge, PairImmediateBound, PairLiteralPosition, PairMachineEffects,
-    PairNonUnitSurface, PairOperandResult, PairOperandShape, PairResultDisposition,
-    PairTailCustody, PairUnitDefRelation, PairUnitEffects, PreAllocationPolicy,
-    PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError, PreAllocationRuleCatalogPayload,
+    ConstantBranchError, CopyRemovalError, DeadCompareError, EquivalentCompareError,
+    FixedPrecoloredSegmentHomeDecline, FixedViewCopy, FixedViewCopyError, FixedViewCopyPlan,
+    FixedViewCopyPolicy, FixedViewCopySourceEvidence, LiteralFoldIdentity, LiteralFoldPolicy,
+    OptimizedFixedPrecoloredSegmentHomeCustodyError, OptimizedFixedViewCopyCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
+    PRE_ALLOCATION_RULE_CATALOG, PairConsumerBindingAdmission, PairFaultDischarge,
+    PairImmediateBound, PairLiteralPosition, PairMachineEffects, PairNonUnitSurface,
+    PairOperandResult, PairOperandShape, PairResultDisposition, PairTailCustody,
+    PairUnitDefRelation, PairUnitEffects, PreAllocationPolicy, PreAllocationRuleCatalogEntry,
+    PreAllocationRuleCatalogError, PreAllocationRuleCatalogPayload,
     PreAllocationTransformationIdentity, PressureRematerializationError,
-    PressureRematerializationPolicy, RedundantExtensionError,
+    PressureRematerializationPolicy, RedundantCompareError, RedundantExtensionError,
     RegisterAllocationRuleTargetApplicability, RuntimeRematerializationError, RuntimeSpillError,
     RuntimeSpillSpanPolicy, SELECTED_LOWERING_RULE_CATALOG, SELECTED_STAGE_RULE_CATALOG,
     SelectedInstructionPairRule, SelectedLoweringRuleCatalogEntry,
@@ -116,7 +117,8 @@ pub(crate) use rewrites::{
     StagedOptimizedLiteralFoldStep, StagedOptimizedPreAllocationAttempt,
     StagedOptimizedPreAllocationAttemptReceipt, StagedOptimizedPreAllocationIterationReceipt,
     StagedOptimizedPreAllocationStep, ValidatedAddressFold, ValidatedConstantBoolean,
-    ValidatedConstantBranch, ValidatedCopyRemoval, ValidatedPreAllocationTransformation,
+    ValidatedConstantBranch, ValidatedCopyRemoval, ValidatedDeadCompare,
+    ValidatedEquivalentCompare, ValidatedPreAllocationTransformation, ValidatedRedundantCompare,
     ValidatedRedundantExtension, fixed_view_copy_identity,
 };
 
@@ -127,8 +129,9 @@ pub use rewrites::test_support;
 // representation; the transform publishes them under its root so callers keep
 // one vocabulary.
 pub use selected_instructions::{
-    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, FixedViewCopyIdentity,
-    PressureRematerializationIdentity,
+    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, DeadCompareIdentity,
+    EquivalentCompareIdentity, FixedViewCopyIdentity, PressureRematerializationIdentity,
+    RedundantCompareIdentity,
 };
 
 // The unit tests allocate heavily across nextest's parallel processes;

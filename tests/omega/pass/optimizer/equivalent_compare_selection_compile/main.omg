@@ -1,0 +1,32 @@
+// `SelectedEquivalentCompareRemovalV1` removes a compare whose published
+// subtraction provably coincides with a shadow's even across compare forms
+// and operand registers. `zero` is a `MaterializeI64`-pinned literal, so
+// `left < 0i64` selects a literal-form compare while `left < zero` keeps
+// the register-form `CompareI64` whose right operand resolves to the same
+// bits; the second compare republishes the subtraction the shadow already
+// computes and the pass removes it. `Main::main` keeps a runtime `==`
+// compare with no reaching shadow that the same pass must decline.
+
+data Main {
+}
+
+machine probe(left: i64) -> i64 {
+    let zero: i64 = 0i64;
+    transition left < 0i64 && left < zero {
+        true -> yes()
+        _ -> no()
+    }
+
+    state yes() -> i64 { 1i64 }
+    state no() -> i64 { 0i64 }
+}
+
+machine Main::main(&mut self) {
+    let observed: i64 = probe(7i64);
+    transition observed == 0i64 {
+        true -> done()
+        _ -> done()
+    }
+
+    state done(&mut self) { }
+}

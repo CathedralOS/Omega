@@ -421,8 +421,10 @@ fn reconstruct<'source>(
 /// last-event table, the bounded fixpoint propagation, and the per-site
 /// equivalence checks' unique-producer scans, and finally the backward
 /// operand audit once per unit over stream positions and crossed edge
-/// surfaces.
-fn measured_steps(
+/// surfaces. `units` is caller-supplied so discovery can charge the
+/// contract before admission runs: the candidate's published
+/// `implicit_defs`/`clobbers` union bounds it exactly.
+pub(crate) fn measured_steps(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
     successors: &[Vec<usize>],
@@ -620,6 +622,8 @@ pub fn validate_equivalent_compare(
             transformed_selected: selected_instruction_plan_identity(&proposed),
             optimization_unit: source.optimization_unit_identity(),
             fuel_schedule: source.fuel_schedule_identity(),
+            function_index,
+            compare,
         },
         transformed: Arc::new(proposed),
     })
@@ -855,6 +859,8 @@ mod independence_tests {
                 transformed_selected: identity,
                 optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
                 fuel_schedule: plan.fuel_schedule,
+                function_index: 0,
+                compare: EQUIVALENT,
             },
             transformed: Arc::new(plan),
         };

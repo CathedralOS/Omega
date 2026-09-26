@@ -1381,6 +1381,9 @@ pass/operators/runtime_xorshift_prng_exit checked 195ms
 pass/operators/slice_index_bounds_from_operator_contract checked 2ms
 pass/operators/unary_negation_exit checked 179ms
 pass/optimizer/constant_branch_selection_compile checked 1858ms
+pass/optimizer/dead_compare_selection_compile checked 227ms
+pass/optimizer/equivalent_compare_selection_compile checked 227ms
+pass/optimizer/redundant_compare_selection_compile checked 227ms
 pass/optimizer/rollback_to_no_selection_empty_entry checked 63ms
 pass/ownership/conditional_linear_sum checked 1ms
 pass/ownership/linear_ambiguous_state_result_mapping checked 72ms

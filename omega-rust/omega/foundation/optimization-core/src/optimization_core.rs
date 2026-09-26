@@ -125,7 +125,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    49;
+    52;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -371,6 +371,21 @@ optimization_vocabulary! {
         counter: "selected_constant_branch_fold_v1",
         phase: PreAllocation
     },
+    SelectedDeadCompareRemovalV1 = 50 => {
+        case: "SelectedDeadCompareRemovalV1",
+        counter: "selected_dead_compare_removal_v1",
+        phase: PreAllocation
+    },
+    SelectedRedundantCompareRemovalV1 = 51 => {
+        case: "SelectedRedundantCompareRemovalV1",
+        counter: "selected_redundant_compare_removal_v1",
+        phase: PreAllocation
+    },
+    SelectedEquivalentCompareRemovalV1 = 52 => {
+        case: "SelectedEquivalentCompareRemovalV1",
+        counter: "selected_equivalent_compare_removal_v1",
+        phase: PreAllocation
+    },
 }
 
 impl Optimization {
@@ -433,7 +448,10 @@ impl Optimization {
             | Self::SelectedRedundantExtensionRemovalV1
             | Self::SelectedAddressOffsetFoldV1
             | Self::SelectedConstantBooleanFoldV1
-            | Self::SelectedConstantBranchFoldV1 => None,
+            | Self::SelectedConstantBranchFoldV1
+            | Self::SelectedDeadCompareRemovalV1
+            | Self::SelectedRedundantCompareRemovalV1
+            | Self::SelectedEquivalentCompareRemovalV1 => None,
         }
     }
 }

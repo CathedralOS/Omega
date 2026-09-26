@@ -1,9 +1,8 @@
+use super::{
+    DeadCompareError, DeadCompareReceipt, ValidatedDeadCompare, remove_dead_compare,
+    validate_dead_compare,
+};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::unexecuted::DeadCompareError;
-use crate::rewrites::unexecuted::DeadCompareReceipt;
-use crate::rewrites::unexecuted::ValidatedDeadCompare;
-use crate::rewrites::unexecuted::remove_dead_compare;
-use crate::rewrites::unexecuted::validate_dead_compare;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
@@ -238,6 +237,8 @@ fn fixture(target: NativeTarget) -> ValidatedDeadCompare {
             transformed_selected: identity,
             optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
             fuel_schedule: plan.fuel_schedule,
+            function_index: 0,
+            compare: COMPARE,
         },
         transformed: std::sync::Arc::new(plan),
     }

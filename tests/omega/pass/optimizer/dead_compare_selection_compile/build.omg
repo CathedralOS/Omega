@@ -1,0 +1,21 @@
+// The release overlay selects the constant-flag folds and dead-compare
+// removal, so compilation exercises their composed execution through the
+// pre-allocation stage catalog: folding the branch leaves the compare's
+// flag publication unread, and the dead-compare pass removes it.
+
+machine build(builder: &mut Build) {
+    builder.application("dead_compare_selection_compile");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.optimizations.enable(
+        Optimization::SelectedConstantBooleanFoldV1,
+    );
+    builder.optimizations.enable(
+        Optimization::SelectedConstantBranchFoldV1,
+    );
+    builder.optimizations.enable(
+        Optimization::SelectedDeadCompareRemovalV1,
+    );
+}

@@ -6,9 +6,12 @@ use crate::AllocationLegalityError;
 use crate::ConstantBooleanError;
 use crate::ConstantBranchError;
 use crate::CopyRemovalError;
+use crate::DeadCompareError;
+use crate::EquivalentCompareError;
 use crate::LiveRangeError;
 use crate::LivenessError;
 use crate::OptimizedAllocationLegalityCustodyError;
+use crate::RedundantCompareError;
 use crate::RedundantExtensionError;
 use crate::StagedOptimizedAllocationLegality;
 use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
@@ -17,8 +20,11 @@ use crate::ValidatedAllocationLegality;
 use crate::ValidatedConstantBoolean;
 use crate::ValidatedConstantBranch;
 use crate::ValidatedCopyRemoval;
+use crate::ValidatedDeadCompare;
+use crate::ValidatedEquivalentCompare;
 use crate::ValidatedLiveRanges;
 use crate::ValidatedLiveness;
+use crate::ValidatedRedundantCompare;
 use crate::ValidatedRedundantExtension;
 use optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
@@ -26,7 +32,8 @@ use optimization_core::{
 };
 use selected_instructions::{
     AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, CopyRemovalIdentity,
-    LiveRangeIdentity, LivenessIdentity, RedundantExtensionIdentity, SelectedInstructionId,
+    DeadCompareIdentity, EquivalentCompareIdentity, LiveRangeIdentity, LivenessIdentity,
+    RedundantCompareIdentity, RedundantExtensionIdentity, SelectedInstructionId,
     SelectedInstructionPlan, SelectedInstructionPlanIdentity,
 };
 
@@ -44,11 +51,17 @@ impl PreAllocationPolicy {
     const ADDRESS_FOLD_V1_BIT: u32 = 1 << 2;
     const CONSTANT_BOOLEAN_V1_BIT: u32 = 1 << 3;
     const CONSTANT_BRANCH_V1_BIT: u32 = 1 << 4;
+    const DEAD_COMPARE_V1_BIT: u32 = 1 << 5;
+    const REDUNDANT_COMPARE_V1_BIT: u32 = 1 << 6;
+    const EQUIVALENT_COMPARE_V1_BIT: u32 = 1 << 7;
     const KNOWN_BITS: u32 = Self::SAME_BLOCK_COPY_I64_V1_BIT
         | Self::REDUNDANT_EXTENSION_V1_BIT
         | Self::ADDRESS_FOLD_V1_BIT
         | Self::CONSTANT_BOOLEAN_V1_BIT
-        | Self::CONSTANT_BRANCH_V1_BIT;
+        | Self::CONSTANT_BRANCH_V1_BIT
+        | Self::DEAD_COMPARE_V1_BIT
+        | Self::REDUNDANT_COMPARE_V1_BIT
+        | Self::EQUIVALENT_COMPARE_V1_BIT;
 
     /// Rebind every admissible same-block use of one `CopyI64` destination
     /// to the copied source register, dropping the copy and the
@@ -91,6 +104,29 @@ impl PreAllocationPolicy {
         enabled: Self::CONSTANT_BRANCH_V1_BIT,
     };
 
+    /// Remove an admitted `CompareI64`/`CompareI64Immediate`/`CompareI64Zero`
+    /// whose published condition-state units all die unread on every
+    /// forward path, shifting later boundary settlements over the removed
+    /// ordinal.
+    pub const DEAD_COMPARE_V1: Self = Self {
+        enabled: Self::DEAD_COMPARE_V1_BIT,
+    };
+
+    /// Remove an admitted compare whose published units are already carried
+    /// by flag-equivalent shadow compares on every path, so readers observe
+    /// the identical publication without it.
+    pub const REDUNDANT_COMPARE_V1: Self = Self {
+        enabled: Self::REDUNDANT_COMPARE_V1_BIT,
+    };
+
+    /// Remove an admitted compare whose published units are already carried
+    /// by value-equivalent shadow compares on every path — differing kinds
+    /// or operand registers admitted when each side of the subtraction
+    /// provably coincides.
+    pub const EQUIVALENT_COMPARE_V1: Self = Self {
+        enabled: Self::EQUIVALENT_COMPARE_V1_BIT,
+    };
+
     pub const fn empty() -> Self {
         Self { enabled: 0 }
     }
@@ -124,7 +160,8 @@ impl PreAllocationPolicy {
 /// source — an extension removal publishes a `CopyI64` the copy-removal
 /// pass then owns, any family may expose the next fold's base chain, and a
 /// folded boolean or branch leaves its compare in place for the other
-/// readers.
+/// readers, and a compare removal frees the readers' reaching set for the
+/// next family.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidatedPreAllocationTransformation {
     CopyRemoval(ValidatedCopyRemoval),
@@ -132,6 +169,9 @@ pub enum ValidatedPreAllocationTransformation {
     AddressFold(ValidatedAddressFold),
     ConstantBoolean(ValidatedConstantBoolean),
     ConstantBranch(ValidatedConstantBranch),
+    DeadCompare(ValidatedDeadCompare),
+    RedundantCompare(ValidatedRedundantCompare),
+    EquivalentCompare(ValidatedEquivalentCompare),
 }
 
 impl ValidatedPreAllocationTransformation {
@@ -142,6 +182,9 @@ impl ValidatedPreAllocationTransformation {
             Self::AddressFold(fold) => fold.transformed(),
             Self::ConstantBoolean(fold) => fold.transformed(),
             Self::ConstantBranch(fold) => fold.transformed(),
+            Self::DeadCompare(removal) => removal.transformed(),
+            Self::RedundantCompare(removal) => removal.transformed(),
+            Self::EquivalentCompare(removal) => removal.transformed(),
         }
     }
 
@@ -152,6 +195,9 @@ impl ValidatedPreAllocationTransformation {
             Self::AddressFold(fold) => fold.shared_transformed(),
             Self::ConstantBoolean(fold) => fold.shared_transformed(),
             Self::ConstantBranch(fold) => fold.shared_transformed(),
+            Self::DeadCompare(removal) => removal.shared_transformed(),
+            Self::RedundantCompare(removal) => removal.shared_transformed(),
+            Self::EquivalentCompare(removal) => removal.shared_transformed(),
         }
     }
 
@@ -162,6 +208,9 @@ impl ValidatedPreAllocationTransformation {
             Self::AddressFold(fold) => fold.receipt().source_selected(),
             Self::ConstantBoolean(fold) => fold.receipt().source_selected(),
             Self::ConstantBranch(fold) => fold.receipt().source_selected(),
+            Self::DeadCompare(removal) => removal.receipt().source_selected(),
+            Self::RedundantCompare(removal) => removal.receipt().source_selected(),
+            Self::EquivalentCompare(removal) => removal.receipt().source_selected(),
         }
     }
 
@@ -172,6 +221,9 @@ impl ValidatedPreAllocationTransformation {
             Self::AddressFold(fold) => fold.receipt().transformed_selected(),
             Self::ConstantBoolean(fold) => fold.receipt().transformed_selected(),
             Self::ConstantBranch(fold) => fold.receipt().transformed_selected(),
+            Self::DeadCompare(removal) => removal.receipt().transformed_selected(),
+            Self::RedundantCompare(removal) => removal.receipt().transformed_selected(),
+            Self::EquivalentCompare(removal) => removal.receipt().transformed_selected(),
         }
     }
 
@@ -182,6 +234,9 @@ impl ValidatedPreAllocationTransformation {
             Self::AddressFold(fold) => fold.receipt().optimization_unit(),
             Self::ConstantBoolean(fold) => fold.receipt().optimization_unit(),
             Self::ConstantBranch(fold) => fold.receipt().optimization_unit(),
+            Self::DeadCompare(removal) => removal.receipt().optimization_unit(),
+            Self::RedundantCompare(removal) => removal.receipt().optimization_unit(),
+            Self::EquivalentCompare(removal) => removal.receipt().optimization_unit(),
         }
     }
 
@@ -192,6 +247,9 @@ impl ValidatedPreAllocationTransformation {
             Self::AddressFold(fold) => fold.receipt().fuel_schedule(),
             Self::ConstantBoolean(fold) => fold.receipt().fuel_schedule(),
             Self::ConstantBranch(fold) => fold.receipt().fuel_schedule(),
+            Self::DeadCompare(removal) => removal.receipt().fuel_schedule(),
+            Self::RedundantCompare(removal) => removal.receipt().fuel_schedule(),
+            Self::EquivalentCompare(removal) => removal.receipt().fuel_schedule(),
         }
     }
 
@@ -203,14 +261,17 @@ impl ValidatedPreAllocationTransformation {
             Self::AddressFold(fold) => fold.receipt().function_index(),
             Self::ConstantBoolean(fold) => fold.receipt().function_index(),
             Self::ConstantBranch(fold) => fold.receipt().function_index(),
+            Self::DeadCompare(removal) => removal.receipt().function_index(),
+            Self::RedundantCompare(removal) => removal.receipt().function_index(),
+            Self::EquivalentCompare(removal) => removal.receipt().function_index(),
         }
     }
 
     /// The source-side identity of the instruction the transformation
     /// rewrote: the removed `CopyI64`, the extension that became one, the
     /// displacement-carrying consumer the fold rebound, the folded
-    /// flag-reading materialization, or the folded flag-reading branch
-    /// terminator.
+    /// flag-reading materialization, the folded flag-reading branch
+    /// terminator, or the removed flag-publisher compare.
     pub fn instruction(&self) -> SelectedInstructionId {
         match self {
             Self::CopyRemoval(removal) => removal.receipt().copy(),
@@ -218,6 +279,9 @@ impl ValidatedPreAllocationTransformation {
             Self::AddressFold(fold) => fold.receipt().access(),
             Self::ConstantBoolean(fold) => fold.receipt().materialization(),
             Self::ConstantBranch(fold) => fold.receipt().branch(),
+            Self::DeadCompare(removal) => removal.receipt().compare(),
+            Self::RedundantCompare(removal) => removal.receipt().compare(),
+            Self::EquivalentCompare(removal) => removal.receipt().compare(),
         }
     }
 
@@ -242,6 +306,15 @@ impl ValidatedPreAllocationTransformation {
             Self::ConstantBranch(fold) => {
                 PreAllocationTransformationIdentity::ConstantBranch(fold.receipt().identity())
             }
+            Self::DeadCompare(removal) => {
+                PreAllocationTransformationIdentity::DeadCompare(removal.receipt().identity())
+            }
+            Self::RedundantCompare(removal) => {
+                PreAllocationTransformationIdentity::RedundantCompare(removal.receipt().identity())
+            }
+            Self::EquivalentCompare(removal) => {
+                PreAllocationTransformationIdentity::EquivalentCompare(removal.receipt().identity())
+            }
         }
     }
 }
@@ -256,6 +329,9 @@ pub enum PreAllocationTransformationIdentity {
     AddressFold(AddressFoldIdentity),
     ConstantBoolean(ConstantBooleanIdentity),
     ConstantBranch(ConstantBranchIdentity),
+    DeadCompare(DeadCompareIdentity),
+    RedundantCompare(RedundantCompareIdentity),
+    EquivalentCompare(EquivalentCompareIdentity),
 }
 
 /// The post-allocation ledger entry one committed pre-allocation step
@@ -279,6 +355,15 @@ impl From<PreAllocationTransformationIdentity>
             }
             PreAllocationTransformationIdentity::ConstantBranch(identity) => {
                 Self::ConstantBranch(identity)
+            }
+            PreAllocationTransformationIdentity::DeadCompare(identity) => {
+                Self::DeadCompare(identity)
+            }
+            PreAllocationTransformationIdentity::RedundantCompare(identity) => {
+                Self::RedundantCompare(identity)
+            }
+            PreAllocationTransformationIdentity::EquivalentCompare(identity) => {
+                Self::EquivalentCompare(identity)
             }
         }
     }
@@ -562,6 +647,9 @@ pub enum OptimizedPreAllocationCustodyError {
     AddressFold(AddressFoldError),
     ConstantBoolean(ConstantBooleanError),
     ConstantBranch(ConstantBranchError),
+    DeadCompare(DeadCompareError),
+    RedundantCompare(RedundantCompareError),
+    EquivalentCompare(EquivalentCompareError),
     Liveness(LivenessError),
     LiveRanges(LiveRangeError),
     AllocationLegality(AllocationLegalityError),
@@ -587,7 +675,7 @@ pub enum OptimizedPreAllocationCustodyError {
     /// constant-boolean fold rewrites the reader to a flag-free
     /// materialization and drops its uses; a constant-branch fold rewrites
     /// the terminator to a `Jump` row and drops the flag uses the branch
-    /// carried.
+    /// carried; a compare removal drops one compare-publisher term.
     PreAllocationMeasureMismatch {
         previous: usize,
         current: usize,

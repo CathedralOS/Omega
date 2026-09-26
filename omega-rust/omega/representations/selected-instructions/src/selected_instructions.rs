@@ -64,9 +64,9 @@ pub use effects::{
 };
 pub use identity::{
     AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, CopyRemovalIdentity,
-    FixedViewCopyIdentity, LiteralFoldIdentity, PressureRematerializationIdentity,
-    RedundantExtensionIdentity, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, VirtualRegisterId,
+    DeadCompareIdentity, EquivalentCompareIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
+    PressureRematerializationIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
+    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 pub use instructions::{SelectedInstruction, SelectedInstructionKind};
 pub use legalized_operations::{

@@ -64,7 +64,6 @@
 //! - `commuting_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `confluence_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `dead_compare` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_store` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `inflow_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `load_forwarding` — staged, owner row **ALIAS-AWARE-MEMORY**
@@ -86,7 +85,6 @@ mod boundary_branch;
 mod commuting_accesses;
 mod commuting_relocation;
 mod confluence_relocation;
-mod dead_compare;
 mod dead_path;
 mod dead_store;
 mod inflow_relocation;
@@ -117,13 +115,6 @@ pub use commuting_relocation::{
 pub use confluence_relocation::{
     ConfluenceRelocationError, ConfluenceRelocationReceipt, ValidatedConfluenceRelocation,
     relocate_selected_members_into_confluence, validate_confluence_relocation,
-};
-pub use dead_compare::{
-    DeadCompareError, DeadCompareReceipt, EquivalentCompareError, EquivalentCompareReceipt,
-    RedundantCompareError, RedundantCompareReceipt, ValidatedDeadCompare,
-    ValidatedEquivalentCompare, ValidatedRedundantCompare, remove_dead_compare,
-    remove_equivalent_compare, remove_redundant_compare, validate_dead_compare,
-    validate_equivalent_compare, validate_redundant_compare,
 };
 pub use dead_store::{
     DeadStoreEliminationError, DeadStoreEliminationReceipt, ValidatedDeadStoreElimination,

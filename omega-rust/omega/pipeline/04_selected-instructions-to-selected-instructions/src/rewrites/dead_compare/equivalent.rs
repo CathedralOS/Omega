@@ -77,11 +77,14 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    EquivalentCompareIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::remove_equivalent_compare;
-pub use validation::validate_equivalent_compare;
+pub(crate) use rewrite::remove_equivalent_compare;
+pub(crate) use validation::{measured_steps, validate_equivalent_compare};
 
 #[cfg(test)]
 mod tests;
@@ -113,6 +116,8 @@ pub struct EquivalentCompareReceipt {
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
+    function_index: usize,
+    compare: SelectedInstructionId,
 }
 
 impl EquivalentCompareReceipt {
@@ -128,6 +133,42 @@ impl EquivalentCompareReceipt {
     pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
         self.fuel_schedule
     }
+    /// The transformed function index that carried the removed compare.
+    pub const fn function_index(&self) -> usize {
+        self.function_index
+    }
+    /// The removed equivalent compare instruction.
+    pub const fn compare(&self) -> SelectedInstructionId {
+        self.compare
+    }
+    /// The durable transformation identity the post-allocation manifest
+    /// ledger records: the receipt's exact fields under the
+    /// equivalent-compare domain separator.
+    pub fn identity(&self) -> EquivalentCompareIdentity {
+        equivalent_compare_identity(self)
+    }
+}
+
+/// Canonical identity of one validated equivalent-compare removal: every
+/// receipt field — the coordinate, both plan identities, and the proof
+/// inputs — is part of the durable record, so two removals of the same
+/// compare under different sources stay distinct transformations.
+pub(crate) fn equivalent_compare_identity(
+    receipt: &EquivalentCompareReceipt,
+) -> EquivalentCompareIdentity {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-equivalent-compare-removal.v1\0");
+    bytes.extend_from_slice(&receipt.source_selected.bytes());
+    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
+    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
+    bytes.extend_from_slice(&receipt.fuel_schedule.marker().to_le_bytes());
+    bytes.extend_from_slice(
+        &u64::try_from(receipt.function_index)
+            .expect("equivalent-compare function index fits u64")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&receipt.compare.0.to_le_bytes());
+    EquivalentCompareIdentity::from_canonical_bytes(&bytes)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
