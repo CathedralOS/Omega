@@ -193,6 +193,12 @@ use structural_terms::{
 /// parameter denotes the produced value.
 const RESULT_BINDER: &str = "result";
 
+/// Read the tracing switch once; repeated unfolding avoids locking the environment.
+fn struct_trace() -> bool {
+    static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
+}
+
 /// Arm-pattern exhaustiveness markers (`__arm_destructure#...` locals) are
 /// VALIDATION carriers minted by the transition parser, not body shape:
 /// every proof-side statement-shape walk steps over them, the same way
@@ -509,7 +515,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
     // with the restricted subject resolver; a tag remains no field equation.
     let case_structural = StructuralJudge::from_case_requires(program, machine, &requires);
     let sole_arm_case_result = sole_arm_value(&case_structural);
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+    if struct_trace() {
         eprintln!(
             "STRUCT machine={} sole_arm={:?}",
             machine.name, sole_arm_result
@@ -731,7 +737,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                     .as_ref()
                     .map(|name| name.as_str().to_owned())
             });
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if struct_trace() {
                 eprintln!(
                     "ROUTE machine={} fact=`{}` mention={:?} zero_value={}",
                     machine.name,

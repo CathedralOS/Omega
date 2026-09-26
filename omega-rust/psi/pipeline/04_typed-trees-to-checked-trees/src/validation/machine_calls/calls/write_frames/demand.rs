@@ -378,7 +378,7 @@ impl<'program> CallFrameResolver<'program> {
         diagnostics.is_empty().then_some(Self {
             program,
             symbols,
-            caches: crate::frozen_program::frozen_program_memos(program)
+            caches: crate::validation::frozen_program::frozen_program_memos(program)
                 .map(|memos| memos.call_frames.clone())
                 .unwrap_or_default(),
             machine_symbols: program
