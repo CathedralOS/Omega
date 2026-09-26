@@ -775,6 +775,10 @@ pub(super) fn emit(
             refined.ensures(),
             &namespace,
             &signature.erased_scalar_parameters,
+            &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+                parameters: &evaluation.structural_parameters,
+                element_views: &evaluation.element_views,
+            },
         )?
         .into_iter()
         .map(|proposition| {

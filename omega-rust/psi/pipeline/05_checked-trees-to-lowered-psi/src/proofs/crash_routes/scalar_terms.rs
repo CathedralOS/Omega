@@ -5,10 +5,12 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::{
     LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
 };
+use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression_with_parameters;
 use crate::proofs::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression, LoweringError,
     ScalarTerm, ScalarType, ValueDeclaration, lower_checked_scalar_expression, unsupported,
 };
+use crate::proofs::{StructuralParameterDeclaration, StructuralTypeId};
 
 pub(crate) fn checked_boolean_scalar_term(
     expression: &CheckedBooleanExpression,
@@ -100,6 +102,28 @@ pub(crate) fn checked_scalar_term(
     lowered_direct_scalar_term(&expression, values, erased)
 }
 
+/// `checked_scalar_term` carrying the contract's structural parameter roster
+/// and element-view carriers, so a whole-view extent observation resolves
+/// its retained source place instead of failing closed.
+pub(crate) fn checked_scalar_term_with_views(
+    expression: &CheckedScalarExpression,
+    values: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
+    structural_parameters: &[(u32, StructuralParameterDeclaration)],
+    element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
+) -> Result<ScalarTerm, LoweringError> {
+    let expression = lower_checked_scalar_expression_with_parameters(
+        expression,
+        structural_parameters,
+        &[],
+        &[],
+        &[],
+        element_views,
+        &[],
+    )?;
+    lowered_direct_scalar_term(&expression, values, erased)
+}
+
 pub(crate) fn lowered_direct_scalar_term(
     expression: &LoweredDirectExpression,
     values: &[ValueDeclaration],
@@ -127,11 +151,26 @@ pub(crate) fn lowered_direct_scalar_term(
         LoweredDirectExpression::StructuralField { .. } => {
             return unsupported("runtime field read requires an occurrence-bound crash predicate");
         }
-        LoweredDirectExpression::ByteSequenceLength { .. }
-        | LoweredDirectExpression::ByteSequenceFieldLength { .. }
+        LoweredDirectExpression::ByteSequenceLength {
+            source,
+            scalar_type,
+        }
+        | LoweredDirectExpression::ElementViewLength {
+            source,
+            scalar_type,
+        } => {
+            let ScalarType::Integer(extent_type) = scalar_type else {
+                return unsupported("view extent observation has a non-integer carrier");
+            };
+            ScalarTerm::ViewExtent {
+                root: *source,
+                path: Vec::new(),
+                scalar_type: *extent_type,
+            }
+        }
+        LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceFieldRead { .. }
-        | LoweredDirectExpression::ElementViewLength { .. }
         | LoweredDirectExpression::ElementViewRead { .. } => {
             return unsupported("view observation has no retained crash predicate term");
         }

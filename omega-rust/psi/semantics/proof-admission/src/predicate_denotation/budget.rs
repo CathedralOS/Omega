@@ -125,9 +125,9 @@ impl Budget {
         self.step(depth)?;
         match value {
             ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
-            ScalarTerm::BooleanField { path, .. } | ScalarTerm::IntegerField { path, .. } => {
-                self.count(path.len())?
-            }
+            ScalarTerm::BooleanField { path, .. }
+            | ScalarTerm::IntegerField { path, .. }
+            | ScalarTerm::ViewExtent { path, .. } => self.count(path.len())?,
             ScalarTerm::BooleanNot { operand }
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
             | ScalarTerm::IntegerWiden { operand, .. }

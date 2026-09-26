@@ -132,6 +132,32 @@ pub(crate) fn encode_scalar_term(
             }
             encode_integer_type(writer, *scalar_type);
         }
+        ScalarTerm::ViewExtent {
+            root,
+            path,
+            scalar_type,
+        } => {
+            writer.u8(36);
+            writer.id(*root);
+            writer.len("View extent path", path.len())?;
+            for segment in path {
+                match segment {
+                    CanonicalStructuralPathSegment::Field(field) => {
+                        writer.u8(1);
+                        writer.id(*field);
+                    }
+                    CanonicalStructuralPathSegment::FixedIndex(index) => {
+                        writer.u8(2);
+                        writer.u64(*index);
+                    }
+                    CanonicalStructuralPathSegment::Case(case) => {
+                        writer.u8(3);
+                        writer.id(*case);
+                    }
+                }
+            }
+            encode_integer_type(writer, *scalar_type);
+        }
         ScalarTerm::Boolean(value) => {
             writer.u8(2);
             writer.u8(u8::from(*value));
@@ -828,6 +854,25 @@ pub(crate) fn decode_scalar_term(
                 });
             }
             ScalarTerm::integer_field_path(root, path, decode_integer_type(reader)?)
+        }
+        36 => {
+            let root = reader.id("PlaceId")?;
+            let count = reader.count()?;
+            let mut path = Vec::new();
+            for _ in 0..count {
+                path.push(match reader.u8()? {
+                    1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
+                    2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+                    3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
+                    tag => {
+                        return Err(ProofCodecError::InvalidTag(
+                            "CanonicalStructuralPathSegment",
+                            tag,
+                        ));
+                    }
+                });
+            }
+            ScalarTerm::view_extent(root, path, decode_integer_type(reader)?)
         }
         tag => return Err(ProofCodecError::InvalidTag("ScalarTerm", tag)),
     })

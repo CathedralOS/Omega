@@ -639,13 +639,37 @@ pub(crate) fn validate(
                 // The path, arm, and source evidence replay against the
                 // transfer receipt; the root node itself is a whole place or
                 // the producing call, validated under the root's own type.
-                let Some(receipt) = selection else {
-                    return unsupported("projected selection has no ownership receipt");
-                };
                 if !plans.nodes.is_valid(source_handle) || visited.contains(&source_handle) {
                     return unsupported("projected selection has a stale or reused root node");
                 }
                 let source_node = plans.nodes.get(source_handle).clone();
+                let Some(receipt) = selection else {
+                    // A projection under a copied shared-borrow root names a
+                    // field of the copy's provenance — nothing moves, so the
+                    // transfer catalog legitimately records no receipt.
+                    if let CheckedStructuralValueKind::CopiedStructuralPlace {
+                        source: copied,
+                        ..
+                    } = &source_node.kind
+                    {
+                        let (authored_machine, authored) =
+                            crate::expression_preparation::source_custody::authored_state(
+                                checked, state,
+                            )?;
+                        owned_selection::validate_copied_projection(
+                            checked,
+                            authored_machine,
+                            authored,
+                            expression,
+                            copied,
+                            &path,
+                            &type_identity,
+                        )?;
+                        visited.push(source_handle);
+                        continue;
+                    }
+                    return unsupported("projected selection has no ownership receipt");
+                };
                 let root = owned_selection::validate_projection(
                     checked,
                     owner,

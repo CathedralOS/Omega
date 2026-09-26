@@ -111,6 +111,49 @@ pub(crate) fn structural_leaf_type<'module>(
     None
 }
 
+/// Whether `root + path` names something with a live extent a `ViewExtent`
+/// term could observe: an empty path reads the root's own declared shape (a
+/// borrowed byte view or an element view), while a nonempty path must end at
+/// a byte-sequence or view-typed leaf — the same leaves a `.len` observation
+/// can reach in an authored contract.
+pub(crate) fn view_extent_leaf_has_extent(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+) -> bool {
+    fn shape_has_extent(shape: &StructuralTypeShape) -> bool {
+        matches!(
+            shape,
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+            ) | StructuralTypeShape::ElementView { .. }
+        )
+    }
+    if path.is_empty() {
+        return machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == root)
+            .and_then(|parameter| {
+                module
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == parameter.structural_type)
+            })
+            .is_some_and(|declaration| shape_has_extent(&declaration.shape));
+    }
+    match structural_leaf_type(module, machine, root, path) {
+        Some(StructuralFieldType::ByteSequence(_)) => true,
+        Some(StructuralFieldType::Structural(leaf_type)) => module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == *leaf_type)
+            .is_some_and(|declaration| shape_has_extent(&declaration.shape)),
+        _ => false,
+    }
+}
+
 fn validate_structural_fields(
     module: &TerminalModule,
     structural_type: StructuralTypeId,

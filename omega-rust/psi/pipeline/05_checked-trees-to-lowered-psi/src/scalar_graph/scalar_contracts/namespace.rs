@@ -70,8 +70,16 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. } => Ok(()),
-        CheckedScalarExpression::StructuralParameterField { .. }
-        | CheckedScalarExpression::StructuralParameterByteLength { .. } => {
+        // A whole-view extent reads the parameter's own view descriptor — an
+        // entry observation the closed namespace admits once the lowering
+        // names the retained place. A nested byte-field extent still fails
+        // closed at the term: its carrier path needs canonical field ids the
+        // contract namespace does not mint.
+        CheckedScalarExpression::StructuralParameterByteLength { path, .. } if path.is_empty() => {
+            Ok(())
+        }
+        CheckedScalarExpression::StructuralParameterByteLength { .. }
+        | CheckedScalarExpression::StructuralParameterField { .. } => {
             Err(LoweringError::Unsupported(
                 "closed scalar contract operand requires a scalar namespace",
             ))
