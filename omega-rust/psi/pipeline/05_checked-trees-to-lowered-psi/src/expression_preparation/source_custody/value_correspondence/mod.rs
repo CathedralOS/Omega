@@ -505,6 +505,29 @@ impl Context<'_> {
                 let ExpressionNode::Cast(cast) = node else {
                     return false;
                 };
+                // The checked plan retains no node for a cast whose operand
+                // already carries the target primitive; that authored
+                // occurrence is matched transparently against the scalar's
+                // own operand rather than against a policy.
+                if !cast.form.is_recast()
+                    && cast.semantic_domain.is_empty()
+                    && let Some(target) = self.checked.primitive_type_reference(cast.target_type)
+                    && let Ok((machine, state)) =
+                        crate::expression_preparation::source_custody::authored_state(
+                            self.checked,
+                            self.state,
+                        )
+                    && validation::expression_result_type_reference(
+                        &self.checked.typed,
+                        machine,
+                        state,
+                        cast.value,
+                    )
+                    .and_then(|reference| self.checked.primitive_type_reference(reference))
+                        == Some(target)
+                {
+                    return self.scalar(cast.value, value, operands, depth + 1);
+                }
                 let policy = match value {
                     Scalar::IntegerWrappingCast { .. } => cast.domain == ArithmeticDomain::Wrapping,
                     Scalar::IntegerTrappingCast { .. } => cast.domain == ArithmeticDomain::Trapping,
