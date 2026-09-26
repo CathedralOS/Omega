@@ -209,8 +209,7 @@ pub(super) fn validate(
     if members
         .iter()
         .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
-        && (!argument.path.is_empty()
-            || checked.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
+        && (checked.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
             || !members.iter().all(|member| {
                 let checked_trees::data::DataMember::Variant(case) = member else {
                     return false;
@@ -223,13 +222,10 @@ pub(super) fn validate(
                                 .type_reference(field.type_reference),
                             TypeReferenceNode::Named { .. }
                         )
-                        && checked
-                            .primitive_type_reference(field.type_reference)
-                            .is_some()
                 })
             }))
     {
-        return unsupported("shared case operand requires a whole scalar sum");
+        return unsupported("shared case operand requires a non-erased nominal sum");
     }
     if !validation::has_plain_owned_contents_with_numeric_constraints(checked, reference)
         || checked.normalized_type_identity(reference).as_str() != argument.type_identity

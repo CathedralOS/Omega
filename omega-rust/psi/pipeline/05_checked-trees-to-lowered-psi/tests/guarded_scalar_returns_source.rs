@@ -968,3 +968,100 @@ fn exact_complement_guard_pairs_lower_as_one_scalar_conditional() {
         );
     }
 }
+
+#[test]
+fn affine_sum_receiver_stays_whole_at_shared_call_boundaries() {
+    let checked = checked_source(
+        r#"
+        data Resp {
+            case Results(v: u64, w: u64);
+            case Empty;
+        }
+        machine Resp::get(&self, position: u64) -> u64 {
+            transition self {
+                Resp::Results { v, w } -> (v)
+                _ -> (position)
+            }
+        }
+        boundary trait Sink { machine record(value: u64); }
+        data Main<'s> { sink: &'s mut Sink; }
+        machine Main::main(&mut self) reaches Sink {
+            transition { _ -> observe() }
+            state observe(&mut self) {
+                let r: Resp = Resp::Results { v: 41, w: 7 };
+                let answer: u64 = r.get(9);
+                transition answer == 41 {
+                    true -> passed()
+                    false -> failed()
+                }
+            }
+            state passed(&mut self) { self.sink.record(1); }
+            state failed(&mut self) { self.sink.record(0); }
+        }
+        "#,
+        BranchForm::Separate,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("an affine multi-case sum stays a shared &self receiver")
+    .into_artifact();
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let [receiver] = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap()
+        .structural_parameters
+        .as_slice()
+    else {
+        panic!("one persistent Main receiver")
+    };
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 17,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
+    )
+    .expect("the verified artifact starts");
+    let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
+    let mut completed = false;
+    for _ in 0..256 {
+        match execution
+            .resume(&mut fuel, &mut AcceptTerminalEffects)
+            .unwrap()
+        {
+            terminal_interpreter::TerminalExecutionStatus::Complete(result) => {
+                assert_eq!(result, TerminalExecutionResult::Unit);
+                completed = true;
+                break;
+            }
+            terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => {
+                fuel.replenish(1).unwrap();
+            }
+            other => panic!("unexpected execution {other:?}"),
+        }
+    }
+    assert!(completed);
+    let [terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. }] =
+        execution.effects()
+    else {
+        panic!("exactly one selected Sink outcome")
+    };
+    assert_eq!(arguments, &[unsigned(64, 1)]);
+}
