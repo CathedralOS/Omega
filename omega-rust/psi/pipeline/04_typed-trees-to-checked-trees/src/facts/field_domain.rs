@@ -407,9 +407,7 @@ impl Drop for FieldDomainScopeGuard {
 /// Open the field-domain memo scope for one program build; the returned
 /// guard must stay alive for the whole build.
 pub(crate) fn enter_field_domain_scope() -> FieldDomainScopeGuard {
-    FieldDomainScopeGuard(
-        OWNED_FIELD_DOMAIN_SLOT.with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
-    )
+    FieldDomainScopeGuard(OWNED_FIELD_DOMAIN_SLOT.with(|cell| cell.borrow_mut().replace(None)))
 }
 
 /// Exact qualifications below owned result storage. Predicate-only readers
