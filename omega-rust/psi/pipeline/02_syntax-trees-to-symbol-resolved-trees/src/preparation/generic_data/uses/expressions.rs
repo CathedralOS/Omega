@@ -58,7 +58,9 @@ pub(in crate::preparation::generic_data) fn collect_statement_expression_handles
     statement: tokens_to_syntax_trees::syntax_trees::statement::StatementHandle,
     handles: &mut HashSet<ExpressionHandle>,
 ) {
-    use tokens_to_syntax_trees::syntax_trees::statement::{TransitionGuardNode, TransitionTargetNode};
+    use tokens_to_syntax_trees::syntax_trees::statement::{
+        TransitionGuardNode, TransitionTargetNode,
+    };
     match syntax.tables.statements.statement(statement) {
         StatementNode::RootBinding(binding) => {
             collect_expression_handles(syntax, binding.receiver, handles);
@@ -123,7 +125,10 @@ pub(in crate::preparation::generic_data) fn collect_expression_handles(
         ExpressionNode::Match(dispatch) => {
             collect_expression_handles(syntax, dispatch.subject, handles);
             for arm in syntax.expressions.match_arms(dispatch.arms) {
-                if let tokens_to_syntax_trees::syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let tokens_to_syntax_trees::syntax_trees::expression::MatchPattern::Value(
+                    pattern,
+                ) = arm.pattern
+                {
                     collect_expression_handles(syntax, pattern, handles);
                 }
                 collect_expression_handles(syntax, arm.value, handles);

@@ -373,12 +373,18 @@ impl TypedTrees {
     }
 
     #[inline]
-    pub fn machine_states(&self, machine: &machine::Machine) -> &[crate::typed_trees::state::State] {
+    pub fn machine_states(
+        &self,
+        machine: &machine::Machine,
+    ) -> &[crate::typed_trees::state::State] {
         self.machine_states.span_or_empty(machine.states)
     }
 
     #[inline]
-    pub fn machine_states_mut(&mut self, machine: &machine::Machine) -> &mut [crate::typed_trees::state::State] {
+    pub fn machine_states_mut(
+        &mut self,
+        machine: &machine::Machine,
+    ) -> &mut [crate::typed_trees::state::State] {
         self.machine_states.span_mut_or_empty(machine.states)
     }
 
@@ -457,7 +463,10 @@ impl TypedTrees {
     }
 
     #[inline]
-    pub fn state_parameters(&self, state: &crate::typed_trees::state::State) -> &[signature::StateParameter] {
+    pub fn state_parameters(
+        &self,
+        state: &crate::typed_trees::state::State,
+    ) -> &[signature::StateParameter] {
         self.state_parameters.span_or_empty(state.parameters)
     }
 
@@ -471,7 +480,10 @@ impl TypedTrees {
     }
 
     #[inline]
-    pub fn state_contracts(&self, state: &crate::typed_trees::state::State) -> &[signature::SignatureContract] {
+    pub fn state_contracts(
+        &self,
+        state: &crate::typed_trees::state::State,
+    ) -> &[signature::SignatureContract] {
         self.signature_contracts.span_or_empty(state.contracts)
     }
 
