@@ -217,31 +217,17 @@ pub(crate) fn validate(
         }
         let matching = stores
             .iter()
+            .copied()
             .filter(|store| store.statement_index == statement_index)
             .collect::<Vec<_>>();
-        match matching.as_slice() {
-            [] => {
-                return unsupported(
-                    "structural scalar store roster omits or duplicates an authored assignment",
-                );
-            }
-            [store] => validate_assignment(
-                checked,
-                plan.machine,
-                plan.state,
-                statement_index,
-                assignment,
-                store,
-            )?,
-            stores => validate_record_stores(
-                checked,
-                plan.machine,
-                plan.state,
-                statement_index,
-                assignment,
-                stores,
-            )?,
-        }
+        validate_assignment_stores(
+            checked,
+            plan.machine,
+            plan.state,
+            statement_index,
+            assignment,
+            &matching,
+        )?;
     }
     crate::emission::primitive_store::validate_element_rosters(
         checked,
@@ -487,6 +473,24 @@ pub(crate) fn validate_assignment_stores(
     assignment: &checked_trees::statement::TableAssignment,
     stores: &[&checked_trees::CheckedStructuralScalarFieldStorePlan],
 ) -> Result<(), LoweringError> {
+    // The authored value, not the emitted store count, determines custody.
+    // A one-field record still assigns the whole record place and selects a
+    // RecordField computation; a direct scalar assignment selects its leaf.
+    if !stores.is_empty()
+        && matches!(
+            checked.expression_table.expression(assignment.value),
+            ExpressionNode::StructLiteral(_)
+        )
+    {
+        return validate_record_stores(
+            checked,
+            machine,
+            state_symbol,
+            statement_index,
+            assignment,
+            stores,
+        );
+    }
     match stores {
         [] => unsupported("structural scalar store roster omits an authored assignment"),
         [store] => validate_assignment(
@@ -497,14 +501,7 @@ pub(crate) fn validate_assignment_stores(
             assignment,
             store,
         ),
-        stores => validate_record_stores(
-            checked,
-            machine,
-            state_symbol,
-            statement_index,
-            assignment,
-            &stores.iter().collect::<Vec<_>>(),
-        ),
+        _ => unsupported("structural scalar assignment has duplicate field stores"),
     }
 }
 
@@ -636,7 +633,7 @@ fn validate_record_stores(
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
     assignment: &checked_trees::statement::TableAssignment,
-    stores: &[&&checked_trees::CheckedStructuralScalarFieldStorePlan],
+    stores: &[&checked_trees::CheckedStructuralScalarFieldStorePlan],
 ) -> Result<(), LoweringError> {
     let (owner, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
