@@ -16,9 +16,9 @@
       "slot": "rep-specialization",
       "item": "REPRESENTATION-SPECIALIZATION",
       "result": "landed",
-      "commits": ["4c307fc9ed"],
+      "commits": ["4c307fc9ed", "132e9894d2", "226bf00ccd"],
       "item_closed": false,
-      "note": "array-element frontier resolved to coverage — descended_type already folds FixedIndex/RuntimeIndex/Referent/Field chains; pinned the regression matrix plus decline/forged-evidence controls; remaining bounds upstream (RuntimeIndex awaits lowering control-plan evidence, EstablishStructuralCase rejected at t2a). Handle then refilled onto GENERAL-LICM — still running at drain per user decision, live claim 82a853d296 on worktree macw9-rep-specialization"
+      "note": "array-element frontier resolved to coverage — descended_type already folds FixedIndex/RuntimeIndex/Referent/Field chains; pinned the regression matrix plus decline/forged-evidence controls; remaining bounds upstream (RuntimeIndex awaits lowering control-plan evidence, EstablishStructuralCase rejected at t2a). Handle then refilled onto GENERAL-LICM and reported after drain: 132e9894d2 adds StructuralByteSequenceFieldRead relocation with proposition-pinned index/length operands, 226bf00ccd repairs carried-argument fixtures broken by upstream 2396af9ada"
     },
     {
       "slot": "terminal-authority",
@@ -67,6 +67,6 @@
     "claims 240-min leases expired under multi-hour slots (landing queue head promotion also expired mid-rebase once — 3-minute window is tight for heavy std rebuilds); renewal candidate stands",
     "same-item claim rejection needed --allow-overlap for documented path-disjoint legs of the renamed CANONICALIZE-SCALAR-RANGE-CONTRACTS item; launch.py similarly needs --skip-claims-check for same-item disjoint slots",
     "compiler diagnostics cap at 16 per run — the coordinator's library migration needed iterative fix-and-recheck cycles to reveal the full blocker set",
-    "GENERAL-LICM refill leg still running at drain (user decision): claim 82a853d296, worktree macw9-rep-specialization, branch swarm/macw9-rep-specialization left live; fold its report into a future sweep"
+    "GENERAL-LICM refill leg reported after drain: landed 132e9894d2 + 226bf00ccd on origin/main, claim released with completion note — the carried-forward slot closed itself cleanly"
   ]
 }
