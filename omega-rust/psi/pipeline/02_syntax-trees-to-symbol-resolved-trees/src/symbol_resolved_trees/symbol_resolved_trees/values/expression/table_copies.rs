@@ -57,11 +57,11 @@ impl ExpressionTable {
             }
             ExpressionNode::Atomic(atomic) => {
                 let value = self.copy_from(source, atomic.value);
-                let result = atomic
-                    .result
-                    .is_valid()
-                    .then(|| self.copy_from(source, atomic.result))
-                    .unwrap_or_else(ExpressionHandle::invalid);
+                let result = if atomic.result.is_valid() {
+                    self.copy_from(source, atomic.result)
+                } else {
+                    ExpressionHandle::invalid()
+                };
                 self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                     value,
                     result,
@@ -96,11 +96,11 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Call(call) => {
-                let receiver = call
-                    .receiver
-                    .is_valid()
-                    .then(|| self.copy_from(source, call.receiver))
-                    .unwrap_or_else(ExpressionHandle::invalid);
+                let receiver = if call.receiver.is_valid() {
+                    self.copy_from(source, call.receiver)
+                } else {
+                    ExpressionHandle::invalid()
+                };
                 let arguments = self.copy_expression_handles_from(source, call.arguments);
                 self.insert(ExpressionNode::Call(TableCallExpression {
                     receiver,
@@ -162,16 +162,16 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Range(range) => {
-                let start = range
-                    .start
-                    .is_valid()
-                    .then(|| self.copy_from(source, range.start))
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                let end = range
-                    .end
-                    .is_valid()
-                    .then(|| self.copy_from(source, range.end))
-                    .unwrap_or_else(ExpressionHandle::invalid);
+                let start = if range.start.is_valid() {
+                    self.copy_from(source, range.start)
+                } else {
+                    ExpressionHandle::invalid()
+                };
+                let end = if range.end.is_valid() {
+                    self.copy_from(source, range.end)
+                } else {
+                    ExpressionHandle::invalid()
+                };
                 self.insert(ExpressionNode::Range(TableRangeExpression {
                     start,
                     end,
@@ -456,11 +456,11 @@ impl ExpressionTable {
             }
             ExpressionNode::Atomic(atomic) => {
                 let value = self.copy_from_self(atomic.value);
-                let result = atomic
-                    .result
-                    .is_valid()
-                    .then(|| self.copy_from_self(atomic.result))
-                    .unwrap_or_else(ExpressionHandle::invalid);
+                let result = if atomic.result.is_valid() {
+                    self.copy_from_self(atomic.result)
+                } else {
+                    ExpressionHandle::invalid()
+                };
                 self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                     value,
                     result,
@@ -495,11 +495,11 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Call(call) => {
-                let receiver = call
-                    .receiver
-                    .is_valid()
-                    .then(|| self.copy_from_self(call.receiver))
-                    .unwrap_or_else(ExpressionHandle::invalid);
+                let receiver = if call.receiver.is_valid() {
+                    self.copy_from_self(call.receiver)
+                } else {
+                    ExpressionHandle::invalid()
+                };
                 let arguments = self.copy_expression_handles_from_self(call.arguments);
                 self.insert(ExpressionNode::Call(TableCallExpression {
                     receiver,
@@ -559,16 +559,16 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Range(range) => {
-                let start = range
-                    .start
-                    .is_valid()
-                    .then(|| self.copy_from_self(range.start))
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                let end = range
-                    .end
-                    .is_valid()
-                    .then(|| self.copy_from_self(range.end))
-                    .unwrap_or_else(ExpressionHandle::invalid);
+                let start = if range.start.is_valid() {
+                    self.copy_from_self(range.start)
+                } else {
+                    ExpressionHandle::invalid()
+                };
+                let end = if range.end.is_valid() {
+                    self.copy_from_self(range.end)
+                } else {
+                    ExpressionHandle::invalid()
+                };
                 self.insert(ExpressionNode::Range(TableRangeExpression {
                     start,
                     end,

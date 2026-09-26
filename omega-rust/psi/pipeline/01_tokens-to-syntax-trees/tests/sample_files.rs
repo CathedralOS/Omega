@@ -137,7 +137,7 @@ fn collect_project_roots(path: &Path, projects: &mut Vec<PathBuf>, skip: &[PathB
         let path = entry.path();
 
         if path.is_dir() {
-            if skip.iter().any(|root| path == *root) {
+            if skip.contains(&path) {
                 continue;
             }
             if path.join("main.omg").is_file() {
