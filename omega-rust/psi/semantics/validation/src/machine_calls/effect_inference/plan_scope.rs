@@ -61,6 +61,10 @@ type DropHookSlot = Option<
         HashMap<symbols::SymbolHandle, bool>,
     )>,
 >;
+/// Whether a data definition requires establishment, keyed by the
+/// definition's address: the scope borrows the program, so each definition
+/// keeps one address and no two share it.
+type EstablishmentSlot = Option<Option<(*const typed_trees::TypedTrees, HashMap<usize, bool>)>>;
 /// (trait symbol, bound requirement name) -> conforming (carrier, entry
 /// symbol) pairs, built once per scoped program.
 type ConformanceSlotCarriersSlot = Option<
@@ -118,6 +122,9 @@ thread_local! {
     /// Whether a machine attached to a data symbol realizes `::drop`,
     /// memoized per (program, symbol).
     static DROP_HOOK_SLOT: RefCell<DropHookSlot> = const { RefCell::new(None) };
+    /// Whether a data definition requires establishment, memoized per
+    /// (program, definition).
+    static ESTABLISHMENT_SLOT: RefCell<EstablishmentSlot> = const { RefCell::new(None) };
     /// Conformance slot carriers memoize the whole index at once — the ring
     /// and semiring license builders both read it per judged machine.
     static CONFORMANCE_SLOT_CARRIERS_SLOT: RefCell<ConformanceSlotCarriersSlot> =
@@ -142,6 +149,7 @@ pub struct ProgramPlanScopeGuard {
     claim_frontiers: ClaimFrontierSlot,
     data_def_lookups: DataDefinitionLookupSlot,
     drop_hooks: DropHookSlot,
+    establishment: EstablishmentSlot,
     conformance_slot_carriers: ConformanceSlotCarriersSlot,
     data_def_positions: DataDefinitionPositionsSlot,
     type_parameter_multiplicities: TypeParameterMultiplicitySlot,
@@ -164,6 +172,9 @@ impl Drop for ProgramPlanScopeGuard {
         });
         DROP_HOOK_SLOT.with(|cell| {
             *cell.borrow_mut() = self.drop_hooks.take();
+        });
+        ESTABLISHMENT_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.establishment.take();
         });
         CONFORMANCE_SLOT_CARRIERS_SLOT.with(|cell| {
             *cell.borrow_mut() = self.conformance_slot_carriers.take();
@@ -189,6 +200,7 @@ pub fn enter_program_plan_scope() -> ProgramPlanScopeGuard {
         claim_frontiers: CLAIM_FRONTIER_SLOT.with(|cell| cell.borrow_mut().replace(None)),
         data_def_lookups: DATA_DEF_LOOKUP_SLOT.with(|cell| cell.borrow_mut().replace(None)),
         drop_hooks: DROP_HOOK_SLOT.with(|cell| cell.borrow_mut().replace(None)),
+        establishment: ESTABLISHMENT_SLOT.with(|cell| cell.borrow_mut().replace(None)),
         conformance_slot_carriers: CONFORMANCE_SLOT_CARRIERS_SLOT
             .with(|cell| cell.borrow_mut().replace(None)),
         data_def_positions: DATA_DEF_POSITIONS_SLOT.with(|cell| cell.borrow_mut().replace(None)),
@@ -410,6 +422,62 @@ pub(crate) fn memoized_owns_drop_hook(
         });
     }
     owns_hook
+}
+
+/// Whether `definition` requires establishment, memoized per (program,
+/// definition): the default-domain read and write scans ask it at every data
+/// read, and each answer re-walks the definition's fields and evaluates their
+/// range endpoints.
+pub(crate) fn memoized_data_requires_establishment(
+    program: &typed_trees::TypedTrees,
+    definition: &typed_trees::data::DataDefinition,
+    compute: impl FnOnce() -> bool,
+) -> bool {
+    enum SlotState {
+        NoScope,
+        Hit(bool),
+        Miss,
+        ForeignProgram,
+    }
+    let key = std::ptr::from_ref(definition).addr();
+    let state = ESTABLISHMENT_SLOT.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if std::ptr::eq(*owner, program) {
+                    map.get(&key)
+                        .copied()
+                        .map_or(SlotState::Miss, SlotState::Hit)
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(requires) = state {
+        return requires;
+    }
+    let requires = compute();
+    if matches!(state, SlotState::Miss) {
+        ESTABLISHMENT_SLOT.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                match scope {
+                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
+                        map.insert(key, requires);
+                    }
+                    slot_none @ None => {
+                        *slot_none = Some((program, HashMap::from([(key, requires)])));
+                    }
+                    Some(_) => {}
+                }
+            }
+        });
+    }
+    requires
 }
 
 /// The conformance slot-carrier index — (trait symbol, bound requirement
