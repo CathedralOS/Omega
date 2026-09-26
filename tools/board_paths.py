@@ -61,6 +61,22 @@ def cited_paths(text):
     return found
 
 
+def cited_links(text):
+    """Every repo-relative markdown link target in one board.
+
+    The boards link to specs, guides and crate documents as ordinary
+    markdown. Those rot the same way code anchors do, and a reader following
+    one gets nothing. External URLs and bare anchors are not ours to check.
+    """
+    found = set()
+    for match in re.finditer(r"\]\(([^)#\s]+)(?:#[^)]*)?\)", text):
+        target = match.group(1)
+        if target.startswith(("http://", "https://", "mailto:")):
+            continue
+        found.add(target)
+    return found
+
+
 def expand_braces(path):
     """`a/{b,c}.rs` -> [`a/b.rs`, `a/c.rs`]; nested braces expand too."""
     match = re.search(r"\{([^{}]*)\}", path)
@@ -218,6 +234,7 @@ def main():
 
     dead_total = 0
     stale_total = 0
+    broken_total = 0
     cited_total = 0
     skipped_total = 0
     for board in options.boards or BOARDS:
@@ -287,12 +304,24 @@ def main():
                     )[:3]:
                         print(f"      same name: {hint}")
 
+        broken = sorted(
+            target
+            for target in cited_links(board_text)
+            if not os.path.exists(os.path.join(root, target))
+        )
+        broken_total += len(broken)
+        if broken and not options.quiet:
+            print(f"{board}: {len(broken)} broken link(s)")
+            for target in broken:
+                print(f"  {target}")
+
     print(
         f"board_paths: {cited_total} cited, {dead_total} dead, "
         f"{stale_total} stale stage prefix, "
+        f"{broken_total} broken link(s), "
         f"{skipped_total} glob citation(s) skipped"
     )
-    return 1 if dead_total or stale_total else 0
+    return 1 if dead_total or stale_total or broken_total else 0
 
 
 if __name__ == "__main__":

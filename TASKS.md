@@ -708,7 +708,7 @@ the complete product bar; focused successes below do not establish that baseline
   Scope pause: resume `print_squares` only with a plan from its full source
   closure to native execution, not another isolated helper milestone.
   Independent operation work remains actionable; use the
-  [Terminal production map](omega-rust/psi/compiler/terminal-production/README.md)
+  [Terminal production map](omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/terminal_production.md)
   and **TRANSLATION-VALIDATION** in `TASKS_OPTIMIZER.md`.
   Acceptance requires every maintained sample to check and applicable runtime
   oracles to pass on the required hosted matrix. Record unavailable hosts;
