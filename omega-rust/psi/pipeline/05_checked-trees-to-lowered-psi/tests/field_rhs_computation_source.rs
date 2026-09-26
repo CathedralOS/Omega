@@ -255,7 +255,7 @@ fn backedge_field_rhs_calls_read_each_previous_replacement() {
             self.value = 0;
             transition { _ -> step() }
             state step(&mut self) {
-                self.value = identity(self.value + 1) as u16 in Wrapping;
+                self.value = identity((self.value + 1) as u16) as u16 in Wrapping;
                 Trace::observe(self.value as u16);
                 transition self.value < 3 { true -> step() _ -> done() }
             }
@@ -278,8 +278,8 @@ fn wrapping_narrowing_field_rhs_retains_input_width_and_output_policy() {
             (value as u8 in Wrapping) as u8
         }
         machine Main::main(&mut self, offset: u32) reaches Trace {
-            self.ch = offset;
-            self.ch = 48 + self.ch;
+            self.ch = offset as u32 in Wrapping;
+            self.ch = self.ch + 48;
             self.byte = narrow_u32_to_u8_wrapping(self.ch as u32) as u8 in Wrapping;
             Trace::observe(self.byte as u8);
         }
