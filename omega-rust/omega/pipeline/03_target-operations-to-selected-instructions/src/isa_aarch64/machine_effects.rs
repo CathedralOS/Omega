@@ -147,7 +147,7 @@ fn canonical_aarch64_machine_effect_catalog(
 ) -> Result<std::sync::Arc<MachineEffectCatalog>, Aarch64MachineEffectCatalogValidationError> {
     type Canonical = (
         NativeTarget,
-        register_model::RegisterConstraintCatalogIdentity,
+        crate::register_model::RegisterConstraintCatalogIdentity,
         std::sync::Arc<MachineEffectCatalog>,
     );
     static CANONICAL: std::sync::OnceLock<std::sync::Mutex<Vec<Canonical>>> =

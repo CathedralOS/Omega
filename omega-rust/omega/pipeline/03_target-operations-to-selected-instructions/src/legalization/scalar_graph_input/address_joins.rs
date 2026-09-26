@@ -192,17 +192,16 @@ fn root_type(
                 result,
             } => (operation, result),
             crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
-            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
-            legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                 block: owner,
                 declaration,
             } => {
                 return (owner == block || dominates(function, owner, block))
                     .then_some(declaration.structural_type);
             }
-            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
-            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
+            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+            | crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+                ..
+            } => {
                 return None;
             }
         }

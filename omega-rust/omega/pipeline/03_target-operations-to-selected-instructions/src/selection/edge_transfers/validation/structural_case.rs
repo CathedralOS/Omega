@@ -109,7 +109,7 @@ pub(super) fn project(
         return Err(error());
     }
     let (place, byte_bound) = match case.source {
-        selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+        crate::selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
             let mut slots = prepared
                 .local_storage_slots
                 .iter()
@@ -123,8 +123,10 @@ pub(super) fn project(
                 slot.byte_size,
             )
         }
-        selected_instructions::SelectedCaseDispatchSource::Borrowed {
-            place, byte_size, ..
+        crate::selected_instructions::SelectedCaseDispatchSource::Borrowed {
+            place,
+            byte_size,
+            ..
         } => (place, byte_size),
     };
     let integer = |sign, bits| {
@@ -141,8 +143,8 @@ pub(super) fn project(
     // A local source addresses its slot per payload; a borrowed source's
     // referent pointer is already a register, so each payload is one load.
     let per_payload = match case.source {
-        selected_instructions::SelectedCaseDispatchSource::Local { .. } => 2usize,
-        selected_instructions::SelectedCaseDispatchSource::Borrowed { .. } => 1usize,
+        crate::selected_instructions::SelectedCaseDispatchSource::Local { .. } => 2usize,
+        crate::selected_instructions::SelectedCaseDispatchSource::Borrowed { .. } => 1usize,
     };
     for (payload, output) in retained.payloads.iter().zip(&mut projected.payloads) {
         match payload.transport {
@@ -187,7 +189,7 @@ pub(super) fn project(
                     ..Default::default()
                 };
                 let (pointer, loaded, load) = match case.source {
-                    selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+                    crate::selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
                         let instruction_index = instruction_start
                             .checked_add(load_index)
                             .ok_or_else(error)?;
@@ -239,7 +241,7 @@ pub(super) fn project(
                         });
                         (pointer, loaded, load)
                     }
-                    selected_instructions::SelectedCaseDispatchSource::Borrowed {
+                    crate::selected_instructions::SelectedCaseDispatchSource::Borrowed {
                         pointer: borrow_pointer,
                         ..
                     } => {
