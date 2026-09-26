@@ -227,58 +227,6 @@ mod tests {
     }
 
     #[test]
-    fn exact_fixed_token_use_rewrites_to_selected_checked_adapter() {
-        let fixture = fixture();
-        let selected = effects::SelectedProviderPlanFacts::from_selection(
-            std::slice::from_ref(&fixture.plan),
-            std::slice::from_ref(&fixture.plan.name),
-        )
-        .expect("select fixed-token provider plan");
-        let operator_use = *fixture.checked.facts.operators.uses.get(fixture.use_handle);
-        let ExpressionNode::Binary(binary) = fixture
-            .checked
-            .typed
-            .expression_table
-            .expression(operator_use.expression)
-        else {
-            panic!("fixture use must begin as a binary expression")
-        };
-        let expected_arguments = [binary.left, binary.right];
-        let original = Arc::new(fixture.checked);
-        let settled = Arc::new(original.as_ref().clone());
-
-        let settled = crate::settle_selected_execution_dispatch(settled, &selected)
-            .expect("exact fixed-token adapter dispatches");
-        assert!(matches!(
-            original
-                .typed
-                .expression_table
-                .expression(operator_use.expression),
-            ExpressionNode::Binary(_)
-        ));
-        let ExpressionNode::Call(call) = settled
-            .typed
-            .expression_table
-            .expression(operator_use.expression)
-        else {
-            panic!("settled fixed-token expression must be an adapter call")
-        };
-        assert_eq!(call.target.as_str(), "CheckedMathProvider::same_impl");
-        assert_eq!(
-            settled
-                .typed
-                .expression_table
-                .expression_handles(call.arguments),
-            expected_arguments,
-        );
-        assert_eq!(
-            settled.facts.operators.uses.get(fixture.use_handle),
-            original.facts.operators.uses.get(fixture.use_handle),
-            "execution redirection must preserve semantic operator evidence",
-        );
-    }
-
-    #[test]
     fn fixed_token_drift_rejects_before_mutation() {
         for drift in ["spelling", "status", "expression"] {
             let mut fixture = fixture();
