@@ -86,9 +86,10 @@ pub(crate) fn validate(
         .statements(source.statement_nodes)
         .get(result.statement_index as usize)
     {
-        Some(StatementNode::LocalData(local)) if local.initial_value.is_valid() => {
-            (local.initial_value, local.type_reference)
-        }
+        // A `let mut` declaration without an initializer keys its
+        // zeroed establishment on the invalid handle; the destination
+        // type is the local's own declared type either way.
+        Some(StatementNode::LocalData(local)) => (local.initial_value, local.type_reference),
         Some(StatementNode::Expression(expression)) => (*expression, source.return_type),
         // `place = <construction>` establishes the value that replaces a
         // structural field; its destination type is the authored place's own

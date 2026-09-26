@@ -62,6 +62,41 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
     Some(local)
 }
 
+/// Find only mutable owned structural storage declared before this
+/// occurrence: a `let mut` whose plain contents the unit sequence
+/// establishes (by initializer or by zeroing), never a primitive or a
+/// borrow. This is the local-rooted twin of the parameter check below.
+fn structural_local_before<'program>(
+    program: &'program TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    symbol: SymbolHandle,
+) -> Option<&'program typed_trees::statement::TableLocalData> {
+    let mut locals = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(..statement_index)?
+        .iter()
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
+            _ => None,
+        });
+    let local = locals.next()?;
+    if locals.next().is_some()
+        || !local.is_mutable
+        || program
+            .primitive_type_reference(local.type_reference)
+            .is_some()
+        || !validation::has_plain_owned_contents_with_numeric_constraints(
+            program,
+            local.type_reference,
+        )
+    {
+        return None;
+    }
+    Some(local)
+}
+
 /// The primitive store of one authored assignment, or `None` when its target
 /// is not a primitive leaf this lane writes. The shared statement roster
 /// validates the complete state write frame.
@@ -104,6 +139,29 @@ pub(super) fn store_at(
         (
             checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
             program.primitive_type_reference(local.type_reference)?,
+        )
+    } else if structural_local_before(
+        program,
+        state,
+        usize::try_from(statement_index).ok()?,
+        symbol,
+    )
+    .is_some()
+    {
+        // Element or field writes into an established structural local keep
+        // the local's symbol identity; a whole-place replacement is not a
+        // primitive store.
+        if whole {
+            return None;
+        }
+        (
+            checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
+            program.primitive_type_reference(validation::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                assignment.target,
+            )?)?,
         )
     } else {
         let (destination, referee) =

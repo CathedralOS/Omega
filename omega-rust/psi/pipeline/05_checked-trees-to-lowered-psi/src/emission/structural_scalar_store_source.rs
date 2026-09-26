@@ -257,12 +257,23 @@ pub(crate) fn validate(
         } = operation
         {
             if let checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } = destination {
-                crate::unit::attached_unit::primitive_locals::source(
+                // Projected stores write into an established structural
+                // local (a zeroed `let mut` array's element); whole stores
+                // stay on initialized primitive storage.
+                if crate::unit::attached_unit::primitive_locals::source(
                     checked,
                     plan,
                     *symbol,
                     *statement_index,
-                )?;
+                )
+                .is_err()
+                {
+                    let (_, authored) =
+                        crate::expression_preparation::source_custody::authored_state(
+                            checked, plan.state,
+                        )?;
+                    local_destination(checked, authored, *statement_index, *symbol)?;
+                }
                 crate::emission::primitive_store::validate_symbol_assignment(
                     checked,
                     plan.state,
