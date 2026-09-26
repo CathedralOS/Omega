@@ -428,16 +428,8 @@ machine exercise() {
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
         .expect("both negation spellings check");
-        let requirement_uses = checked
-            .facts
-            .operators
-            .named_requirement_uses()
-            .count();
-        let operator_uses = checked
-            .facts
-            .operators
-            .named_uses()
-            .count();
+        let requirement_uses = checked.facts.operators.named_requirement_uses().count();
+        let operator_uses = checked.facts.operators.named_uses().count();
         reviews.push((
             project_checked_package_review(&checked)
                 .expect("both negation spellings have a closed package-review identity"),

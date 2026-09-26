@@ -924,8 +924,8 @@ mod tests {
         Arena, CheckedArithmeticPolicyAdapter, CheckedNamedOperatorUseFact,
         CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorOccurrence,
         CheckedOperatorResolutionStatus, CheckedOperatorResolutionSummary, CheckedOperatorUseFact,
-        CheckedValueOrigin, ExpressionHandle, HandleSpan,
-        OperatorSpelling, SignatureContract, SymbolHandle, TypeReferenceHandle,
+        CheckedValueOrigin, ExpressionHandle, HandleSpan, OperatorSpelling, SignatureContract,
+        SymbolHandle, TypeReferenceHandle,
     };
     use numerics::float_semantics::FloatFormat;
 
