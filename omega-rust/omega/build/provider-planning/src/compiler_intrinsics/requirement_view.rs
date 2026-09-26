@@ -208,14 +208,17 @@ impl<'typed> IntrinsicRequirement<'typed> {
         typed: &TypedTrees,
         realization_machine_identity: &str,
     ) -> bool {
+        // The conformance tests read fields; the overload identity normalizes
+        // the whole signature, so it runs only for a machine that could bind
+        // an external realization at all.
         typed.machines().iter().any(|machine| {
             typed
-                .normalized_machine_overload_identity(machine)
-                .is_some_and(|identity| identity.identity() == realization_machine_identity)
+                .machine_trait_conformances(machine)
+                .iter()
+                .any(|conformance| conformance.external_binding.is_some())
                 && typed
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .any(|conformance| conformance.external_binding.is_some())
+                    .normalized_machine_overload_identity(machine)
+                    .is_some_and(|identity| identity.identity() == realization_machine_identity)
                 && typed
                     .machine_trait_conformances(machine)
                     .iter()
