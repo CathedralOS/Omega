@@ -119,6 +119,9 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
             }
 
             let table_statements = program.statement_table.statements(state.statement_nodes);
+            // Every assignment in the state shares the state's incoming guard;
+            // it is found on the first assignment that needs it.
+            let mut incoming_guard = None;
             for (statement_index, statement) in table_statements.iter().enumerate() {
                 let transition = match statement {
                     StatementNode::Assignment(assignment) => {
@@ -130,6 +133,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
                             table_statements,
                             statement_index,
                             call_frames.as_ref(),
+                            &mut incoming_guard,
                             &mut proof_plan,
                         );
                         continue;
@@ -336,6 +340,7 @@ fn collect_bounded_assignment_obligation(
     statements: &[StatementNode],
     statement_index: usize,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    incoming_guard: &mut Option<Option<(TransitionGuardNode, SymbolHandle)>>,
     proof_plan: &mut ProofPlan<'_>,
 ) {
     // R4 containment intake: the INCLUSIVE upper bounds boundary-call
@@ -368,7 +373,9 @@ fn collect_bounded_assignment_obligation(
     let value = assignment.value;
     let value_constraints =
         proof_plan.store_constraints(expression_constraints(program, machine, state, value));
-    let (state_guard, state_guard_source) = match incoming_state_guard(program, machine, state) {
+    let (state_guard, state_guard_source) = match *incoming_guard
+        .get_or_insert_with(|| incoming_state_guard(program, machine, state))
+    {
         Some((guard, source)) => (Some(guard), source),
         None => (None, SymbolHandle::invalid()),
     };
