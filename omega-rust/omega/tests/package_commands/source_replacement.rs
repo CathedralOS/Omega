@@ -15,7 +15,7 @@ const REPLACEMENT: &str = "3b597ba19431e504e9fcd3eb9cb74f7566ed865f";
 #[test]
 #[ignore = "requires network and private CathedralOS arithmetic-kernels/library-workbench access over SSH"]
 fn pinned_ssh_same_name_and_api_do_not_bypass_source_replacement_review() {
-    let pins = include_str!("../../../../tests/fixtures/packages/REMOTE_PINS.md");
+    let pins = include_str!("../../../../tests/omega/packages/REMOTE_PINS.md");
     assert!(pins.contains(ORIGINAL) && pins.contains(REPLACEMENT));
     let fixture = Fixture::new();
     assert_status(

@@ -24,7 +24,7 @@ static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .find(|ancestor| ancestor.join("tests/fixtures/packages").is_dir())
+        .find(|ancestor| ancestor.join("tests/omega/packages").is_dir())
         .expect("package-manager should live beneath the Omega workspace")
         .to_path_buf()
 }
@@ -62,7 +62,7 @@ fn resolve_workspace_package_closure_from_hardened_base(
 #[test]
 fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_build() {
     let temporary = temporary_root();
-    let fixtures = workspace_root().join("tests/fixtures/packages");
+    let fixtures = workspace_root().join("tests/omega/packages");
     let lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
     let closure = resolve_workspace_package_closure_from_hardened_base(
         &lineage,

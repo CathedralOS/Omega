@@ -18,7 +18,7 @@ fn check_member_import(fixture: &Fixture) {
 #[test]
 fn workspace_fixture_member_and_relative_dependency_compile_locally() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/package-workspaces/library-workbench/libraries/exact-math");
+        .join("../../tests/omega/package-workspaces/library-workbench/libraries/exact-math");
     let fixture = Fixture::new();
     assert_status(&fixture.omega(&["install", root.to_str().unwrap()]), 0);
     check_member_import(&fixture);
@@ -44,7 +44,7 @@ fn pinned_https_named_member_updates_repository_and_preserves_unrelated_pin() {
 }
 
 fn remote_workspace(repository: &str, arithmetic: &str) {
-    let pins = include_str!("../../../../tests/fixtures/packages/REMOTE_PINS.md");
+    let pins = include_str!("../../../../tests/omega/packages/REMOTE_PINS.md");
     assert!(pins.contains(BASELINE) && pins.contains(REVISION) && pins.contains(ARITHMETIC));
     assert_ne!(BASELINE, REVISION);
     let fixture = Fixture::new();

@@ -1363,7 +1363,7 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   invocation cannot pass merely because its provider is silent.
   Exercise conditional/helper selections and independent replay, rejecting
   changed entries/providers/targets/scopes/policies and omitted coverage.
-  Preserve `tests/fixtures/packages/behavior-exclusions/` and compiler tests
+  Preserve `tests/omega/packages/behavior-exclusions/` and compiler tests
   `behavior_exclusions.rs` / `build_behavior_exclusions.rs`. Distinguish
   prohibited behavior from insufficient evidence without weakening contracts.
 
@@ -1410,7 +1410,7 @@ stage, topology-specific IR, or new trusted graph axiom.
   with surface-name hashes or rebuild the existing join.
 
   Author the package over admitted input bytes and generic required outputs.
-  `tests/fixtures/packages/build-scope-topology` establishes import/output
+  `tests/omega/packages/build-scope-topology` establishes import/output
   plumbing, not payment-plan verification. BUILD-SNAPSHOT-OUTPUTS owns
   confinement/publication dependencies. Dependency-adjacent live reads and
   handwritten inventories are not substitutes for admitted facts.

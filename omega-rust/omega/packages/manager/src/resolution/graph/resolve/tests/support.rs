@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub(super) fn fixture_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .map(|ancestor| ancestor.join("tests/fixtures/packages"))
+        .map(|ancestor| ancestor.join("tests/omega/packages"))
         .find(|candidate| candidate.is_dir())
         .expect("package fixtures should live beneath an Omega repository ancestor")
 }

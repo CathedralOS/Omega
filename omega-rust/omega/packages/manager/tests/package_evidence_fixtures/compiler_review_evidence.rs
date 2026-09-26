@@ -12,7 +12,7 @@ use package_manager::review::SemanticBindingReview;
 
 #[test]
 fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
-    let fixtures = workspace_root().join("tests/fixtures/packages");
+    let fixtures = workspace_root().join("tests/omega/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
 
     for package in REVIEWABLE_PACKAGES {
@@ -334,7 +334,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
 #[test]
 fn process_exit_fixture_retains_exact_closed_console_leaves_and_unresolved_siblings() {
     let package = "process-exit";
-    let fixtures = workspace_root().join("tests/fixtures/packages");
+    let fixtures = workspace_root().join("tests/omega/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
     let cache = temp_root(package);
     let closure = resolve_workspace_package_closure_from_hardened_base(

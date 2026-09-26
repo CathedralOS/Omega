@@ -48,7 +48,7 @@ class SelectionTests(unittest.TestCase):
     def test_unknown_shared_manifest_and_non_source_inputs_are_full(self):
         for path in ["Cargo.lock", "crates/app/Cargo.toml", "crates/app/build.rs",
                      "source/library/core.omg", "new-crate/src/lib.rs",
-                     "crates/app/tests/fixture.rs", "tests/fixtures/README.md",
+                     "crates/app/tests/fixture.rs", "tests/omega/packages/README.md",
                      "crates/app/src/fixture.txt"]:
             with self.subTest(path=path):
                 expression, _, reasons = self.select(path)

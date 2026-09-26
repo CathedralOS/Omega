@@ -32,7 +32,7 @@ accepted project files.
 From the repository root, inspect the fixture without accepting its review:
 
 ```sh
-omega audit packages --project tests/fixtures/packages/console-exit-app --target macos_arm64 --offline
+omega audit packages --project tests/omega/packages/console-exit-app --target macos_arm64 --offline
 ```
 
 This command also works in PowerShell. The package CLI test verifies the original

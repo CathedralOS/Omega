@@ -466,7 +466,7 @@ fn assert_recorded_pin(pin: &str) {
         "remote fixture requires an exact commit: {pin}"
     );
     assert!(
-        include_str!("../../../../tests/fixtures/packages/REMOTE_PINS.md").contains(pin),
+        include_str!("../../../../tests/omega/packages/REMOTE_PINS.md").contains(pin),
         "pin is not recorded in REMOTE_PINS.md: {pin}"
     );
 }

@@ -37,7 +37,7 @@ SOURCE_READERS = {
 }
 
 # Audited Markdown locations, not a blanket extension exclusion: Markdown in
-# tests/fixtures is executable test input.
+# tests/omega/packages is executable test input.
 DOCUMENTATION_FILES = {
     "AGENTS.md", "CONTRIBUTING.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
     "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
@@ -256,7 +256,8 @@ def fixture_filters(paths):
     filters = []
     for path in paths:
         parts = path.split("/")
-        if len(parts) >= 4 and parts[:2] == ["tests", "omega"]:
+        if (len(parts) >= 4 and parts[:2] == ["tests", "omega"]
+                and parts[2] in ("pass", "fail", "run")):
             filters.append("/".join(parts[2:4]))
     return sorted(set(filters))
 

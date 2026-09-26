@@ -11,7 +11,7 @@ use package_manager::review::SemanticBindingReview;
 // tampering; Unix uses owner-write mode bits below.
 #[allow(clippy::permissions_set_readonly_false)]
 fn review_compilation_rejects_snapshot_tampering_before_compiler_consumption() {
-    let fixtures = workspace_root().join("tests/fixtures/packages");
+    let fixtures = workspace_root().join("tests/omega/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
     let cache = temp_root("tampered-custody");
     let closure = resolve_workspace_package_closure_from_hardened_base(

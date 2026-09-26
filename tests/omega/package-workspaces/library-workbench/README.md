@@ -10,6 +10,6 @@ Tests must update the selected repository as a unit, keep unrelated repositories
 pinned, and import the selected API through the ordinary compiler.
 
 Remote revisions are recorded in
-[Omega's remote pins](https://github.com/CathedralOS/Omega/blob/main/tests/fixtures/packages/REMOTE_PINS.md).
+[Omega's remote pins](https://github.com/CathedralOS/Omega/blob/main/tests/omega/packages/REMOTE_PINS.md).
 Tests fetch exact commits;
 running them does not mutate the remote repository.

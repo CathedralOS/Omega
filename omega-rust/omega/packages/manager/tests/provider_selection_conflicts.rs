@@ -48,7 +48,7 @@ fn write_provider_package(root: &Path, provider: &str) {
     fs::create_dir_all(root).expect("create provider package");
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .map(|ancestor| ancestor.join("tests/fixtures/packages/provider-switchboard"))
+        .map(|ancestor| ancestor.join("tests/omega/packages/provider-switchboard"))
         .find(|candidate| candidate.is_dir())
         .expect("provider-switchboard fixture should live beneath an Omega repository ancestor");
     let canonical_build = fs::read_to_string(fixture.join("build.omg"))

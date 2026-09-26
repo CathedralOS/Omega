@@ -5,10 +5,10 @@ use package_source::ImmutableSourceResolution;
 mod build_scope;
 
 const REVISION: &str = "cc5fc1addda6aa565f254ad2e002d9e0be189fd4";
-const BUILD: &str = include_str!("../../../../tests/fixtures/packages/generated-table/build.omg");
-const SOURCE: &str = include_str!("../../../../tests/fixtures/packages/generated-table/main.omg");
+const BUILD: &str = include_str!("../../../../tests/omega/packages/generated-table/build.omg");
+const SOURCE: &str = include_str!("../../../../tests/omega/packages/generated-table/main.omg");
 const INPUT: &str =
-    include_str!("../../../../tests/fixtures/packages/generated-table/inputs/table.txt");
+    include_str!("../../../../tests/omega/packages/generated-table/inputs/table.txt");
 
 fn generated_fixture() -> Fixture {
     let fixture = Fixture::new();
@@ -145,7 +145,7 @@ fn pinned_https_generated_dependency_installs_updates_and_imports() {
 }
 
 fn remote_generated(repository: &str) {
-    let pins = include_str!("../../../../tests/fixtures/packages/REMOTE_PINS.md");
+    let pins = include_str!("../../../../tests/omega/packages/REMOTE_PINS.md");
     assert!(
         pins.lines()
             .any(|line| { line.contains("`generated-table`") && line.contains(REVISION) })

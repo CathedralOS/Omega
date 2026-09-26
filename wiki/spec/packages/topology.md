@@ -719,7 +719,7 @@ Not yet closed:
   export's requirement identity — a `COMPONENT-SUBSTRATE` description gap, not
   a topology census.
 - Scoped-build refusal of helper authority (home files, network): input
-  confinement is exercised by `tests/fixtures/packages/build-scope-topology`;
+  confinement is exercised by `tests/omega/packages/build-scope-topology`;
   the captured-input and artifact-only publication gaps sit under
   `BUILD-SNAPSHOT-OUTPUTS`.
 - Application-level authorization cases (charge-amount mismatch, request

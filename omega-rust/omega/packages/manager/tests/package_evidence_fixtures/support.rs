@@ -26,7 +26,7 @@ pub(super) const REVIEWABLE_PACKAGES: &[&str] = &[
 pub(super) fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .find(|ancestor| ancestor.join("tests/fixtures/packages").is_dir())
+        .find(|ancestor| ancestor.join("tests/omega/packages").is_dir())
         .expect("package-manager should live beneath the Omega workspace")
         .to_path_buf()
 }

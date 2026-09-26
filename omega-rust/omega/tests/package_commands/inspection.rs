@@ -7,25 +7,24 @@ fn text(output: &Output) -> String {
 }
 
 const BUILD_SCOPE_ROOT_BUILD: &str =
-    include_str!("../../../../tests/fixtures/packages/build-scope-topology/root/build.omg");
+    include_str!("../../../../tests/omega/packages/build-scope-topology/root/build.omg");
 const BUILD_SCOPE_ROOT_MAIN: &str =
-    include_str!("../../../../tests/fixtures/packages/build-scope-topology/root/main.omg");
+    include_str!("../../../../tests/omega/packages/build-scope-topology/root/main.omg");
 const BUILD_SCOPE_TOPOLOGY_BUILD: &str =
-    include_str!("../../../../tests/fixtures/packages/build-scope-topology/topology/build.omg");
+    include_str!("../../../../tests/omega/packages/build-scope-topology/topology/build.omg");
 const BUILD_SCOPE_TOPOLOGY_POLICIES: &str =
-    include_str!("../../../../tests/fixtures/packages/build-scope-topology/topology/policies.omg");
+    include_str!("../../../../tests/omega/packages/build-scope-topology/topology/policies.omg");
 const BUILD_SCOPE_TOPOLOGY_COMPOSE: &str =
-    include_str!("../../../../tests/fixtures/packages/build-scope-topology/topology/compose.omg");
+    include_str!("../../../../tests/omega/packages/build-scope-topology/topology/compose.omg");
 const BUILD_SCOPE_TOPOLOGY_DIGEST: &str =
-    include_str!("../../../../tests/fixtures/packages/build-scope-topology/topology/digest.omg");
-const BUILD_SCOPE_INPUT_REQUEST: &[u8] = include_bytes!(
-    "../../../../tests/fixtures/packages/build-scope-topology/root/inputs/request.bin"
-);
+    include_str!("../../../../tests/omega/packages/build-scope-topology/topology/digest.omg");
+const BUILD_SCOPE_INPUT_REQUEST: &[u8] =
+    include_bytes!("../../../../tests/omega/packages/build-scope-topology/root/inputs/request.bin");
 const BUILD_SCOPE_INPUT_COMPONENTS: &[u8] = include_bytes!(
-    "../../../../tests/fixtures/packages/build-scope-topology/root/inputs/components.bin"
+    "../../../../tests/omega/packages/build-scope-topology/root/inputs/components.bin"
 );
 const BUILD_SCOPE_INPUT_BINDINGS: &[u8] = include_bytes!(
-    "../../../../tests/fixtures/packages/build-scope-topology/root/inputs/bindings.bin"
+    "../../../../tests/omega/packages/build-scope-topology/root/inputs/bindings.bin"
 );
 
 /// The root declares `topology` only in the build scope; the topology
@@ -106,8 +105,8 @@ fn initial_assumption_inspection_reports_review_without_a_proposal() {
 #[test]
 fn inspection_exposes_filesystem_api_reach_and_its_transitive_package_path() {
     let fixture = super::authority::authority_fixture(
-        include_str!("../../../../tests/fixtures/packages/file-journal/build.omg"),
-        include_str!("../../../../tests/fixtures/packages/file-journal/main.omg"),
+        include_str!("../../../../tests/omega/packages/file-journal/build.omg"),
+        include_str!("../../../../tests/omega/packages/file-journal/main.omg"),
     );
     declare_dependency(&fixture);
     let before = fixture.accepted_files();

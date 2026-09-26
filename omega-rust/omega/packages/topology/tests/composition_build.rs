@@ -1,4 +1,4 @@
-//! Acceptance for the `tests/fixtures/packages/build-scope-topology`
+//! Acceptance for the `tests/omega/packages/build-scope-topology`
 //! project: the package composes the three admitted payment components over
 //! `builder.source`-confined input bytes and publishes `payments.plan`, then
 //! a consumer with no project source verifies the emitted bytes against a
@@ -83,7 +83,7 @@ fn accepted_policy(
 fn copy_fixture(workspace: &Path) {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../..")
-        .join("tests/fixtures/packages/build-scope-topology")
+        .join("tests/omega/packages/build-scope-topology")
         .canonicalize()
         .expect("committed fixture exists");
     for entry in ["root/build.omg", "root/main.omg", "topology/build.omg"] {
@@ -219,7 +219,7 @@ fn regenerate_package_inputs() {
     }
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../..")
-        .join("tests/fixtures/packages/build-scope-topology")
+        .join("tests/omega/packages/build-scope-topology")
         .canonicalize()
         .expect("committed fixture exists");
     let (request, components, bindings) = build_scope_inputs();
