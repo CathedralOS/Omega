@@ -1,5 +1,5 @@
 use crate::semantic::calls::MeasureReceiver;
-use checked_trees::{CheckFacts, ContractProofFactOwner};
+use checked_trees::{CheckFacts, ContractProofFact, ContractProofFactOwner};
 use language_semantics::declaration_selection::CollectionMeasure;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -40,11 +40,13 @@ struct TypeEnvironment {
 /// One queried expression's exact-owner rows. `environments` carries the
 /// collectors' environments in the same order `exact_owner_environments`
 /// produced them; `executable_sites` locates the statements containing the
-/// expression for `checked_machine_call_target_from_executable_owner`.
+/// expression for `checked_machine_call_target_from_executable_owner`;
+/// `contract_facts` names every checked contract fact whose roots reach it.
 #[derive(Default)]
 struct ExactOwnerEntry {
     environments: Vec<usize>,
     executable_sites: Vec<ExecutableSite>,
+    contract_facts: Vec<arena::Handle<ContractProofFact>>,
 }
 
 /// Every indexed environment once, and each expression's rows naming them by
@@ -135,6 +137,21 @@ impl OwnerEnvironmentIndex {
             .entries
             .get(&expression)
             .map(|entry| entry.executable_sites.clone())
+            .unwrap_or_default()
+    }
+
+    /// Every checked contract fact whose roots reach `expression`, in arena
+    /// order.
+    pub(super) fn containing_contract_facts(
+        &self,
+        program: &TypedTrees,
+        facts: &CheckFacts,
+        expression: ExpressionHandle,
+    ) -> Vec<arena::Handle<ContractProofFact>> {
+        self.index(program, facts)
+            .entries
+            .get(&expression)
+            .map(|entry| entry.contract_facts.clone())
             .unwrap_or_default()
     }
 
@@ -1351,14 +1368,20 @@ fn collection_element_type(
 /// measures, parameter constraints, rankings, then executable sites.
 fn build_owner_environment_index(program: &TypedTrees, facts: &CheckFacts) -> OwnerIndex {
     let mut index = OwnerIndex::default();
-    for (_, contract) in facts.proof.contract_facts.iter() {
+    for (handle, contract) in facts.proof.contract_facts.iter() {
+        let reached = proof_fact_handle_reachable_expressions(program, contract.fact);
+        for expression in &reached {
+            index
+                .entries
+                .entry(*expression)
+                .or_default()
+                .contract_facts
+                .push(handle);
+        }
         let Some(environment) = contract_owner_environment(program, contract.owner) else {
             continue;
         };
-        index.add_all(
-            proof_fact_handle_reachable_expressions(program, contract.fact),
-            || environment,
-        );
+        index.add_all(reached, || environment);
     }
     for domain in program.domain_definitions() {
         let mut reached = HashSet::new();
