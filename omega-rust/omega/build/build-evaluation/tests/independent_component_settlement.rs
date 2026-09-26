@@ -150,7 +150,19 @@ impl Build {
             .iter()
             .find(|definition| definition.name.as_str() == "LapicCompletion")
             .expect("nominal provider type");
-        let derived = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
+        // `settle_checked_providers` plans for the requested target, or for
+        // the compiler host when none is requested -- the same choice
+        // `filter_target_machines_by_scope` already made before resolution.
+        // This build requests none, so the expected plan must be derived for
+        // that same fallback or it compares a targetless name and empty
+        // target against the host-qualified ones settlement produces.
+        let derived = derive_satisfies_plans(
+            &typed,
+            ProviderPlanDerivation::unevaluated(
+                target::TargetProfile::host_if_supported()
+                    .map(target::TargetProfile::target_name),
+            ),
+        );
         assert_eq!(derived.len(), 1, "one exact checked provider plan");
         let plan = derived[0].plan.clone();
         let selection = ProviderSelection {
