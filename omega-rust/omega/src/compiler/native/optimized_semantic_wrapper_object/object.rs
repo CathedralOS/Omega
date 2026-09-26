@@ -12,8 +12,6 @@ use resolved_layout_to_resolved_layout::native_artifact::{
 };
 use resolved_layout_to_resolved_layout::object_file::StagedValidatedOptimizedObjectArtifact;
 use resolved_layout_to_resolved_layout::program_entry_plan::StagedOptimizedProgramStorageSemanticWrapperEncoding;
-use crate::compiler::{
-use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
 pub fn construct_object(
     settlement: &ValidatedNativeProgramEntrySettlement,

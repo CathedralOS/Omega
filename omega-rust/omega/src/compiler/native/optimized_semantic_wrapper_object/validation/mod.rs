@@ -2,7 +2,6 @@
 
 use super::StagedValidatedOptimizedProgramStorageSemanticWrapperObject;
 use resolved_layout_to_resolved_layout::native_artifact::{
-use crate::compiler::{
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
     decode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
