@@ -4948,7 +4948,20 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Checked contracts, ranges and termination, and subsequent nested/mixed-call
   lowering still exclude `quotient_operation` calls. Terminal validation
   rejects nonempty retained correspondence tables with
-  `NonExecutableQuotientCorrespondence`. Replace those exclusions only
+  `NonExecutableQuotientCorrespondence`.
+
+  Measured: both named customers,
+  `pass/proofs/quotient_define_managed_compile` and
+  `quotient_lift_managed_compile`, pass checking, produce a Terminal module,
+  and stop there at exactly that refusal. Nothing in checked contracts,
+  ranges or termination refuses them first. But neither demonstrates an
+  executable route, because neither executes: each ends in `machine
+  Main::main(&mut self) {}` and never calls the `admitted`/`lifted` machine
+  that performs the operation. They pin the retained-table refusal, not a
+  quotient call, so the refusal cannot be judged against a real invocation
+  until an entry calls one. Author that invocation before deciding which
+  exclusion to license; the corpus has no other authored quotient -- 17
+  `data X = Carrier % relation` declarations in all, 14 of them in `fail`. Replace those exclusions only
   where a checked representation/operation judgment licenses the ordinary
   representative call. Retaining a mathematical correspondence row alone
   does not establish all executable custody.
