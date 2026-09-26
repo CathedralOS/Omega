@@ -1189,6 +1189,30 @@ pub fn parts(
     Some((*referee, CheckedStructuralAccess::MutableBorrow))
 }
 
+/// The referee beneath any `&mut T` carrier, with constraint shells peeled as
+/// `parts` peels them. Unlike `parts` this does not require a primitive
+/// referent: a `&mut Record` names storage in the caller's frame just as a
+/// `&mut u8` does. Callers that need the primitive-only reference-result
+/// shape keep using `parts`.
+pub fn mutable_borrowed_parts(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
+    let mut reference = reference;
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } => {
+                return (*access == language_semantics::ReferenceAccess::Mutable)
+                    .then_some((*referee, CheckedStructuralAccess::MutableBorrow));
+            }
+            _ => return None,
+        }
+    }
+}
+
 /// The named referee beneath a `&'a V` shared-borrowed view, with constraint
 /// shells peeled exactly as `parts` spells its carrier. The referent's
 /// storage lives in the caller's frame like `parts`' loan — it just cannot be

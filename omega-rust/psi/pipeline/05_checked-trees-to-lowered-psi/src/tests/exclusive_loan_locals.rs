@@ -67,3 +67,35 @@ fn a_transition_naming_the_alias_still_declines() {
         "unexpected error: {error:?}"
     );
 }
+
+#[test]
+fn a_write_through_a_structural_loan_local_reaches_the_loaned_field() {
+    // The referent may be a record: `r.v = 0` is the ordinary store of
+    // `self.inner.v`, with the loan's segments in front of the write's own.
+    let checked = crate::front_end::checked_program(
+        r#"
+            data Inner { v: u32; }
+            data Cell { inner: Inner; }
+
+            machine Cell::clear(&mut self) {
+                self.inner.v = 1;
+                let seen: &mut Inner = &mut self.inner;
+                seen.v = 0;
+                transition self.inner.v == 0 {
+                    true -> done()
+                    _ -> done()
+                }
+
+                state done(&mut self) { }
+            }
+        "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Cell::clear"))
+        .expect("a structural loan local rejoins its loaned field");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the rejoined nested store verifies");
+}

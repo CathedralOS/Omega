@@ -4346,9 +4346,10 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   binding` and returns `None` unless the initializer is a `Call`, while the
   same read inline in a guard operand plans and reaches realization.
 
-  One shape is now planned. An immutable `&mut <primitive>` loan whose place
-  roots at a structural parameter and whose projection bottoms out in exactly
-  the declared referent is admitted as a compile-time carrier: it plans no
+  Exclusive loans are planned. An immutable `&mut T` loan whose place roots at
+  a structural parameter and whose projection bottoms out in exactly the
+  declared referent is admitted as a compile-time carrier, for a record
+  referent as well as a primitive one: it plans no
   operation, `structural_scalar_store::destination` rejoins each write through
   the name to the loaned place, and `composed_control`'s body count recognizes
   it as a marker. A reference cannot be reseated and the binding is immutable,
