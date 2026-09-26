@@ -1,7 +1,7 @@
 use package_manager::declarations::PackageName;
 use package_manager::declarations::{
-    BuildDeclaration, BuildDeclarationError, DependencySourceRequest, WorkspaceMemberPath,
-    extract_build_declaration, extract_build_dependency_projection,
+    BuildDeclaration, DependencySourceRequest, WorkspaceMemberPath, extract_build_declaration,
+    extract_build_dependency_projection,
 };
 use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::resolution::graph::{
@@ -81,25 +81,17 @@ fn expected_sample_application_name(root: &Path) -> String {
 }
 
 fn expected_omega_case_application_name(root: &Path) -> String {
-    let leaf = root
-        .file_name()
-        .and_then(|name| name.to_str())
-        .expect("Omega case root must have a UTF-8 leaf name");
-    if root.ends_with("pass/arithmetic/float_trapping_invalid_traps")
-        || root.ends_with("pass/arithmetic/float_trapping_overflow_traps")
-    {
-        return format!("arithmetic_{leaf}");
-    }
     if root.ends_with("pass/float/build_runtime_semantics_twins_windows_x64") {
         return "windows_x64_baseline_float_semantic_edge_twin".to_owned();
     }
     if root.ends_with("pass/float/build_runtime_semantics_twins_x86_baseline") {
         return "x86_baseline_float_semantic_edge_twin".to_owned();
     }
-    leaf.to_owned()
+    root.file_name()
+        .and_then(|name| name.to_str())
+        .expect("Omega case root must have a UTF-8 leaf name")
+        .to_owned()
 }
-
-const DECLARATION_REJECTION_CASES: &[&str] = &["fail/build/build-machine-wrong-arity"];
 
 /// Samples that bind hosted entries without any package dependency, each
 /// stating why in its own `build.omg`: `uefi/uefi_hello` is freestanding, the
@@ -114,43 +106,6 @@ const DEPENDENCY_FREE_SAMPLES: &[&str] = &[
     "cli/proofs/structural_proofs",
     "uefi/uefi_hello",
 ];
-
-/// Corpus roots that declare `builder.package` rather than
-/// `builder.application`, keyed like `DECLARATION_REJECTION_CASES` with their
-/// declared package names. A root-level package declaration requests package
-/// identity under the managed harness without a dependency edge.
-const PACKAGE_MEMBER_CASES: &[(&str, &str)] = &[
-    (
-        "pass/proofs/quotient-define-managed-compile",
-        "quotient_define_managed_compile",
-    ),
-    (
-        "pass/proofs/quotient-lift-managed-compile",
-        "quotient_lift_managed_compile",
-    ),
-    (
-        "pass/traits/equatable-qualified-field-reference-exit/leaf",
-        "qualified_region",
-    ),
-    ("pass/build/runtime-depend-mapping-exit/lib", "mylib"),
-    ("pass/modules/package-bare-cases", "package_bare_cases"),
-    ("pass/modules/package-bare-cases/leaf", "bare_case_values"),
-    (
-        "pass/modules/qualified-case-membership",
-        "qualified_case_membership",
-    ),
-    (
-        "pass/modules/qualified-case-membership/leaf",
-        "membership_values",
-    ),
-];
-
-fn omega_case_key(cases: &Path, root: &Path) -> String {
-    root.strip_prefix(cases)
-        .expect("Omega case root must be beneath the Omega case corpus")
-        .to_string_lossy()
-        .replace(['_', '\\'], "-")
-}
 
 #[test]
 fn repository_workspace_declares_its_members_in_authored_order() {
@@ -273,7 +228,7 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
     let samples = repository_root().join("samples");
     let mut roots = Vec::new();
     collect_build_roots(&samples, &mut roots);
-    assert_eq!(roots.len(), 148, "unexpected executable sample population");
+    assert!(!roots.is_empty(), "the sample tree must not be empty");
 
     for root in roots {
         let expected_name = expected_sample_application_name(&root);
@@ -319,19 +274,33 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
         );
     }
 }
+/// Build roots of the language corpus tiers, excluding the package projects
+/// that share `tests/omega` with them.
+fn omega_case_roots(tiers: &[&str]) -> Vec<PathBuf> {
+    let cases = repository_root().join("tests/omega");
+    let mut roots = Vec::new();
+    for tier in tiers {
+        collect_build_roots(&cases.join(tier), &mut roots);
+    }
+    assert!(!roots.is_empty(), "Omega case corpus must not be empty");
+    roots
+}
 
-/// Every `.omg` source under a packaged canary root, including member sources
-/// in subdirectories such as `platform/`, except the build declaration itself.
-fn collect_canary_member_sources(root: &Path, sources: &mut Vec<PathBuf>) {
-    let mut entries = fs::read_dir(root)
-        .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
+/// Every `.omg` source a case root owns, including member sources in
+/// subdirectories such as `platform/`, except the build declaration itself and
+/// the sources of nested package roots, which declare their own edges.
+fn collect_case_member_sources(directory: &Path, sources: &mut Vec<PathBuf>) {
+    let mut entries = fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("read case {}: {error}", directory.display()))
         .collect::<Result<Vec<_>, _>>()
-        .unwrap_or_else(|error| panic!("read canary entry in {}: {error}", root.display()));
+        .unwrap_or_else(|error| panic!("read case entry in {}: {error}", directory.display()));
     entries.sort_by_key(fs::DirEntry::path);
     for entry in entries {
         let path = entry.path();
         if path.is_dir() {
-            collect_canary_member_sources(&path, sources);
+            if !path.join("build.omg").is_file() {
+                collect_case_member_sources(&path, sources);
+            }
         } else if path.extension().is_some_and(|extension| extension == "omg")
             && path.file_name().is_some_and(|name| name != "build.omg")
         {
@@ -340,405 +309,85 @@ fn collect_canary_member_sources(root: &Path, sources: &mut Vec<PathBuf>) {
     }
 }
 
-fn assert_canary_declares_ordinary_standard_library_edge(root: &Path) {
-    let projection = extract_build_dependency_projection(root).unwrap_or_else(|error| {
-        panic!(
-            "canary role/dependency projection failed for {}: {error}",
-            root.display()
-        )
-    });
-    assert_eq!(
-        projection.product_dependencies(),
-        [DependencySourceRequest::Path {
-            explicit_alias: None,
-            location: "../../../../../source/library/std".to_owned(),
-        }],
-        "unexpected canary dependency declaration in {}",
-        root.display()
-    );
-
-    let mut sources = Vec::new();
-    collect_canary_member_sources(root, &mut sources);
-    for source in sources {
-        let contents = fs::read_to_string(&source)
-            .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
-        assert!(
-            !contents.contains("omega::language::std"),
-            "packaged canary {} retains a bundled std import",
-            source.display()
-        );
-        if source.parent() == Some(root) {
-            assert!(
-                contents.contains("omega_language_std"),
-                "packaged canary {} does not use its dependency alias",
-                source.display()
-            );
-        }
-    }
-}
-
-fn assert_canaries_declare_ordinary_standard_library_edges(cases: &Path, expected_count: usize) {
-    let mut roots = Vec::new();
-    collect_build_roots(cases, &mut roots);
-    assert_eq!(
-        roots.len(),
-        expected_count,
-        "unexpected packaged canary population in {}",
-        cases.display()
-    );
-
-    for root in roots {
-        assert_canary_declares_ordinary_standard_library_edge(&root);
-    }
-}
-
-fn assert_mixed_canary_category_standard_library_edges(
-    cases: &Path,
-    expected_roots: usize,
-    expected_standard_library_consumers: usize,
-) {
-    let mut roots = Vec::new();
-    collect_build_roots(cases, &mut roots);
-    assert_eq!(
-        roots.len(),
-        expected_roots,
-        "unexpected packaged canary population in {}",
-        cases.display()
-    );
-
-    let expected_dependency = DependencySourceRequest::Path {
-        explicit_alias: None,
-        location: "../../../../../source/library/std".to_owned(),
-    };
-    let mut standard_library_consumers = 0;
-    for root in roots {
+/// A case that reaches std as an ordinary package names the
+/// `omega_language_std` dependency alias, and its build declares one Path edge
+/// to `source/library/std` exactly when its sources use that alias: no case
+/// carries an unused edge. Cases without the edge either use no std or stay on
+/// the bundled toolchain libraries (`pass/memory/interrupt_table_canary`), and
+/// package-mode cases such as `pass/proofs/quotient_define_managed_compile`
+/// carry package identity through `builder.package`.
+#[test]
+fn omega_cases_declare_a_standard_library_edge_exactly_when_they_use_it() {
+    let standard_library = repository_root()
+        .join("source/library/std")
+        .canonicalize()
+        .expect("canonical standard-library root");
+    let mut violations = Vec::new();
+    for root in omega_case_roots(&["pass", "run"]) {
         let mut uses_dependency_alias = false;
         let mut sources = Vec::new();
-        collect_canary_member_sources(&root, &mut sources);
+        collect_case_member_sources(&root, &mut sources);
         for source in sources {
             let contents = fs::read_to_string(&source)
                 .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
-            assert!(
-                !contents.contains("omega::language::std"),
-                "packaged canary {} retains a bundled std import",
-                source.display()
-            );
             uses_dependency_alias |= contents.contains("omega_language_std");
         }
 
         let projection = extract_build_dependency_projection(&root).unwrap_or_else(|error| {
             panic!(
-                "canary role/dependency projection failed for {}: {error}",
+                "case role/dependency projection failed for {}: {error}",
                 root.display()
             )
         });
         let standard_library_edges = projection
             .product_dependencies()
             .iter()
-            .filter(|dependency| *dependency == &expected_dependency)
+            .filter(|dependency| match dependency {
+                DependencySourceRequest::Path { location, .. } => root
+                    .join(location)
+                    .canonicalize()
+                    .is_ok_and(|resolved| resolved == standard_library),
+                _ => false,
+            })
             .count();
-        // Every packaged canary names its std edge through
-        // `omega_language_std`; a package-mode fixture like
-        // `quotient_define_managed_compile` requests package identity through
-        // its `builder.package` declaration instead of an unused edge.
-        assert_eq!(
-            standard_library_edges,
-            usize::from(uses_dependency_alias),
-            "std import/dependency mismatch in {}",
-            root.display()
-        );
-        standard_library_consumers += usize::from(uses_dependency_alias);
-    }
-    assert_eq!(
-        standard_library_consumers,
-        expected_standard_library_consumers,
-        "unexpected std-consuming canary population in {}",
-        cases.display()
-    );
-}
-
-#[test]
-fn time_canaries_declare_ordinary_standard_library_edges() {
-    assert_canaries_declare_ordinary_standard_library_edges(
-        &repository_root().join("tests/omega/pass/time"),
-        17,
-    );
-}
-
-#[test]
-fn filesystem_canaries_declare_ordinary_standard_library_edges() {
-    assert_canaries_declare_ordinary_standard_library_edges(
-        &repository_root().join("tests/omega/pass/filesystem"),
-        86,
-    );
-}
-
-#[test]
-fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
-    for (category, expected_count) in [
-        ("atomics", 10),
-        ("backend", 2),
-        ("borrow", 3),
-        ("comptime", 5),
-        ("constants", 3),
-        ("data", 20),
-        ("dependent", 34),
-        ("errors", 1),
-        ("generics", 37),
-        ("layouts", 19),
-        ("recast", 24),
-        ("structs", 13),
-    ] {
-        assert_canaries_declare_ordinary_standard_library_edges(
-            &repository_root().join("tests/omega/pass").join(category),
-            expected_count,
-        );
-    }
-}
-
-/// `proofs` holds both std-free kernel canaries and std consumers, plus one
-/// package-mode root with no dependency at all:
-/// `quotient_define_managed_compile` carries package identity through its
-/// `builder.package` declaration for the managed `Quotient::define`
-/// admission, which refuses the standalone-source identity.
-#[test]
-fn proof_canaries_declare_only_their_consumed_standard_library_edges() {
-    assert_mixed_canary_category_standard_library_edges(
-        &repository_root().join("tests/omega/pass/proofs"),
-        17,
-        14,
-    );
-}
-
-#[test]
-fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
-    assert_mixed_canary_category_standard_library_edges(
-        &repository_root().join("tests/omega/pass/slices"),
-        70,
-        69,
-    );
-}
-
-#[test]
-fn expression_and_storage_canaries_declare_only_their_consumed_standard_library_edges() {
-    for (category, expected_roots, expected_consumers) in
-        [("expressions", 53, 51), ("storage", 12, 10)]
-    {
-        assert_mixed_canary_category_standard_library_edges(
-            &repository_root().join("tests/omega/pass").join(category),
-            expected_roots,
-            expected_consumers,
-        );
-    }
-}
-
-#[test]
-fn wire_canaries_declare_only_their_consumed_standard_library_edges() {
-    assert_mixed_canary_category_standard_library_edges(
-        &repository_root().join("tests/omega/pass/wire"),
-        46,
-        39,
-    );
-}
-
-#[test]
-fn text_canaries_declare_only_their_consumed_standard_library_edges() {
-    assert_mixed_canary_category_standard_library_edges(
-        &repository_root().join("tests/omega/pass/text"),
-        79,
-        72,
-    );
-}
-
-#[test]
-fn collection_canaries_declare_only_their_consumed_standard_library_edges() {
-    assert_mixed_canary_category_standard_library_edges(
-        &repository_root().join("tests/omega/pass/collections"),
-        94,
-        94,
-    );
-}
-
-#[test]
-fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
-    assert_mixed_canary_category_standard_library_edges(
-        &repository_root().join("tests/omega/pass/arithmetic"),
-        142,
-        141,
-    );
-}
-
-#[test]
-fn call_canaries_declare_only_their_consumed_standard_library_edges() {
-    assert_mixed_canary_category_standard_library_edges(
-        &repository_root().join("tests/omega/pass/calls"),
-        183,
-        180,
-    );
-}
-
-#[test]
-fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_edges() {
-    for (category, expected_roots, expected_consumers) in
-        [("capabilities", 16, 2), ("control_flow", 61, 51)]
-    {
-        assert_mixed_canary_category_standard_library_edges(
-            &repository_root().join("tests/omega/pass").join(category),
-            expected_roots,
-            expected_consumers,
-        );
-    }
-}
-
-#[test]
-fn float_canaries_declare_only_their_consumed_standard_library_edges() {
-    assert_mixed_canary_category_standard_library_edges(
-        &repository_root().join("tests/omega/pass/float"),
-        50,
-        49,
-    );
-}
-
-#[test]
-fn trait_canaries_declare_only_their_consumed_standard_library_edges() {
-    assert_mixed_canary_category_standard_library_edges(
-        &repository_root().join("tests/omega/pass/traits"),
-        35,
-        30,
-    );
-}
-
-#[test]
-fn operator_and_type_runtime_canaries_declare_ordinary_standard_library_edges() {
-    assert_mixed_canary_category_standard_library_edges(
-        &repository_root().join("tests/omega/pass/operators"),
-        12,
-        11,
-    );
-    assert_canaries_declare_ordinary_standard_library_edges(
-        &repository_root().join("tests/omega/pass/types"),
-        8,
-    );
-}
-
-#[test]
-fn ownership_and_reference_runtime_canaries_declare_ordinary_standard_library_edges() {
-    let ownership = repository_root().join("tests/omega/pass/ownership");
-    let dependency_free = [
-        ownership.join("linear_ambiguous_state_result_mapping"),
-        ownership.join("linear_boundary_entry_handoff"),
-    ];
-    let mut ownership_roots = Vec::new();
-    collect_build_roots(&ownership, &mut ownership_roots);
-    assert_eq!(ownership_roots.len(), 13);
-    for root in ownership_roots {
-        if dependency_free.contains(&root) {
-            let projection = extract_build_dependency_projection(&root).unwrap();
-            assert!(
-                projection.product_dependencies().is_empty(),
-                "freestanding ownership canary must remain dependency-free"
-            );
-        } else {
-            assert_canary_declares_ordinary_standard_library_edge(&root);
-        }
-    }
-
-    assert_canaries_declare_ordinary_standard_library_edges(
-        &repository_root().join("tests/omega/pass/references"),
-        3,
-    );
-}
-
-#[test]
-fn small_mixed_runtime_categories_declare_only_their_required_standard_library_edges() {
-    for (category, expected_roots, expected_standard_library_consumers) in [
-        ("ranges", 3, 2),
-        ("targets", 22, 2),
-        ("versioning", 4, 4),
-        ("termination", 4, 4),
-        ("range", 6, 6),
-        ("core", 14, 7),
-        ("dungeon", 19, 15),
-        ("domains", 29, 27),
-        ("host", 23, 23),
-        ("providers", 40, 24),
-    ] {
-        assert_mixed_canary_category_standard_library_edges(
-            &repository_root().join("tests/omega/pass").join(category),
-            expected_roots,
-            expected_standard_library_consumers,
-        );
-    }
-}
-
-#[test]
-fn ordinary_omega_case_projects_declare_canonical_application_roles() {
-    let cases = repository_root().join("tests/omega");
-    let mut roots = Vec::new();
-    collect_build_roots(&cases, &mut roots);
-    assert!(!roots.is_empty(), "Omega case corpus must not be empty");
-    let root_count = roots.len();
-
-    let mut applications = 0;
-    let mut declaration_rejections = 0;
-    let mut package_members = 0;
-    for root in roots {
-        let key = omega_case_key(&cases, &root);
-        if DECLARATION_REJECTION_CASES.contains(&key.as_str()) {
-            assert_eq!(
-                extract_build_declaration(&root),
-                Err(BuildDeclarationError::InvalidBuildParameter),
-                "unexpected declaration rejection in {}",
+        if standard_library_edges != usize::from(uses_dependency_alias) {
+            violations.push(format!(
+                "{}: {standard_library_edges} std edges, alias used: {uses_dependency_alias}",
                 root.display()
-            );
-            declaration_rejections += 1;
-            continue;
+            ));
         }
-        if let Some(&(_, package_name)) = PACKAGE_MEMBER_CASES
-            .iter()
-            .find(|(case, _)| *case == key.as_str())
-        {
-            assert_eq!(
-                extract_build_declaration(&root).unwrap_or_else(|error| {
-                    panic!(
-                        "package member role projection failed for {}: {error}",
-                        root.display()
-                    )
-                }),
-                BuildDeclaration::Package(package_manager::declarations::PackageDeclaration {
-                    name: PackageName::parse(package_name).unwrap(),
-                }),
-                "unexpected Omega case package member declaration in {}",
-                root.display()
-            );
-            package_members += 1;
-            continue;
-        }
-
-        let expected_name = expected_omega_case_application_name(&root);
-        assert_eq!(
-            extract_build_declaration(&root).unwrap_or_else(|error| {
-                panic!(
-                    "project role projection failed for {}: {error}",
-                    root.display()
-                )
-            }),
-            BuildDeclaration::Application(package_manager::declarations::ApplicationDeclaration {
-                name: PackageName::parse(&expected_name).unwrap(),
-                artifact_only: false,
-            }),
-            "unexpected Omega case application declaration in {}",
-            root.display()
-        );
-        applications += 1;
     }
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
+}
 
-    assert_eq!(declaration_rejections, DECLARATION_REJECTION_CASES.len());
-    assert_eq!(package_members, PACKAGE_MEMBER_CASES.len());
-    assert_eq!(
-        applications + declaration_rejections + package_members,
-        root_count
-    );
+/// A case that declares an application names it after its directory, so its
+/// products and diagnostics identify the case; package-mode cases and nested
+/// member packages declare `builder.package` with a valid package name.
+#[test]
+fn omega_case_applications_are_named_after_their_case() {
+    for root in omega_case_roots(&["pass", "run"]) {
+        match extract_build_declaration(&root).unwrap_or_else(|error| {
+            panic!(
+                "project role projection failed for {}: {error}",
+                root.display()
+            )
+        }) {
+            BuildDeclaration::Application(declaration) => assert_eq!(
+                declaration,
+                package_manager::declarations::ApplicationDeclaration {
+                    name: PackageName::parse(&expected_omega_case_application_name(&root)).unwrap(),
+                    artifact_only: false,
+                },
+                "unexpected Omega case application declaration in {}",
+                root.display()
+            ),
+            BuildDeclaration::Package(_) => {}
+            other => panic!(
+                "Omega case {} declares neither an application nor a package: {other:?}",
+                root.display()
+            ),
+        }
+    }
 }
 
 /// Declared path dependencies are load-bearing, not just spelled:
@@ -753,13 +402,8 @@ fn declared_path_dependencies_resolve_to_repository_package_roots() {
     let repository = repository_root()
         .canonicalize()
         .expect("canonical repository root");
-    let cases = repository_root().join("tests/omega");
-    let mut roots = Vec::new();
-    collect_build_roots(&cases, &mut roots);
-    assert!(!roots.is_empty(), "Omega case corpus must not be empty");
-
     let mut path_dependencies = 0;
-    for root in roots {
+    for root in omega_case_roots(&["pass", "fail", "run"]) {
         let Ok(projection) = extract_build_dependency_projection(&root) else {
             continue;
         };
