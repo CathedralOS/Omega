@@ -656,6 +656,22 @@ the complete product bar; focused successes below do not establish that baseline
   for that item's customer, not an independent repair: land it with that work,
   where the sample's own `omega --check` is the acceptance.
 
+  Two measurements for whoever lands it. The widening is clean over 1120
+  corpus fixtures and moves none of them, because the store admission only
+  decides unit-plan construction and no corpus fixture reaches it: a
+  float-store program checks targetless either way, and only a bound program
+  entry exposes the omission. Second, the widening is not sufficient for
+  realization. A machine binding an entry whose body is
+  `self.lo = self.readings[0]; self.hi = self.lo;` has its unit plan omitted
+  without the widening and builds a plan with it, then stops in
+  `expression_preparation/source_custody/storage_reads` at "scalar read
+  differs from its authored binding or mutable place": the independent replay
+  there does not reconstruct either read form, and it is a verification
+  check, not a gate to relax. Keep an exit that is not a float guard when
+  writing the acceptance -- `transition self.lo == 1.5` omits at
+  `state graph: terminator: conditional successors: guard expression` on its
+  own, with no float store involved.
+
   No corpus fixture sees that diagnostic at all -- a full record carries zero
   occurrences -- because the pass tier compiles targetless through Check and
   never installs a provider. The sample is the only witness either half has.
