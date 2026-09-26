@@ -32,7 +32,7 @@ use semantic_vocabulary::IntegerValue;
 /// The rejection reasons a shared condition-state resolution can raise;
 /// each consuming rewrite maps them onto its own error vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ConditionStateError {
+pub(crate) enum ConditionStateError {
     /// A used unit's reaching event is not the single resolved definition:
     /// a clobber or a different instruction's event, several reaching
     /// events, the entry unknown, an eventless path, or a missing operand
@@ -58,7 +58,7 @@ fn literal_bits(value: IntegerValue) -> Option<u64> {
 
 /// The bit pattern a `CompareI64Immediate` encodes: the target forms carry
 /// an unsigned twelve-bit payload, so any other value is malformed here.
-pub(super) fn immediate_bits(value: IntegerValue) -> Option<u64> {
+pub(crate) fn immediate_bits(value: IntegerValue) -> Option<u64> {
     match value {
         IntegerValue::Signed(value) => u64::try_from(value).ok(),
         IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
@@ -72,7 +72,7 @@ pub(super) fn immediate_bits(value: IntegerValue) -> Option<u64> {
 /// emitted `[def]` record with no unit traffic. The literal guarantee then
 /// holds wherever the compare could read the register, not only at one
 /// site.
-pub(super) fn materialized_bits(
+pub(crate) fn materialized_bits(
     function: &SelectedFunction,
     register: VirtualRegisterId,
 ) -> Result<u64, ConditionStateError> {
@@ -131,7 +131,7 @@ fn plain_use(
 /// The `(left, right)` bit patterns the compare's published flag state
 /// describes — `left - right` in the compare's own direction — admitted
 /// only when both are compile-time constant.
-pub(super) fn constant_operands(
+pub(crate) fn constant_operands(
     function: &SelectedFunction,
     compare: &SelectedInstruction,
 ) -> Result<(u64, u64), ConditionStateError> {
@@ -180,7 +180,7 @@ pub(super) fn constant_operands(
 /// `CompareI64` reading the same register twice reports no poles at all —
 /// its `register - register` state is the identity case `constant_operands`
 /// already decides, not a boundary one.
-pub(super) fn boundary_operands(
+pub(crate) fn boundary_operands(
     function: &SelectedFunction,
     compare: &SelectedInstruction,
 ) -> Result<(Option<u64>, Option<u64>), ConditionStateError> {
@@ -222,7 +222,7 @@ pub(super) fn boundary_operands(
 /// position — `position == block.instructions.len()` names the
 /// terminator's carried instruction — so identity never relies on
 /// instruction-id uniqueness.
-pub(super) type EventSite = (usize, usize);
+pub(crate) type EventSite = (usize, usize);
 
 /// What one path's last observed condition-state event for a flag unit can
 /// be while the unit still reaches the read position.
@@ -238,7 +238,7 @@ enum ReachingEvent {
 
 /// The instruction at `site` — a body instruction, or the terminator's
 /// carried instruction when the position is the stream's last.
-pub(super) fn instruction_at(function: &SelectedFunction, site: EventSite) -> &SelectedInstruction {
+pub(crate) fn instruction_at(function: &SelectedFunction, site: EventSite) -> &SelectedInstruction {
     let block = &function.blocks[site.0];
     if site.1 == block.instructions.len() {
         terminator_instruction(&block.terminator)
@@ -250,7 +250,7 @@ pub(super) fn instruction_at(function: &SelectedFunction, site: EventSite) -> &S
 /// The block-indexed predecessor and successor adjacency of `function`.
 /// An edge naming a block the function does not contain participates in
 /// neither: it cannot carry a path into any block the walk visits.
-pub(super) fn adjacency(function: &SelectedFunction) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+pub(crate) fn adjacency(function: &SelectedFunction) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
     let block_index = |id: SelectedBlockId| function.blocks.iter().position(|block| block.id == id);
     let successors: Vec<Vec<usize>> = function
         .blocks
@@ -273,7 +273,7 @@ pub(super) fn adjacency(function: &SelectedFunction) -> (Vec<Vec<usize>>, Vec<Ve
 
 /// The index of `function`'s entry block, whose unseeded condition state
 /// bounds every path the walk considers.
-pub(super) fn entry_index(function: &SelectedFunction) -> Option<usize> {
+pub(crate) fn entry_index(function: &SelectedFunction) -> Option<usize> {
     function
         .blocks
         .iter()
@@ -282,7 +282,7 @@ pub(super) fn entry_index(function: &SelectedFunction) -> Option<usize> {
 
 /// The blocks that can reach `target` through `predecessors` — the cone
 /// whose entry sets alone can feed the read position's reaching events.
-pub(super) fn backward_cone(predecessors: &[Vec<usize>], target: usize) -> Vec<bool> {
+pub(crate) fn backward_cone(predecessors: &[Vec<usize>], target: usize) -> Vec<bool> {
     let mut cone = vec![false; predecessors.len()];
     cone[target] = true;
     let mut frontier = vec![target];
@@ -316,7 +316,7 @@ pub(super) fn backward_cone(predecessors: &[Vec<usize>], target: usize) -> Vec<b
 /// read block's entry set is the single compare event — a clobber, a
 /// different instruction's definition, `Unknown` among the reaching
 /// events, or an empty set all refuse.
-pub(super) fn reaching_event(
+pub(crate) fn reaching_event(
     function: &SelectedFunction,
     entry: usize,
     successors: &[Vec<usize>],
@@ -349,7 +349,7 @@ pub(super) fn reaching_event(
 /// fixpoint's full entry set. `Unknown` among the reaching events, or an
 /// empty set where no predecessor cone reaches, refuses; the caller decides
 /// what the surviving sites must agree on.
-pub(super) fn reaching_events(
+pub(crate) fn reaching_events(
     function: &SelectedFunction,
     entry: usize,
     successors: &[Vec<usize>],

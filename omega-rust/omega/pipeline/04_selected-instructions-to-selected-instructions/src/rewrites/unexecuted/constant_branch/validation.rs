@@ -31,7 +31,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 use super::{ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::terminator_instruction;
-use crate::rewrites::unexecuted::condition_state::{
+use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, constant_operands, entry_index, instruction_at,
     reaching_event,
 };

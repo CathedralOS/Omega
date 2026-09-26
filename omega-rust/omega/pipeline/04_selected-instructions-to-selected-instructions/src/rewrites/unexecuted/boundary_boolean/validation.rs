@@ -27,7 +27,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{BoundaryBooleanError, BoundaryBooleanReceipt, ValidatedBoundaryBoolean};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::unexecuted::condition_state::{
+use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
     reaching_event,
 };

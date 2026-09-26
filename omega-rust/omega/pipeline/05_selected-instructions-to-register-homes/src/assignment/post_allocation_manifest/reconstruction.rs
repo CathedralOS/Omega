@@ -48,6 +48,9 @@ pub(super) fn expected_record(
                 (7_u8, identity.bytes())
             }
             PostAllocationSelectedTransformation::AddressFold(identity) => (8_u8, identity.bytes()),
+            PostAllocationSelectedTransformation::ConstantBoolean(identity) => {
+                (9_u8, identity.bytes())
+            }
         };
         !unique_transformations.insert(key)
     }) {

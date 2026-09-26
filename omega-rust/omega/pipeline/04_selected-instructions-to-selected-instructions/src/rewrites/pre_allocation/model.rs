@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::AddressFoldError;
 use crate::AllocationLegalityError;
+use crate::ConstantBooleanError;
 use crate::CopyRemovalError;
 use crate::LiveRangeError;
 use crate::LivenessError;
@@ -12,6 +13,7 @@ use crate::StagedOptimizedAllocationLegality;
 use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
 use crate::ValidatedAddressFold;
 use crate::ValidatedAllocationLegality;
+use crate::ValidatedConstantBoolean;
 use crate::ValidatedCopyRemoval;
 use crate::ValidatedLiveRanges;
 use crate::ValidatedLiveness;
@@ -21,8 +23,8 @@ use optimization_core::{
     OptimizationWorkUsage, PreAllocationOptimizationCompletionIdentity,
 };
 use selected_instructions::{
-    AddressFoldIdentity, CopyRemovalIdentity, LiveRangeIdentity, LivenessIdentity,
-    RedundantExtensionIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    AddressFoldIdentity, ConstantBooleanIdentity, CopyRemovalIdentity, LiveRangeIdentity,
+    LivenessIdentity, RedundantExtensionIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
 
@@ -38,9 +40,11 @@ impl PreAllocationPolicy {
     const SAME_BLOCK_COPY_I64_V1_BIT: u32 = 1 << 0;
     const REDUNDANT_EXTENSION_V1_BIT: u32 = 1 << 1;
     const ADDRESS_FOLD_V1_BIT: u32 = 1 << 2;
+    const CONSTANT_BOOLEAN_V1_BIT: u32 = 1 << 3;
     const KNOWN_BITS: u32 = Self::SAME_BLOCK_COPY_I64_V1_BIT
         | Self::REDUNDANT_EXTENSION_V1_BIT
-        | Self::ADDRESS_FOLD_V1_BIT;
+        | Self::ADDRESS_FOLD_V1_BIT
+        | Self::CONSTANT_BOOLEAN_V1_BIT;
 
     /// Rebind every admissible same-block use of one `CopyI64` destination
     /// to the copied source register, dropping the copy and the
@@ -63,6 +67,15 @@ impl PreAllocationPolicy {
     /// provenance.
     pub const ADDRESS_FOLD_V1: Self = Self {
         enabled: Self::ADDRESS_FOLD_V1_BIT,
+    };
+
+    /// Rewrite an admitted `MaterializeBoolean*` whose implicit flag uses
+    /// all resolve to one compare over compile-time constant operands into
+    /// the `MaterializeI64` carrying the predicate outcome, keeping the
+    /// materialization's identity, position, result register, and
+    /// provenance while the compare stays published for other readers.
+    pub const CONSTANT_BOOLEAN_V1: Self = Self {
+        enabled: Self::CONSTANT_BOOLEAN_V1_BIT,
     };
 
     pub const fn empty() -> Self {
@@ -96,12 +109,14 @@ impl PreAllocationPolicy {
 /// rewrite family. Every variant implements `ValidatedSelectedAnalysis`, so
 /// the step's transformed program re-enters discovery as the next sweep's
 /// source — an extension removal publishes a `CopyI64` the copy-removal
-/// pass then owns, and any family may expose the next fold's base chain.
+/// pass then owns, any family may expose the next fold's base chain, and a
+/// folded boolean leaves its compare in place for the other readers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidatedPreAllocationTransformation {
     CopyRemoval(ValidatedCopyRemoval),
     RedundantExtension(ValidatedRedundantExtension),
     AddressFold(ValidatedAddressFold),
+    ConstantBoolean(ValidatedConstantBoolean),
 }
 
 impl ValidatedPreAllocationTransformation {
@@ -110,6 +125,7 @@ impl ValidatedPreAllocationTransformation {
             Self::CopyRemoval(removal) => removal.transformed(),
             Self::RedundantExtension(removal) => removal.transformed(),
             Self::AddressFold(fold) => fold.transformed(),
+            Self::ConstantBoolean(fold) => fold.transformed(),
         }
     }
 
@@ -118,6 +134,7 @@ impl ValidatedPreAllocationTransformation {
             Self::CopyRemoval(removal) => removal.shared_transformed(),
             Self::RedundantExtension(removal) => removal.shared_transformed(),
             Self::AddressFold(fold) => fold.shared_transformed(),
+            Self::ConstantBoolean(fold) => fold.shared_transformed(),
         }
     }
 
@@ -126,6 +143,7 @@ impl ValidatedPreAllocationTransformation {
             Self::CopyRemoval(removal) => removal.receipt().source_selected(),
             Self::RedundantExtension(removal) => removal.receipt().source_selected(),
             Self::AddressFold(fold) => fold.receipt().source_selected(),
+            Self::ConstantBoolean(fold) => fold.receipt().source_selected(),
         }
     }
 
@@ -134,6 +152,7 @@ impl ValidatedPreAllocationTransformation {
             Self::CopyRemoval(removal) => removal.receipt().transformed_selected(),
             Self::RedundantExtension(removal) => removal.receipt().transformed_selected(),
             Self::AddressFold(fold) => fold.receipt().transformed_selected(),
+            Self::ConstantBoolean(fold) => fold.receipt().transformed_selected(),
         }
     }
 
@@ -142,6 +161,7 @@ impl ValidatedPreAllocationTransformation {
             Self::CopyRemoval(removal) => removal.receipt().optimization_unit(),
             Self::RedundantExtension(removal) => removal.receipt().optimization_unit(),
             Self::AddressFold(fold) => fold.receipt().optimization_unit(),
+            Self::ConstantBoolean(fold) => fold.receipt().optimization_unit(),
         }
     }
 
@@ -150,6 +170,7 @@ impl ValidatedPreAllocationTransformation {
             Self::CopyRemoval(removal) => removal.receipt().fuel_schedule(),
             Self::RedundantExtension(removal) => removal.receipt().fuel_schedule(),
             Self::AddressFold(fold) => fold.receipt().fuel_schedule(),
+            Self::ConstantBoolean(fold) => fold.receipt().fuel_schedule(),
         }
     }
 
@@ -159,17 +180,20 @@ impl ValidatedPreAllocationTransformation {
             Self::CopyRemoval(removal) => removal.receipt().function_index(),
             Self::RedundantExtension(removal) => removal.receipt().function_index(),
             Self::AddressFold(fold) => fold.receipt().function_index(),
+            Self::ConstantBoolean(fold) => fold.receipt().function_index(),
         }
     }
 
     /// The source-side identity of the instruction the transformation
-    /// rewrote: the removed `CopyI64`, the extension that became one, or the
-    /// displacement-carrying consumer the fold rebound.
+    /// rewrote: the removed `CopyI64`, the extension that became one, the
+    /// displacement-carrying consumer the fold rebound, or the folded
+    /// flag-reading materialization.
     pub fn instruction(&self) -> SelectedInstructionId {
         match self {
             Self::CopyRemoval(removal) => removal.receipt().copy(),
             Self::RedundantExtension(removal) => removal.receipt().extension(),
             Self::AddressFold(fold) => fold.receipt().access(),
+            Self::ConstantBoolean(fold) => fold.receipt().materialization(),
         }
     }
 
@@ -188,6 +212,9 @@ impl ValidatedPreAllocationTransformation {
             Self::AddressFold(fold) => {
                 PreAllocationTransformationIdentity::AddressFold(fold.receipt().identity())
             }
+            Self::ConstantBoolean(fold) => {
+                PreAllocationTransformationIdentity::ConstantBoolean(fold.receipt().identity())
+            }
         }
     }
 }
@@ -200,6 +227,7 @@ pub enum PreAllocationTransformationIdentity {
     CopyRemoval(CopyRemovalIdentity),
     RedundantExtension(RedundantExtensionIdentity),
     AddressFold(AddressFoldIdentity),
+    ConstantBoolean(ConstantBooleanIdentity),
 }
 
 /// One independently validated pre-allocation transformation plus the
@@ -478,6 +506,7 @@ pub enum OptimizedPreAllocationCustodyError {
     CopyRemoval(CopyRemovalError),
     RedundantExtension(RedundantExtensionError),
     AddressFold(AddressFoldError),
+    ConstantBoolean(ConstantBooleanError),
     Liveness(LivenessError),
     LiveRanges(LiveRangeError),
     AllocationLegality(AllocationLegalityError),
@@ -494,11 +523,13 @@ pub enum OptimizedPreAllocationCustodyError {
     /// Every applied step must strictly drop the joint measure — the plan's
     /// virtual registers plus its remaining extension instructions plus the
     /// summed operand-0 definition-chain lengths of the fold-shaped
-    /// consumers: a copy removal drops the copy and its destination's roster
-    /// row and can only shorten chains; an extension removal turns the
-    /// extension into a copy and removes no register; an address fold skips
-    /// its producer's node in the folded consumer's chain and every chain
-    /// downstream of it.
+    /// consumers plus the flag uses the remaining `MaterializeBoolean*`
+    /// readers carry: a copy removal drops the copy and its destination's
+    /// roster row and can only shorten chains; an extension removal turns
+    /// the extension into a copy and removes no register; an address fold
+    /// skips its producer's node in the folded consumer's chain and every
+    /// chain downstream of it; a constant-boolean fold rewrites the reader
+    /// to a flag-free materialization and drops its uses.
     PreAllocationMeasureMismatch {
         previous: usize,
         current: usize,

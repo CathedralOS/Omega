@@ -20,7 +20,7 @@ use selected_instructions::{
 use super::BoundaryBranchError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::terminator_instruction;
-use crate::rewrites::unexecuted::condition_state::{
+use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
     reaching_event,
 };

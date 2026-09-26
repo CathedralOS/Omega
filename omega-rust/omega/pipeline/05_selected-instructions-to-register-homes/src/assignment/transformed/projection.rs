@@ -61,6 +61,9 @@ pub(super) fn pre_allocation_transformations(
             selected_instructions_to_selected_instructions::PreAllocationTransformationIdentity::AddressFold(identity) => {
                 PostAllocationSelectedTransformation::AddressFold(identity)
             }
+            selected_instructions_to_selected_instructions::PreAllocationTransformationIdentity::ConstantBoolean(identity) => {
+                PostAllocationSelectedTransformation::ConstantBoolean(identity)
+            }
         })
         .collect()
 }

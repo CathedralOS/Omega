@@ -1189,14 +1189,9 @@ fn validated_results_compose_with_constant_boolean() {
     });
     // The boolean on the decided (nonzero) arm folds first; the branch
     // fold then consumes the same compare from the transformed plan.
-    let boolean_fold = crate::rewrites::unexecuted::fold_selected_constant_boolean(
-        &source,
-        0,
-        EXTRA,
-        &environment,
-        budget(),
-    )
-    .unwrap();
+    let boolean_fold =
+        crate::rewrites::fold_selected_constant_boolean(&source, 0, EXTRA, &environment, budget())
+            .unwrap();
     let result =
         fold_selected_constant_branch(&boolean_fold, 0, BRANCH, &environment, budget()).unwrap();
     jumped_to(&result, 0, 1);
