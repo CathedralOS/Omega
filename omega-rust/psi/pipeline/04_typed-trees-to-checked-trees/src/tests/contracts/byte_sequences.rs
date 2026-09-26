@@ -87,7 +87,10 @@ fn direct_computed_byte_stores_use_selected_arithmetic() {
             "output[position] = ((250 as u8 in Wrapping) + 71) as u8;",
             true,
         ),
-        ("output[position] = (250 as u8 in Saturating) + 71;", false),
+        (
+            "output[position] = ((250 as u8 in Saturating) + 71) as u8;",
+            false,
+        ),
         ("let byte: u8 = 120; output[position] = byte + 8;", false),
         (
             "let mut byte: u8 = 60; byte = unknown; output[position] = ((byte as u8 in Wrapping) + 5) as u8;",

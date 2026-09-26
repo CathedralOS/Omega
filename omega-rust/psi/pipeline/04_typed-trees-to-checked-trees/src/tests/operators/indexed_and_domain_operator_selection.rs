@@ -401,8 +401,8 @@ fn explicit_mint_initializer_selects_domain_operator() {
         data Main {}
 
         machine Main::rotate(&self) {
-            let value: i32 in Degrees & Wrapping = 1 as i32 in Degrees;
-            let sum: i32 in Degrees & Wrapping = value + 1;
+            let value: i32 in Degrees = 1 as i32 in Degrees;
+            let sum: i32 = value + 1;
         }
 
         machine Main::main(&mut self) {}

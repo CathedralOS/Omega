@@ -162,8 +162,7 @@ fn selected_heterogeneous_operator_result_controls_destination() {
 
 #[test]
 fn only_active_domain_operator_result_controls_destination() {
-    let declaration =
-        "domain f64::Narrowed; operator + f64::Narrowed::combine(left: f64, right: f64) -> f32;";
+    let declaration = "domain f64::Narrowed; operator + f64::Narrowed::combine(left: f64 in Narrowed, right: f64) -> f32;";
     checked_program_result(&format!(
         "{declaration} machine run(left: f64 in Narrowed, right: f64) -> f32 {{ left + right }}"
     ))

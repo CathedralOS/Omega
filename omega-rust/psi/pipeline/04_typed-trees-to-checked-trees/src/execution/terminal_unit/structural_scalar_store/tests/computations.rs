@@ -14,7 +14,7 @@ fn fixture() -> checked_trees::CheckedTrees {
         machine narrow(value: u32) -> u8 { (value as u8 in Wrapping) as u8 }
         data Record { value: u8 in Wrapping; }
         machine Record::replace(&mut self, value: u32, previous: u8) {
-            self.value = previous;
+            self.value = previous as u8 in Wrapping;
             self.value = narrow(value) as u8 in Wrapping;
         }
     "#;
