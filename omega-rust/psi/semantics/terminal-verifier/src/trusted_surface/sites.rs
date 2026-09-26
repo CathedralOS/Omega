@@ -804,7 +804,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/borrowed_windows.rs",
-        sha256: Some("8808ec92d340ea3d76345ca6d9915c65813c459996fb4810e54f12ac49290f5e"),
+        sha256: Some("e91b091bf4080c907841ba0cbd580914fe5e63eb31c1c3442381753064bb72d4"),
         inventory_machinery: false,
     },
     ImplementationSite {
