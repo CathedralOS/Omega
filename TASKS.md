@@ -3339,7 +3339,16 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `emit_optimized_fragments` → `assemble_*`) is stated at one owner, the
   `settle_selected_execution` wedge becomes a named checked→settled stage,
   and `RequestedCompileProduct::TerminalArtifact` is wired to the CLI so
-  `<root>.psi`/`.proof` publication is reachable. Acceptance: one invocation
+  `<root>.psi`/`.proof` publication is reachable. That wiring creates its
+  first consumer rather than serving one: the product has a single caller in
+  the repository, `packages/manager`'s `semantic_binding_review`, the CLI's
+  `ProjectProduct` spells only `Check` and `NativeArtifact`, and no
+  `build.omg` under `tests/omega`, `samples` or `source/library` sets
+  `Build.pcc.psi` or `Build.pcc.native`. Today a psi product can only ride
+  along with a native build, because `check_prepared_local_project` refuses
+  outright -- "a check-only stop cannot satisfy an optional proof-product
+  request" -- so the Terminal-only publication path is unexercised end to
+  end. Decide whether to author that customer with the wiring or defer both. Acceptance: one invocation
   over a two-target set loads, parses, resolves, types and evaluates build
   once; package multi-target operations make one compile call; per-target
   failure isolation and build-effect custody are preserved as data;
