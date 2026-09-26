@@ -396,7 +396,7 @@ fn compile_candidate(
     let _stage = timings::stage("candidate_compilation");
     // The passes below check each package of the closure again, usually on
     // an identical program; retain those checks on first sight.
-    let _retention = compiler::retain_repeated_checks();
+    let _retention = typed_trees_to_checked_trees::retain_repeated_checks();
     preparation.size_for(target_closure.source_closure());
     if let SemanticBindingReview::Explicit(inputs) = bindings {
         let _pass = timings::subject_stage(|| {

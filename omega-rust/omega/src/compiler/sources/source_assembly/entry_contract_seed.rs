@@ -64,7 +64,6 @@ fn contract_seed(
     };
     let accepted_role =
         crate::build_evaluation::program_entry_semantic_binding_role(contract_package);
-    let accepted_role = crate::compiler::program_entry_semantic_binding_role(contract_package);
     let accepted_package = inputs
         .accepted_semantic_binding(accepted_role)
         .map(|binding| binding.package());

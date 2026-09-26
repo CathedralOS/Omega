@@ -14,7 +14,6 @@ pub struct SourceStorage {
     pub files: Arena<SourceFile>,
     pub sources: SourceMap,
     pub syntax_trees: SyntaxTrees,
-    pub(crate) resolved_imports: Vec<crate::compiler::sources::frontend::ResolvedSourceImport>,
     pub resolved_imports: Vec<crate::compiler::sources::frontend::ResolvedSourceImport>,
     default_package_root: PathBuf,
     default_package_identity: Option<PackageKeyIdentity>,
