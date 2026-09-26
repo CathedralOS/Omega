@@ -27,6 +27,21 @@ item's acceptance names one of those tests, the acceptance is the named
 fixture's corpus-gate outcome, plus its `--native` outcome where the item needs
 a native build or run. Rewrite such an item's acceptance when you next touch it.
 
+Twenty-five items cite at least one `.rs` path that no longer resolves, 34
+dead paths in all, mostly from that deletion and from the selected-operator
+plan removal. Re-measure one of these before planning against it; a gone
+anchor file usually means the claim around it needs restating, not a path
+substitution. AP-BRINGUP, ASM-INSTRUCTION-CATALOG-EXPANSION, BLOCKEXEC,
+BOUNDED-INSTALLATION-REACH-ROWS, BUILD-PRODUCT-REFERENCES,
+BUILD-SEMANTIC-EXCLUSIONS, CML4, CRASH-CONTRACT, EXCEPTION-ROOTS-AND-TIMER,
+FILESYSTEM-RELEASE-CONTRACT, GENERAL-CYCLIC-EXECUTION,
+LOWERING-ROUTE-CONSOLIDATION, MACOS-APPLICATION-PUBLICATION,
+OPAQUE-BY-VALUE-BOUNDARY-ABI, PCC-PRODUCT-PUBLICATION, PLAN-LAID-VIEWS,
+PROOF-CERTIFICATION-BRIDGE, PROOF-KERNEL-CORE, RC-BUILD-AND-PACKAGES,
+SAMPLE-CORPUS, SYMBOLIC-MATERIALIZATION, TERMINATION-RANKING-CHECKS,
+TOP-LEVEL-BOUNDARY-REQUIREMENTS, TWO-AXIS-TERMINAL-AUTHORITY-REVIEW and
+WIRE-RUNTIME-AND-INSTALLATION.
+
 [CONTRIBUTING.md](CONTRIBUTING.md#workflow) governs task provenance, scoped checks, claims,
 strategy pauses and publication. Live assignments belong in the
 [claims registry](tools/claims.md), not the board. A paused strategy is not a
