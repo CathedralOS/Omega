@@ -249,7 +249,27 @@ pub(super) fn infer_hoist_temp_type(
                 collection_type_reference(lowerer, attached_data, state, operand)
             {
                 let base = base_scalar_type(lowerer.source_trees, &place_type).clone();
-                let base_handle = lower_type_reference_into_table(lowerer, &base)?;
+                let scalar_handle = lower_type_reference_into_table(lowerer, &base)?;
+                // The operand's arithmetic policy is part of the computed
+                // value's type (`qh + qn` over `u64 in Wrapping` fields is a
+                // `u64 in Wrapping`), unlike its range or declared domain.
+                let base_handle = match arithmetic_domain(lowerer.source_trees, &place_type) {
+                    Some(domain) => {
+                        let constraints = lowerer
+                            .typed_trees
+                            .type_reference_table
+                            .insert_constraints([
+                                typed::types::TypeConstraintNode::ArithmeticDomain(domain),
+                            ]);
+                        lowerer.typed_trees.type_reference_table.insert(
+                            typed::types::TypeReferenceNode::Constrained {
+                                base_type: scalar_handle,
+                                constraints,
+                            },
+                        )
+                    }
+                    None => scalar_handle,
+                };
                 let Some((low, high)) = computed_index_interval(
                     lowerer,
                     attached_data,
@@ -642,6 +662,33 @@ fn base_scalar_type<'trees>(
         ),
         other => other,
     }
+}
+
+/// The arithmetic policy a place type declares, found through its
+/// `Constrained` wrappers.
+fn arithmetic_domain(
+    source_trees: &resolved::SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> Option<numerics::arithmetic::ArithmeticDomain> {
+    let TypeReference::Constrained(constrained) = type_reference else {
+        return None;
+    };
+    source_trees
+        .tables
+        .types
+        .constraints
+        .span_or_empty(constrained.constraints)
+        .iter()
+        .find_map(|constraint| match constraint {
+            TypeConstraint::ArithmeticDomain(domain) => Some(*domain),
+            _ => None,
+        })
+        .or_else(|| {
+            arithmetic_domain(
+                source_trees,
+                source_trees.child_type_reference(constrained.base_type),
+            )
+        })
 }
 
 fn scalar_is_unsigned(type_reference: &TypeReference) -> bool {

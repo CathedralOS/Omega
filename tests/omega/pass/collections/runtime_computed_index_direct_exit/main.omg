@@ -9,6 +9,8 @@
 // a1: read r = arr[k + 1]        a2: operand r = acc + arr[k + 1]
 // a3: write arr[k + 1] = v       a4: reversed literal arr[1 + k]
 // a5: backward arr[k - 1] under a dominating guard
+// a6: write arr[wh + wn] over `u64 in Wrapping` operands: the temp keeps the
+//     operands' arithmetic policy, so its store is not a policy conversion
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main {
@@ -17,6 +19,8 @@ data Main {
     k: u64 [0..=3];
     acc: i32 in Wrapping;
     r: i32 in Wrapping;
+    wh: u64 in Wrapping;
+    wn: u64 in Wrapping;
 }
 machine Main::main(&mut self) reaches Console {
     self.arr[1] = 5;
@@ -60,6 +64,22 @@ machine Main::main(&mut self) reaches Console {
     state a5b(&mut self) {
         self.r = self.arr[self.k - 1];
         transition self.r == 5 {
+            true -> a6()
+            false -> no()
+        }
+    }
+    state a6(&mut self) {
+        self.wh = 1;
+        self.wn = 3;
+        transition self.wh + self.wn < 5 {
+            true -> a6b()
+            false -> no()
+        }
+    }
+    state a6b(&mut self) {
+        self.arr[self.wh + self.wn] = 11;
+        self.r = self.arr[4];
+        transition self.r == 11 {
             true -> yes()
             false -> no()
         }
