@@ -39,8 +39,9 @@ use crate::machine_calls::calls::write_frames::transition_equations::{
     PermutedCycleFrameEquation, append_permuted_cycle_frame_edge, transition_state_reaches,
 };
 use crate::machine_calls::calls::write_frames::transition_topology::{
-    named_transition_preserves_state_namespace, named_transition_target_state,
-    reachable_cycle_edges_can_permute_write_parameters, write_parameter_counts_can_permute,
+    named_state_transition_subgraph_is_acyclic, named_transition_preserves_state_namespace,
+    named_transition_target_state, reachable_cycle_edges_can_permute_write_parameters,
+    write_parameter_counts_can_permute,
 };
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_place_expression_origin;
 use crate::machine_calls::calls::write_frames::type_capabilities::{
@@ -85,6 +86,14 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
     // inside them, once per visit. The answer is the same `None` the
     // permutation check would have produced.
     if !reachable_cycle_edges_can_permute_write_parameters(program, machine, entry) {
+        return None;
+    }
+    // The equations below take their edges from the same top-level named
+    // transitions the topology walk follows, so a state whose reachable named
+    // subgraph is acyclic can never set `has_transition_cycle`. Answer its
+    // `None` before building an equation, and every nested call summary
+    // inside one, for each reachable state.
+    if named_state_transition_subgraph_is_acyclic(program, machine, entry) {
         return None;
     }
     let mut diagnostics = Vec::new();
