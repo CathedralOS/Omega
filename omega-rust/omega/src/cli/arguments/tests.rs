@@ -110,3 +110,24 @@ fn help_is_distinct_from_an_invalid_invocation() {
         );
     }
 }
+
+/// The usage text is what every other entry point prints on a parse failure,
+/// so the conventional spellings reach it rather than being read as a root
+/// path or an unrecognized option.
+#[test]
+fn the_help_spellings_reach_the_usage_text() {
+    for spelling in ["--help", "-h", "help"] {
+        let Invocation::Help(usage) = invocation(&[spelling]) else {
+            panic!("`{spelling}` should ask for usage");
+        };
+        assert!(
+            usage.starts_with("usage: omega "),
+            "`{spelling}` printed {usage}"
+        );
+    }
+    // A file that merely begins with those letters is still a root path.
+    assert!(
+        matches!(invocation(&["help.omg"]), Invocation::Compile(request)
+            if request.root_path == std::path::Path::new("help.omg"))
+    );
+}
