@@ -5,6 +5,22 @@
 //! frame, action sequence, and symbolic relocation validate together.
 //! `encoding` then discharges the plan's `TargetEncodingRequiredV1`
 //! obligation against the ISA owner and replays the template it selects.
+//!
+//! The recipe is UEFI-specific, not generic: it exists because the
+//! `UefiX64` `ProgramStorageApplication` slot hands the generated bridge two
+//! indirect Extent arrivals (image handle and system-table pointers under
+//! Microsoft-x64) that must be copied into caller-owned storage before the
+//! semantic continuation runs. Every hosted profile — both shipped AArch64
+//! profiles (`linux_arm64`, `macos_arm64`) and the three hosted x86-64
+//! profiles — selects a `HostedApplication` slot instead: its authored
+//! physical entry arrives on the platform calling convention's
+//! value-register fragments and provisions the two `ProgramStorageEntry`
+//! roots internally, so no authored profile besides UEFI selects this
+//! wrapper, and AArch64 hosted entry is realized by `image_emission`'s
+//! hosted receiver bridge rather than by an encoding here. A future
+//! freestanding AArch64 profile would need its own authored slot, recipe,
+//! and ISA template — reusing this one would silently replay the wrong
+//! arrival.
 
 mod encoding;
 mod recipe;

@@ -8,8 +8,10 @@ use super::{
     validate_optimized_program_storage_semantic_wrapper_encoding,
 };
 use crate::program_entry_plan::{
-    OptimizedProgramStorageSemanticWrapperPlan, plan_optimized_program_storage_semantic_wrapper,
+    OptimizedProgramStorageSemanticWrapperPlan, OptimizedProgramStorageSemanticWrapperStep,
+    plan_optimized_program_storage_semantic_wrapper,
 };
+use abstract_operations_to_target_operations::calling_conventions::MachineRegister;
 use target_operations_to_selected_instructions::isa_x86_64::{
     X86_64_SEMANTIC_UNIT_WRAPPER_CALL_OPCODE_OFFSET,
     X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT,
@@ -51,6 +53,31 @@ fn semantic_plan_selects_the_explicit_compact_target_encoding() {
     assert_ne!(
         u32::from(X86_64_SEMANTIC_UNIT_WRAPPER_CALL_OPCODE_OFFSET),
         113
+    );
+}
+
+/// The shipped AArch64 profiles arrive on AAPCS64 value-register fragments
+/// (`x0`, `x1`, …) through their hosted bridges, never through the UEFI
+/// recipe's indirect `Extent` copy grammar. Replaying one such fragment
+/// inside this plan is exactly the incompatible recipe/plan combination the
+/// selection entrance must refuse: the plan fails its own independent
+/// replay, so `select` returns `InvalidSemanticPlan` before any x86-64
+/// template is requested.
+#[test]
+fn aarch64_register_fragment_arrival_rejects_against_the_uefi_recipe() {
+    let mut plan = wrapper();
+    let OptimizedProgramStorageSemanticWrapperStep::CopyIncomingIndirectExtentWord {
+        source_register,
+        ..
+    } = &mut plan.steps[2]
+    else {
+        panic!("canonical recipe step grammar changed shape");
+    };
+    *source_register = MachineRegister::Aarch64X(0);
+    let error = select_optimized_program_storage_semantic_wrapper_encoding(plan).unwrap_err();
+    assert_eq!(
+        error,
+        OptimizedProgramStorageSemanticWrapperEncodingError::InvalidSemanticPlan
     );
 }
 
