@@ -12,6 +12,7 @@ use crate::validation::proof_contracts::arithmetic_domains::{
     range_constraint_interval,
 };
 use crate::validation::value_custody::places;
+use symbol_resolved_trees_to_typed_trees::typed_trees;
 
 /// An INDEXED read (`self.cells[rp]`) resolves through its collection's ELEMENT
 /// type, so a range-refined element (`[i32 [0..=7]; N]`) feeds the overflow

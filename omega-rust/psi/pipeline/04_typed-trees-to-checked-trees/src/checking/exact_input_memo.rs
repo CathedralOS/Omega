@@ -15,12 +15,12 @@ use super::{
     CheckingMode, SelectedBoundaryFamilySpecialization,
     SelectedGenericOperatorProviderSpecialization,
 };
-use checked_trees::CheckedTrees;
+use crate::checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, PoisonError};
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 /// Retained results; a review alternates between a closure's packages and
 /// checks each at two checkpoints.
@@ -34,7 +34,7 @@ pub(super) struct RequestKey {
     pub(super) selected_generic_operator_providers:
         Vec<SelectedGenericOperatorProviderSpecialization>,
     pub(super) selected_boundary_families: Vec<SelectedBoundaryFamilySpecialization>,
-    pub(super) opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
+    pub(super) opaque_property_receipts: Vec<crate::validation::OpaqueDataPropertyReceipt>,
 }
 
 struct Entry {

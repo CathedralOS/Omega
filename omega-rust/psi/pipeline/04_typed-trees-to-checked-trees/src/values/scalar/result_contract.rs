@@ -263,9 +263,10 @@ impl ContractPredicates<'_, '_> {
                 // no retained place here. Both stay erased as before.
                 if let CheckedScalarExpression::StructuralParameterByteLength { root, path } = &term
                 {
-                    let admissible =
-                        matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. })
-                            && path.is_empty();
+                    let admissible = matches!(
+                        root,
+                        crate::checked_trees::CheckedStorageRoot::Parameter { .. }
+                    ) && path.is_empty();
                     if !admissible {
                         return None;
                     }

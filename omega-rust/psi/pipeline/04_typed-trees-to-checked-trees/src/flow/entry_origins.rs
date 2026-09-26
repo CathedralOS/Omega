@@ -222,18 +222,32 @@ fn parameter_edges(
     edges
 }
 
-pub(super) fn state_origins(
+/// Every state's parameter origins in one machine: which entry parameters
+/// each state parameter can carry, solved to a fixed point over the
+/// machine's named parameter edges. The solution does not depend on which
+/// state asks, so one solve serves every state of the machine.
+pub(super) struct MachineParameterOrigins(Vec<Vec<ParameterOrigins>>);
+
+impl MachineParameterOrigins {
+    /// Whether this solve covers every state `machine` currently stores; a
+    /// machine that gained states since must be solved again.
+    pub(super) fn covers(
+        &self,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    ) -> bool {
+        self.0.len() == program.machine_states(machine).len()
+    }
+}
+
+pub(super) fn machine_parameter_origins(
     program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-) -> Vec<(SymbolHandle, SymbolHandle)> {
+) -> MachineParameterOrigins {
     let states = program.machine_states(machine);
-    let Some(state_index) = states
-        .iter()
-        .position(|candidate| candidate.symbol == state.symbol)
-    else {
-        return Vec::new();
-    };
+    if states.is_empty() {
+        return MachineParameterOrigins(Vec::new());
+    }
     let edges = parameter_edges(program, machine);
     let mut origins = states
         .iter()
@@ -291,7 +305,25 @@ pub(super) fn state_origins(
             break;
         }
     }
-    origins[state_index]
+    MachineParameterOrigins(origins)
+}
+
+/// The entry-parameter identities `state`'s stable parameters carry on every
+/// incoming path, read from its machine's solved origins.
+pub(super) fn state_origins(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    solved: &MachineParameterOrigins,
+) -> Vec<(SymbolHandle, SymbolHandle)> {
+    let Some(state_index) = program
+        .machine_states(machine)
+        .iter()
+        .position(|candidate| candidate.symbol == state.symbol)
+    else {
+        return Vec::new();
+    };
+    solved.0[state_index]
         .iter()
         .filter_map(|row| {
             let [source] = row.sources.as_slice() else {

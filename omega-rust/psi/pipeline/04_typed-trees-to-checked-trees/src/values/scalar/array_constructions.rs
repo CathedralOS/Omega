@@ -3,6 +3,7 @@
 //! computed leaves share this roster after flow capture, while statement-owned
 //! arrays retain their existing pre-flow value production.
 use crate::checked_trees::{CheckedArrayConstructionSource, FlowFacts, FlowStateFact};
+use crate::validation;
 use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;

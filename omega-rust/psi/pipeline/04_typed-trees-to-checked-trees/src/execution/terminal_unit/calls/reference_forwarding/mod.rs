@@ -4,6 +4,7 @@ use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
+use symbol_resolved_trees_to_typed_trees::typed_trees;
 
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 

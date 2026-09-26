@@ -19,6 +19,7 @@ use super::{
     is_record_pattern_marker, retain_selected_sources, scalar_computation_local_at,
     structural_operands,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees;
 
 /// The sequence state a `let` statement reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
@@ -502,7 +503,7 @@ fn exclusive_place_loan_referent(
         statement,
         borrow.target,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     let position = program

@@ -90,10 +90,12 @@ pub use crate::validation::machine_calls::calls::{
     generic_bound_call_requirement, generic_bound_value_call_requirement, operand_call_plans,
     state_reference_parameter_binding_is_stable,
 };
-pub use crate::validation::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
+pub use crate::validation::proof_contracts::slice_ranking::{
+    slice_tail_strictly_decreases, slice_tail_strictly_decreases_with_bound_lookup,
+};
 pub use crate::validation::value_custody::cleanup::validate_reserved_cleanup_selections;
 pub use crate::validation::value_custody::content_conservation::{
-    ContentConservationSourcePlan, build_content_conservation_plans,
+    ContentConservationSourcePlan, build_content_conservation_plans, content_conservation_plans,
 };
 pub use crate::validation::value_custody::content_projections::build_content_projection_plans;
 
@@ -266,6 +268,7 @@ pub use proof_contracts::proof_embeddings::{
 };
 
 mod declarations;
+mod frozen_program;
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;
@@ -276,6 +279,9 @@ mod value_custody;
 #[cfg(test)]
 #[path = "../../tests/validation/support/front_end.rs"]
 mod front_end;
+pub use frozen_program::{
+    FrozenProgramScope, enter_frozen_program_scope, proof_only_classification,
+};
 pub use machine_calls::reference_result_custody;
 pub use program_validation::{
     ContractEntailmentStandDown, ContractEntailmentStandDownReason, ExactIntegerCastFact,

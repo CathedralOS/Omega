@@ -50,7 +50,7 @@ pub(crate) fn validate_content_conservation_contracts(
 pub fn content_conservation_plans(
     program: &TypedTrees,
 ) -> std::sync::Arc<Vec<ContentConservationSourcePlan>> {
-    crate::frozen_program::frozen_memo(
+    crate::validation::frozen_program::frozen_memo(
         program,
         |memos| &memos.content_conservation,
         || build_content_conservation_plans(program),

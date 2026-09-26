@@ -1,14 +1,17 @@
+use crate::validation::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
+
 use super::{
     ExpressionHandle, ExpressionNode, Machine, StatementNode, TransitionGuardNode,
     TransitionTargetNode, TypedTrees, collect_self_entry_call_arguments,
 };
-pub(super) fn guarded_slice_tail_call(
-    program: &TypedTrees,
+pub(super) fn guarded_slice_tail_call<'a>(
+    program: &'a TypedTrees,
     machine: &Machine,
     state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement: &StatementNode,
     argument: ExpressionHandle,
     measure_position: usize,
+    bound_lookup: &mut Option<ImmutableBoundLookup<'a>>,
 ) -> bool {
     let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
         return false;
@@ -50,7 +53,13 @@ pub(super) fn guarded_slice_tail_call(
     let TransitionGuardNode::When(guard) = transition.guard else {
         return false;
     };
-    if !crate::validation::slice_tail_strictly_decreases(program, guard, argument, parameter) {
+    if !crate::validation::slice_tail_strictly_decreases_with_bound_lookup(
+        program,
+        guard,
+        argument,
+        parameter,
+        bound_lookup,
+    ) {
         return false;
     }
     let entry_name = machine

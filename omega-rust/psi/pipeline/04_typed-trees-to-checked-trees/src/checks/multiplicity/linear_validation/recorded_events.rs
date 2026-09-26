@@ -18,6 +18,7 @@ use symbols::SymbolHandle;
 pub(super) fn validate_permission_source_replay(
     program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
+    incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     // The source, not a removable receipt/provenance marker, selects replay.
     // Only a bound call returning a linear frontier can publish this kind of
@@ -72,15 +73,10 @@ pub(super) fn validate_permission_source_replay(
         },
         ..Default::default()
     };
-    let call_frames = crate::validation::CallFrameResolver::new(program);
-    let incoming_guards = crate::checks::ranges::incoming_guards::IncomingGuardIndex::build(
-        program,
-        call_frames.as_ref(),
-    );
     crate::checks::multiplicity::permission_events::record_permission_events_with_incoming_guards(
         program,
         &mut reconstructed,
-        &incoming_guards,
+        incoming_guards,
     )?;
     let expected = &reconstructed.flow.ownership;
     let recorded = &facts.flow.ownership;
