@@ -1064,10 +1064,7 @@ pass/collections/runtime_computed_index_direct_exit checked 203ms
 pass/collections/runtime_declared_range_index_write_exit checked 162ms
 pass/collections/runtime_double_indexed_rmw_exit checked 183ms
 pass/collections/runtime_dutch_flag_partition_exit checked 214ms
-pass/collections/runtime_fixed_vec_round_trip_exit rejected 87ms
-	cannot prove ensures contract for exit from FixedVecI32x4::clear at statement 1: self.length < self.items.len
-	cannot prove ensures contract for exit from FixedVecI32x4::push at statement 5: self.length > 0
-	cannot prove ensures contract for exit from FixedVecI32x4::push at statement 5: self.length - 1 < self.items.len
+pass/collections/runtime_fixed_vec_round_trip_exit checked 406ms
 pass/collections/runtime_frame_indexed_param_read_exit checked 169ms
 pass/collections/runtime_hoisted_index_write_exit checked 180ms
 pass/collections/runtime_indexed_struct_field_rmw_exit checked 170ms
