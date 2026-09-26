@@ -131,33 +131,9 @@ fn operand_selects_domain(
     domain_symbol: SymbolHandle,
 ) -> bool {
     expression_type_reference_for_origin(program, operand, origin).is_some_and(|type_reference| {
-        type_selects_semantic_domain(program, type_reference, domain_symbol)
+        typed_trees::domain::type_selects_semantic_domain(program, type_reference, domain_symbol)
     }) || expression_mint_selects_domain(program, origin, operand, domain_symbol)
         || signature_selects_domain(program, origin, operand, domain_symbol)
-}
-
-fn type_selects_semantic_domain(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-    domain_symbol: SymbolHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_selects_semantic_domain(program, *referee, domain_symbol)
-        }
-        TypeReferenceNode::Constrained { constraints, .. } => program
-            .type_reference_table
-            .constraints(*constraints)
-            .iter()
-            .any(|constraint| match constraint {
-                typed_trees::types::TypeConstraintNode::Domain(domain) => {
-                    domain.symbol == domain_symbol
-                        && domain.semantic_roles.denotation_dimension.is_some()
-                }
-                _ => false,
-            }),
-        _ => false,
-    }
 }
 
 fn expression_mint_selects_domain(
