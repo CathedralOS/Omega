@@ -68,7 +68,6 @@ pub use scalar_graph_plans::{
 };
 pub use scalar_return_plans::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
-    CheckedSelectedOperatorStructuralScalarReturnMachinePlan,
     CheckedStructuralBooleanConvergencePlan, CheckedStructuralScalarIntegerBoundKind,
     CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarIntegerBoundRequirementPlan,
     CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnCleanupAction,

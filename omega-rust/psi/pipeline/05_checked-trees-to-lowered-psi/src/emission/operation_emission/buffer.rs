@@ -1,9 +1,8 @@
 //! Invocation-owned operation identities and exact source-occurrence companions.
 
 use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
 use crate::terminal_identities::operation_id;
-use lowered_psi::{LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence};
+use lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, ValueId};
 use terminal_psi::{Operation, ValueDeclaration};
 
@@ -41,7 +40,6 @@ pub(crate) struct OperationBuffer {
         ValueId,
     )>,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
-    pub(crate) selected_ieee_float_fmas: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
 }
 
 impl OperationBuffer {
@@ -56,7 +54,6 @@ impl OperationBuffer {
             element_lengths: Vec::new(),
             field_byte_lengths: Vec::new(),
             source_calls: Vec::new(),
-            selected_ieee_float_fmas: Vec::new(),
             selected_ieee_float_comparisons: Vec::new(),
             selected_integer_comparisons: Vec::new(),
         }
@@ -117,42 +114,6 @@ impl OperationBuffer {
             source_target: target,
             source_values_before_call: source_values_before_call.to_vec(),
         });
-        Ok(())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn record_selected_ieee_float_fma(
-        &mut self,
-        coordinate: SourceCallCoordinate,
-        operation: OperationId,
-        requirement_operator: symbols::SymbolHandle,
-        provider_plan_report_fingerprint: u64,
-        provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment,
-        format: semantic_vocabulary::IeeeFloatFormat,
-    ) -> Result<(), LoweringError> {
-        if provider_plan_report_fingerprint == 0 || provider_plan_commitment.is_empty() {
-            return unsupported(
-                "selected IEEE FMA occurrence lacks complete ProviderPlan evidence",
-            );
-        }
-        if self.selected_ieee_float_fmas.iter().any(|existing| {
-            existing.source_state == coordinate.state
-                && existing.statement_index == coordinate.statement_index
-                && existing.call_ordinal == coordinate.call_ordinal
-        }) {
-            return unsupported("selected IEEE FMA occurrence coordinate is duplicated");
-        }
-        self.selected_ieee_float_fmas
-            .push(LoweredSelectedIeeeFloatFmaOccurrence {
-                source_state: coordinate.state,
-                statement_index: coordinate.statement_index,
-                call_ordinal: coordinate.call_ordinal,
-                terminal_operation: operation,
-                requirement_operator,
-                provider_plan_report_fingerprint,
-                provider_plan_commitment,
-                format,
-            });
         Ok(())
     }
 }

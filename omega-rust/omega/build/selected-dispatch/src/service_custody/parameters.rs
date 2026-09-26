@@ -440,15 +440,6 @@ fn reject_unsupported_receipts(checked: &CheckedTrees, diagnostics: &mut Vec<Dia
     }
     for machine in &flow
         .terminal_structural_scalar_returns
-        .selected_operator_machines
-    {
-        reject(
-            "selected-operator structural return",
-            &machine.structural_parameters,
-        );
-    }
-    for machine in &flow
-        .terminal_structural_scalar_returns
         .trait_operator_machines
     {
         reject(

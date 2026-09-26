@@ -498,69 +498,72 @@ fn retain_available_reference(
                 plan.operations
                     .iter()
                     .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                    .all(|operation| {
-                        match operation {
-                    CheckedUnitEffectOperationPlan::CallUnit {
-                        target_machine,
-                        target_state,
-                        ..
-                    } => unique_entries.contains(&(*target_machine, *target_state)),
-                    CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
-                        boundary_symbols.contains(target_machine)
-                    }
-                    CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                        target_machine, ..
-                    } => boundary_symbols.contains(target_machine),
-                    CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        target_machine,
-                        ..
-                    } => boundary_symbols.contains(target_machine),
-                    CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
-                        scalar_targets::available_target(program, facts, crate::execution::terminal_unit::ScalarCalleePlans { boundary_returns: &facts.flow.terminal_boundary_scalar_returns, structural_returns: &facts.flow.terminal_structural_scalar_returns }, candidates, &[], &scalar_targets::ScalarCallSite::of_plan(plan), operation).is_some()
-                    }
-                    CheckedUnitEffectOperationPlan::StructuralCall {
-                        target_machine,
-                        target_state,
-                        ..
-                    } => {
-                        unique_entries.contains(&(*target_machine, *target_state))
-                            || facts
-                                .flow
-                                .terminal_structural_returns
-                                .claim_free_affine_for_machine(*target_machine)
-                                .is_some()
-                    }
-                    // Exact realization custody was already joined by selected
-                    // execution before this plan was minted.
-                    CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
-                        ..
-                    } => true,
-                    CheckedUnitEffectOperationPlan::PortWrite { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                    | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                    | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                    | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                    | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
-                    | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                    | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                    | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                    | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
-                    | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                    | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                    | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-                    | CheckedUnitEffectOperationPlan::Complete { .. } => true,
-                }
+                    .all(|operation| match operation {
+                        CheckedUnitEffectOperationPlan::CallUnit {
+                            target_machine,
+                            target_state,
+                            ..
+                        } => unique_entries.contains(&(*target_machine, *target_state)),
+                        CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
+                            boundary_symbols.contains(target_machine)
+                        }
+                        CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                            target_machine,
+                            ..
+                        } => boundary_symbols.contains(target_machine),
+                        CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                            target_machine,
+                            ..
+                        } => boundary_symbols.contains(target_machine),
+                        CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
+                            scalar_targets::available_target(
+                                program,
+                                facts,
+                                crate::execution::terminal_unit::ScalarCalleePlans {
+                                    boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                                    structural_returns: &facts
+                                        .flow
+                                        .terminal_structural_scalar_returns,
+                                },
+                                candidates,
+                                &[],
+                                &scalar_targets::ScalarCallSite::of_plan(plan),
+                                operation,
+                            )
+                            .is_some()
+                        }
+                        CheckedUnitEffectOperationPlan::StructuralCall {
+                            target_machine,
+                            target_state,
+                            ..
+                        } => {
+                            unique_entries.contains(&(*target_machine, *target_state))
+                                || facts
+                                    .flow
+                                    .terminal_structural_returns
+                                    .claim_free_affine_for_machine(*target_machine)
+                                    .is_some()
+                        }
+                        CheckedUnitEffectOperationPlan::PortWrite { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                        | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                        | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                        | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+                        | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                        | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+                        | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+                        | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                        | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                        | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                        | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                        | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+                        | CheckedUnitEffectOperationPlan::Complete { .. } => true,
                     })
             })
             .collect::<Vec<_>>();

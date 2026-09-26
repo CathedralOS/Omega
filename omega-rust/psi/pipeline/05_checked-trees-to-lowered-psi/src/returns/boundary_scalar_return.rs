@@ -132,7 +132,6 @@ pub(crate) fn lower_boundary_scalar_return_machine(
     let EmittedBoundaryScalarReturn {
         machine,
         source_call_occurrences,
-        selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     } = emit_boundary_scalar_return(
@@ -166,7 +165,6 @@ pub(crate) fn lower_boundary_scalar_return_machine(
         proof_bundle: ProofBundle::default(),
         debug_map: None,
         source_call_occurrences,
-        selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     };

@@ -23,11 +23,9 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind, OperationResult,
-    PlaceId, ScalarTerm, ScalarType, StructuralPlaceDeclaration, StructuralPlaceKind,
-    ValueDeclaration, allocate_dense, direct_expression_contains_short_circuit,
-    emit_direct_expression, lookup_machine_id, lower_checked_crash_route_buckets,
-    lower_checked_scalar_expression, terminal_scalar_type, unsupported,
-    validate_direct_parameter_types, value_id,
+    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
+    lookup_machine_id, lower_checked_crash_route_buckets, terminal_scalar_type, unsupported,
+    value_id,
 };
 
 /// The completed operands one call hands the frame. Each route evaluates
@@ -67,8 +65,7 @@ impl OperationFrame<'_, '_> {
                 self.unit_call(operation, &inputs)?;
                 Ok(None)
             }
-            CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { coordinate, .. } => {
+            CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. } => {
                 let value = self.scalar_call(operation, &inputs)?;
                 self.bind_scalar_result(*coordinate, value, inputs.staged)
             }
@@ -461,20 +458,13 @@ impl OperationFrame<'_, '_> {
         inputs: &CallInputs<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let checked = self.checked;
-        let (CheckedUnitEffectOperationPlan::ScalarCall {
+        let CheckedUnitEffectOperationPlan::ScalarCall {
             coordinate,
             result,
             target_machine: realization_machine,
             target_state: realization_state,
             ..
-        }
-        | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-            coordinate,
-            result,
-            realization_machine,
-            realization_state,
-            ..
-        }) = operation
+        } = operation
         else {
             return unsupported("Unit scalar call custody drifted before emission");
         };
@@ -580,17 +570,6 @@ impl OperationFrame<'_, '_> {
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
                 (arguments, erased_arguments, erased_proof_arguments)
-            }
-            CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-                scalar_arguments, ..
-            } => {
-                let (arguments, erased_arguments) = self.selected_operator_arguments(
-                    scalar_arguments,
-                    &target,
-                    &target_parameter_types,
-                )?;
-                // Selected-operator callees are builtin and own no proof lane.
-                (arguments, erased_arguments, Vec::new())
             }
             _ => return unsupported("Unit scalar call custody drifted before emission"),
         };
@@ -721,92 +700,5 @@ impl OperationFrame<'_, '_> {
             kind,
         });
         Ok(value)
-    }
-
-    /// A selected operator's operands are its own direct expressions over the
-    /// caller's namespace, authored in the realization's full roster order:
-    /// the erased positions split off into the proof-only lane in
-    /// erased-roster order.
-    fn selected_operator_arguments(
-        &mut self,
-        scalar_arguments: &[checked_trees::CheckedScalarExpression],
-        target: &CheckedScalarCallee<'_>,
-        target_parameter_types: &[ScalarType],
-    ) -> Result<(Vec<ValueDeclaration>, Vec<ScalarTerm>), LoweringError> {
-        let target_erased_parameters = target.erased_parameters();
-        let erased_positions = target_erased_parameters
-            .iter()
-            .map(|(position, _)| usize::try_from(*position))
-            .collect::<Result<std::collections::BTreeSet<_>, _>>()
-            .map_err(|_| LoweringError::Unsupported("erased formal position exceeds usize"))?;
-        let source_types = self
-            .values
-            .iter()
-            .map(|value| value.scalar_type)
-            .collect::<Vec<_>>();
-        if scalar_arguments.len() != target_parameter_types.len() + erased_positions.len() {
-            return unsupported("selected scalar call argument count disagrees");
-        }
-        let evaluated = scalar_arguments
-            .iter()
-            .enumerate()
-            .map(|(index, argument)| {
-                let argument = lower_checked_scalar_expression(argument)?;
-                let scalar_type = if erased_positions.contains(&index) {
-                    terminal_scalar_type(
-                        target_erased_parameters[erased_positions
-                            .iter()
-                            .position(|position| *position == index)
-                            .expect("partitioned erased position")]
-                        .1,
-                    )?
-                } else {
-                    target_parameter_types[index
-                        - erased_positions
-                            .iter()
-                            .filter(|position| **position < index)
-                            .count()]
-                };
-                if argument.scalar_type() != scalar_type
-                    || direct_expression_contains_short_circuit(&argument)
-                {
-                    return unsupported(
-                        "selected scalar call has unsupported argument control or carrier",
-                    );
-                }
-                validate_direct_parameter_types(&argument, &source_types)?;
-                Ok(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: emit_direct_expression(
-                        &argument,
-                        self.values,
-                        self.next_value,
-                        self.operations,
-                    ),
-                    scalar_type,
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-        let (dense, erased): (
-            Vec<(usize, ValueDeclaration)>,
-            Vec<(usize, ValueDeclaration)>,
-        ) = evaluated
-            .into_iter()
-            .enumerate()
-            .partition(|(index, _)| !erased_positions.contains(index));
-        if erased.len() != target_erased_parameters.len() {
-            return unsupported("scalar call erased argument count disagrees");
-        }
-        let erased = erased
-            .into_iter()
-            .zip(&target_erased_parameters)
-            .map(|((_, value), (_, primitive))| {
-                if value.scalar_type != terminal_scalar_type(*primitive)? {
-                    return unsupported("scalar call erased argument type disagrees");
-                }
-                Ok(ScalarTerm::value(value.id, value.scalar_type))
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-        Ok((dense.into_iter().map(|(_, value)| value).collect(), erased))
     }
 }

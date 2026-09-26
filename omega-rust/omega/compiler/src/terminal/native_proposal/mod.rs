@@ -19,7 +19,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
     checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
-    selected_ieee_float_fma_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence],
     selected_ieee_float_comparison_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence],
     selected_integer_comparison_occurrences: &[lowered_psi::LoweredSelectedIntegerComparisonOccurrence],
     selections: &optimization_core::OptimizationSelections,
@@ -103,11 +102,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
             ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    let ieee_float_fma_occurrences = crate::terminal::float_fma::associate(
-        checked,
-        native_target,
-        selected_ieee_float_fma_occurrences,
-    )?;
     let ieee_float_comparison_occurrences = float_comparisons::associate(
         checked,
         &terminal_module,
@@ -167,7 +161,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
             package_terminal_authority_permissions,
             compiler_builtins: builtin_proposals,
             callback_occurrences,
-            ieee_float_fma_occurrences,
             ieee_float_comparison_occurrences,
             integer_comparison_occurrences,
             boundary_application_demands,

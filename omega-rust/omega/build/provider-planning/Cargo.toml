@@ -35,7 +35,6 @@ build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" 
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 target-operations = { path = "../../representations/target-operations" }
-lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 flow-effects = { path = "../../../psi/representations/flow-effects" }

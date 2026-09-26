@@ -28,10 +28,8 @@ use crate::returns::structural_scalar_return::expressions::{
 mod effects;
 mod expressions;
 mod nominal;
-mod selected_operator;
 mod shared_types;
 use nominal::lower_nominal_structural_scalar_return_machine;
-pub(crate) use selected_operator::lower_selected_operator_structural_scalar_return_machine;
 
 pub(crate) fn lower_trait_operator_scalar_return_machine(
     checked: &CheckedTrees,
@@ -1057,7 +1055,6 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
         proof_bundle: ProofBundle::default(),
         debug_map: None,
         source_call_occurrences: Vec::new(),
-        selected_ieee_float_fma_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),
         selected_integer_comparison_occurrences: Vec::new(),
     };

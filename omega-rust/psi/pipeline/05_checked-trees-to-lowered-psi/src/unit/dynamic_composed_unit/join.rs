@@ -430,7 +430,6 @@ pub(super) fn lower<Call: DynamicCall>(
         },
         debug_map: None,
         source_call_occurrences,
-        selected_ieee_float_fma_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),
         selected_integer_comparison_occurrences: Vec::new(),
     })
@@ -815,7 +814,6 @@ fn lower_join_guard(
         || !operations.source_calls.is_empty()
         || !operations.selected_integer_comparisons.is_empty()
         || !operations.selected_ieee_float_comparisons.is_empty()
-        || !operations.selected_ieee_float_fmas.is_empty()
     {
         return unsupported("joined dynamic control guard emitted retained source metadata");
     }

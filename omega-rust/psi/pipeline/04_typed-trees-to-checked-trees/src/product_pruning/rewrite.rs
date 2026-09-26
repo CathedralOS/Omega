@@ -322,11 +322,6 @@ fn apply_fact_pruning(
     facts
         .flow
         .terminal_structural_scalar_returns
-        .selected_operator_machines
-        .retain(|row| retained.contains(&row.machine));
-    facts
-        .flow
-        .terminal_structural_scalar_returns
         .trait_operator_machines
         .retain(|row| retained.contains(&row.machine));
     facts

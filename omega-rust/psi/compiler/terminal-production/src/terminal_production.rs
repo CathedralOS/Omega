@@ -4,8 +4,7 @@ use checked_trees_to_lowered_psi::{
 };
 use lowered_psi::{
     LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
-    LoweredSelectedIeeeFloatFmaOccurrence, LoweredSelectedIntegerComparisonOccurrence,
-    LoweredSourceCallOccurrence,
+    LoweredSelectedIntegerComparisonOccurrence, LoweredSourceCallOccurrence,
 };
 use lowered_psi_to_lowered_psi::{
     PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
@@ -40,7 +39,6 @@ pub struct ProducedTerminalArtifact<C> {
     boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
     callback_custody: C,
     source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
-    selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     selected_ieee_float_comparison_occurrences: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
 }
@@ -75,10 +73,6 @@ impl<C> ProducedTerminalArtifact<C> {
         &self.source_call_occurrences
     }
 
-    pub fn selected_ieee_float_fma_occurrences(&self) -> &[LoweredSelectedIeeeFloatFmaOccurrence] {
-        &self.selected_ieee_float_fma_occurrences
-    }
-
     pub fn selected_ieee_float_comparison_occurrences(
         &self,
     ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
@@ -109,7 +103,6 @@ impl<C> ProducedTerminalArtifact<C> {
         CheckedBoundaryOperatorApplicationScope,
         C,
         Vec<LoweredSourceCallOccurrence>,
-        Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
         Vec<LoweredSelectedIntegerComparisonOccurrence>,
     ) {
@@ -120,7 +113,6 @@ impl<C> ProducedTerminalArtifact<C> {
             self.boundary_operator_scope,
             self.callback_custody,
             self.source_call_occurrences,
-            self.selected_ieee_float_fma_occurrences,
             self.selected_ieee_float_comparison_occurrences,
             self.selected_integer_comparison_occurrences,
         )
@@ -239,7 +231,6 @@ impl<'a> TerminalProductionRequest<'a> {
                 boundary_operator_scope: produced.boundary_operator_scope,
                 callback_custody,
                 source_call_occurrences: produced.source_call_occurrences,
-                selected_ieee_float_fma_occurrences: produced.selected_ieee_float_fma_occurrences,
                 selected_ieee_float_comparison_occurrences: produced
                     .selected_ieee_float_comparison_occurrences,
                 selected_integer_comparison_occurrences: produced
@@ -309,7 +300,6 @@ impl<'a> TerminalProductionRequest<'a> {
             boundary_operator_scope,
             callback_custody: (),
             source_call_occurrences: lowered.source_call_occurrences,
-            selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
             selected_ieee_float_comparison_occurrences: lowered
                 .selected_ieee_float_comparison_occurrences,
             selected_integer_comparison_occurrences: lowered

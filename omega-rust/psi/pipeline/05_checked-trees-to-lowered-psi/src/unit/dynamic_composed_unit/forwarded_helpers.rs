@@ -534,7 +534,6 @@ pub(crate) fn materialize_helper_body(
     // Pure expressions may expand to branches, but must not invent additional
     // calls, selected providers or proof obligations outside this helper plan.
     if !operations.source_calls.is_empty()
-        || !operations.selected_ieee_float_fmas.is_empty()
         || !operations.selected_ieee_float_comparisons.is_empty()
         || !operations.selected_integer_comparisons.is_empty()
     {

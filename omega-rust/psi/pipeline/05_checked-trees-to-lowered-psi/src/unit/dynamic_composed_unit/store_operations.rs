@@ -161,7 +161,6 @@ pub(crate) fn lower_realization_operations(
         || !lowered.source_calls.is_empty()
         || !lowered.selected_integer_comparisons.is_empty()
         || !lowered.selected_ieee_float_comparisons.is_empty()
-        || !lowered.selected_ieee_float_fmas.is_empty()
     {
         return unsupported("dynamic realization return emitted retained source metadata");
     }

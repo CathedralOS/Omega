@@ -114,22 +114,6 @@ pub(crate) fn validate_store_and_initializer_calls(
                     | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                         coordinate: actual,
                         ..
-                    }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-                        coordinate: actual,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                        coordinate: actual,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                        coordinate: actual,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
-                        coordinate: actual,
-                        ..
                     } => *actual == coordinate,
                     CheckedUnitEffectOperationPlan::EstablishScalarLocal {
                         result,
@@ -221,11 +205,7 @@ pub(crate) fn validate_store_and_initializer_calls(
             // there is no flow occurrence left to rejoin.
             if !matches!(
                 owner,
-                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
-                    | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             ) {
                 occurrences::validate(checked, plan.machine, plan.state, coordinate, expression)?;
             }

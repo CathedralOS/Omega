@@ -753,14 +753,6 @@ pub(super) fn return_discards(
             | CheckedUnitEffectOperationPlan::StructuralCall {
                 structural_arguments,
                 ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                structural_arguments,
-                ..
             } => structural_arguments.as_slice(),
             _ => &[],
         };
