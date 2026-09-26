@@ -711,3 +711,57 @@ fn addr_member_parameter_projection_still_declines() {
         "an addr member read still declines the statement sequence, got {stage:?}"
     );
 }
+
+#[test]
+fn borrowed_case_field_member_store_plans() {
+    let checked = checked(
+        r#"
+        data Fmt [copy] { case Decimal; case Hex; case Octal; }
+        data Box { fmt: Fmt; tag: u64; }
+        machine Box::set_fmt<'a>(&mut self, source: &'a Box) {
+            self.fmt = source.fmt;
+        }
+        machine Box::copy_fmt<'a>(source: &'a Box, sink: &'a mut Box) {
+            sink.fmt = source.fmt;
+        }
+        "#,
+    );
+    for name in ["Box::set_fmt", "Box::copy_fmt"] {
+        let machine = machine_named(&checked, name);
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine)
+                .is_some(),
+            "{name} should mint a structural case field store plan",
+        );
+    }
+}
+
+/// An owned `source: Box` is affine: `sink.fmt = source.fmt` moves the member
+/// out and leaves a husk, which the copy-shaped arm cannot express.
+#[test]
+fn owned_case_field_member_store_still_declines() {
+    let checked = checked(
+        r#"
+        data Fmt [copy] { case Decimal; case Hex; case Octal; }
+        data Box { fmt: Fmt; tag: u64; }
+        machine Box::owned<'a>(source: Box, sink: &'a mut Box) {
+            sink.fmt = source.fmt;
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "Box::owned");
+    let stage = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .omission_for_machine(machine)
+        .map(|row| row.stage.clone());
+    assert!(
+        stage.is_some(),
+        "affine owned source member store should still decline",
+    );
+}
