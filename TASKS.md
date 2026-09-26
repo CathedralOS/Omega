@@ -3079,7 +3079,7 @@ syntax and other terminal services are not prerequisites.
   `output: i32`, `state: u32 in Wrapping`;
   `arithmetic_domains::assignments::check_narrowing_assignment`). The
   [numeric values](wiki/spec/language/numeric_values.md) and
-  [domains](wiki/spec/language/domains.md#nominal-index-qualifications) specs
+  [domains](wiki/spec/language/domains.md#exact-coercion-and-erasure) specs
   keep typed values at their types, make policy erasure explicit, and route
   representable narrowing through `as`. Checked lowering then has no
   `AssignmentValue` row (`scalar_lowering::lower_return_expression` requires
