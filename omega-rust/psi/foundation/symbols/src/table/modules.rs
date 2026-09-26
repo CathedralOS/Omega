@@ -608,12 +608,70 @@ impl SymbolTable {
         let mut matches = Vec::new();
         let mut module_local_matches = Vec::new();
         let mut carrier_domain_matches = Vec::new();
-        for candidate in self
-            .child_handles(self.root)
-            .into_iter()
-            .flatten()
-            .chain(self.module_symbols.iter().map(|(_, handle)| *handle))
-        {
+        // Every match arm selects by full name, exact display path, a path
+        // derived from an import binding's own strings, or (for the carrier
+        // arm) the declared Domain leaf — gather just those roster positions
+        // instead of walking the whole roster per reference. Order is the
+        // original scan order; a handle occupying both roster halves keeps
+        // its two positions.
+        let index = self.module_scope_index();
+        let mut candidate_pool: Vec<(u32, SymbolHandle)> = Vec::new();
+        let gather = |pool: &mut Vec<(u32, SymbolHandle)>, key: &str| {
+            if let Some(entries) = index.by_name.get(key) {
+                pool.extend_from_slice(entries);
+            }
+        };
+        gather(&mut candidate_pool, name);
+        if qualified {
+            if let Some(entries) = index.by_path.get(name) {
+                candidate_pool.extend_from_slice(entries);
+            }
+            if let Some((_, authored_leaf)) = name.rsplit_once("::")
+                && let Some(entries) = index.domain_leaves.get(authored_leaf)
+            {
+                candidate_pool.extend_from_slice(entries);
+            }
+            for scope in &import_bindings {
+                let import = scope
+                    .binding
+                    .module_import
+                    .as_ref()
+                    .expect("import bindings carry module imports");
+                let logical = scope.logical.as_str();
+                if import.exact_source
+                    && import.package_prefix_members != 0
+                    && let Some(suffix) = name
+                        .strip_prefix(scope.package_prefix.as_str())
+                        .and_then(|rest| rest.strip_prefix("::"))
+                    && let Some(entries) = index.by_path.get(suffix)
+                {
+                    candidate_pool.extend_from_slice(entries);
+                }
+                if let Some(short) = logical.rsplit("::").next()
+                    && let Some(suffix) = name
+                        .strip_prefix(short)
+                        .and_then(|rest| rest.strip_prefix("::"))
+                {
+                    let key = format!("{logical}::{suffix}");
+                    if let Some(entries) = index.by_path.get(key.as_str()) {
+                        candidate_pool.extend_from_slice(entries);
+                    }
+                }
+                if let Some(module_leaf) = scope.module_leaf.as_deref()
+                    && let Some(suffix) = name
+                        .strip_prefix(module_leaf)
+                        .and_then(|rest| rest.strip_prefix("::"))
+                {
+                    let key = format!("{logical}::{suffix}");
+                    if let Some(entries) = index.by_path.get(key.as_str()) {
+                        candidate_pool.extend_from_slice(entries);
+                    }
+                }
+            }
+        }
+        candidate_pool.sort_unstable_by_key(|(order, _)| *order);
+        candidate_pool.dedup_by_key(|(order, _)| *order);
+        for (_, candidate) in candidate_pool {
             let candidate_kind = self.get(candidate).kind;
             let is_module = candidate_kind == SymbolKind::Module;
             if !kinds.contains(&candidate_kind)

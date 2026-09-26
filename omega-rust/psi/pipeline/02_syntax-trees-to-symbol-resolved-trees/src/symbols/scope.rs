@@ -89,13 +89,22 @@ impl MachineScope<'_> {
         if !owner.is_valid() || symbols.get(owner).kind != symbols::SymbolKind::Data {
             return SymbolHandle::invalid();
         }
+        let owner_attachments =
+            super::expression_paths::projected_receivers::attached_machines_for_owner(
+                self.attached_machines,
+                owner,
+            );
+        // The visibility lookup's candidate filter asks "is this machine
+        // attached to `owner`" per roster candidate; answer it from a set
+        // built once instead of rescanning the attached list each probe.
+        let owner_machines: std::collections::HashSet<SymbolHandle> = owner_attachments
+            .iter()
+            .map(|index| self.attached_machines[*index].machine)
+            .collect();
         let mut selected = SymbolHandle::invalid();
-        for attachment in super::expression_paths::projected_receivers::attached_machines_for_owner(
-            self.attached_machines,
-            owner,
-        )
-        .into_iter()
-        .map(|index| &self.attached_machines[index])
+        for attachment in owner_attachments
+            .iter()
+            .map(|index| &self.attached_machines[*index])
         {
             let state = super::lookup::child_symbol_by_kinds(
                 symbols,
@@ -120,11 +129,7 @@ impl MachineScope<'_> {
                     path,
                     &[symbols::SymbolKind::Machine],
                     target.source_span(),
-                    |candidate| {
-                        self.attached_machines
-                            .iter()
-                            .any(|entry| entry.machine == candidate && entry.owner == owner)
-                    },
+                    |candidate| owner_machines.contains(&candidate),
                 ) {
                     SymbolLookup::Unique(candidate) => candidate == attachment.machine,
                     SymbolLookup::Ambiguous { first, second } => {
