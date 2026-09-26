@@ -1,0 +1,54 @@
+// Reproducer: `transition self { Case { p } -> (p.method()) }` — a method call
+// on an arm-bound payload inside the transition's result expression. The
+// payload is itself a union (the Squalr ScanResultsResponse shape), so the
+// arm result needs custody/binding rows that name the arm binder, and the
+// payload's own case dispatch must lower under that borrowed receiver.
+// Exits 70 only when the payload receiver call lowers and dispatches.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Payload {
+    case Leaf(value: u64);
+    case Empty;
+}
+
+machine Payload::read(&self) -> u64 {
+    transition self {
+        Payload::Leaf { value } -> (value)
+        Payload::Empty -> (0)
+    }
+}
+
+data Sum {
+    case Found(p: Payload);
+    case Missing;
+}
+
+machine Sum::probe(&self) -> u64 {
+    transition self {
+        Sum::Found { p } -> (p.read())
+        Sum::Missing -> (0)
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let s: Sum = Sum::Found { p: Payload::Leaf { value: 70 } };
+
+    transition s.probe() == 70 {
+        true -> done()
+        _ -> missed()
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}
