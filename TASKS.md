@@ -89,13 +89,17 @@ backend-visible; full corpus runs only at the end of an item.
   Finish routing every boundary-operator application through its requirement's
   `BoundaryCall` and Omega stage 00 installation, including legacy named
   operators and compiler-known float realizations. Generic token machines
-  still need selection-neutral specialization of all eligible checked
-  candidates for actual closed demands, then a portable exact
-  requirement-template/application join to the original selected ProviderPlan.
-  Stage 05 `unit/attached_unit/providers.rs` can catalog checked closed
-  applications through the existing conformance resolver; its integration test
-  explicitly supplies specialization requests and does not establish the
-  automatic native route. Do not extend the retired selected-dispatch route,
+  still need template ProviderPlan derivation (currently excluded by
+  `service_schema::from_typed_boundary_requirement`) and a portable exact
+  requirement-template/application join to that unchanged selected plan.
+  Psi checking derives candidate specializations
+  from authored conformance edges without Build selection; the Stage 05
+  `provider_candidates` integration tests exercise source-free installation and
+  execution for two providers and two const tuples. Native settlement must retain
+  artifact-bound checked custody for the exact specialization and reuse the
+  selected realization companion in `compiler/terminal/application_coverage`,
+  not treat `ClosedReachApplication` as authenticated source-specialization
+  evidence. Do not extend the retired selected-dispatch route,
   alias a closed requirement to its template, or infer authority from equal
   runtime signatures. On macOS ARM64, the outcome of `python3 tools/corpus_gate.py
   --native --filter specialized_mixed_structural_result_operator_hosted_native

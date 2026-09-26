@@ -22,6 +22,59 @@ pub(crate) struct SelectedProviderTemplates {
 }
 
 impl SelectedProviderTemplates {
+    /// Token requirements publish all explicitly conforming checked candidates.
+    /// Build chooses among them only after Terminal publication. Discover the
+    /// authored edges before ordinary specialization can mutate their binders;
+    /// the existing fixed point materializes only actual closed demands.
+    pub(crate) fn candidate_requests(
+        program: &TypedTrees,
+        selected: &[crate::SelectedGenericOperatorProviderSpecialization],
+    ) -> Vec<crate::SelectedGenericOperatorProviderSpecialization> {
+        let mut requests = Vec::new();
+        for machine in program.machines() {
+            if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || !machine.body_is_present
+                || program.machine_type_parameters(machine).is_empty()
+            {
+                continue;
+            }
+            for conformance in program.machine_trait_conformances(machine) {
+                if conformance.external_binding.is_some() || conformance.via_expression.is_valid() {
+                    continue;
+                }
+                let Some(operator) = symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                    program, machine, conformance,
+                ) else {
+                    continue;
+                };
+                if !operator.is_boundary
+                    || !program
+                        .machine_token_bindings()
+                        .iter()
+                        .any(|binding| binding.symbol == operator.symbol)
+                {
+                    continue;
+                }
+                let request = crate::SelectedGenericOperatorProviderSpecialization {
+                    requirement_operator: operator.symbol,
+                    realization_machine: machine.symbol,
+                };
+                if !requests.contains(&request) {
+                    requests.push(request);
+                }
+            }
+        }
+        // Legacy operator requests still use the same elaborator. Append only
+        // missing edges: selecting a token candidate must not reorder or prune
+        // its selection-neutral roster, including candidates of other providers.
+        for request in selected {
+            if !requests.contains(request) {
+                requests.push(*request);
+            }
+        }
+        requests
+    }
+
     pub(crate) fn prepare(
         program: &TypedTrees,
         selected: &[crate::SelectedGenericOperatorProviderSpecialization],
@@ -82,19 +135,11 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             ));
             continue;
         };
-        let [namespace, requirement] = templates.operator_path_members(operator.name) else {
-            diagnostics.push(Diagnostic::error(
-                "selected generic operator provider requirement has no exact two-part path",
-            ));
-            continue;
-        };
-        if symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_satisfied_checked_operator(
-            templates,
-            &template_machine,
-            namespace.as_str(),
-            requirement.as_str(),
-        )
-        .is_none_or(|resolved| resolved.symbol != operator.symbol)
+        if !templates.machine_trait_conformances(&template_machine).iter().any(|conformance| {
+            symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                templates, &template_machine, conformance,
+            ).is_some_and(|resolved| resolved.symbol == operator.symbol)
+        })
         {
             diagnostics.push(Diagnostic::error(format!(
                 "selected generic operator provider `{}` does not realize its exact requirement",

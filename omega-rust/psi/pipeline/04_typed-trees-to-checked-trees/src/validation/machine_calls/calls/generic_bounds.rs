@@ -52,6 +52,7 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
         program,
         callee_machine,
         callee_state,
+        current_machine,
         target_name,
         diagnostics,
     );
@@ -82,19 +83,21 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
 /// adapter's leading argument; the ordinary receiver-borrow checks already
 /// demanded the place be readable or writable for the declared access.
 /// Such a call executes
-/// only through the selected provider row that selected-dispatch settles
-/// after provider planning, which rejects a called requirement with no
-/// selected provider. Lexical resolution owns visibility, while an open
-/// generic requirement keeps the symbol fence. A write-only or qualified `self` receiver (`&write self`,
+/// only through an admitted provider installation. Lexical resolution owns
+/// visibility. A residual authored template may retain a symbolic requirement
+/// call: it is not executable, and every emitted concrete caller must rejoin a
+/// closed requirement after specialization. A write-only or qualified `self` receiver (`&write self`,
 /// `self in Pending`) keeps it too: receiver custody and obligation
 /// transfer are a separate settlement shape.
 fn is_directly_callable_top_level_requirement(
     program: &TypedTrees,
     callee_machine: &Machine,
     callee_state: &State,
+    current_machine: &Machine,
 ) -> bool {
     callee_machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-        && program.machine_type_parameters(callee_machine).is_empty()
+        && (program.machine_type_parameters(callee_machine).is_empty()
+            || !program.machine_type_parameters(current_machine).is_empty())
         && program.machine_states(callee_machine).len() == 1
         && program
             .state_parameters(callee_state)
@@ -127,6 +130,7 @@ fn report_bodyless_boundary_symbol_call(
     program: &TypedTrees,
     callee_machine: &Machine,
     callee_state: &State,
+    current_machine: &Machine,
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -140,7 +144,12 @@ fn report_bodyless_boundary_symbol_call(
             | language_semantics::MachineSupplyMode::TopLevelRequirement
     ) && !compiler_placed_accessor
         && !callee_machine.body_is_present
-        && !is_directly_callable_top_level_requirement(program, callee_machine, callee_state)
+        && !is_directly_callable_top_level_requirement(
+            program,
+            callee_machine,
+            callee_state,
+            current_machine,
+        )
     {
         diagnostics.push(Diagnostic::error(format!(
             "bodyless boundary symbol `{target_name}` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider"
@@ -241,5 +250,94 @@ fn validate_type_parameter_instantiation_bounds(
                 type_reference_label(program, argument_type)
             )));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn symbolic_requirement_calls_do_not_authorize_concrete_or_bodyless_execution() {
+        let mut program = crate::tests::front_end::typed_program(
+            r#"
+            data Ops {}
+            boundary machine - Ops::identity<Element>(value: Element) -> Element;
+            machine template<Value>(value: Value) -> Value { value }
+            machine concrete(value: i32) -> i32 { value }
+        "#,
+        );
+        let requirement = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Ops::identity")
+            .unwrap();
+        let state = &program.machine_states(requirement)[0];
+        let template = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "template")
+            .unwrap();
+        let concrete = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "concrete")
+            .unwrap();
+        let mut diagnostics = Vec::new();
+        super::report_bodyless_boundary_symbol_call(
+            &program,
+            requirement,
+            state,
+            template,
+            "identity",
+            &mut diagnostics,
+        );
+        assert!(
+            diagnostics.is_empty(),
+            "only the uninstantiated template may retain the symbolic call"
+        );
+        super::report_bodyless_boundary_symbol_call(
+            &program,
+            requirement,
+            state,
+            concrete,
+            "identity",
+            &mut diagnostics,
+        );
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "a concrete caller cannot execute an open requirement"
+        );
+        let requirement_symbol = requirement.symbol;
+        program
+            .machines_mut()
+            .iter_mut()
+            .find(|machine| machine.symbol == requirement_symbol)
+            .unwrap()
+            .supply_mode = language_semantics::MachineSupplyMode::Boundary;
+        let requirement = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == requirement_symbol)
+            .unwrap();
+        let state = &program.machine_states(requirement)[0];
+        let template = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "template")
+            .unwrap();
+        diagnostics.clear();
+        super::report_bodyless_boundary_symbol_call(
+            &program,
+            requirement,
+            state,
+            template,
+            "identity",
+            &mut diagnostics,
+        );
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "a plain boundary symbol is not an executable requirement even in a template"
+        );
     }
 }
