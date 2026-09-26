@@ -41,8 +41,8 @@ pub struct TopLevelSymbols<'program> {
     traits: Vec<TraitSymbol<'program>>,
     types: Vec<TypeSymbol<'program>>,
     /// Demand caches for the write-frame/caller-alias queries. Inserted lazily
-    /// by readers; `build` leaves them empty.
-    pub(crate) caller_sites: CallerSiteCaches,
+    /// by readers; every index built for one frozen program shares them.
+    pub(crate) caller_sites: std::sync::Arc<CallerSiteCaches>,
 }
 
 #[derive(Debug)]
@@ -74,7 +74,11 @@ impl<'program> TopLevelSymbols<'program> {
             machines: Vec::with_capacity(machine_count),
             traits: Vec::with_capacity(trait_count),
             types: builtin_type_symbols(program),
-            caller_sites: CallerSiteCaches::default(),
+            caller_sites: crate::frozen_program::frozen_memo(
+                program,
+                |memos| &memos.caller_sites,
+                CallerSiteCaches::default,
+            ),
         };
         symbols.types.reserve(data_definition_count + trait_count);
 
