@@ -47,7 +47,7 @@ source-files-to-tokens = { path = "../../psi/pipeline/00_source-files-to-tokens"
 tokens = { path = "../../psi/representations/tokens" }
 backend-plan = { path = "../backend/plans/backend-plan" }
 program-entry-plan = { path = "../backend/plans/program-entry-plan" }
-artifacts = { path = "../tooling/artifacts" }
+artifacts = { path = "artifacts" }
 checked-trees = { path = "../../psi/representations/checked-trees" }
 checked-interpreter = { path = "../../psi/interpreter/checked-interpreter" }
 build-time-evaluation = { path = "../../psi/compiler/build-time-evaluation" }

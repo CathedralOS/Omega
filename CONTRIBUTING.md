@@ -363,7 +363,7 @@ implementation; those meanings must stay distinct in commit subjects.
 | `build` | The product's build evaluation, composition, provider planning, and trust ledger in supporting packages under `omega-rust/omega/compiler/`, plus product build declarations such as `source/omega/build.omg`. Repository build commands and CI use `repo`. |
 | `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/package-manager/`. Package command wiring accompanying those changes keeps `packages`. |
 | `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/omega/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |
-| `tooling` | Shipped compiler support such as artifact views, profiles, language-server/docs-generator behavior, and host custody in `omega-rust/omega/tooling/`. |
+| `tooling` | Shipped developer tools and shared host support in `omega-rust/omega/foundation/`. Compiler artifact records and output writing in `omega-rust/omega/compiler/artifacts/` use `compiler`. |
 | `library` | Bundled packages in `source/library/`, including `core`, `alloc`, and `std`, and their Rust reference implementations in `omega-rust/library/`. A compiler semantic fix exercised by library code keeps its compiler lane. |
 | `samples` | Standalone sample/example content and presentation in `samples/` or example directories. A regression fixture for an implementation fix keeps that implementation's lane. |
 | `tests` | Shared test infrastructure, corpus registration, fixtures, or architecture gates spanning multiple owners. Tests for one responsibility use that responsibility's lane, even in a test-only commit. |

@@ -14,7 +14,7 @@ sha2 = "0.10.9"
 terminal-psi = { path = "../../psi/representations/terminal-psi" }
 
 [target.'cfg(unix)'.dependencies]
-bounded-process = { path = "../../omega/tooling/bounded-process" }
+bounded-process = { path = "../../omega/foundation/bounded-process" }
 
 [dev-dependencies]
 compiler = { path = "../../omega/compiler" }

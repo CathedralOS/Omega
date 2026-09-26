@@ -12,8 +12,8 @@ path = "src/lib.rs"
 test-fixtures = []
 
 [dependencies]
-bounded-process = { path = "../../tooling/bounded-process" }
-platform-custody = { path = "../../tooling/platform-custody" }
+bounded-process = { path = "../../foundation/bounded-process" }
+platform-custody = { path = "../../foundation/platform-custody" }
 resolver-execution = { path = "../resolver-execution" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"

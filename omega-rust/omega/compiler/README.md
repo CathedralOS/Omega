@@ -80,6 +80,7 @@ Consumers depend directly on the package whose contract they need.
 | `package-compilation` | Source package compilation inputs and results |
 | `provider-planning`, `representation-planning`, `selected-dispatch` | Provider and representation choices and selected execution |
 | `trust-model`, `trust-ledger` | Trust vocabulary and admission bookkeeping |
+| `artifacts` | Output writing, retained trust/wire records and measurement storage |
 
 Target-neutral build evaluation remains in
 [Psi's compiler support](../../psi/compiler/build-time-evaluation/README.md).
