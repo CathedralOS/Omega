@@ -3,12 +3,10 @@
 
 use std::collections::BTreeSet;
 
-use crate::provider_admission::AdmittedTerminalMechanism;
-use crate::provider_admission::{
-    NativeRealizationInput, ProviderAdmissionRequest,
-};
-use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
 use crate::AdmittedBoundarySettlement;
+use crate::provider_admission::AdmittedTerminalMechanism;
+use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
+use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
 

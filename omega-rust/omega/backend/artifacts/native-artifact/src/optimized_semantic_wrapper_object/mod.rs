@@ -7,7 +7,6 @@
 //! `crate::semantic_wrapper_object`; this stage binds them to the
 //! settlement, source artifact, and encoding custody it retains.
 
-use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 use crate::{
     OptimizedProgramStorageSemanticWrapperObjectContainer,
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
@@ -20,6 +19,7 @@ use program_entry_plan::{
     StagedOptimizedProgramStorageSemanticWrapperEncoding,
     validate_optimized_program_storage_semantic_wrapper_encoding,
 };
+use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
 mod error;
 mod object;

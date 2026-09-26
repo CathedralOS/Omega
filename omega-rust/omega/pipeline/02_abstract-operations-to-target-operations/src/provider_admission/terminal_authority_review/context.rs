@@ -16,8 +16,7 @@ use terminal_psi::{ClosedConformanceApplication, ClosedConformanceApplicationCom
 
 use super::operations::{AuthorityEdge, authority_edge};
 use crate::provider_admission::{
-    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
-    AdmittedTerminalMechanism,
+    AdmittedTerminalMechanism, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 
 type DynamicBindings = BTreeMap<u32, ClosedConformanceApplication>;

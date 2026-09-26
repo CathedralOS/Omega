@@ -2,11 +2,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::provider_admission::AdmittedTerminalMechanism;
-use crate::provider_admission::{
-    NativeBoundaryRealization, NativeProviderSettlement,
-};
 use crate::AdmittedNativeCallbackArgument;
+use crate::provider_admission::AdmittedTerminalMechanism;
+use crate::provider_admission::{NativeBoundaryRealization, NativeProviderSettlement};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;

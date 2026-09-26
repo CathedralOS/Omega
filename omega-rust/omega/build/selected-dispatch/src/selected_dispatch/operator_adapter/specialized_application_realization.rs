@@ -236,7 +236,9 @@ fn derive_one(
         requirement_operator: application.requirement_symbol,
         requirement_overload_identity,
         provider_plan_report_fingerprint: plan.report_fingerprint(),
-        provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes()),
+        provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment::from_digest(
+            *plan.identity_digest().as_bytes(),
+        ),
         realization_template: specialization.template,
         realization_machine,
         realization_state,
@@ -293,9 +295,9 @@ fn exact_authored_uses(
                                             && candidate.is_boundary
                                     })
                         }))
-                    .then_some(CheckedOperatorAuthoredUseKind::FixedToken(
-                        operator_use.spelling,
-                    ))
+                    .then_some(
+                        CheckedOperatorAuthoredUseKind::FixedToken(operator_use.spelling),
+                    )
                 }),
         )
         .collect()

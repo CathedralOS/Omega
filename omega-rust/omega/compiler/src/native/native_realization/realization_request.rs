@@ -2,12 +2,12 @@
 //! builtin, and callback-thunk settlements, the request itself, and the
 //! requested or settled artifact results.
 
-use terminal_psi_to_abstract_operations::NativeProgramEntrySettlement;
 pub use abstract_operations_to_target_operations::provider_admission::{
     NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
 };
-pub(crate) use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
 use native_artifact::{DynamicElfNativeArtifact, NativeArtifact};
+use terminal_psi_to_abstract_operations::NativeProgramEntrySettlement;
+pub(crate) use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
 
 /// Borrowed source-free body and placement join for one compiler-private
 /// callback thunk. The ordinary callback-argument carrier remains separate so

@@ -1,10 +1,6 @@
 use crate::provider_admission::AdmittedTerminalMechanism;
-use crate::provider_admission::{
-    NativeRealizationInput, ProviderAdmissionRequest,
-};
-use crate::{
-    AdmittedBoundaryExecution, AdmittedBoundarySettlement,
-};
+use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
+use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
 use diagnostics::Diagnostic;
 use effects::{CompilerIntrinsicExecutionIdentity, provider_plan::ProviderBinding};
 use target_operations::{
