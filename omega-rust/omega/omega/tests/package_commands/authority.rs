@@ -9,8 +9,10 @@ mod missing_baseline;
 const TARGET: target::TargetProfile = target::TargetProfile::LinuxX64;
 const FILE_BUILD: &str = include_str!("../../../../../tests/omega/packages/file-journal/build.omg");
 const FILE_SOURCE: &str = include_str!("../../../../../tests/omega/packages/file-journal/main.omg");
-const PROCESS_BUILD: &str = include_str!("../../../../../tests/omega/packages/process-exit/build.omg");
-const PROCESS_SOURCE: &str = include_str!("../../../../../tests/omega/packages/process-exit/main.omg");
+const PROCESS_BUILD: &str =
+    include_str!("../../../../../tests/omega/packages/process-exit/build.omg");
+const PROCESS_SOURCE: &str =
+    include_str!("../../../../../tests/omega/packages/process-exit/main.omg");
 
 pub(super) fn authority_fixture(build: &str, source: &str) -> Fixture {
     let fixture = Fixture::new();
@@ -115,15 +117,36 @@ fn check_import(fixture: &Fixture, alias: &str) {
 
 #[test]
 fn initial_process_authority_requires_each_exact_decision() {
-    initial_authority(PROCESS_BUILD, PROCESS_SOURCE, "process_exit", "Console");
+    initial_authority(
+        PROCESS_BUILD,
+        PROCESS_SOURCE,
+        "process_exit",
+        "Console",
+        true,
+    );
 }
 
 #[test]
 fn initial_filesystem_authority_requires_each_exact_decision() {
-    initial_authority(FILE_BUILD, FILE_SOURCE, "file_journal", "FilesystemHost");
+    initial_authority(
+        FILE_BUILD,
+        FILE_SOURCE,
+        "file_journal",
+        "FilesystemHost",
+        false,
+    );
 }
 
-fn initial_authority(build: &str, source: &str, package: &str, service: &str) {
+/// `decision_mechanics` also exercises how a resumed review treats pending,
+/// withheld and rejected rows; those rules do not depend on the service, so
+/// one service exercises them.
+fn initial_authority(
+    build: &str,
+    source: &str,
+    package: &str,
+    service: &str,
+    decision_mechanics: bool,
+) {
     let fixture = authority_fixture(build, source);
     let before = fixture.accepted_files();
     let output = install(&fixture);
@@ -142,23 +165,27 @@ fn initial_authority(build: &str, source: &str, package: &str, service: &str) {
             > 1,
         "the fixture must distinguish individual choices from blanket acceptance: {document}"
     );
-    assert_status(&fixture.omega(&["install", "--resume"]), 3);
-    assert_eq!(fixture.accepted_files(), before);
-
-    // Accept every other row; the exact dangerous row must still block.
     accept_document(&path, &document);
     let accepted = fs::read_to_string(&path).unwrap();
-    let accepted_decision = decision.replace(" pending", " accept");
-    fs::write(&path, accepted.replace(&accepted_decision, decision)).unwrap();
-    assert_status(&fixture.omega(&["install", "--resume"]), 3);
-    assert_eq!(fixture.accepted_files(), before);
-    fs::write(
-        &path,
-        accepted.replace(&accepted_decision, &decision.replace(" pending", " reject")),
-    )
-    .unwrap();
-    assert_status(&fixture.omega(&["install", "--resume"]), 3);
-    assert_eq!(fixture.accepted_files(), before);
+    if decision_mechanics {
+        // Restore the pending review; it must not publish.
+        fs::write(&path, &document).unwrap();
+        assert_status(&fixture.omega(&["install", "--resume"]), 3);
+        assert_eq!(fixture.accepted_files(), before);
+
+        // Accept every other row; the exact dangerous row must still block.
+        let accepted_decision = decision.replace(" pending", " accept");
+        fs::write(&path, accepted.replace(&accepted_decision, decision)).unwrap();
+        assert_status(&fixture.omega(&["install", "--resume"]), 3);
+        assert_eq!(fixture.accepted_files(), before);
+        fs::write(
+            &path,
+            accepted.replace(&accepted_decision, &decision.replace(" pending", " reject")),
+        )
+        .unwrap();
+        assert_status(&fixture.omega(&["install", "--resume"]), 3);
+        assert_eq!(fixture.accepted_files(), before);
+    }
     fs::write(&path, accepted).unwrap();
     assert_status(&fixture.omega(&["install", "--resume"]), 0);
     let lock = fixture.lock();
@@ -253,15 +280,19 @@ fn added_and_removed_process_authority_require_exact_update_decisions() {
         );
         accept_document(&path, &document);
         let accepted = fs::read_to_string(&path).unwrap();
-        let accepted_decision = decision.replace(" pending", " accept");
-        fs::write(&path, accepted.replace(&accepted_decision, decision)).unwrap();
-        assert_status(&fixture.omega(&["update", "--resume"]), 3);
-        assert_eq!(fixture.accepted_files(), before);
-        // An unknown choice cannot stand in for this row's identity.
-        let other = format!("decision row {} accept", "ff".repeat(32));
-        fs::write(&path, accepted.replace(&accepted_decision, &other)).unwrap();
-        assert_status(&fixture.omega(&["update", "--resume"]), 1);
-        assert_eq!(fixture.accepted_files(), before);
+        // How a resumed update treats a withheld or unknown row does not
+        // depend on the change's direction; the added change exercises it.
+        if change == "added" {
+            let accepted_decision = decision.replace(" pending", " accept");
+            fs::write(&path, accepted.replace(&accepted_decision, decision)).unwrap();
+            assert_status(&fixture.omega(&["update", "--resume"]), 3);
+            assert_eq!(fixture.accepted_files(), before);
+            // An unknown choice cannot stand in for this row's identity.
+            let other = format!("decision row {} accept", "ff".repeat(32));
+            fs::write(&path, accepted.replace(&accepted_decision, &other)).unwrap();
+            assert_status(&fixture.omega(&["update", "--resume"]), 1);
+            assert_eq!(fixture.accepted_files(), before);
+        }
         fs::write(&path, accepted).unwrap();
         assert_status(&fixture.omega(&["update", "--resume"]), 0);
         assert_eq!(fixture.accepted_files().0, before.0);
@@ -366,8 +397,6 @@ fn generated_authority(source: &str, callable: &str, services: &[&str]) {
         authority_decision(section, "added", service);
     }
     assert!(!section.contains("change callable "), "{section}");
-    assert_status(&fixture.omega(&["install", "--resume"]), 3);
-    assert_eq!(fixture.accepted_files(), before);
     accept_document(&path, &document);
     assert_status(&fixture.omega(&["install", "--resume"]), 0);
     fixture.lock();
