@@ -115,9 +115,19 @@ pub(super) fn checked_terminal_machine_name(
         .machines
         .iter()
         .filter(|selection| selection.machine == symbol);
-    let selection = matches.next().ok_or(LoweringError::Unsupported(
-        "attached Unit member has no checked terminal selection",
-    ))?;
+    // The selection is what names the machine, so a missing one cannot report
+    // through it. Name the member from its own symbol instead: reaching here
+    // means the closure called a machine the selected target never selected --
+    // a declaration scoped to another target, for one -- and a reader given
+    // only "no checked terminal selection" has nothing to look for.
+    let selection = matches
+        .next()
+        .ok_or_else(|| LoweringError::InvalidUnitMachinePlan {
+            machine: checked.symbols.name(symbol).to_owned(),
+            reason: "is called by this closure but the selected target selects no \
+                 terminal machine for it",
+            omission: crate::unit::unit_plan_omission_explanation(checked, symbol),
+        })?;
     if matches.next().is_some()
         || !matches!(
             selection.signature,
