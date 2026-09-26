@@ -8,6 +8,114 @@ use crate::TerminalMachineSelection;
 use crate::terminal_identities::block_id;
 
 #[test]
+fn case_payload_bounds_prove_transition_argument_arithmetic() {
+    let checked = crate::front_end::checked_program(
+        "data Slot { case Found(index: i32) where 0 <= index && index <= 15; case Full; }
+         data Output { value: i32; }
+         machine Output::root(&mut self, slot: Slot) {
+             transition slot {
+                 Slot::Found { index } -> use_it(index + 65)
+                 Slot::Full -> done()
+             }
+             state use_it(&mut self, value: i32) { self.value = value; }
+             state done(&mut self) { }
+         }",
+    );
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Output::root"))
+        .expect("case bounds prove arithmetic before the transition");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap();
+    let bounds = lowered
+        .semantic_module
+        .structural_types
+        .iter_mut()
+        .flat_map(|declaration| match &mut declaration.shape {
+            terminal_psi::StructuralTypeShape::Sum { cases } => cases.as_mut_slice(),
+            _ => &mut [],
+        })
+        .flat_map(|case| &mut case.fields)
+        .find_map(|field| match &mut field.field_type {
+            terminal_psi::StructuralFieldType::BoundedInteger(bounds) => Some(bounds),
+            _ => None,
+        })
+        .expect("case where facts remain in the Terminal declaration");
+    assert_eq!(
+        bounds.maximum(),
+        semantic_vocabulary::IntegerValue::Signed(15)
+    );
+    *bounds = semantic_vocabulary::BoundedIntegerType::new(
+        bounds.integer_type(),
+        bounds.minimum(),
+        semantic_vocabulary::IntegerValue::Signed(i128::from(i32::MAX)),
+    )
+    .unwrap();
+    assert!(
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "widening the payload to overflow cannot reuse its old proof"
+    );
+    lowered.proof_bundle = Default::default();
+    lowered.semantic_module.scalar_block_invariants.clear();
+    assert!(
+        finalize_operation_proofs(&mut lowered).is_err(),
+        "an unbounded payload cannot receive a fresh addition proof"
+    );
+}
+
+#[test]
+fn case_where_bounds_are_checked_at_payload_construction() {
+    let mut lowered = lower_source(
+        "data Slot { case Found(index: i32) where 0 <= index && index <= 15; case Full; }
+         machine root() -> Slot { Slot::Found { index: 5 } }",
+    );
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap();
+    let value = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            terminal_psi::OperationKind::IntegerConstant { value }
+                if *value == semantic_vocabulary::IntegerValue::Signed(5) =>
+            {
+                Some(value)
+            }
+            _ => None,
+        })
+        .expect("the constructor's payload");
+    *value = semantic_vocabulary::IntegerValue::Signed(16);
+    assert!(
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "an out-of-range constructed payload cannot replay evidence"
+    );
+    lowered.proof_bundle = Default::default();
+    lowered.semantic_module.scalar_block_invariants.clear();
+    assert!(
+        finalize_operation_proofs(&mut lowered).is_err(),
+        "construction must prove the case range before publishing its value"
+    );
+}
+
+#[test]
 fn clamped_private_helpers_prove_cross_signed_exact_conversions() {
     for (source_type, destination_type, cap) in [("u16", "i8", 127), ("i16", "u8", 255)] {
         let checked = crate::front_end::checked_program(&format!(
