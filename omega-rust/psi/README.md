@@ -18,22 +18,22 @@ than acquiring an alternate source-to-native route.
 - [Source frontend](pipeline/README.md): lexing through typing;
   [checking](pipeline/04_typed-trees-to-checked-trees/README.md) owns proof,
   flow and ownership settlement.
-- [Source representations](representations/README.md): durable semantic shape
+- [Source representations](README.md): durable semantic shape
   and the links between increasingly resolved forms.
 - [Terminal production](pipeline/07_lowered-psi-to-terminal-psi/terminal_production.md): checked trees
   → Lowered Psi → optimized Lowered Psi → Terminal Psi. Its coordinator
   sequences those transforms rather than defining another executable IR.
-- [Terminal representation](representations/terminal-psi/src/lib.rs),
-  [codec](semantics/terminal-codec/README.md) and
-  [verifier](semantics/terminal-verifier/README.md): separate owners of the
+- [Terminal representation](pipeline/07_lowered-psi-to-terminal-psi/src/lib.rs),
+  [codec](terminal-codec/README.md) and
+  [verifier](terminal-verifier/README.md): separate owners of the
   current module, canonical serialization and independent evidence checking.
-- [Proof admission](semantics/proof-admission/README.md): product-local proof
+- [Proof admission](proof-admission/README.md): product-local proof
   judgments and certificates, distinct from the
   [bootstrap proof tools](../../bootstrap/proofs/README.md).
-- [Build-time evaluation](semantics/build-time-evaluation/README.md) and
-  [checked interpreter](semantics/checked-interpreter/src/interpreter.rs): semantic
+- [Build-time evaluation](README.md) and
+  [checked interpreter](../omega/src/checked_interpreter/interpreter.rs): semantic
   evaluation and source-shaped reference execution.
-- [Terminal interpreter](semantics/terminal-interpreter/README.md): verified
+- [Terminal interpreter](terminal-interpreter/README.md): verified
   artifact execution. Interpreter coverage does not establish native support
   or fixed-work evidence.
 

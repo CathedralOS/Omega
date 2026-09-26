@@ -1,6 +1,6 @@
 # Build-time evaluation
 
-Start at [build_time_evaluation.rs](src/build_time_evaluation.rs). Its
+Start at [build_time_evaluation.rs](../src/build_time_evaluation/build_time_evaluation.rs). Its
 `evaluate_pre_resolution` operation takes one `BuildTimeEvaluationRequest`,
 runs syntax evaluation in order, and returns syntax paired with a one-shot
 `PreCheckEvaluation`. The consuming `evaluate` method shows the typed work in
@@ -20,7 +20,7 @@ service; it does not reinterpret its language semantics.
 
 The compiler still contains scalar range-annotation evaluation and range-shell
 probes. Those are legacy implementation paths pending removal under
-`CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the [board](../../../../TASKS.md), not
+`CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the [board](../../../TASKS.md), not
 accepted source forms or an alternative to domain/type-argument inference.
 
 Shared scalar evaluation preserves each argument's declared carrier and selected
@@ -35,7 +35,7 @@ symbol/operator context. Temporary probes cannot waive that check.
 
 Const-generic arguments containing closed scalar machine calls
 (`Buffer<(sized(4) + 2)>`) evaluate through a whole-expression application probe
-inside [const_generic_calls.rs](src/const_evaluation/const_generic_calls.rs): the authored
+inside [const_generic_calls.rs](../src/build_time_evaluation/const_evaluation/const_generic_calls.rs): the authored
 expression is typed on a placeholder carrier, appended as a probe machine,
 excluded from ordinary checking, then evaluated by the exact scalar evaluator
 with const-initializer call admission — selected-entry resolution, concrete
@@ -66,18 +66,18 @@ Psi phases separate. Omega interposes target machine selection and schedules
 provider-dependent evaluation after the actual provider plans are selected.
 Target decisions must not become Psi language elaboration.
 
-The [logical-work specification](../../../../wiki/spec/resources/logical_work.md)
+The [logical-work specification](../../../wiki/spec/resources/logical_work.md)
 owns budget meaning and the separation between executed work and verifier work.
 Per-invocation telemetry is not another interchangeable work currency.
 
-[Package boundaries](../../../../wiki/spec/packages/boundaries.md#admit-before-execution)
+[Package boundaries](../../../wiki/spec/packages/boundaries.md#admit-before-execution)
 requires declaration admission before early evaluation. The
-[selection-custody note](../../pipeline/04_typed-trees-to-checked-trees/authored_selections.md#early-evaluation)
+[selection-custody note](../../psi/pipeline/04_typed-trees-to-checked-trees/authored_selections.md#early-evaluation)
 maps that gate to exact calls, candidate sets, and authored application sites.
 
 Closed integer expressions for data applications and root-owned domain families in
 concrete data fields, payloads and nongeneric machine type annotations use
-[typed expression probes](src/const_evaluation/const_generic_expressions.rs) before generic data
+[typed expression probes](../src/build_time_evaluation/const_evaluation/const_generic_expressions.rs) before generic data
 synthesis. Nongeneric machine owners also admit Boolean indices through
 the same probe, including literal Boolean expressions and fixed-integer
 comparisons without named operands. Comparisons between two anonymous numeric
@@ -92,7 +92,7 @@ each operand lands in its selected carrier. Boolean equality and inequality
 compose named Boolean constants and comparison results on the same value path;
 every occurrence still requires its selected builtin meaning. Boolean `&&` and `||`
 selectively evaluate the right operand under the
-[expression schedule](../../../../wiki/spec/language/expressions.md#evaluation-schedule);
+[expression schedule](../../../wiki/spec/language/expressions.md#evaluation-schedule);
 unselected operands still retain declaration admission, lexical custody, static
 operand types and complete anonymous-rational landing. This static pass never
 executes landed arithmetic; valid anonymous landing warnings occur once even
@@ -175,7 +175,7 @@ Declaration landing, body/index identity and skipped invalid-arm controls use
 ## Semantic admission boundary
 
 Computed scalar declarations run through
-[initializer evaluation](src/const_evaluation/const_initializers.rs) before index normalization.
+[initializer evaluation](../src/build_time_evaluation/const_evaluation/const_initializers.rs) before index normalization.
 A non-executing resolution pass selects dependencies without inventing values;
 ready dependency layers share the existing typed scalar evaluator. Anonymous
 rationals land once, while references preserve their declared carriers. Every
@@ -250,10 +250,10 @@ neither a unique visible satisfier nor package admission selects a provider.
 Connect those arguments to exact selected execution before admitting them.
 The remaining const-generic normalization forms also need connected paths.
 
-The [semantic-evaluation contract](../../../../wiki/spec/language/evaluation.md)
-is broader than the current implementation. [admission.rs](src/machine_execution/admission.rs)
+The [semantic-evaluation contract](../../../wiki/spec/language/evaluation.md)
+is broader than the current implementation. [admission.rs](../src/build_time_evaluation/machine_execution/admission.rs)
 owns the common reachable-closure floor; its
-[closure validator](src/machine_execution/admission/closure_validation.rs) rejects
+[closure validator](../src/build_time_evaluation/machine_execution/admission/closure_validation.rs) rejects
 authored `requires` in a reachable machine/callable closure unless the caller
 supplies discharged concrete-invocation evidence. Ordinary initializer calls
 obtain that evidence from checked invocation summaries, not interpretation.
@@ -263,16 +263,16 @@ recursive call cycles without admitted termination evidence. These are
 fail-closed gates, not a prohibition on proof-admissible resources or measured
 recursion in the language.
 
-The [result checker](src/machine_execution/admission/const_evaluable.rs) admits complete closed
+The [result checker](../src/build_time_evaluation/machine_execution/admission/const_evaluable.rs) admits complete closed
 pure values and rejects escaping references/slices, Text, dynamic/opaque shapes,
 interior-mutable and non-copy results, and unresolved generic shapes.
-The [interpreter bridge](../checked-interpreter/src/build_time.rs) creates fresh
+The [interpreter bridge](../src/checked_interpreter/build_time.rs) creates fresh
 argument values and snapshots results; its broader transport enum alone does
 not establish `ConstEvaluable`. Temporary local mutation and borrows do not
 escape through that snapshot. The separate augmenting API returns argument
 snapshots for effectful build evaluation and is not hermetic admission.
 
-[Layout/materialization notes](layouts.md) describe the supported geometry and
+[Layout/materialization notes](build_time_evaluation_layouts.md) describe the supported geometry and
 atomic replay entrances. The full target capsule, target-dependent application
 closure, semantic-result/usage cache split, richer resource/trust admission,
 and generator expansion remain implementation work. Returning a value or
@@ -294,7 +294,7 @@ Checked arithmetic rejects overflow rather than publishing partial accounting.
 Live cells are charged from reservation through the final alias, not estimated
 as Rust allocation size. Text backing has a separately charged lifetime.
 
-The [build observation custody note](../../../omega/build/build-evaluation/observation_custody.md)
+The [build observation custody note](build-evaluation/observation_custody.md)
 owns current sponsor ceilings and filesystem observation accounting.
 Those bounds and schema-version histories are neither
 semantic-evaluation laws nor host CPU/RSS containment guarantees.

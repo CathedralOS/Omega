@@ -1,21 +1,21 @@
 # Component publication implementation
 
-[Component publication](../../../../../wiki/spec/build/component_publication.md)
+[Component publication](../../../wiki/spec/build/component_publication.md)
 owns the required deployment contract. This crate joins independently admitted
 native installation, provider/progress closure, and lifecycle custody; it is not
 an executable implementation of arbitrary source `Independent` selections.
 
 ## Runtime custody
 
-[lib.rs](src/lib.rs) retains the real installed runnable and root/progress
+[lib.rs](../src/component_publication.rs) retains the real installed runnable and root/progress
 custody through era retirement. The
-[era ledger](../../../representations/effects/src/effects/component_eras/component_era_entry_ledger.rs)
+[era ledger](../pipeline/02_abstract-operations-to-target-operations/src/effects/effects/component_eras/component_era_entry_ledger.rs)
 binds exact entry contract/plan, profile-sealed executable manifest, and strong
 installed-artifact occurrence identity. Entry remains on its chosen era across
 routing changes; quiescence/retirement check active entries, retained holds,
 and complete dispositions. Era publication and program-local epoch leases retain
 complete candidates, not only compact coordinates.
-[entry_acquisition.rs](src/entry_acquisition.rs) seals the concrete runtime
+[entry_acquisition.rs](../src/component_publication/entry_acquisition.rs) seals the concrete runtime
 entry a live era entry may dispatch through; OS policy remains separate work.
 
 Deployment transactions, journal storage, and restart recovery belong to the
@@ -23,15 +23,15 @@ consuming runtime/library package or OS. This crate neither persists deployment
 state nor reconstructs live authority from stored records; it checks the actual
 installation and retains its lifetime obligations independently of that policy.
 
-[callback_registration.rs](src/callback_registration.rs) separates process-lifetime
+[callback_registration.rs](../src/component_publication/callback_registration.rs) separates process-lifetime
 gateway admission from direct registration with unregistration/quiescence.
-[Quarantine](../executable-installation/src/executable_installation/replacement_quarantine.rs) retains
+[Quarantine](../src/executable_installation/retirement/quarantine.rs) retains
 exact installed context and capacity loss instead of treating execute removal as
 successful reclamation.
 
 ## Source composition boundary
 
-[Provider planning](../../../build/provider-planning/src/provider_planning.rs) retains mode
+[Provider planning](../src/provider_planning.rs) retains mode
 through selected-plan provenance but rejects Independent before publishing
 checked/package-review facts until the component closure and routed installation
 exist. The current Fused implementation recognizes the routed `Binding<R>`
@@ -39,7 +39,7 @@ carrier with one public closed nongeneric, lifetime-free requirement. Exact type
 carrier/base/requirement and full plan digest rejoin erasure authorization;
 lookalikes, authored qualifications, or provenance substitution cannot erase it.
 
-The [service contract](../../../../../wiki/spec/build/component_publication.md#bindings-and-era-entry)
+The [service contract](../../../wiki/spec/build/component_publication.md#bindings-and-era-entry)
 now makes establishment intrinsic to compiler-known `Binding<R>`, without an
 authored qualification. `ENTRY-CONTENT-ROOTS` owns retiring the separate domain
 and migrating recognition/evidence; exact occurrence and selected-plan checking
@@ -63,7 +63,7 @@ produce no such row. Zero runtime bytes cannot replace establishment evidence.
 
 ## Candidate and deployment handoff
 
-The [candidate owner](../../artifacts/component-candidate/src/lib.rs) retains and
+The [candidate owner](../src/component_candidate.rs) retains and
 rederives emitter-derived internal call-graph stack demand for its canonical
 object entry, comparing full native target, Terminal/entry identity, byte bound,
 alignment, and contributors. It excludes external-entry adapter headroom and
@@ -71,7 +71,7 @@ proves no provision or stack lease. An object-validated full-body Linux
 `exit_group(i32)` leaf may have exact zero body stack; missing physical evidence
 does not justify that inference for arbitrary functions.
 
-[Component deployment](../../../build/component-deployment/README.md) sequences
+[Component deployment](component-deployment/README.md) sequences
 the independently supplied authority above compilation and documents remaining
 production integration. Symbolic component imports/exports, lifetime cohorts,
 general disposition/migration interfaces, and cross-component specialization
@@ -81,9 +81,9 @@ remain implementation work.
 
 Native candidates and replayed object artifacts already exist; that does not
 complete source `Independent` composition. The current
-[target plan](../../pipeline/02_abstract-operations-to-target-operations/src/target_operations.rs)
+[target plan](../pipeline/02_abstract-operations-to-target-operations/src/target_operations.rs)
 names one semantic entry and its functions. The
-[object publisher](../../images/image-emission/src/object_artifact.rs) builds artifact-local
+[object publisher](../pipeline/09_resolved-layout-to-resolved-layout/src/image_emission/object_artifact.rs) builds artifact-local
 symbols, data, and relocations and resolves internal calls against that artifact's
 function roster. These local machine/symbol handles are not cross-compilation
 identities. General independent crossings need the specification's exported
@@ -103,5 +103,5 @@ mapping, patching, deduplication, lifetime cohorts, and loader policy belong to 
 consumer runtime/OS. A package-shaped initial closure restriction is only an
 implementation fence: widening it must preserve accepted meanings and identities,
 as required by the specification. See
-[representation ownership](../../../representations/README.md) for the shared
+[representation ownership](representation-planning/README.md) for the shared
 place, annotation, and emitted-layout invariants.

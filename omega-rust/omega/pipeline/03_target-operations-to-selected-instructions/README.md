@@ -8,7 +8,7 @@ identities. Raw selected data or a detached content hash is not selection author
 
 ## Target setup is not a program stage
 
-[Register environment](../../backend/register-environment/src/lib.rs) joins the
+[Register environment](src/lib.rs) joins the
 exact native target, ISA physical model, instruction constraints, selected keys
 and active reservation profile. Baseline and decoded/custom inputs use independent
 structural and ISA-semantic validation. Selection takes that carrier explicitly;

@@ -1,7 +1,7 @@
 # Exact optimization rules
 
 This inventory is checked against the owning selection and stage catalogs.
-The [optimization contract](../../../../wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+The [optimization contract](../../../wiki/spec/build/optimizations.md#release-rollback-and-promotion)
 defines selection and promotion. Every current row is explicit, opt-in, and experimental.
 There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 
@@ -84,7 +84,7 @@ when the selected carrier, target, or exact composition is unsupported.
 
 ## Release rollback procedure
 
-Follow the [exact-rule rollback procedure](../../../optimization.md#operational-rollback). It keeps the
+Follow the [exact-rule rollback procedure](../../optimization.md#operational-rollback). It keeps the
 authored `build.omg` selection unchanged, applies one repeatable native-build
 argument per affected exact row, captures the printed requested/applied/
 effective receipt, and defines verification and restoration steps.

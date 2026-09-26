@@ -2,7 +2,7 @@
 
 This is the Rust implementation note for the
 [observation contract](../../../../wiki/spec/build/observations.md).
-The [interpreter preparer](../../../psi/semantics/checked-interpreter/src/interpreter/evaluator/filesystem_preparation.rs)
+The [interpreter preparer](../../src/checked_interpreter/filesystem.rs)
 and providers share a closed catalog of 50 exact filesystem operation identities.
 Aliases and platform variants remain distinct. Resolve canonical toolchain
 requirements, not user declarations with matching names.
@@ -64,7 +64,7 @@ or mutable pre/post copies are retained for an operation transcript.
 Provisions below are current compiler defaults, not language limits or host
 memory/CPU isolation. Aggregate build work, BuildLog, attempts, live resources,
 cells/Text, and result limits are installed by the
-[package-review session](../../packages/manager/src/review/candidate/compilation/session.rs);
+[package-review session](../../src/package_manager/review/candidate/compilation/session.rs);
 standalone compilation does not thereby acquire a package-closure account.
 Check before allocation, copying, or provider mutation;
 use checked count conversion. Failures retain partial usage rather than a
@@ -83,13 +83,13 @@ success-shaped observation.
 | Successful result crossing | 1,048,576 cells / 64 MiB Text, separately bounded. |
 | One invocation | 100,000 pure or 10,000,000 granted evaluation units, for the single execution. |
 
-The [filesystem sponsor](../../../psi/semantics/checked-interpreter/src/filesystem_sponsor.rs)
+The [filesystem sponsor](../../src/checked_interpreter/filesystem_sponsor.rs)
 counts names per entry, file content once per object, symlink payload bytes, and
 unlinked objects until their final handle closes. Reserve before a host operation,
 commit successful changes, and release failed reservations. An operation cannot
 fund its own required reservation. Teardown must reconcile the complete tree.
 
-The [build sponsor](../../../psi/semantics/checked-interpreter/src/build_evaluation_sponsor.rs)
+The [build sponsor](../../src/checked_interpreter/build_evaluation_sponsor.rs)
 shares closure budgets and reconciles invocation charges and peaks. Owned
 resources reserve before provider entry; borrowed views take no second resource
 slot. Cell/Text aliases share a lease released by the last alias. Completion

@@ -13,9 +13,9 @@ and complete retained FMA coverage, then constructs the private receipt.
 
 The replay mechanisms have distinct authored roles:
 
-- [Local initializers](src/boundary_operator_custody/local_initializers.rs)
+- [Local initializers](src/boundary_operator_custody.rs)
   join selected calls and FMA occurrences at exact state and call coordinates.
-- [Structural returns](src/boundary_operator_custody/structural_returns.rs)
+- [Structural returns](../../../omega/pipeline/09_resolved-layout-to-resolved-layout/src/image_emission/installation_record/record_shape/structural_returns.rs)
   join selected return calls to their expression-role applications.
 - [Float comparisons](src/boundary_operator_custody/float_comparisons.rs)
   check the complete Terminal comparison roster, selected meaning, operand

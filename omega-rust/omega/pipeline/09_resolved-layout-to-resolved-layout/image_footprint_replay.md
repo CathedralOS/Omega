@@ -1,9 +1,9 @@
 # Final footprint replay
 
-[Machine-state evidence](../../../../../wiki/spec/build/machine_state_evidence.md)
+[Machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md)
 specifies the required final-artifact contract. The typed model and replay live
-in [footprint_certificate.rs](src/footprint_certificate.rs); executable-region
-inventory lives in [final_image/executable_regions.rs](src/final_image/executable_regions.rs).
+in [footprint_certificate.rs](src/image/footprint_certificate.rs); executable-region
+inventory lives in [final_image/executable_regions.rs](src/image/final_image/executable_regions.rs).
 
 The certificate retains normalized coverage classes, completeness and missing
 sets, final placement, compiler-text derivation, and region inventory in one
@@ -27,7 +27,7 @@ Do not describe native output as carrying a complete replayed footprint until
 its current route supplies the required rows and consumes the certificate.
 
 Integration belongs to the existing
-[translation-validation work](../../../../../TASKS_OPTIMIZER.md#validation-translation-and-publication):
+[translation-validation work](../../../../TASKS_OPTIMIZER.md#validation-translation-and-publication):
 bind current instruction/region production through final placement and exercise
 missing, substituted, incomplete, and state-ceiling-exceeding evidence via the
 real publication path. An accepted isolated certificate constructor is not that

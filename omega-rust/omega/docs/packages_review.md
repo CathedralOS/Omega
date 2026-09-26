@@ -1,7 +1,7 @@
 # Package Review
 
 This branch owns review material after successful checked compilation.
-[`evidence/`](evidence/README.md) records deterministic compiler-issued facts.
+[`evidence/`](package-evidence/README.md) records deterministic compiler-issued facts.
 The manager consumes evidence and owns review policy and package acceptance.
 
 Under the ratified install/update model, compiler-derived reachability, unsafe

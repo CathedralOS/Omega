@@ -21,7 +21,7 @@ arithmetic saturation adapter for conversion would change semantics.
 [float_projection.rs](src/float_projection.rs) owns recognized-core projection
 descriptors; semantic `FloatMeaning` comparison does not expose NaN payloads.
 Source/Terminal projection support and pending denotation work live
-[beside validation](../../semantics/validation/numeric_proofs.md).
+[beside validation](../../pipeline/04_typed-trees-to-checked-trees/src/validation/numeric_proofs.md).
 
 Target providers consume these meanings through selected plans. Their
 [realization note](../../../../wiki/drafts/reference/float_realization.md)

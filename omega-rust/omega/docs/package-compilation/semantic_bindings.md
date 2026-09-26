@@ -1,6 +1,6 @@
 # Consumer semantic bindings
 
-[src/semantic_bindings.rs](src/semantic_bindings.rs) owns the closed roles and
+[src/semantic_bindings.rs](../../src/package_compilation/semantic_bindings.rs) owns the closed roles and
 their normalized schema keys. The [toolchain/library contract](../../../../wiki/spec/packages/toolchain.md)
 owns their authority boundary. These are narrow supported signatures, not a
 generic accepted-boundary protocol for arbitrary nominal carriers.

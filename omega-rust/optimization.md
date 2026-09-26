@@ -3,28 +3,28 @@
 The [public optimization contract](../wiki/spec/build/optimizations.md) owns
 exact selection, identity phases, semantic preservation, rollback, and policy
 authority. This page identifies implementation entrances, not another rule
-inventory. The [source-organization audit](../tests/architecture/optimizer_source_organization/README.md)
+inventory. The [source-organization audit](omega/tests/README.md)
 owns navigation and size checks.
 
-The checked [exact-rule inventory](omega/representations/optimization-core/rules.md)
+The checked [exact-rule inventory](psi/optimization-core/rules.md)
 records current experimental status, applicability, and composition limits.
 
 ## Selection and portable publication
 
-[Build evaluation](omega/build/build-evaluation/src/optimization/mod.rs) admits
+[Build evaluation](omega/src/build_evaluation/optimization/mod.rs) admits
 the exact vocabulary. The compiler's
-[build vocabulary](omega/build/build-evaluation/src/sources/source_assembly/build_vocabulary/mod.rs)
+[build vocabulary](omega/src/compiler/sources/source_assembly/build_vocabulary/mod.rs)
 supplies both preludes from one mapping; its
-[checked handoff](omega/compiler/src/checked/optimization/checked_handoff/mod.rs)
+[checked handoff](omega/src/compiler/checked/optimization/checked_handoff/mod.rs)
 retains selection and report requests.
-[Rollback settlement](omega/compiler/src/checked/optimization/rollback/mod.rs)
+[Rollback settlement](omega/src/compiler/checked/optimization/rollback/mod.rs)
 computes effective selection before artifact production without changing the
 authored selection.
 
 The [Psi X-to-X entrance](psi/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs)
 consumes complete unsealed `LoweredPsi`, validates both sides, and returns the
 only optimization-stage result accepted by Terminal publication. Its
-[Psi-local catalog](psi/representations/optimization/src/optimization_selections/catalog.rs)
+[Psi-local catalog](psi/terminal-codec/src/optimization/optimization_selections/catalog.rs)
 does not import native target vocabulary. Every catalog selection runs here —
 control-flow cleanup, sparse conditional constant propagation, copy
 propagation, global value numbering, dead pure scalar elimination, and
@@ -77,12 +77,12 @@ decision log cannot supply missing transformation authority.
 
 ## One physical sequence
 
-The [native physical entrance](omega/compiler/src/native/native_pipeline/physical_pipeline/mod.rs)
+The [native physical entrance](omega/src/compiler/native/native_pipeline/physical_pipeline/mod.rs)
 checks the retained selection, then performs instruction selection, selected
 X-to-X execution, allocation, machine construction, and canonical frame
 realization once. Mandatory lowering is not an optional optimization.
 
-[Phase admission](omega/compiler/src/native/native_pipeline/physical_pipeline/phase_selections.rs)
+[Phase admission](omega/src/compiler/native/native_pipeline/physical_pipeline/phase_selections.rs)
 rejects selections without an implemented current-data stage before execution.
 In particular, retained selected-lowering catalog entries do not imply native
 publication support, and retired post-allocation rewrite names cannot select an
@@ -190,5 +190,5 @@ Before deployment, run the affected target/workload checks and retain command,
 log, compiler identity, target, and output digest. Restore only the affected
 argument after semantic/corruption, differential, determinism, target,
 measurement, and rollback coverage passes; do not replace exact selection with
-a broad optimization level. [Promotion evidence](omega/representations/optimization-core/promotions/README.md)
+a broad optimization level. [Promotion evidence](psi/optimization-core/promotions/README.md)
 remains a separate owner-reviewed requirement.

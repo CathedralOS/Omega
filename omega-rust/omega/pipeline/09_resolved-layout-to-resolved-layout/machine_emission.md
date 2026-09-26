@@ -11,7 +11,7 @@ and [stack provisioning](../../../../wiki/spec/resources/storage.md).
 
 ## Function realization
 
-[Fixed-frame realization](src/function_realization/fixed_frame.rs) is the
+[Fixed-frame realization](src/machine_emission/function_realization/fixed_frame.rs) is the
 common entrance for admitted allocation histories, including identity execution.
 It replays allocation, rejoins the current machine, derives frame evidence,
 performs selected-form encoding and baseline layout, executes the phase-local
@@ -36,13 +36,13 @@ bytes or derive semantic authority from a size estimate.
 
 ## Frame responsibilities
 
-[Frame assembly](src/function_realization/frame.rs) joins allocation-visible
+[Frame assembly](src/machine_emission/function_realization/frame.rs) joins allocation-visible
 callee-save requirements, target preservation-storage groups, exact frame
 geometry, and separately encoded frame protocol. Durable geometry and protocol
 plans live in `machine-code`; these backend modules own computation and sealed
 independent replay.
 
-[Frame layout](src/frame_layout/mod.rs) binds the selected machine, requirements,
+[Frame layout](src/machine_emission/frame_layout/mod.rs) binds the selected machine, requirements,
 storage, target, register environment, ABI, and policy. It accounts for outgoing
 ABI storage before preservation storage, call alignment, and the target's
 return-address location. The current geometry includes Microsoft x64 shadow and
@@ -61,10 +61,10 @@ views may cover more preserved units than the particular modified subset.
 Neither calculation establishes SP/FP coordinates, actual loads/stores, unwind,
 probing, faults, or execution authority by itself.
 
-[Frame protocol](src/frame_protocol/mod.rs) uses target encoders and independent
+[Frame protocol](src/machine_emission/frame_protocol/mod.rs) uses target encoders and independent
 replay over a packed byte arena with per-function spans. It excludes the selected
-return instruction. [Frame application](src/frame_application/mod.rs) admits
-the emitted fragments; its [insertion](src/frame_application/insertion/mod.rs)
+return instruction. [Frame application](src/machine_emission/frame_application/mod.rs) admits
+the emitted fragments; its [insertion](src/machine_emission/frame_application/insertion/mod.rs)
 mechanism adds one entry prologue and the required epilogue at each retained
 return, reflows block/row/fixup coordinates, and re-encodes affected branches.
 Its independent checker validates sites and branch bytes. The stage still
@@ -73,11 +73,11 @@ not publication.
 
 ## Fragments, placement, and reports
 
-[Fragment emission](src/fragment_emission/mod.rs) consumes validated current
+[Fragment emission](src/machine_emission/fragment_emission/mod.rs) consumes validated current
 function realization and delegates the byte
-[projection](src/fragment_emission/projection/mod.rs).
-[Text placement](src/text_placement/mod.rs) retains the source and applied-frame
-identities while its [placement](src/text_placement/placement/mod.rs) mechanism
+[projection](src/machine_emission/fragment_emission/projection/mod.rs).
+[Text placement](src/machine_emission/text_placement/mod.rs) retains the source and applied-frame
+identities while its [placement](src/machine_emission/text_placement/mod.rs) mechanism
 resolves calls and offsets. Each stage keeps admission and custody at its
 folder root and the current-data mechanism with its independent checker one
 level down. Child manifests
@@ -92,7 +92,7 @@ coverage; omission requires validated elimination of that exact occurrence.
 Neither ordinary frame geometry nor optimization selection supplies an otherwise
 missing firmware adapter or executable-region proof.
 
-The [image reporting projection](../images/image-emission/src/function_fragments/reporting.rs)
+The [image reporting projection](src/image_emission/function_fragments/reporting.rs)
 uses replayed fragment and frame data. Instruction counts mean selected spans,
 including zero-byte spans, not ISA instruction counts: one materialization may
 encode several instructions. Inserted prologue/epilogue bytes are counted

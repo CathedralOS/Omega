@@ -1,7 +1,7 @@
 # Terminal codec
 
-Public contract: [Terminal product](../../../../wiki/spec/terminal-psi/product.md).
-The [canonical encoding contract](../../../../wiki/spec/terminal-psi/encoding.md)
+Public contract: [Terminal product](../../../wiki/spec/terminal-psi/product.md).
+The [canonical encoding contract](../../../wiki/spec/terminal-psi/encoding.md)
 owns canonicalization and section identity. Per-operation wire payloads remain
 in the vocabulary reference while that part is consolidated.
 
@@ -20,11 +20,11 @@ identified section, and [codec_error.rs](src/codec_error.rs) owns the error
 vocabulary.
 
 Current markers live with their owners: semantic format in [lib.rs](src/lib.rs),
-vocabulary in [VocabularyMarker](../../representations/terminal-psi/src/terminal_module/identity/vocabulary.rs),
+vocabulary in [VocabularyMarker](../terminal-psi/src/terminal_module/identity/vocabulary.rs),
 proof format in [proof_bundle.rs](src/sections/proof_bundle.rs), envelope in
 [canonical_artifact.rs](src/canonical_artifact.rs), and manifest in
 [artifact_manifest.rs](src/sections/artifact_manifest.rs). The image-emission owner
-maintains the separate [installation format](../../../omega/pipeline/09_resolved-layout-to-resolved-layout/src/image_emission/installation_record.rs).
+maintains the separate [installation format](../../omega/pipeline/09_resolved-layout-to-resolved-layout/src/image_emission/installation_record.rs).
 Codec-owned [current-format tests](src/sections/semantic_module/current_format_tests.rs) pin canonical
 bytes and incompatible-marker rejection. Source-lowering tests check semantic
 round trips without duplicating a transient wire-version number.
@@ -58,7 +58,7 @@ range obligations before treating the constructed payload as valid.
 
 [terminal_trace_v1_profile.rs](src/sections/terminal_trace_v1_profile.rs) implements
 canonical profile encoding and module-bound acceptance for
-[TerminalTraceV1](../../../../wiki/spec/terminal-psi/observations.md). Acceptance
+[TerminalTraceV1](../../../wiki/spec/terminal-psi/observations.md). Acceptance
 validates the module, derives its complete identity and site roster independently,
 and compares the decoded profile exactly. Revision 2
 (`omega.terminal.observation-profile.v2`) appended the operation-crash group:
@@ -68,9 +68,9 @@ primitive and carriers rather than a fabricated edge or boundary route.
 The current encoder writes the terminal-external group with zero count; the
 decoder rejects a nonzero count. That is an implementation fence, not an assertion
 that the semantic trace excludes successful external termination. The
-[canonical ProcessExit contract](../../../../wiki/spec/language/process_exit.md)
+[canonical ProcessExit contract](../../../wiki/spec/language/process_exit.md)
 settles requirement-owned completion identity without a new source keyword.
-The [source-to-verifier migration](../../../../TASKS.md#process-exit-contract)
+The [source-to-verifier migration](../../../TASKS.md#process-exit-contract)
 remains unimplemented; nonzero rows must continue to reject until that route
 retains and independently verifies the exact terminal transfer.
 Scalar and whole-root structural comparison helpers provide value comparison

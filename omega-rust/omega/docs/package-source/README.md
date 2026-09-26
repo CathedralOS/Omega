@@ -37,13 +37,13 @@ src/
 ```
 
 Native process lifecycle, concrete resource limits, and bounded duplex capture
-live in [`bounded-process`](../../../tooling/bounded-process/README.md).
+live in [`bounded-process`](../bounded-process/README.md).
 `git/git_command.rs` owns the launch sequence for ordinary calls, blob batches,
 and exact-object probes. Callers supply arguments, stdin, and stdout bounds;
 the owner applies command policy, counts the launch, bounds capture, and checks
 the shared resolution budget. Batch callers retain protocol interpretation and
 cache custody. A failed Git exit never becomes an object-absence response.
-The peer [`execution/`](../execution/README.md) crate owns resolver-specific
+The peer [`execution/`](../resolver-execution/README.md) crate owns resolver-specific
 executable and phase/root preparation. Acquisition retains no executable identity,
 command/completion provenance, platform-guarantee row, or fetch receipt.
 Successful Git resolution exposes the authored canonical lineage,

@@ -599,7 +599,7 @@ Closed ordinary integer/Boolean machine calls also evaluate in these leaves;
 scalar `f32`/`f64` declarations additionally support ordinary nested helper calls
 and Boolean-selected results while preserving format and exact bits. These
 floating values remain ineligible as generic/domain indices. The
-[initializer admission owner](../semantics/build-time-evaluation/README.md#semantic-admission-boundary)
+[initializer admission owner](README.md#semantic-admission-boundary)
 checks concrete crash discharge before execution and repeats it during receiving
 replay. Closed type- and const-generic helper applications use ordinary checked
 specialization, including nested calls with integer, Boolean and floating results.
@@ -692,7 +692,7 @@ still require ordinary peer landing. The two-file CLI check
 `cargo run -p omega -- --check tests/omega/pass/modules/rational_boolean_indices/main.omg`
 covers fractional and decimal comparisons with their canonical Boolean results.
 Scalar `match` indices retain their complete source trees for the
-[typed evaluation owner](../semantics/build-time-evaluation/README.md), including
+[typed evaluation owner](README.md), including
 coverage and unselected-arm admission. Their source check is
 `cargo run -p omega -- --check tests/omega/pass/modules/match_constant_indices/main.omg`.
 Open templates, machine-computed nominal aggregate indices, constrained destinations, authored operators
@@ -747,7 +747,7 @@ Each rewritten application retains its original base/arguments at the exact use.
 Copies remap these origins; they are not new authored declarations or roots.
 Cloned attached methods retain the exact authored template and closed owner.
 Missing or ambiguous templates cannot acquire derivation custody.
-[Build-time evaluation](../semantics/build-time-evaluation/README.md) owns the
+[Build-time evaluation](README.md) owns the
 single-use pre/post-typing continuation and its ordered const/layout/wire work;
 orchestration cannot recombine its retained rows or exchange its authority.
 

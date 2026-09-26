@@ -1,6 +1,6 @@
 # UEFI bootstrap implementation
 
-Contract: [UEFI entry and handoff](../../../../../wiki/spec/build/uefi_entry.md).
+Contract: [UEFI entry and handoff](../../../wiki/spec/build/uefi_entry.md).
 
 The required end state is source-authored target-package layouts and adapter
 bodies with generic compiler validation and minimal native entry primitives.
@@ -32,7 +32,7 @@ not add a special intrinsic that generates this Rust loop.
 
 ## Target evidence and execution
 
-The [target representation](../../../representations/target/src/uefi_system_table/mod.rs)
+The [target representation](../../psi/target/src/uefi_system_table/mod.rs)
 currently hard-codes the known 120-byte x64 system-table prefix: eighteen
 ordered rows, 24-byte header, explicit revision padding, `ConOut` at 64, and Boot Services
 at 96. Occurrence integrity validates signature, covered prefix, zero Reserved,
@@ -70,7 +70,7 @@ the receiver-free two-root Unit slice and returns all inputs on rejection.
 Readiness is neither generated-shell execution nor source invocation, complete
 WCSU producer evidence, provider installation, or a returned `EfiStatus`.
 
-The [execution board](../../../../../TASKS.md) assigns layouts and bootstrap
+The [execution board](../../../TASKS.md) assigns layouts and bootstrap
 source ownership to `UEFI-PHYSICAL-SEMANTIC-ENTRY`, and the authored retry/exit
 protocol to `UEFI-OS-HANDOFF`. Reuse the current failure/custody tests as migration
 controls and remove superseded production catalogs and protocol paths. Passing
