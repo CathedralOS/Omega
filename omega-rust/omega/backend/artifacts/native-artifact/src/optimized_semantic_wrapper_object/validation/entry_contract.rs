@@ -1,5 +1,5 @@
 use super::super::error::OptimizedProgramStorageSemanticWrapperObjectError;
-use crate::native::{
+use terminal_psi_to_abstract_operations::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
@@ -17,7 +17,7 @@ use terminal_psi::{
     StructuralMultiplicity, StructuralTypeShape, TerminalMachineResult,
 };
 
-pub(crate) fn replay_settlement(
+pub fn replay_settlement(
     settlement: &ValidatedNativeProgramEntrySettlement,
     source: &StagedValidatedOptimizedObjectArtifact,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
@@ -61,7 +61,7 @@ pub(crate) fn replay_settlement(
 /// bind replays the retained application's validated plan and re-checks the
 /// recorded fingerprint, commitment, and boundary entry plan before the
 /// contract is derived.
-pub(crate) fn bind_semantic_contract(
+pub fn bind_semantic_contract(
     settlement: &ValidatedNativeProgramEntrySettlement,
 ) -> Result<
     OptimizedProgramStorageSemanticEntryContract,
@@ -96,7 +96,7 @@ pub(crate) fn bind_semantic_contract(
     .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)
 }
 
-pub(crate) fn replay_semantic_contract(
+pub fn replay_semantic_contract(
     settlement: &ValidatedNativeProgramEntrySettlement,
     encoding: &StagedOptimizedProgramStorageSemanticWrapperEncoding,
     source: &StagedValidatedOptimizedObjectArtifact,
@@ -123,7 +123,7 @@ pub(crate) fn replay_semantic_contract(
 /// alignment. Every field of the attached record must be zero-valid so the
 /// zero-fill inside the wrapper's own frame establishes the receiver: erased
 /// provider-backed fields cannot be installed by zero-fill and reject here.
-pub(crate) fn receiver_layout(
+pub fn receiver_layout(
     source: &StagedValidatedOptimizedObjectArtifact,
     settlement: &ValidatedNativeProgramEntrySettlement,
     contract: &OptimizedProgramStorageSemanticEntryContract,
@@ -362,7 +362,7 @@ fn zero_valid_field(
         }
 }
 
-pub(crate) fn validate_entry_shape(
+pub fn validate_entry_shape(
     source: &StagedValidatedOptimizedObjectArtifact,
     settlement: &ValidatedNativeProgramEntrySettlement,
     contract: &OptimizedProgramStorageSemanticEntryContract,

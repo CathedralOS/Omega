@@ -14,6 +14,7 @@
 
 mod callable_entry;
 mod native_artifact;
+pub mod optimized_semantic_wrapper_object;
 mod physical;
 mod semantic_wrapper_object;
 

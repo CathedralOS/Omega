@@ -1094,6 +1094,7 @@ dependencies = [
  "abstract-operations",
  "boundary-applications",
  "calling-conventions",
+ "diagnostics",
  "effects",
  "function-identity",
  "image",
@@ -1101,9 +1102,11 @@ dependencies = [
  "installation-evidence",
  "isa-aarch64",
  "isa-x86_64",
+ "legalized-operations",
  "machine-code",
  "object-file",
  "optimization-core",
+ "program-entry-plan",
  "register-model",
  "selected-instructions",
  "selected-instructions-to-register-homes",
@@ -1113,6 +1116,7 @@ dependencies = [
  "target-operations",
  "terminal-codec",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
  "x86-encoding",
 ]
 

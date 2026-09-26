@@ -1,6 +1,6 @@
-use crate::native::NativeProgramEntrySettlementError;
+use terminal_psi_to_abstract_operations::NativeProgramEntrySettlementError;
 use isa_x86_64::X86_64SemanticUnitWrapperResolutionError;
-use native_artifact::OptimizedProgramStorageSemanticWrapperObjectRecordError;
+use crate::OptimizedProgramStorageSemanticWrapperObjectRecordError;
 use object_file::OptimizedObjectArtifactError;
 use program_entry_plan::OptimizedProgramStorageSemanticWrapperEncodingError;
 
