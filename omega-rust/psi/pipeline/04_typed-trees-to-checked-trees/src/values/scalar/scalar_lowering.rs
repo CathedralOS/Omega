@@ -1157,16 +1157,26 @@ pub(super) fn selected_element(
             collection_type,
         ),
         None => {
-            let (symbol, collection_type) = structural_fields::view_local_root(
-                program,
-                authored_parameters,
-                indexed.collection,
-            )?;
-            (
-                checked_trees::CheckedStorageRoot::ViewLocal { symbol },
-                Vec::new(),
-                collection_type,
-            )
+            if let Some((symbol, collection_type)) =
+                structural_fields::view_local_root(program, authored_parameters, indexed.collection)
+            {
+                (
+                    checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+                    Vec::new(),
+                    collection_type,
+                )
+            } else {
+                let (symbol, collection_type) = structural_fields::owned_local_root(
+                    program,
+                    authored_parameters,
+                    indexed.collection,
+                )?;
+                (
+                    checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
+                    Vec::new(),
+                    collection_type,
+                )
+            }
         }
     };
     if !structural_fields::indexed_read_is_builtin(

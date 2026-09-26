@@ -407,6 +407,11 @@ pub enum CheckedStorageRoot {
     /// it to the place its establishment published; it never names owned
     /// storage and never carries a projection path.
     ViewLocal { symbol: SymbolHandle },
+    /// The `let` symbol of an owned structural local — a fixed array or
+    /// record the body established in place. Lowering resolves it through the
+    /// plan's established structural locals; element reads project a runtime
+    /// index into its declared extent like a parameter's fixed-array field.
+    OwnedLocal { symbol: SymbolHandle },
 }
 
 impl CheckedStorageRoot {
@@ -414,7 +419,7 @@ impl CheckedStorageRoot {
     pub fn parameter(self) -> Option<u32> {
         match self {
             Self::Parameter { index } => Some(index),
-            Self::ViewLocal { .. } => None,
+            Self::ViewLocal { .. } | Self::OwnedLocal { .. } => None,
         }
     }
 }

@@ -48,6 +48,7 @@ pub(super) fn validate(
             .state_parameters(authored)
             .get(position as usize)
             .is_some_and(|parameter| parameter.symbol == name.symbol),
+        CheckedStorageRoot::OwnedLocal { symbol } => symbol == name.symbol,
     };
     if !names_root {
         return unsupported("view element copy reads another view than it names");

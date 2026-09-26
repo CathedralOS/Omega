@@ -440,6 +440,14 @@ fn spell_place(
             root: checked_trees::CheckedStorageRoot::ViewLocal { .. },
             ..
         } => "local[..]".to_owned(),
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            root: checked_trees::CheckedStorageRoot::OwnedLocal { .. },
+            ..
+        }
+        | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            root: checked_trees::CheckedStorageRoot::OwnedLocal { .. },
+            ..
+        } => "local[..]".to_owned(),
     };
     for segment in &plan.path {
         match segment {

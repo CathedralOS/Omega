@@ -120,6 +120,7 @@ pub(crate) fn checked_scalar_term_with_views(
         &[],
         element_views,
         &[],
+        &[],
     )?;
     lowered_direct_scalar_term(&expression, values, erased)
 }

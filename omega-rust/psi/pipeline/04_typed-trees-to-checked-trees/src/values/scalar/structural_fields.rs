@@ -417,6 +417,52 @@ pub(super) fn view_local_root(
     .then_some((path.symbol, local.type_reference))
 }
 
+/// The `let` symbol and declared type of an owned structural local that
+/// `expression` names whole, when that name is not a state parameter or a
+/// view local. The plan that sequences the body decides whether the local's
+/// place was established before this use; lowering resolves the symbol to
+/// that place or refuses.
+pub(super) fn owned_local_root(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !path.symbol.is_valid()
+        || path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+        || parameters
+            .iter()
+            .any(|parameter| parameter.symbol == path.symbol)
+    {
+        return None;
+    }
+    let positions = local_data_positions(program, path.symbol);
+    let [position] = positions.as_slice() else {
+        return None;
+    };
+    let machine = &program.machines()[position.0 as usize];
+    let state = &program.machine_states(machine)[position.1 as usize];
+    let typed_trees::statement::StatementNode::LocalData(local) =
+        &program.statement_table.statements(state.statement_nodes)[position.2 as usize]
+    else {
+        return None;
+    };
+    matches!(
+        program
+            .type_reference_table
+            .type_reference(local.type_reference),
+        TypeReferenceNode::FixedArray { .. }
+    )
+    .then_some((path.symbol, local.type_reference))
+}
+
 /// Empty spelling resolution is builtin only when the exact operand types
 /// independently carry the builtin index meaning.
 pub(super) fn indexed_read_is_builtin(

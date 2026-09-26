@@ -138,6 +138,9 @@ pub(super) fn emit(
                 family: ViewFamily::Bytes,
             }
         }
+        CheckedStorageRoot::OwnedLocal { .. } => {
+            return unsupported("byte subslice source is an owned local, not a view");
+        }
     };
     let bindings = crate::expression_preparation::bindings::ScalarBindings::new(values.len())
         .with_structural_parameters(structural_parameters)

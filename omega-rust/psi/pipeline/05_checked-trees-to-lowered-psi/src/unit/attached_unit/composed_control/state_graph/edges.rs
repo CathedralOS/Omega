@@ -260,6 +260,11 @@ pub(super) fn validate_bindings(
                 checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
                     view_local_result(checked, source, state, symbol, edge.statement_ordinal)?
                 }
+                checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
+                    return unsupported(
+                        "Unit graph borrowed transfer source is an owned local, not a view",
+                    );
+                }
             };
             if transfer.target_parameter_index as usize != position
                 || target.is_self

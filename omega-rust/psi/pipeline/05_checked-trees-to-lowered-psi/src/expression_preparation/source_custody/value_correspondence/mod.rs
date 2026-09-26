@@ -576,6 +576,10 @@ impl Context<'_> {
                 root: checked_trees::CheckedStorageRoot::ViewLocal { symbol },
                 path,
             } => path.is_empty() && self.view_local_length(source, *symbol).unwrap_or(false),
+            Scalar::StructuralParameterByteLength {
+                root: checked_trees::CheckedStorageRoot::OwnedLocal { .. },
+                ..
+            } => false,
             Scalar::StructuralParameterField { .. } => matches!(
                 node,
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
