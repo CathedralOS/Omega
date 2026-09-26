@@ -506,7 +506,7 @@ pub(crate) fn settle_satisfied_declarations_from(
     for machine in program.machines().iter().skip(machine_frontier) {
         let exposure = machine_interface_exposure(machine);
         for (ordinal, conformance) in program
-            .machine_trait_conformances(machine)
+            .declared_machine_trait_conformances(machine)
             .iter()
             .enumerate()
         {

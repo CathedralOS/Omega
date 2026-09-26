@@ -312,7 +312,21 @@ impl TypedTrees {
             .append_to_span(&mut machine.satisfies, conformance);
     }
 
+    /// The conformances a machine contributes to this realization. A target
+    /// sibling contributes none: its own conformances enter only when
+    /// per-target selection promotes it to the family's realized body.
     pub fn machine_trait_conformances(
+        &self,
+        machine: &machine::Machine,
+    ) -> &[machine::TraitConformance] {
+        if machine.target.is_some() {
+            return &[];
+        }
+        self.declared_machine_trait_conformances(machine)
+    }
+
+    /// Every conformance a machine declares, including a target sibling's.
+    pub fn declared_machine_trait_conformances(
         &self,
         machine: &machine::Machine,
     ) -> &[machine::TraitConformance] {

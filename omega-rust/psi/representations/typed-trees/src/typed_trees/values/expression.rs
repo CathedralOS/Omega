@@ -1673,6 +1673,23 @@ impl ExpressionTable {
         self.expressions.len()
     }
 
+    /// Point every call expression aimed at one replaced state at its
+    /// replacement. Returns how many calls moved.
+    pub fn retarget_call_states(&mut self, replacements: &[(SymbolHandle, SymbolHandle)]) -> usize {
+        let mut moved = 0;
+        self.expressions.for_each_mut(|_, expression| {
+            if let ExpressionNode::Call(call) = expression
+                && let Some((_, replacement)) = replacements
+                    .iter()
+                    .find(|(replaced, _)| *replaced == call.target_symbol)
+            {
+                call.target_symbol = *replacement;
+                moved += 1;
+            }
+        });
+        moved
+    }
+
     pub fn expression_nodes(&self) -> impl Iterator<Item = &ExpressionNode> {
         self.expressions.iter().map(|(_, node)| node)
     }

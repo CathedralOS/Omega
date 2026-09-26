@@ -512,6 +512,23 @@ impl StatementTable {
         self.statements.len()
     }
 
+    /// Point every call statement aimed at one replaced state at its
+    /// replacement. Returns how many calls moved.
+    pub fn retarget_call_states(&mut self, replacements: &[(SymbolHandle, SymbolHandle)]) -> usize {
+        let mut moved = 0;
+        self.statements.for_each_mut(|_, statement| {
+            if let StatementNode::Call(call) = statement
+                && let Some((_, replacement)) = replacements
+                    .iter()
+                    .find(|(replaced, _)| *replaced == call.target_symbol)
+            {
+                call.target_symbol = *replacement;
+                moved += 1;
+            }
+        });
+        moved
+    }
+
     pub fn transition_target_count(&self) -> usize {
         self.transition_targets.len()
     }

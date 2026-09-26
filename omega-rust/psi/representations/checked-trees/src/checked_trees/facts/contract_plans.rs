@@ -240,7 +240,6 @@ pub fn contract_identity(
         // below so two leaves with different bindings differ.
         MachineSupplyMode::ExternalRealization { .. } => 5,
         MachineSupplyMode::TopLevelRequirement => 6,
-        MachineSupplyMode::TargetSibling => 7,
     });
     if let MachineSupplyMode::ExternalRealization { binding, mechanism } = supply_mode {
         match mechanism {
