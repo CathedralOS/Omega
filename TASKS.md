@@ -3990,16 +3990,24 @@ syntax and other terminal services are not prerequisites.
   write. The asymmetry is therefore in how a write's effect on the domain is
   evaluated per place, not in the entry seeding.
 
-  Probing `checks/contracts/nominal_inputs.rs` narrows it further: both forms
-  raise the same requirement at the same place (`self.line` and `buf.line`,
-  `owner_kind` Machine against Parameter), and every receiver call site reports
-  `satisfied=true` while the named form satisfies its pre-write sites and fails
-  only the call that follows the element store. So the obligation is raised
-  identically and only the post-write discharge differs. The receiver-only
-  filter the first paragraph asks about is
-  `checks/contracts/writes.rs::expression_is_self_relative`, which admits a
-  domain's zero value only when the fact's name path starts at the receiver;
-  start there rather than in the entry seeding or the obligation loop.
+  Probed to the exact call. `nominal_inputs.rs` raises the same requirement at
+  the same place for both (`self.line` and `buf.line`, `owner_kind` Machine
+  against Parameter); every receiver call site reports `satisfied=true`, and the
+  named form satisfies its pre-write sites and fails only the call after the
+  element store. Both then take the same prover branch --
+  `domain_requires_provenance` is false for this domain, so
+  `prover::prove_domain_at_place`. Of its three sources,
+  `carried_domain_membership_at_place` and `prove_domain_by_extent_enumeration`
+  agree across the two, and `AssignedValues::domain` is the one that splits:
+  true for every receiver query, false for the named place at the post-write
+  call. It proves the domain from the literal assigned at the place, through
+  `literal_at_place`, so the question is why that resolves an assigned literal
+  under a receiver root and not under a parameter root.
+
+  `checks/contracts/writes.rs::expression_is_self_relative` is NOT the filter,
+  despite looking like one: `recast_source_declared_domain_implies`, the only
+  caller that reaches `domain_admits_zero_value`, is never called for either
+  program. An earlier revision of this note pointed there; it is a dead end.
 
   `samples/cli/rendering/dungeon_render` is the sample customer and needs more
   than this: its glyph reaches the carrier as `put(ch: u8)` -> `self.lab` ->
