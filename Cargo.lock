@@ -448,6 +448,7 @@ dependencies = [
  "mimalloc",
  "nix",
  "numerics",
+ "omega",
  "optimization-core",
  "post-allocation-machine-to-selected-form-encoding",
  "proof-admission",

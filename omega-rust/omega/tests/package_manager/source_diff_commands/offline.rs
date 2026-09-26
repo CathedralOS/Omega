@@ -1,6 +1,7 @@
 #[test]
 fn offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparison() {
     run(
+        module_path!(),
         "offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparison",
         |fixture| {
             use omega::package_manager::PackageCommandKind;

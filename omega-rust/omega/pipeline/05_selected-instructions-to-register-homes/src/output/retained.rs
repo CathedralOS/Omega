@@ -77,21 +77,6 @@ impl RetainedAllocation {
         }
     }
 
-    /// Corrupt the recorded active-resident rematerialization prefix a
-    /// runtime-spill composition carries, so cross-phase controls prove
-    /// replay rejects the prefix before trusting its spill steps.
-    /// Returns `false` when the retained source has no such prefix.
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub fn corrupt_runtime_spill_active_resident_prefix_custody_for_test(&mut self) -> bool {
-        match &mut self.replay {
-            ReplayInputs::RuntimeSpill(source) => {
-                source.corrupt_active_resident_prefix_custody_for_test()
-            }
-            _ => false,
-        }
-    }
-
     /// Re-run the full independent replay of the retained source rather than
     /// the immutable-admission projection. Cross-phase corruption controls use
     /// this to prove a mutated source is rejected by the same validation the

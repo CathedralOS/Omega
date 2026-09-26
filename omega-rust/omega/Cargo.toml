@@ -55,7 +55,14 @@ typed-trees-to-checked-trees = { path = "../psi/pipeline/04_typed-trees-to-check
 
 [dev-dependencies]
 mimalloc = { version = "0.1", default-features = false }
-    terminal-interpreter = { path = "../psi/terminal-interpreter" }
+# The fold made `package-compilation` and its siblings modules of this crate,
+# so their `test-support` constructors now sit behind this crate's own
+# feature. An integration test links the library as an ordinary dependency,
+# where `cfg(test)` is false, so it sees them only if the feature is on. A
+# self dev-dependency is how Cargo turns a feature on for a crate's own
+# tests without turning it on for the product build.
+omega = { path = ".", features = ["test-support", "test-fixtures"] }
+terminal-interpreter = { path = "../psi/terminal-interpreter" }
 abstract-operations-to-target-operations = { path = "pipeline/02_abstract-operations-to-target-operations" }
 arena = { path = "../psi/foundation/arena" }
 language-semantics = { path = "../psi/foundation/language-semantics" }
@@ -91,7 +98,10 @@ windows-sys = { version = "0.61.2", features = [
 [features]
 installed-writer = []
 test-fixtures = []
-test-support = ["resolved-layout-to-resolved-layout/test-support"]
+test-support = [
+    "resolved-layout-to-resolved-layout/test-support",
+    "selected-instructions-to-register-homes/test-support",
+]
 
 [[test]]
 name = "corpus_runner"
