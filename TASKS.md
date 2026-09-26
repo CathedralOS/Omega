@@ -183,7 +183,21 @@ backend-visible; full corpus runs only at the end of an item.
   (`bind_selected_provider_plan_facts`), selected float-comparison executions,
   boundary-dispatch settlement (`selected_dispatch::settle_selected_execution_dispatch`),
   callback materialization, task activations, component progress, the x86 FMA
-  plan association and fused program-entry establishments. Moving the
+  plan association and fused program-entry establishments. Measured on the
+  Windows host with `omega inspect-terminal --target windows_x86_64` against
+  `--target linux_x86_64`: the Terminal module is already identical for
+  `pass/arithmetic/const_fold_unsigned_landed_ops_exit`,
+  `pass/expressions/match_float_patterns` and
+  `pass/providers/checked_boundary_requirement_dispatch_exit`, so the
+  per-target Psi runs duplicate work rather than produce different Terminal
+  semantics; target dependence enters through the checked sidecars and
+  through selection inputs to checking. Two of those inputs change what Psi
+  checks and must move first: fused service erasure
+  (`provider_settlement` calls `TypedTrees::bind_fused_service_erasures`
+  before checking, while [entry roots](wiki/spec/build/entry_roots.md) and
+  [component publication](wiki/spec/build/component_publication.md) place
+  erasure in lowering and Terminal replay) and stage 04's selected generic
+  operator providers and boundary families (`CheckingRequest`). Moving the
   provider-body const folds waits on OWNER_QUESTIONS.md Q10
   (`provider-dependent-constants`): a const application folded through a
   selected provider gives a type that varies by target. Invert the layering
