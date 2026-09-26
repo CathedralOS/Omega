@@ -1440,16 +1440,17 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   Distinguish prohibited behavior from insufficient evidence without
   weakening contracts.
 
-  The acceptance has no harness left. Both named compiler tests went with the
-  deleted `compiler --test` targets: no `build_behavior_exclusions` exists
-  anywhere, and the only surviving `behavior_exclusions.rs` files are the two
-  source owners above. `tests/omega/packages/behavior-exclusions/` is intact
-  and orphaned -- its six projects are referenced by nothing in the
-  repository except this line, and the corpus gate walks only
-  `tests/omega/{pass,fail,run}`. They are still a usable starting point:
-  `checking-app`, `sink-app`, `no-op-app` and `quiet-logger-app` each check
-  clean for the target their own `build.omg` binds. What no longer exists is
-  anything that compares their exclusion verdicts, which is the subject.
+  Both named compiler tests went with the deleted `compiler --test` targets:
+  no `build_behavior_exclusions` exists anywhere, and the only surviving
+  `behavior_exclusions.rs` files are the two source owners above.
+  `package-manager`'s `behavior_exclusion_verdicts` replaces the part of that
+  acceptance the fixtures can still witness: `sink-app` refuses at
+  realization naming the reachable service, machine and call, and
+  `no-op-app` realizes, so the verdict distinction is pinned again. The
+  remaining four projects in `tests/omega/packages/behavior-exclusions/` are
+  still unexercised, and nothing yet covers optimization on/off, native
+  publication or host execution -- compiling is not a verdict, and realizing
+  is not publishing.
 
 - **BUILD-EXCLUSION-REALIZATION.** Finish physical exclusions through native
   custody, installation, and replacement. Executed Build selections, canonical
