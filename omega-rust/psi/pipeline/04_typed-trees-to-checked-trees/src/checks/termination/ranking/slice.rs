@@ -2,11 +2,12 @@ use typed_trees::expression::ExpressionHandle;
 
 use super::patterns;
 
-pub(super) fn state_has_proven_self_loop(
-    program: &typed_trees::TypedTrees,
+pub(super) fn state_has_proven_self_loop<'p>(
+    program: &'p typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     decreases: ExpressionHandle,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     let Some(parameter) = patterns::parameter_matched_by_expression(program, state, decreases)
     else {
@@ -35,6 +36,12 @@ pub(super) fn state_has_proven_self_loop(
                 return false;
             };
 
-            validation::slice_tail_strictly_decreases(program, self_loop.guard, argument, parameter)
+            validation::slice_tail_strictly_decreases_with_bound_lookup(
+                program,
+                self_loop.guard,
+                argument,
+                parameter,
+                bound_lookup,
+            )
         })
 }

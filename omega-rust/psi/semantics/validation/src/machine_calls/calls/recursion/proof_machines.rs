@@ -662,6 +662,9 @@ pub(crate) fn validate_proof_machine_recursion(
         return;
     };
 
+    // The slice-tail decrease probe scans the whole program once for its
+    // bound index; share that scan across every self-call argument here.
+    let mut bound_lookup = None;
     for arguments in self_calls {
         let argument = arguments.get(measure_position).copied();
         let descends = argument.is_some_and(|argument| {
@@ -699,6 +702,7 @@ pub(crate) fn validate_proof_machine_recursion(
                     statement,
                     argument,
                     measure_position,
+                    &mut bound_lookup,
                 )
         });
         if !descends {
