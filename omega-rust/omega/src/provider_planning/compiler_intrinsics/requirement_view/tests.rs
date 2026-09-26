@@ -1,8 +1,4 @@
 use super::{IntrinsicRequirement, IntrinsicRequirementKind};
-use crate::provider_planning::{
-    CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,
-    primitive_float_binary_intrinsic_execution_identity_for,
-};
 use language_core::operator_spelling::OperatorSpelling;
 use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
@@ -62,11 +58,15 @@ fn token_signature_preserves_machine_requirement_identity_and_intrinsic_meaning(
     );
     assert_eq!(by_token.as_operator(), Some(token));
     assert_eq!(
-        primitive_float_binary_intrinsic_execution_identity_for(&typed, &by_token),
-        Some(CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
-            operation: CompilerPrimitiveFloatBinaryOperation::Add,
-            format: numerics::literals::FloatFormat::F32,
-        })
+        crate::provider_planning::primitive_float_binary_intrinsic_execution_identity_for(
+            &typed, &by_token
+        ),
+        Some(
+            crate::provider_planning::CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
+                operation: crate::provider_planning::CompilerPrimitiveFloatBinaryOperation::Add,
+                format: numerics::literals::FloatFormat::F32,
+            }
+        )
     );
 }
 
@@ -81,6 +81,10 @@ fn an_untokened_requirement_does_not_gain_primitive_operator_meaning() {
     );
     assert!(requirement.as_operator().is_none());
     assert!(
-        primitive_float_binary_intrinsic_execution_identity_for(&typed, &requirement).is_none()
+        crate::provider_planning::primitive_float_binary_intrinsic_execution_identity_for(
+            &typed,
+            &requirement
+        )
+        .is_none()
     );
 }

@@ -28,7 +28,6 @@ symbols = { path = "../../../psi/foundation/symbols" }
 terminal-codec = { path = "../../../psi/terminal-codec" }
 terminal-semantics = { path = "../../../psi/terminal-semantics" }
 terminal-psi = { path = "../../../psi/terminal-psi" }
-terminal-semantics = { path = "../../../psi/terminal-semantics" }
 terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 
 source = { path = "../../../psi/foundation/source" }

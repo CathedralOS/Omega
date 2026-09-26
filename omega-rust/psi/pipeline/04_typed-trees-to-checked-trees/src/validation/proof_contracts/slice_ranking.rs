@@ -5,7 +5,6 @@ use language_semantics::declaration_selection::CollectionMeasure;
 use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
 
-use crate::validation::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
 use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode,
 };
