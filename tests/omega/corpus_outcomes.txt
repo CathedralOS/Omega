@@ -27,10 +27,8 @@ fail/arithmetic/exact_integer_cast_unproven rejected 0ms expected
 	Exact integer cast in machine `narrow` state `entry` terminal expression from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `wrapped_then_cross_signed` state `entry` cast expression from `i8` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `wrapped_then_cross_signed` state `entry` terminal expression from `i8` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/arithmetic/exact_overflow_value_call_hint rejected 8ms
-	implicit domain weakening in machine `Main::triple` state `triple` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/arithmetic/exact_overflow_value_call_hint rejected 80ms expected
 	exact arithmetic in machine `Main::main` state `main` assignment may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `triple(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`).
-	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/arithmetic/exact_shift_count_unproven rejected 0ms expected
 	shift count in machine `Main::main` state `main` local `shifted` is not provably below the operand width for `u32`: exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
 fail/arithmetic/exact_shift_left_value_unproven rejected 0ms expected
@@ -70,16 +68,15 @@ fail/arithmetic/suffix_type_disagrees_rejected rejected 3ms expected
 fail/arithmetic/undeclared_bare_name_rejected rejected 7ms expected
 	machine `Main::main` state `main` uses `undeclared_var`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/arithmetic/unknown_field_write_rejected rejected 6ms
-	machine `Main::main` state `main` reads `self.cont`, but data `Main` has no field `cont` (check the spelling of the field name)
+fail/arithmetic/unknown_field_write_rejected rejected 78ms expected
 	machine `Main::main` state `main` assignment: data `Main` has no field `cont` (check the spelling of the field name)
+	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/arithmetic/unqualified_case_value_rejected rejected 0ms expected
 	case value `On` requires its carrier-qualified `Type::On` path
 fail/arithmetic/wrapping_target_plain_operands_rejected rejected 9ms expected
 	exact arithmetic in machine `Main::pick` state `pick` local `v` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).
-fail/arithmetic/wrong_struct_type_argument_rejected rejected 4ms
-	implicit domain weakening in machine `Main::take_foo` state `take_foo` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/arithmetic/wrong_struct_type_argument_rejected rejected 80ms expected
 	argument `f` for state `Main::take_foo::take_foo` expects the `Foo` data type but got `Bar` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/arithmetic/zii_range_excludes_zero_rejected rejected 4ms expected
 	reading `self.m` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
@@ -530,7 +527,7 @@ fail/layouts/plan_laid_dynamic_plan rejected 3ms expected
 	plan-laid value type `Streamy<Pairish>`: policy `Streamy::plan` produced a dynamic plan; a dynamic plan cannot be a value type -- values need offsets, bytes need mints
 fail/layouts/plan_laid_policy_without_plan_machine rejected 2ms expected
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
-fail/layouts/private_callback_slot_wrong_layout rejected 10ms
+fail/layouts/private_callback_slot_wrong_layout rejected 21ms expected
 	plan-laid value type `Spread<ForeignRecord>`: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
 fail/memory/bump_allocator_cast_minted_vacant rejected 44ms expected
 	declared instance `Vacant` has no establishment: `as` mints an instance of domain family `Vacant` on custody-marked carrier `Extent` -- the family declares no predicate body and no `establishment` route, and a linear carrier that route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at exercise::entry:statement-0)
@@ -645,7 +642,7 @@ fail/proofs/linear_range_sum_false_twin rejected 1ms expected
 	machine `false_sum_of_bounded` cannot prove ensures contract proof fact `a + b >= 2 && a + b <= 19` from the requires contract
 fail/proofs/machine_parameterized_runtime_data_rejected rejected 0ms expected
 	data `RuntimeCallback` is parameterized by a static machine but has a runtime layout; `<machine ...>` on data is reserved for proof-only families (recursive data has no layout)
-fail/proofs/nat_exact_subtraction_requires_order rejected 70ms
+fail/proofs/nat_exact_subtraction_requires_order rejected 144ms expected
 	cannot prove requires contract for call subtract from remaining: used <= total (needs fact `right <= left` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/nat_metric_false_gap_zero rejected 109ms expected
 	machine `false_gap_zero` ensures contract proof fact `nat_gap(Nat, Nat) == Nat` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
