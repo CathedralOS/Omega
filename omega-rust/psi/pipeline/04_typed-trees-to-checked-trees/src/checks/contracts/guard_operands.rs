@@ -11,7 +11,7 @@
 //! nothing and consults no source shape.
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use facts::{FactPayload, FactPlace, PlaceRoot};
+use facts::{FactPayload, PlaceRoot};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
@@ -148,7 +148,16 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
         let written = writes.iter().any(|write| {
             later_reads.iter().any(|read| match read {
                 RequirementRead::Receiver => {
-                    receiver.is_some_and(|receiver| write.root == PlaceRoot::Symbol(receiver))
+                    // Storage identity: a callee's write frame roots `self`
+                    // at the machine symbol, the receiver parameter is a
+                    // state-level symbol for that same storage.
+                    receiver.is_some_and(|receiver| {
+                        crate::flow::normalized_event_place_root(program, write.root)
+                            == crate::flow::normalized_event_place_root(
+                                program,
+                                PlaceRoot::Symbol(receiver),
+                            )
+                    })
                 }
                 RequirementRead::Argument(argument) => expression_reads_overlapping_place(
                     program,
@@ -177,23 +186,22 @@ pub(super) fn boolean_requirement_mentions(
 }
 
 /// The symbols a call-entry fact names: a boolean contract expression's
-/// roots, or a domain membership's place root.
+/// roots, or a domain membership's subject expression roots. Both are
+/// callee-terms spellings -- a membership's PLACE was already substituted to
+/// the caller subject and names no target parameter, so mentioning it could
+/// never locate the operand position the requirement actually reads.
 pub(super) fn fact_requirement_mentions(
     program: &typed_trees::TypedTrees,
-    facts: &CheckFacts,
+    _facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Vec<SymbolHandle> {
     match fact.payload {
         FactPayload::ContractBooleanExpression { expression, .. } => {
             boolean_requirement_mentions(program, expression)
         }
-        FactPayload::ContractDomainMembership { .. } => match fact.place {
-            FactPlace::Place(place) => match facts.semantic.places.get(place).root {
-                PlaceRoot::Symbol(symbol) => vec![symbol],
-                _ => Vec::new(),
-            },
-            _ => Vec::new(),
-        },
+        FactPayload::ContractDomainMembership { value, .. } => {
+            boolean_requirement_mentions(program, value)
+        }
         _ => Vec::new(),
     }
 }
