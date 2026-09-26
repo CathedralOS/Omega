@@ -202,6 +202,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `01_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/`.
   Keep independent admission/replay in `src/validation/`, including invariant
   operand substitution and the existing topology-based non-speculation gate.
+  `132e9894d2` (macw9) added `StructuralByteSequenceFieldRead` relocation:
+  its `index`/`length` operands are **proposition-pinned** — the accepted
+  `index < length` obligation fact is re-derived from the moved op's current
+  operand identities and pinned to the terminal recording, so substituting a
+  member-parameter operand invalidates it even when the operand resolves to
+  an invariant representative (member-op results in the same relocation run
+  still qualify), and admission couples the read to a same-root
+  `StructuralByteSequenceFieldLength`. Admission in
+  `validation/place_observations.rs` + `invariant_operations.rs`, replay in
+  `context/ranked_cycles/freeze/relocated_scalars.rs`.
   No Psi optimization selection runs the rewrite today: it and the countdown
   loop analyses compile only for tests and the crate's `test-support`
   feature, so a selected pass must reach it from `optimize_abstract_operations`
