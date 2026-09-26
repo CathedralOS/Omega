@@ -126,6 +126,9 @@ pub(crate) fn accepts_borrowed_parameters(
         let record = matches!(declaration.shape, StructuralTypeShape::Record { .. });
         let byte_view = declaration.shape.is_borrowed_byte_view();
         let element_view = matches!(declaration.shape, StructuralTypeShape::ElementView { .. });
+        // A fixed array borrows as one pointer to its dense leaf storage;
+        // elements keep the referent's layout, so no descriptor rides along.
+        let fixed_array = matches!(declaration.shape, StructuralTypeShape::FixedArray { .. });
         let sum = matches!(
             declaration.shape,
             StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. }
@@ -137,6 +140,7 @@ pub(crate) fn accepts_borrowed_parameters(
             && !sum
             && !byte_view
             && !element_view
+            && !fixed_array
             && declaration.shape != StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
             && !matches!(declaration.shape,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
@@ -163,7 +167,7 @@ pub(crate) fn accepts_borrowed_parameters(
                 semantic.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) || semantic.access == StructuralAccess::SharedBorrow
-                && (primitive || record || sum || byte_view || element_view))
+                && (primitive || record || sum || byte_view || element_view || fixed_array))
             || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || (semantic.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && !matches!(

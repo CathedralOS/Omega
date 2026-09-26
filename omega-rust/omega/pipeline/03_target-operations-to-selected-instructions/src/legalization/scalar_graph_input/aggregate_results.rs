@@ -610,6 +610,7 @@ pub(in crate::legalization) fn call_argument(
                 StructuralTypeShape::Record { .. }
                     | StructuralTypeShape::Sum { .. }
                     | StructuralTypeShape::Mixed { .. }
+                    | StructuralTypeShape::FixedArray { .. }
             )
     }) && argument.access != terminal_psi::StructuralAccess::Owned
     {

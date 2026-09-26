@@ -96,6 +96,10 @@ pub(super) fn validate_borrowed_argument(
                         terminal_psi::StructuralTypeShape::Record { .. }
                             | terminal_psi::StructuralTypeShape::Sum { .. }
                             | terminal_psi::StructuralTypeShape::Mixed { .. }
+                            // A whole-place borrow of a produced fixed array
+                            // rejoins the same aggregate home an aggregate
+                            // borrow does.
+                            | terminal_psi::StructuralTypeShape::FixedArray { .. }
                     )
             })
         })

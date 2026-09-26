@@ -93,6 +93,32 @@ pub(in crate::legalization) fn argument_at(
             custody,
         );
     }
+    // A whole-place shared borrow of a produced fixed-array result lends the
+    // caller's dense leaf storage in place; the aggregate route rejoins the
+    // producing home exactly as a projected borrow does.
+    if semantic.path.is_empty()
+        && semantic.access == StructuralAccess::SharedBorrow
+        && plan.structural_types.iter().any(|declaration| {
+            declaration.id == destination_parameter.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::FixedArray { .. }
+                )
+        })
+        && super::structural_case::source_result(caller, semantic.place).is_ok()
+    {
+        return super::aggregate_results::call_argument(
+            semantic,
+            position,
+            call_operation,
+            caller,
+            called,
+            call,
+            native,
+            plan,
+            custody,
+        );
+    }
     // A borrowed projection rooted at a local aggregate result rejoins the
     // producing home through the same call-argument reconstruction used for
     // aggregate destinations; the routes below only know entrance parameters,

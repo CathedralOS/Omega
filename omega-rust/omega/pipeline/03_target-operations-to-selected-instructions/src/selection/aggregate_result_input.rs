@@ -716,7 +716,8 @@ pub(super) fn home(
         .flat_map(|block| &block.instructions)
         .filter_map(|row| {
             let result = match &row.kind {
-                LegalizedScalarInstructionKind::EstablishRecord { result, .. }
+                LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
+                | LegalizedScalarInstructionKind::EstablishRecord { result, .. }
                 | LegalizedScalarInstructionKind::EstablishScalarCase { result, .. } => result,
                 LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,
                 _ => return None,
@@ -738,7 +739,9 @@ pub(super) fn home(
                 declaration.id == result.structural_type
                     && matches!(
                         declaration.shape,
-                        StructuralTypeShape::Record { .. } | StructuralTypeShape::Sum { .. }
+                        StructuralTypeShape::Record { .. }
+                            | StructuralTypeShape::Sum { .. }
+                            | StructuralTypeShape::FixedArray { .. }
                     )
             })
     {

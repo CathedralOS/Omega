@@ -233,23 +233,38 @@ pub(super) fn argument(
     // producer keeps whole storage, and the argument transports the leaf's
     // address inside it. The verifier admits the same projected loan only
     // under its exact-access and claim-free bounds, which this shape check
-    // replays against the home's own result metadata.
-    if !argument.path.is_empty()
-        && let Some(home) = live.structural_homes.get(&argument.place)
+    // replays against the home's own result metadata. An empty path borrows
+    // the home whole when the formal is no primitive reference — primitive
+    // storage keeps its own custody channel below.
+    if let Some(home) = live.structural_homes.get(&argument.place)
+        && (!argument.path.is_empty()
+            || !super::primitive_storage::is_primitive_reference(declaration, types))
     {
         let (producer, result) = home
             .operation_result()
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let mut shape_cache = BTreeMap::new();
         let mut active = BTreeSet::new();
-        let (projected_type, projected_shape, source_byte_offset) =
+        let (projected_type, projected_shape, source_byte_offset) = if argument.path.is_empty() {
+            (
+                result.structural_type,
+                crate::lowering::structural_layout::structural_shape(
+                    result.structural_type,
+                    types,
+                    &mut shape_cache,
+                    &mut active,
+                )?,
+                0,
+            )
+        } else {
             crate::lowering::structural_layout::resolve_structural_projection_path(
                 result.structural_type,
                 &argument.path,
                 types,
                 &mut shape_cache,
                 &mut active,
-            )?;
+            )?
+        };
         if argument.access != declaration.access
             || !matches!(
                 argument.access,
@@ -288,6 +303,68 @@ pub(super) fn argument(
             source: TargetStructuralArgumentSource::StructuralHome {
                 psi_operation: producer,
             },
+            destination: destination.placement.clone(),
+        });
+    }
+    // A projected borrow through an incoming machine parameter carries the
+    // parameter's placement whole and transports the leaf's address inside
+    // it, exactly as the structural-home loan above does for a produced
+    // result. The parameter's own access authorizes the argument.
+    if !argument.path.is_empty()
+        && let Some(source) = prepared
+            .parameters
+            .iter()
+            .find(|source| source.place == argument.place)
+    {
+        let allowed = match source.access {
+            StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
+            StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
+            StructuralAccess::WriteOnlyBorrow => {
+                argument.access == StructuralAccess::WriteOnlyBorrow
+            }
+            StructuralAccess::Owned => false,
+        };
+        let mut shape_cache = BTreeMap::new();
+        let mut active = BTreeSet::new();
+        let Some((projected_type, projected_shape, source_byte_offset)) =
+            crate::lowering::structural_layout::resolve_structural_projection_path(
+                source.structural_type,
+                &argument.path,
+                types,
+                &mut shape_cache,
+                &mut active,
+            )
+            .ok()
+        else {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        };
+        if !allowed
+            || argument.access != declaration.access
+            || declaration.multiplicity != StructuralMultiplicity::Unrestricted
+            || !declaration.qualifications.is_empty()
+            || !declaration.projected_qualifications.is_empty()
+            || projected_type != declaration.structural_type
+            || crate::lowering::structural_layout::structural_parameter_shape(
+                projected_shape,
+                declaration.access,
+            ) != destination.shape
+            || u32::from(projected_shape.byte_size)
+                .checked_add(source_byte_offset)
+                .is_none_or(|end| end > u32::from(source.shape.byte_size))
+        {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        return Ok(TargetStructuralArgument {
+            place: argument.place,
+            access: argument.access,
+            path: argument.path.clone(),
+            root_structural_type: source.structural_type,
+            structural_type: projected_type,
+            shape: destination.shape,
+            source_byte_offset,
+            fixed_array_length: None,
+            element_stride: None,
+            source: source.placement.clone().into(),
             destination: destination.placement.clone(),
         });
     }
