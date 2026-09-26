@@ -670,14 +670,26 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   lookup. Replace each with identity/dense-index resolution or a dedupe set,
   preserving every check's proof obligation — no blanket dedup that weakens
   validation. The three named slices have landed on main
-  (`62670ff02`, `b650cf2c75`, `e58c67f3d9`) but the heavy program is still
-  red: `samples/cli/algorithms/insertion_sort` `--check --timings` measures
-  ~887 s on `9ec12341`, and the dominant cost is no longer a check-stage
-  scan — `package omega_language_std` is compiled once per review pass
-  (~429 s under discovery + ~366 s under bound ≈ 795 s of the 887 s), while
-  the whole Stage 05 check is 36 s. The frontier is the review pipeline's
-  repeated std-package compilation (cache or unify it), plus whatever makes
-  one std package compile cost ~400 s. Acceptance: the same program's
+  (`62670ff02`, `b650cf2c75`, `e58c67f3d9`), and the heavy program's
+  dominant cost is package review, not a check-stage scan. On macOS arm64 at
+  `67a44b8f9c`, `samples/cli/algorithms/insertion_sort` `--check --timings`
+  takes 113.6 s. Of that, 105.7 s is std compiled twice: 52.7 s in the
+  discovery pass and 53.0 s in the bound pass (`review/candidate/compilation.rs`
+  `compile_candidate`). The root package takes 3.8 s in each pass.
+  std is compiled twice because its own consumer bindings (FilesystemHost,
+  TimeHost, Console) are discovered in the first pass and change its provider
+  settlement, final check and review rows in the second. Reusing the
+  discovery compile is therefore not an identical-input cache. The bounded
+  route shares std's binding-independent prefix within one review session:
+  front end, preliminary check and build evaluation (`evaluate_build_and_continue`),
+  rerunning only `check_selected_execution` per pass. It also derives a
+  dependency's candidate bindings without its final check (declared reach
+  plus the selected Console provider). `wiki/spec/packages/review.md` already
+  treats discovery as input resolution. The comments in
+  `compilation.rs` that forbid reuse across passes must be rewritten with
+  it. Discovery from stages 00-03 alone waits on BUILD-EVALUATES-ONCE:
+  Console candidates need the evaluated build's provider selections.
+  Acceptance: the same program's
   `--check` wall time returns toward the prior ~100 s, each named hotspot
   drops out of the profile, and affected crate tests plus the checking
   surface stay green.
