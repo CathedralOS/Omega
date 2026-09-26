@@ -1744,7 +1744,32 @@ syntax and other terminal services are not prerequisites.
   a selected boundary accepts the exact residual while the caller retains or
   returns the rest. Use canonical core content identities, not lookalike
   test algebra. Attachment production has changed since the old service-root
-  refusal; rerun this customer before naming its next compiler blocker.
+  refusal.
+
+  That rerun is done. Both fixtures realize: under `--native` they record
+  `built`, not a service-root refusal, so no compiler blocker stands between
+  here and an invoked route. What stops them is their own text -- each ends
+  in `machine Main::main(&mut self) {}`, so the declared contract is never
+  called. `pass/terminal_psi/content_custody_exit` has the same empty entry
+  despite its name.
+
+  Writing the invocation with a bodied provider is refused on four separate
+  grounds, and all four look correct. A provider returning fresh
+  `Region { remaining: 4 }` halves cannot prove
+  `content(old(&whole)) == separate(content(&left), content(&right))`,
+  because it fabricated content instead of moving it; the fresh literals are
+  refused at "cannot prove default-domain field requirement ...
+  requires `Region::Owned`"; and `whole` and the unread residual each reach
+  scope exit unconsumed. `core/content` supplies only proof vocabulary --
+  `IntervalSet`, `CountedQuantity`, `Content<A>::project` and the installed
+  `old`/`separate`/`embed` terms -- and no partition operation, which is
+  consistent with [content custody](wiki/spec/resources/content_custody.md):
+  "the primitive changing a partition authors its theorem", and at a partial
+  bodyless boundary "the provider may admit acceptance of custody for that
+  residual, not the partition arithmetic". So the provider must be admitted
+  against the bodyless boundary's authored theorem rather than compute the
+  split, and the owned input has to reach the entry as an existing claim,
+  not a constructed one.
 
   Acceptance: source/native execution preserves exact subject/revision,
   projection/algebra, geometry, lineage, route and installed occurrence through
