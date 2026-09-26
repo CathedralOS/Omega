@@ -455,9 +455,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Execute retained copy, extension, address,
   compare/test, and scheduling rewrites on compiler-produced selected programs.
   Owner: `omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/`.
-  Same-block copy removal and redundant-extension removal already use the
-  public catalog executor. Complete address, compare/test, and scheduling
-  families through that same route; preserve the existing `PreAllocationPolicy`.
+  Same-block copy removal, redundant-extension removal, address-offset folds
+  (`9627b528bc`, `SelectedAddressOffsetFoldV1` through pre-allocation admission),
+  and constant-boolean folds (`3f31f50e18`, `SelectedConstantBooleanFoldV1`,
+  tag 48 / catalog row 4 / manifest tag 9 — `condition_state` lifted to
+  `rewrites/` as shared flag-state vocabulary) already use the public catalog
+  executor. Complete compare/test and scheduling families through that same
+  route; preserve the existing `PreAllocationPolicy`.
 
   Add exact selection names, ordered catalog descriptors, candidate discovery
   binding source/selection identities, and execution from
@@ -479,11 +483,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   compare/test vocabulary. Preserve target-specific displacement bounds.
   DECLARATIVE-PEEPHOLES owns general nomination of retired literal folds and
   left-zero compare refinement; ALIAS-AWARE-MEMORY owns memory rewrites.
-
-  Unvalidated address-fold candidates: `swarm/macw8-exact-machine` at
-  `5b48da98e6a` and `swarm/macw7-exact-machine-2` at `54435f01e0`.
-  Inspect their overlap with current main before reusing either; neither is
-  acceptance evidence or a live assignment.
 
   Acceptance: source-produced programs select each retained rule by exact name,
   execute on a supported host, and independently replay after publication.
@@ -544,11 +543,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   guards, mirrored replay in `candidates/structural_bindings.rs`). A real
   completeness gap was also closed: `CallDynamicScalar`/`CallDynamicUnit`/
   `CallStoredDynamicScalar`/`StoreDynamicDescriptor` selection sources are
-  now scanned for rewrites. Remaining frontier: array-element descent and
-  deeper membership-depth shapes. Reachability bound discovered: an
-  `EstablishRecord` child must be `Record`-shaped (or scalar/reference)
+  now scanned for rewrites. `4c307fc9ed` (macw9) resolved the array-element
+  frontier to coverage: `admission.rs`'s `descended_type` already resolves
+  `FixedIndex`/`RuntimeIndex`/`Referent`/`Field` chains (`t[1]`, `r.inner[0]`,
+  `self.arr[1]`, `m.arr[0].tag` all fold), and the commit pins the regression
+  matrix plus decline/forged-evidence controls. Reachability bound discovered:
+  an `EstablishRecord` child must be `Record`-shaped (or scalar/reference)
   transitively — no sum/array children — which bounds how far establishment
-  proofs can descend through stored children.
+  proofs can descend through stored children, and `EstablishScalarArray`
+  elements are scalar leaves (`establishment_scalar`'s `FixedIndex` bound is
+  exact). Remaining bounds are upstream: `RuntimeIndex` memberships wait on a
+  lowering scalar-control-plan (in-flight on `leaf/transition-arm-runtime-
+  index-reads`), `IntegerStructuralField` under `FixedIndex` is unreachable
+  from source today, and `EstablishStructuralCase` is still rejected at
+  terminal-psi-to-abstract-operations.
 
   Invariant-window specialization depends on an upstream operation/evidence
   contract retained into this stage; no such operation reaches it yet. Do not
