@@ -66,6 +66,20 @@ pub(crate) fn build_operator_facts(
     program: &TypedTrees,
     values: &CheckedValueFacts,
 ) -> CheckedOperatorFacts {
+    build_operator_uses(program, values)
+        .with_named_requirement_uses(requirement_uses::collect_named_requirement_uses(
+            program, values,
+        ))
+        .with_operator_crash_contracts(derive_checked_operator_crash_contracts(program))
+        .with_operator_realization_contracts(derive_checked_operator_realization_contracts(program))
+}
+
+/// The operator and named uses with their candidates, without the requirement
+/// uses and declaration contracts `build_operator_facts` adds.
+pub(crate) fn build_operator_uses(
+    program: &TypedTrees,
+    values: &CheckedValueFacts,
+) -> CheckedOperatorFacts {
     let mut uses = Arena::default();
     let mut named_uses = Arena::default();
     let mut candidates = Arena::default();
@@ -91,11 +105,6 @@ pub(crate) fn build_operator_facts(
     }
 
     CheckedOperatorFacts::with_roots(uses, named_uses, candidates)
-        .with_named_requirement_uses(requirement_uses::collect_named_requirement_uses(
-            program, values,
-        ))
-        .with_operator_crash_contracts(derive_checked_operator_crash_contracts(program))
-        .with_operator_realization_contracts(derive_checked_operator_realization_contracts(program))
 }
 
 pub(crate) fn derive_checked_operator_realization_contracts(

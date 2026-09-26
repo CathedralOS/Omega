@@ -65,7 +65,11 @@ pub(crate) fn bind_token_bound_machine_calls(
     if program.machine_token_bindings().is_empty() {
         return Ok(0);
     }
-    let mut facts = crate::derive_pre_flow_operator_selections(program);
+    // Binding reads the operator uses and their candidates only.
+    let mut facts = crate::operators::build_operator_uses(
+        program,
+        &crate::values::build_value_origin_rows(program),
+    );
     // A domain-homed binding (`machine + Quantity::Additive::add`) is a
     // `DomainPending` candidate until binding-site selection settles it. That
     // selection reads only static operand qualifications, mints, and
