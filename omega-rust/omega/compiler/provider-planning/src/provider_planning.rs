@@ -82,8 +82,6 @@ pub use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use std::sync::Arc;
 use trust_model::AuthoredRootGrant;
-#[cfg(test)]
-use trust_model::ProviderGrantSelectorKind;
 use trust_model::resolve_selected_provider_grants;
 use typed_trees::TypedTrees;
 

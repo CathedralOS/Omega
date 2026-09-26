@@ -2225,6 +2225,7 @@ dependencies = [
  "effects",
  "optimization-core",
  "provider-planning",
+ "target",
  "trust-model",
 ]
 

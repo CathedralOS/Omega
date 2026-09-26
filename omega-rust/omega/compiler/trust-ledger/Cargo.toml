@@ -17,4 +17,5 @@ artifacts = { path = "../artifacts" }
 provider-planning = { path = "../provider-planning" }
 compiler = { path = ".." }
 effects = { path = "../../backend/plans/provider-evidence" }
+target = { path = "../../backend/target" }
 optimization-core = { path = "../../foundation/optimization-core", features = ["test-support"] }
