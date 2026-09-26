@@ -3085,6 +3085,41 @@ syntax and other terminal services are not prerequisites.
   canary and sample that stores across integer types or policies spells the
   cast.
 
+- **TARGET-SET-COMPILATION.** (new-scope) Multi-target compilation is
+  repeated single-target compilation at two layers
+  ([plan](wiki/drafts/designs/target_set_compilation.md), measured at
+  `c5a798a411`). `compiler::compile` does
+  `for (target, source) in request.targets.into_iter().zip(repeat_n(source))`:
+  `source_checkpoint.for_exact_target(name).assemble()` filters the source
+  graph per target, so resolve/type/build-eval/check/admission all re-run per
+  target and `build.omg` executes N times. The batch surface
+  (`with_target_configurations`, `ExplicitTargetSet`,
+  `TargetCompileConfiguration`) has no production caller; package operations
+  loop `for target in targets` one layer up
+  (`packages/manager/src/operations/inspect_packages/execution.rs`,
+  `CandidateSourcePreparation`), and `NativeInputReuse` deduplicates
+  realization inputs after the work is already done. Make target multiplicity
+  data: one `AssembledSyntax` retains all targets' qualified declarations
+  (target-indexed coexistence, a namespace/resolution model change), the
+  shared spine (resolve/type/build-eval/check/trust) runs once producing
+  target-indexed rows, and terminal/native products partition per
+  (entry, target) — identical partitions shared by construction. While
+  resequencing, name the spine: the native leg's stage order
+  (`prepare_native_product` → `realization::realize` → `realize_image` →
+  `emit_realization_object` → `physical_pipeline` →
+  `emit_optimized_fragments` → `assemble_*`) is stated at one owner, the
+  `settle_selected_execution` wedge becomes a named checked→settled stage,
+  and `RequestedCompileProduct::TerminalArtifact` is wired to the CLI so
+  `<root>.psi`/`.proof` publication is reachable. Acceptance: one invocation
+  over a two-target set loads, parses, resolves, types and evaluates build
+  once; package multi-target operations make one compile call; per-target
+  failure isolation and build-effect custody are preserved as data;
+  `NativeInputReuse`, `repeat_n` cloning and `CandidateSourcePreparation`
+  retire; single-target CLI output is unchanged. Sequencing and open
+  questions (Build vocabulary set-awareness, generated-source re-entry,
+  overlap with TWO-AXIS-TERMINAL-AUTHORITY-REVIEW and
+  PIPELINE-OWNER-CONSOLIDATION) are in the plan draft.
+
 - **STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.** (new-scope) The Unit state graph
   now completes a primitive scalar result (`CheckedControlResultPlan::Scalar`,
   `ReturnScalar` with the ordinary binding or exit completion), and ordinary or
