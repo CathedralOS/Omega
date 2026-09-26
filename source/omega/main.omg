@@ -47,7 +47,7 @@ machine Main::main(&mut self) reaches Console {
     state parse(&mut self) {
         self.parser.initialize(
             self.lexer.source.id,
-            self.lexer.source.length
+            self.lexer.source.length as u64 in Trapping
         );
         self.parser.parse(&self.lexer.output);
         transition self.parser.output.accepted {

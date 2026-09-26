@@ -343,7 +343,8 @@ machine Lexer::push_token(&mut self, kind: Token) {
 
 machine Lexer::retain_token(&mut self, kind: Token) {
     let retained_decoded_start: u64 in Trapping = self.decoded_start;
-    let retained_decoded_end: u64 in Trapping = self.output.decoded_length;
+    let retained_decoded_end: u64 in Trapping =
+        self.output.decoded_length as u64 in Trapping;
     let retained_decoded_length: u64 in Trapping =
         retained_decoded_end - retained_decoded_start;
     let mut token: Token = kind;
@@ -492,7 +493,7 @@ machine Lexer::classify_keyword(&mut self) {
 
 machine Lexer::lex_identifier(&mut self) {
     self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length;
+    self.decoded_start = self.output.decoded_length as u64 in Trapping;
     self.decode_at(self.cursor);
     self.cursor = self.cursor + self.scalar_width;
     transition { _ -> continue_scan() }
@@ -526,7 +527,7 @@ machine Lexer::lex_identifier(&mut self) {
 
 machine Lexer::lex_whitespace(&mut self) {
     self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length;
+    self.decoded_start = self.output.decoded_length as u64 in Trapping;
     transition { _ -> scan() }
 
     state scan(&mut self) {
@@ -558,7 +559,7 @@ machine Lexer::lex_whitespace(&mut self) {
 
 machine Lexer::lex_line_comment(&mut self) {
     self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length;
+    self.decoded_start = self.output.decoded_length as u64 in Trapping;
     self.cursor = self.cursor + 2;
     transition { _ -> scan() }
 
@@ -596,7 +597,7 @@ machine Lexer::lex_line_comment(&mut self) {
 
 machine Lexer::lex_block_comment(&mut self) {
     self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length;
+    self.decoded_start = self.output.decoded_length as u64 in Trapping;
     self.cursor = self.cursor + 2;
     self.comment_depth = 1;
     transition { _ -> scan() }
@@ -663,7 +664,7 @@ machine Lexer::lex_block_comment(&mut self) {
         self.reject(
             LexDiagnosticCode::UnterminatedBlockComment,
             self.token_start,
-            self.source.length
+            self.source.length as u64 in Trapping
         );
     }
 }
@@ -702,7 +703,7 @@ machine Lexer::copy_source_to_decoded(&mut self) {
 
 machine Lexer::lex_cooked_string(&mut self) {
     self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length;
+    self.decoded_start = self.output.decoded_length as u64 in Trapping;
     self.cursor = self.cursor + 1;
     transition { _ -> scan() }
 
@@ -816,10 +817,10 @@ machine Lexer::lex_cooked_string(&mut self) {
         self.push_token(Token::StringLiteral);
     }
 
-    state unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedStringLiteral, self.token_start, self.source.length); }
-    state unterminated_escape(&mut self) { self.reject(LexDiagnosticCode::UnterminatedStringEscape, self.token_start, self.source.length); }
+    state unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedStringLiteral, self.token_start, self.source.length as u64 in Trapping); }
+    state unterminated_escape(&mut self) { self.reject(LexDiagnosticCode::UnterminatedStringEscape, self.token_start, self.source.length as u64 in Trapping); }
     state unsupported_escape(&mut self) { self.reject(LexDiagnosticCode::UnsupportedEscape, self.escape_start, self.cursor + 1); }
-    state hex_unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedHexEscape, self.escape_start, self.source.length); }
+    state hex_unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedHexEscape, self.escape_start, self.source.length as u64 in Trapping); }
     state hex_invalid_first(&mut self) { self.reject(LexDiagnosticCode::InvalidHexEscapeDigit, self.cursor + 1, self.cursor + 2); }
     state hex_invalid_second(&mut self) { self.reject(LexDiagnosticCode::InvalidHexEscapeDigit, self.cursor + 2, self.cursor + 3); }
     state outside_profile_escape(&mut self) {
@@ -952,7 +953,7 @@ machine Lexer::dot_starts_float(&mut self) {
 
 machine Lexer::lex_number(&mut self) {
     self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length;
+    self.decoded_start = self.output.decoded_length as u64 in Trapping;
     self.numeric_base = NumericBase::Decimal;
     self.numeric_empty_digits = false;
     self.numeric_has_suffix = false;
@@ -1096,7 +1097,7 @@ machine Lexer::lex_number(&mut self) {
 
 machine Lexer::lex_punctuation(&mut self) {
     self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length;
+    self.decoded_start = self.output.decoded_length as u64 in Trapping;
     let first_byte: u8 = self.source.byte_or_nul(self.cursor);
     self.byte0 = first_byte as u32 in Trapping;
     self.byte1 = 4294967295;
@@ -1355,7 +1356,11 @@ machine Lexer::lex_next(&mut self) {
     state punctuation(&mut self) { self.lex_punctuation(); }
 }
 
-pub machine Lexer::tokenize(&mut self) {
+// Bounded array reads carry their collection's Trapping policy, so tokenizing
+// publishes the same crash route its callees do.
+pub machine Lexer::tokenize(&mut self)
+crashes Trap
+{
     self.output.clear(self.source.id);
     self.validate_utf8();
     transition self.output.accepted {

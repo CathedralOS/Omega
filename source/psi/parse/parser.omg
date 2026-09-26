@@ -70,7 +70,11 @@ pub machine Parser::initialize(
 
 // Whole-file sequencing and use-item grammar. Data declarations are delegated
 // to data.omg; input.omg remains the only token/cursor behavior owner.
-pub machine Parser::parse(&mut self, input: &TokenStream) {
+// Bounded array reads carry their collection's Trapping policy, so parsing
+// publishes the same crash route its callees do.
+pub machine Parser::parse(&mut self, input: &TokenStream)
+crashes Trap
+{
     self.output.clear(self.source);
     self.initialize_cursor();
     transition { _ -> next_root(input) }
@@ -196,7 +200,7 @@ pub machine Parser::parse(&mut self, input: &TokenStream) {
     }
 
     state use_start(&mut self, input: &TokenStream) {
-        self.use_first_member = self.output.member_count;
+        self.use_first_member = self.output.member_count as u64 in Trapping;
         self.cursor = self.cursor + 1;
         self.skip_trivia(input);
         transition self.cursor < input.token_count {
@@ -349,7 +353,7 @@ pub machine Parser::parse(&mut self, input: &TokenStream) {
     }
 
     state retain_use_bounded(&mut self, input: &TokenStream, item_end: u64 in Trapping) {
-        let use_index: u64 in Trapping = self.output.use_count;
+        let use_index: u64 in Trapping = self.output.use_count as u64 in Trapping;
         self.output.uses[self.output.use_count] = UseItem {
             first_member: self.use_first_member,
             member_count: self.output.member_count - self.use_first_member,

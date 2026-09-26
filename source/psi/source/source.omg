@@ -68,7 +68,9 @@ machine SourceUnit::byte_or_nul(&self, index: u64 in Trapping) -> u8 {
     }
 
     state read(&self, index: u64 in Trapping) {
-        self.bytes[index]
+        // `bytes` is `[u8; 65536] in Trapping`, so the element read carries
+        // the array's policy while this machine results in a plain `u8`.
+        self.bytes[index] as u8
     }
 
     state absent(&self) {
