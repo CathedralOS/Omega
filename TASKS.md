@@ -61,7 +61,14 @@ deletes the side doors it replaces. Validate with `tools/corpus_gate.py
 backend-visible; full corpus runs only at the end of an item.
 
 - **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
-  A boundary-operator application lowers as a requirement-level `BoundaryCall`
+  Depends on OPERATOR-MACHINE-SUPPLY's declaration migration: a bodyless
+  token-bearing `boundary machine - Owner::name(...);` lowers in stage 02
+  (`lowering/operator.rs`) to an operator declaration, not a machine, so
+  neither a spelled nor a named use reaches the requirement lane's
+  `BoundaryCall` (both stop at Unit local construction, "call: flow call" and
+  "local data: scalar local: pure initializer"). The 22 core float operators
+  (`Float::add` and siblings) use the same form, so migrating it routes every
+  float `+` through installation as well. A boundary-operator application lowers as a requirement-level `BoundaryCall`
   on the operator's requirement, exactly like a direct top-level requirement
   call, and Omega stage 00 installs the selected provider. A `boundary machine
   - Owner::name(...);` operator is a token-bearing machine whose operator view
@@ -96,20 +103,21 @@ backend-visible; full corpus runs only at the end of an item.
 
 - **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
   is target-neutral: one union of physical sources, every target's program-entry
-  contract source, package imports (`resolve_for_exact_target`) and dependency
-  generated sources (`append_dependency_generated_sources_to_storage` selects
-  per target). `source_assembly::entry_contract_seed` now seeds every
-  catalogued profile's contract on both routes; what remains is the rest of
-  the union. Delete `ImmutableSourceParseCheckpoint::for_exact_target`,
-  `assemble_targetless` and `ExactTargetSourceAssembly`; one `assemble`. A
-  dependency build that generates target-specific content emits target-tagged
-  declarations, never a different file per target; dependency builds still
-  run per target, so their generated sources move with BUILD-EVALUATES-ONCE.
-  Cost frontier: `omega --check --timings samples/cli/basics/cli_mvp/main.omg`
-  loads 22 sources and takes 102 s on the Windows host, of which the itemized
-  Psi stages are 15 s; the rest is the per-target dependency package compile.
-  Acceptance: `PreparedCheckedSource` assembles once for any target set and
-  the `Step: assemble` timing row appears once per compilation.
+  contract source, package imports and dependency-generated sources. Assembly
+  takes no target (`ImmutableSourceParseCheckpoint::assemble`); a child's
+  generated bundles are validated against its target at admission, and within
+  one `CompileRequest` targets whose dependencies generated the same sources
+  share one assembly (`compiler.rs` `SharedAssemblies`). Remaining: the CLI and
+  package manager compile each `--target` as a separate project compile, so a
+  two-target `omega --check --timings` still assembles twice; one request with
+  a target set (ONE-DRIVER-PER-STAGE) removes that. Dependency builds still
+  run per target and generate per-target bundles; a dependency that generates
+  target-specific content must instead emit target-tagged declarations so the
+  union holds one copy (BUILD-EVALUATES-ONCE). Cost frontier: `omega --check
+  --timings samples/cli/basics/cli_mvp/main.omg` loads 22 sources and takes
+  102 s on the Windows host, of which the itemized Psi stages are 15 s; the
+  rest is the per-target dependency package compile. Acceptance: a two-target
+  compile prints one `Step: assemble` row.
 
 - **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
   (`linux_x86_64 machine StatLayout::plan(...)`) survive as data through every

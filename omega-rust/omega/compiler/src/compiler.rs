@@ -37,8 +37,9 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
             request.shared.package_sources.clone(),
             request.shared.timings,
         );
-        let mut native_inputs = NativeInputReuse::default();
         let target_count = request.targets.len();
+        let mut assemblies = SharedAssemblies::for_targets(target_count);
+        let mut native_inputs = NativeInputReuse::default();
         let mut outcomes = Vec::with_capacity(target_count);
         // Checkpoint clones share immutable parsing. repeat_n moves the final
         // copy, so the last (and the only) target consumes the original arenas.
@@ -46,7 +47,13 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
         for (target, source) in request.targets.into_iter().zip(sources) {
             let profile = target.profile;
             let outcome = source.and_then(|source| {
-                compile_target(&request.shared, target, source, &mut native_inputs)
+                compile_target(
+                    &request.shared,
+                    target,
+                    source,
+                    &mut assemblies,
+                    &mut native_inputs,
+                )
             });
             outcomes.push(CompileTargetOutcome::new(profile, outcome));
         }
@@ -60,6 +67,7 @@ fn compile_target(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
     source: PreparedCheckedSource,
+    assemblies: &mut SharedAssemblies,
     native_inputs: &mut NativeInputReuse,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let root_path = target.options().root_path.clone();
@@ -76,13 +84,15 @@ fn compile_target(
     let rollback = child.optimization_rollback().clone();
     let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields();
 
-    // Source assembly: the shared parse plus this target's imports and
-    // dependency-generated sources.
+    // Source assembly: the shared parse plus the imports and
+    // dependency-generated sources this target's package inputs carry.
+    // Targets carrying the same generated sources share one assembly.
+    source.admit_child(&child)?;
     let AssembledSource {
         source_file_count,
         syntax,
         mut timings,
-    } = source.assemble(&child)?;
+    } = assemblies.assemble(source, package_inputs)?;
     // Psi 02-03 and build.omg: resolve and type the program, evaluate the
     // build machine, then resolve and type the sources it generated.
     let (built, build_sources) = timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
@@ -166,6 +176,67 @@ fn compile_target(
     Ok(report
         .with_trust_admission_settlement(trust_settlement)
         .with_timings(stage_timings))
+}
+
+/// Source assemblies of one invocation, keyed by the dependency-generated
+/// sources their package inputs carry. Assembly reads each bundle's package,
+/// purpose and sources and nothing else a target changes -- not the target the
+/// bundle was produced for -- so targets whose dependencies generated the same
+/// sources share one assembly.
+struct SharedAssemblies {
+    assemblies: Vec<(Vec<GeneratedSources>, AssembledSource)>,
+    /// Targets still to be served after the current one; the last target
+    /// keeps nothing for reuse.
+    remaining_targets: usize,
+}
+
+impl SharedAssemblies {
+    fn for_targets(target_count: usize) -> Self {
+        Self {
+            assemblies: Vec::new(),
+            remaining_targets: target_count,
+        }
+    }
+
+    fn assemble(
+        &mut self,
+        source: PreparedCheckedSource,
+        package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    ) -> Result<AssembledSource, Vec<Diagnostic>> {
+        let generated = package_inputs
+            .map(|inputs| {
+                inputs
+                    .dependency_generated_source_instances()
+                    .map(|(purpose, bundle)| GeneratedSources {
+                        package: bundle.package(),
+                        purpose,
+                        sources: bundle.sources().to_vec(),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        self.remaining_targets = self.remaining_targets.saturating_sub(1);
+        if let Some((_, assembled)) = self
+            .assemblies
+            .iter()
+            .find(|(existing, _)| *existing == generated)
+        {
+            return Ok(assembled.clone());
+        }
+        let assembled = source.assemble(package_inputs)?;
+        if self.remaining_targets > 0 {
+            self.assemblies.push((generated, assembled.clone()));
+        }
+        Ok(assembled)
+    }
+}
+
+/// The part of one dependency-generated bundle that assembly reads.
+#[derive(PartialEq, Eq)]
+struct GeneratedSources {
+    package: semantic_vocabulary::PackageKeyIdentity,
+    purpose: build_declarations::DependencyPurpose,
+    sources: Vec<build_output::PackageGeneratedSource>,
 }
 
 /// Run one step and record its duration under `stage` in the target's ladder.

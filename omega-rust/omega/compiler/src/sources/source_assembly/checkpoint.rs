@@ -31,14 +31,6 @@ pub struct ImmutableSourceParseCheckpoint {
     package_source_inputs: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
 }
 
-/// One exact-target child consuming its checkpoint reference. Cloned checkpoints
-/// share immutable storage until assembly needs an independently owned child.
-pub struct ExactTargetSourceAssembly<'a> {
-    checkpoint: ImmutableSourceParseCheckpoint,
-    target_name: &'a str,
-    package_inputs: Option<&'a PackageCompilationInputs>,
-}
-
 impl ImmutableSourceParseCheckpoint {
     pub fn prepare(
         root_path: &Path,
@@ -120,26 +112,17 @@ impl ImmutableSourceParseCheckpoint {
         })
     }
 
-    pub fn for_exact_target<'a>(
-        self,
-        target_name: &'a str,
-        package_inputs: Option<&'a PackageCompilationInputs>,
-    ) -> Result<ExactTargetSourceAssembly<'a>, Vec<Diagnostic>> {
-        self.validate_child(package_inputs)?;
-        Ok(ExactTargetSourceAssembly {
-            checkpoint: self,
-            target_name,
-            package_inputs,
-        })
-    }
-
-    pub fn assemble_targetless(
+    /// Assemble the source set for a child with these package inputs: the
+    /// parsed physical sources, the retained package imports and the
+    /// dependency-generated sources the inputs carry. No target selects
+    /// anything here; each target's package inputs were admitted for it.
+    pub fn assemble(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         self.validate_child(package_inputs)?;
-        self.assemble(None, package_inputs, timings)
+        self.assemble_sources(package_inputs, timings)
     }
 
     fn validate_child(
@@ -164,9 +147,8 @@ impl ImmutableSourceParseCheckpoint {
         Ok(())
     }
 
-    fn assemble(
+    fn assemble_sources(
         self,
-        target_name: Option<&str>,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
@@ -184,7 +166,6 @@ impl ImmutableSourceParseCheckpoint {
             Some(package_inputs) => append_dependency_generated_sources_to_storage(
                 &mut source_storage,
                 &mut imports,
-                target_name,
                 package_inputs,
                 timings,
             )?,
@@ -250,16 +231,6 @@ impl ImmutableSourceParseCheckpoint {
             generated_source_custody,
         )?;
         Ok((source_file_count, syntax))
-    }
-}
-
-impl ExactTargetSourceAssembly<'_> {
-    pub fn assemble(
-        self,
-        timings: &mut CompileTimings,
-    ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
-        self.checkpoint
-            .assemble(Some(self.target_name), self.package_inputs, timings)
     }
 }
 
