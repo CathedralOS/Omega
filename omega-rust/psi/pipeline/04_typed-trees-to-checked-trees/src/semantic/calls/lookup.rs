@@ -50,14 +50,17 @@ pub(crate) fn find_state_with_machine(
     if !state_symbol.is_valid() {
         return None;
     }
-    let machine_symbol = program.symbols.get(state_symbol).parent;
-    if let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol)
+    let symbol = program.symbols.get(state_symbol);
+    if let Some(machine) = crate::lookup::machine_by_symbol(program, symbol.parent)
         && let Some(state) = program
             .machine_states(machine)
             .iter()
             .find(|state| state.symbol == state_symbol)
     {
         return Some((machine, state));
+    }
+    if !may_name_stored_state(program, symbol) {
+        return None;
     }
     program.machines().iter().find_map(|machine| {
         program
@@ -66,6 +69,22 @@ pub(crate) fn find_state_with_machine(
             .find(|state| state.symbol == state_symbol)
             .map(|state| (machine, state))
     })
+}
+
+/// Whether a symbol the owning-machine path missed can still name stored
+/// state rows, keeping the whole-program scan for a state whose retained
+/// parent disagrees with its storage. Only a state symbol, or one the table
+/// cannot resolve, names state rows, and a state under a trait is a
+/// requirement signature that no machine stores. Call targets that resolve to
+/// a machine head, a builtin, a parameter or a trait requirement skip the scan.
+pub(crate) fn may_name_stored_state(
+    program: &typed_trees::TypedTrees,
+    symbol: &symbols::Symbol,
+) -> bool {
+    matches!(
+        symbol.kind,
+        symbols::SymbolKind::State | symbols::SymbolKind::Unknown
+    ) && program.symbols.get(symbol.parent).kind != symbols::SymbolKind::Trait
 }
 
 /// A bare machine call names the machine head: `symbol` selects either the
