@@ -437,9 +437,11 @@ fn dead_scalar_elimination_keeps_the_transitive_returned_value_chain() {
 /// hull as a scalar block invariant, and a retained invariant makes the module
 /// proof-bearing: both rewrites then refuse, because removing a header
 /// parameter or its arrival arguments cannot carry the reconstructed question
-/// verbatim. A hull equal to the whole declared type is no narrower than the
-/// parameter's own type, so no invariant is proposed and this fixture stays in
-/// the non-proof-bearing lane these tests exercise. The refusal itself has its
+/// verbatim. Two layers keep this fixture out of that lane anyway: the machine
+/// owns no reconstructed obligation, so the hull has no consumer and its
+/// proposal is deferred, and a hull equal to the whole declared type is no
+/// narrower than the parameter's own type. `unconsumed_literal_join_fixture`
+/// pins the consumer gate with interior constants. The refusal itself has its
 /// own coverage in `dead_scalar_selection_preserves_proof_questions_and_rejects_unchecked_context_changes`
 /// and `copy_propagation_preserves_proof_questions_and_keeps_proof_bearing_identities`.
 fn dead_block_parameter_fixture() -> LoweredPsi {
@@ -868,6 +870,128 @@ fn copy_propagation_preserves_proof_questions_and_keeps_proof_bearing_identities
     assert!(
         terminal_verifier::validate_copy_propagation(&before, &after).is_err(),
         "a context change outside the copy relation must reject"
+    );
+}
+
+/// `dead_block_parameter_fixture`'s shape with interior arm constants: a
+/// merge block joins two same-type literals whose hull is narrower than the
+/// declared type. The literal-arrival interval is hypothesis for a
+/// reconstructed proof question, and header axioms never leave their machine;
+/// with no machine-owned obligation to consume it, publishing the row would
+/// only manufacture its own arrival goals while making the module
+/// proof-bearing — freezing every parameter-carrying rewrite for evidence
+/// nothing cites. Proposal is deferred until a question exists, so this shape
+/// stays in the non-proof-bearing lane and keeps both scalar rewrites.
+fn unconsumed_literal_join_fixture() -> LoweredPsi {
+    let checked = crate::front_end::checked_program(
+        "data Main { value: i32; }\n\
+         machine Main::compute(a: i32, b: i32) -> i32 {\n\
+             let unused: bool = a < b;\n\
+             let dead_const: i32 = 7;\n\
+             transition {\n\
+                 a == b -> (10)\n\
+                 _ -> (99)\n\
+             }\n\
+         }\n\
+         machine Main::main(&mut self) {\n\
+             self.value = Main::compute(1, 2);\n\
+         }\n",
+    );
+    lower_machine(&checked, TerminalMachineSelection::Name("Main::compute"))
+        .expect("transition source lowers")
+}
+
+/// The same two-arm literal join in a machine that already owns a
+/// reconstructed obligation: the gate reopens because the interval has a real
+/// consumer, the module is proof-bearing, and the scalar rewrites refuse as
+/// before. Ordered scalar control refuses authored contracts, so the
+/// machine-owned question comes from a runtime index site instead.
+#[test]
+fn consumed_literal_join_keeps_the_invariant_and_refuses_rewrites() {
+    let checked = crate::front_end::checked_program(
+        "data Main { items: [i32; 8]; value: i32; }\n\
+         machine Main::compute(&self, a: u64 [0..=7], b: u64) -> i32 {\n\
+             let hit: i32 = self.items[a];\n\
+             let unused: bool = a < b;\n\
+             let dead_const: i32 = 7;\n\
+             transition {\n\
+                 a == b -> (10)\n\
+                 _ -> (99)\n\
+             }\n\
+         }\n\
+         machine Main::main(&mut self) {\n\
+             self.value = self.compute(1, 2);\n\
+         }\n",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::compute"))
+        .expect("transition source lowers");
+    assert!(
+        !lowered.semantic_module.scalar_block_invariants.is_empty(),
+        "a machine-owned question keeps the interval proposal"
+    );
+    for optimization in [
+        PsiOptimization::CopyPropagation,
+        PsiOptimization::DeadPureScalarElimination,
+    ] {
+        let optimized = run_psi_optimization(
+            lowered.clone(),
+            PsiOptimizationSelections::new([optimization]).unwrap(),
+        )
+        .expect("the refusal is a no-op, not an error");
+        assert_eq!(
+            optimized.lowered().semantic_module,
+            lowered.semantic_module,
+            "{optimization:?} refuses at the reconstructed question boundary"
+        );
+    }
+}
+
+#[test]
+fn unconsumed_literal_join_keeps_both_scalar_rewrites() {
+    let lowered = unconsumed_literal_join_fixture();
+    assert!(
+        lowered.semantic_module.scalar_block_invariants.is_empty(),
+        "no machine-owned question can consume the literal hull"
+    );
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::CopyPropagation]).unwrap(),
+    )
+    .expect("selected copy propagation executes");
+    let before = &lowered.semantic_module;
+    let after = &optimized.lowered().semantic_module;
+    terminal_verifier::validate_copy_propagation(before, after)
+        .expect("the independent check accepts the executed rewrite");
+    let old_parameters: usize = before.machines[0]
+        .blocks
+        .iter()
+        .map(|block| block.parameters.len())
+        .sum();
+    let new_parameters: usize = after.machines[0]
+        .blocks
+        .iter()
+        .map(|block| block.parameters.len())
+        .sum();
+    assert!(
+        new_parameters < old_parameters,
+        "copy propagation still collapses the forwarded parameters"
+    );
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::DeadPureScalarElimination]).unwrap(),
+    )
+    .expect("selected dead scalar elimination executes");
+    let after = &optimized.lowered().semantic_module;
+    terminal_verifier::validate_dead_scalar_elimination(before, after)
+        .expect("the independent check accepts the executed rewrite");
+    let new_parameters: usize = after.machines[0]
+        .blocks
+        .iter()
+        .map(|block| block.parameters.len())
+        .sum();
+    assert!(
+        new_parameters < old_parameters,
+        "dead scalar elimination still removes the unused parameters"
     );
 }
 

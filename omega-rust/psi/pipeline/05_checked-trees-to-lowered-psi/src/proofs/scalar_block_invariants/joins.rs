@@ -20,6 +20,15 @@
 //! only when every actual scalar arrival supplies an exact same-type constant.
 //! This is a seed, not authority: the common retention pass reconstructs and
 //! proves every arrival, including SSA availability, before publishing the range.
+//!
+//! The hull is hypothesis, not product: header axioms never leave their machine,
+//! so a machine owning no reconstructed obligation has nothing that can cite the
+//! interval. Publishing the row anyway would manufacture only its own arrival
+//! goals while marking the module proof-bearing, freezing every
+//! parameter-carrying rewrite the reconstructed question cannot carry verbatim.
+//! Defer the interval until a question in the same machine exists to answer; a
+//! machine already under proof keeps the proposal because its refusal boundary
+//! is already in force.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -83,6 +92,14 @@ pub(super) fn candidates(
                 _ => {}
             }
         }
+        // A retained interval row creates its own arrival obligations, so it
+        // alone can make this machine proof-bearing. With no machine-owned
+        // question able to cite the hull, defer it rather than freeze the
+        // rewrites for unconsumed evidence.
+        let machine_has_question = questions
+            .obligations()
+            .iter()
+            .any(|site| site.owner.machine() == machine.id);
         for header in &machine.blocks {
             if header.id == machine.entry
                 || arrivals.get(&header.id).copied().unwrap_or(0) < 2
@@ -130,19 +147,21 @@ pub(super) fn candidates(
                 }
                 cursor += 1;
             }
-            for position in 0..header.parameters.len() {
-                let Some(predicate) =
-                    literal_arrival_range(machine, header, position, &literals, remaining)
-                else {
-                    continue;
-                };
-                if !imported.contains(&&predicate) {
-                    candidates.push(ScalarBlockInvariant {
-                        machine: machine.id,
-                        header: header.id,
-                        predicate,
-                        arrivals: Vec::new(),
-                    });
+            if machine_has_question {
+                for position in 0..header.parameters.len() {
+                    let Some(predicate) =
+                        literal_arrival_range(machine, header, position, &literals, remaining)
+                    else {
+                        continue;
+                    };
+                    if !imported.contains(&&predicate) {
+                        candidates.push(ScalarBlockInvariant {
+                            machine: machine.id,
+                            header: header.id,
+                            predicate,
+                            arrivals: Vec::new(),
+                        });
+                    }
                 }
             }
             for site in questions
