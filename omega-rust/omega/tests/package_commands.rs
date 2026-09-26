@@ -104,7 +104,7 @@ fn unchanged_updates_publish_for_all_packages_declared_name_and_alias() {
     let before = fixture.accepted_files();
     for arguments in [
         &["update"][..],
-        &["update", "arithmetic-kernels"],
+        &["update", "arithmetic_kernels"],
         &["update", "numbers"],
     ] {
         let output = fixture.omega(arguments);

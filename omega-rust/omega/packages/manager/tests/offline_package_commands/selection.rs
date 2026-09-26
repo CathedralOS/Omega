@@ -4,7 +4,7 @@ fn offline_new_git_install_fails_without_changing_project_files() {
         module_path!(),
         "offline_new_git_install_fails_without_changing_project_files",
         |fixture| {
-            fixture.package("repository", "git-library", "");
+            fixture.package("repository", "git_library", "");
             fixture.commit();
             let before = fixture.pair();
             let error = fixture
@@ -33,7 +33,7 @@ fn offline_update_cannot_refresh_selected_or_unpinned_warm_git_sources() {
         module_path!(),
         "offline_update_cannot_refresh_selected_or_unpinned_warm_git_sources",
         |fixture| {
-            fixture.package("repository", "git-library", "");
+            fixture.package("repository", "git_library", "");
             fixture.commit();
             assert_eq!(
                 fixture.install(None, None).unwrap().status,
@@ -92,7 +92,7 @@ fn offline_local_install_and_update_publish_current_source() {
         module_path!(),
         "offline_local_install_and_update_publish_current_source",
         |fixture| {
-            fixture.package("local", "local-library", "");
+            fixture.package("local", "local_library", "");
             let installed = fixture
                 .execute_with_offline(
                     PackageCommand::Install {

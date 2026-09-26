@@ -99,19 +99,19 @@ fn recorded_edges(subject: &CanonicalSourceClosureSubject) -> Vec<(String, usize
 fn dual_purpose(tree: &Tree) {
     package(
         &tree.path("sources/root"),
-        "purpose-root",
+        "purpose_root",
         concat!(
             " builder.depend_as(\"product_dep\", Source::Path { location: \"../product\" });\n",
             " builder.build_depend_as(\"host_tool\", Source::Path { location: \"../host\" });\n",
         ),
     );
-    package(&tree.path("sources/product"), "product-dep", "");
+    package(&tree.path("sources/product"), "product_dep", "");
     package(
         &tree.path("sources/host"),
-        "host-tool",
+        "host_tool",
         " builder.depend_as(\"host_lib\", Source::Path { location: \"../host-lib\" });\n",
     );
-    package(&tree.path("sources/host-lib"), "host-lib", "");
+    package(&tree.path("sources/host-lib"), "host_lib", "");
 }
 
 #[test]
@@ -124,16 +124,16 @@ fn purpose_tagged_edges_survive_acquisition_review_lock_and_recovery() {
     // The resolved graph carries purpose on every edge. Scopes are distinct:
     // the build edge's ordinal is zero-based inside its own scope.
     assert_eq!(
-        edges(&closure, "purpose-root"),
+        edges(&closure, "purpose_root"),
         [
-            (DependencyPurpose::Product, "product_dep", "product-dep"),
-            (DependencyPurpose::Build, "host_tool", "host-tool"),
+            (DependencyPurpose::Product, "product_dep", "product_dep"),
+            (DependencyPurpose::Build, "host_tool", "host_tool"),
         ]
         .map(|(purpose, alias, target)| (purpose, alias.to_owned(), target.to_owned()))
     );
     assert_eq!(
-        edges(&closure, "host-tool"),
-        [(DependencyPurpose::Product, "host_lib", "host-lib")].map(|(purpose, alias, target)| (
+        edges(&closure, "host_tool"),
+        [(DependencyPurpose::Product, "host_lib", "host_lib")].map(|(purpose, alias, target)| (
             purpose,
             alias.to_owned(),
             target.to_owned()
@@ -155,9 +155,9 @@ fn purpose_tagged_edges_survive_acquisition_review_lock_and_recovery() {
     // that widens product authority: the host packages hold no product-scope
     // binding and never join the durable product closure.
     let root_key = closure.graph().root().clone();
-    let product_key = package_key(&closure, "product-dep");
-    let host_key = package_key(&closure, "host-tool");
-    let host_lib_key = package_key(&closure, "host-lib");
+    let product_key = package_key(&closure, "product_dep");
+    let host_key = package_key(&closure, "host_tool");
+    let host_lib_key = package_key(&closure, "host_lib");
     let inputs = package_compilation_inputs(&closure).unwrap();
     assert_eq!(inputs.packages().count(), 4);
     assert!(inputs.package_root(host_key.identity()).is_some());
@@ -203,9 +203,9 @@ fn purpose_tagged_edges_survive_acquisition_review_lock_and_recovery() {
     assert_eq!(
         recorded,
         [
-            ("build", 0usize, "host_tool", "host-tool"),
-            ("product", 0usize, "host_lib", "host-lib"),
-            ("product", 0usize, "product_dep", "product-dep"),
+            ("build", 0usize, "host_tool", "host_tool"),
+            ("product", 0usize, "host_lib", "host_lib"),
+            ("product", 0usize, "product_dep", "product_dep"),
         ]
         .map(|(purpose, ordinal, alias, selected)| (
             purpose.to_owned(),
@@ -288,21 +288,21 @@ fn one_alias_can_select_different_packages_in_the_two_purposes() {
     let tree = Tree::new();
     package(
         &tree.path("sources/root"),
-        "alias-root",
+        "alias_root",
         concat!(
             " builder.depend_as(\"shared\", Source::Path { location: \"../product\" });\n",
             " builder.build_depend_as(\"shared\", Source::Path { location: \"../host\" });\n",
         ),
     );
-    package(&tree.path("sources/product"), "product-dep", "");
-    package(&tree.path("sources/host"), "host-tool", "");
+    package(&tree.path("sources/product"), "product_dep", "");
+    package(&tree.path("sources/host"), "host_tool", "");
     let storage = tree.storage("cache");
     let closure = resolve(&tree, &storage);
     assert_eq!(
-        edges(&closure, "alias-root"),
+        edges(&closure, "alias_root"),
         [
-            (DependencyPurpose::Product, "shared", "product-dep"),
-            (DependencyPurpose::Build, "shared", "host-tool"),
+            (DependencyPurpose::Product, "shared", "product_dep"),
+            (DependencyPurpose::Build, "shared", "host_tool"),
         ]
         .map(|(purpose, alias, target)| (purpose, alias.to_owned(), target.to_owned()))
     );
@@ -339,8 +339,8 @@ fn one_alias_can_select_different_packages_in_the_two_purposes() {
     // The one alias answers each scope independently: product imports select
     // the product package, the root's build entry selects the host package.
     let root_key = closure.graph().root().clone();
-    let product_key = package_key(&closure, "product-dep");
-    let host_key = package_key(&closure, "host-tool");
+    let product_key = package_key(&closure, "product_dep");
+    let host_key = package_key(&closure, "host_tool");
     let inputs = package_compilation_inputs(&closure).unwrap();
     assert_eq!(inputs.packages().count(), 3);
     assert_eq!(
@@ -366,7 +366,7 @@ fn one_package_can_serve_product_and_build_purposes() {
     let tree = Tree::new();
     package(
         &tree.path("sources/root"),
-        "dual-root",
+        "dual_root",
         concat!(
             " builder.depend_as(\"std\", Source::Path { location: \"../std\" });\n",
             " builder.build_depend_as(\"std\", Source::Path { location: \"../std\" });\n",
@@ -378,7 +378,7 @@ fn one_package_can_serve_product_and_build_purposes() {
 
     // Two independently authorized occurrences select one shared custody.
     assert_eq!(
-        edges(&closure, "dual-root"),
+        edges(&closure, "dual_root"),
         [
             (DependencyPurpose::Product, "std", "std"),
             (DependencyPurpose::Build, "std", "std"),

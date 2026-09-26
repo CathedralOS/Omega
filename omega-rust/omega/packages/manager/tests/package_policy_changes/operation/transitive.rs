@@ -35,7 +35,7 @@ invokes RootDir;
 #[test]
 fn transitive_helper_authority_changes_policy_with_the_same_public_ceiling() {
     let tree = Tree::new();
-    source_chain(&tree, "authority-leaf", LEAF);
+    source_chain(&tree, "authority_leaf", LEAF);
     let initial = review(&tree, "initial-authority", None);
     let closure = initial.source_closure();
     assert_eq!(closure.graph().packages().len(), 3);

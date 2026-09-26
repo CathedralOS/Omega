@@ -247,7 +247,7 @@ fn unresolved_installation_generic_rejects_with_exact_package_at_projection() {
     for transitive in [false, true] {
         let tree = Tree::new();
         if transitive {
-            super::transitive::source_chain(&tree, "generic-leaf", UNRESOLVED);
+            super::transitive::source_chain(&tree, "generic_leaf", UNRESOLVED);
         } else {
             source(&tree, UNRESOLVED, "");
         }

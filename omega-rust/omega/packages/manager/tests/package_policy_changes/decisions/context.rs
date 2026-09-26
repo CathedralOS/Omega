@@ -110,7 +110,7 @@ fn removed_package_choices_resolve_without_its_old_source_or_cache() {
         "pub const VALUE: u64 = 7;\n",
         " builder.depend_as(\"dependency\", Source::Path { location: \"../old\" });\n",
     );
-    package(&tree.path("sources/old"), "removed-package", "");
+    package(&tree.path("sources/old"), "removed_package", "");
     fs::write(tree.path("sources/old/main.omg"), ASSUMPTIONS).unwrap();
     let lock = {
         let (closure, reviews) = candidate(&tree, "accepted");

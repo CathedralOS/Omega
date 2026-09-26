@@ -6,12 +6,12 @@ fn offline_locked_inspection_checks_edited_root_without_refreshing_git() {
         |fixture| {
             fixture.package(
                 "repository/modules/selected",
-                "exact-math",
+                "exact_math",
                 " builder.depend(Source::Path { location: \"../other\" });\n",
             );
             let accepted = fixture.commit();
             assert_eq!(
-                fixture.install(Some("exact-math"), None).unwrap().status,
+                fixture.install(Some("exact_math"), None).unwrap().status,
                 PackageCommandStatus::Published
             );
             assert!(fixture.transport_calls() > 0);
@@ -47,7 +47,7 @@ fn offline_cold_inspection_retains_accepted_policy_and_project_files() {
         module_path!(),
         "offline_cold_inspection_retains_accepted_policy_and_project_files",
         |fixture| {
-            fixture.package("repository", "git-library", "");
+            fixture.package("repository", "git_library", "");
             fixture.write("repository/main.omg", &format!("{PURE}{ASSUMPTION}"));
             let accepted = fixture.commit();
             let pending = fixture.install(None, None).unwrap();
@@ -92,7 +92,7 @@ fn offline_unlocked_inspection_cannot_use_a_warm_selector_as_a_pin() {
         module_path!(),
         "offline_unlocked_inspection_cannot_use_a_warm_selector_as_a_pin",
         |fixture| {
-            fixture.package("repository", "git-library", "");
+            fixture.package("repository", "git_library", "");
             fixture.commit();
             assert_eq!(
                 fixture.install(None, None).unwrap().status,

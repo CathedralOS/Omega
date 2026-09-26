@@ -33,7 +33,7 @@ fn moved_git_root_and_named_member_recover_old_lock_pins_with_fresh_custody() {
         };
         package(
             &selected,
-            "locked-git",
+            "locked_git",
             if named {
                 " builder.depend_as(\"sibling\", Source::Path { location: \"../sibling\" });\n"
             } else {
@@ -41,7 +41,7 @@ fn moved_git_root_and_named_member_recover_old_lock_pins_with_fresh_custody() {
             },
         );
         if named {
-            package(&repository.join("packages/sibling"), "locked-sibling", "");
+            package(&repository.join("packages/sibling"), "locked_sibling", "");
             fs::write(
                 repository.join("build.omg"),
                 concat!(

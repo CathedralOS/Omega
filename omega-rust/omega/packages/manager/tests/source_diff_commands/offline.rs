@@ -9,7 +9,7 @@ fn offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparis
             use package_source::git::resolution::resolve_git_source;
             use package_source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
 
-            fixture.package("repository", "git-library", "");
+            fixture.package("repository", "git_library", "");
             let old = fixture.commit();
             assert_eq!(
                 fixture.install(None, None).unwrap().status,

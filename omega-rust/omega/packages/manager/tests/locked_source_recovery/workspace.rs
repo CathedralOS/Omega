@@ -24,7 +24,7 @@ fn workspace(
     }
     package(
         &tree.path("workspace/root"),
-        "workspace-root",
+        "workspace_root",
         &dependencies,
     );
     package(&tree.path("workspace/peer"), "peer", "");

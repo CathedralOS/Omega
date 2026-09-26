@@ -158,7 +158,7 @@ fn pure_initial_policy_has_readable_findings_and_no_choices() {
     assert!(!changes.requires_decision());
     let text = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
     assert!(text.lines().any(|line| line == "baseline none"));
-    assert!(text.contains("policy-fixture"));
+    assert!(text.contains("policy_fixture"));
     assert!(!text.contains("VALUE"));
     assert!(
         reviews
@@ -701,7 +701,7 @@ fn local_source_paths_are_quoted_data_and_round_trip_unchanged() {
         "service with spaces"
     };
     let dependency = tree.path(&format!("sources/{directory}"));
-    package(&dependency, "quoted-service", "");
+    package(&dependency, "quoted_service", "");
     source(
         &tree,
         "",
@@ -715,7 +715,7 @@ fn local_source_paths_are_quoted_data_and_round_trip_unchanged() {
     let template = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
     let quoted = format!("local {:?}", fs::canonicalize(&dependency).unwrap());
     assert!(template.lines().any(|line| {
-        line.starts_with("package \"quoted-service\" ") && line.ends_with(&quoted)
+        line.starts_with("package \"quoted_service\" ") && line.ends_with(&quoted)
     }));
     assert_choices_round_trip(&changes);
     let edited = template.replace(&quoted, "local \"changed source path\"");

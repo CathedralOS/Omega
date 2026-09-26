@@ -73,6 +73,6 @@ pub(super) fn lock_from_reviews(
 }
 
 pub(super) fn source(tree: &Tree, main: &str, build: &str) {
-    package(&tree.path("sources/root"), "policy-fixture", build);
+    package(&tree.path("sources/root"), "policy_fixture", build);
     fs::write(tree.path("sources/root/main.omg"), main).unwrap();
 }

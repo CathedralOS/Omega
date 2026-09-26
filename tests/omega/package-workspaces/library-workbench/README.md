@@ -1,9 +1,9 @@
 # library-workbench
 
 Small Git workspace for real package-command acceptance. The root is a member
-catalog, not an importable package. Install `exact-math` by its declared name;
-the default alias is `exact_math`. Its relative dependency selects the sibling
-`integer-constants` package at the same repository revision.
+catalog, not an importable package. Install `exact_math` by its declared name,
+which is also its default alias. Its relative dependency selects the sibling
+`integer_constants` package at the same repository revision.
 
 The two pinned revisions change only the constant provider's implementation.
 Tests must update the selected repository as a unit, keep unrelated repositories

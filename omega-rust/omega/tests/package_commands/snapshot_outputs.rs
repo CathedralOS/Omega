@@ -451,9 +451,9 @@ fn two_packages_settle_identically_named_inputs_and_outputs_from_their_own_snaps
     // Each package section carries its own captured extent: identical member
     // names, different inventories.
     for (package, build, template) in [
-        ("snapshot-root", NAMES_ROOT_BUILD, ROOT_TEMPLATE),
+        ("snapshot_root", NAMES_ROOT_BUILD, ROOT_TEMPLATE),
         (
-            "snapshot-dependency",
+            "snapshot_dependency",
             NAMES_DEPENDENCY_BUILD,
             DEPENDENCY_TEMPLATE,
         ),
@@ -485,8 +485,8 @@ fn two_packages_settle_identically_named_inputs_and_outputs_from_their_own_snaps
     // packages could not produce each package's distinct content.
     let fresh = fixture.fresh_reviews(TARGET);
     for (package, template) in [
-        ("snapshot-root", ROOT_TEMPLATE),
-        ("snapshot-dependency", DEPENDENCY_TEMPLATE),
+        ("snapshot_root", ROOT_TEMPLATE),
+        ("snapshot_dependency", DEPENDENCY_TEMPLATE),
     ] {
         let review = fresh
             .reviews()

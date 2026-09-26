@@ -109,7 +109,7 @@ fn prepare(
             &format!("workspace/{name}/build.omg"),
             format!(
                 r#"machine build(builder: &mut Build) {{
-    builder.package("{name}-generator");
+    builder.package("{name}_generator");
     let input: BuildSource = builder.inputs.get("template");
     let path: BuildPath = input.resolve("source.omg");
     let descriptor: i32 = input.open(path, 0);
@@ -192,8 +192,8 @@ fn named_dependency_inputs_reach_generated_source_and_completed_publication() {
     )
     .expect("captured slots feed acquired dependency builds");
     for (package, function, value) in [
-        ("first-generator", "first_byte", 65),
-        ("second-generator", "second_byte", 66),
+        ("first_generator", "first_byte", 65),
+        ("second_generator", "second_byte", 66),
     ] {
         let review = candidate
             .reviews()

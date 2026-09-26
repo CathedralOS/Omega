@@ -14,7 +14,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
         "boundary machine CHANGED() -> u64 ensures result == 1;\nboundary machine REMOVED() -> u64 ensures result == 1;\n",
         " builder.depend_as(\"dependency\", Source::Path { location: \"../old\" });\n",
     );
-    package(&tree.path("sources/old"), "same-name", "");
+    package(&tree.path("sources/old"), "same_name", "");
     fs::write(
         tree.path("sources/old/main.omg"),
         "boundary machine old_claim() -> u64 ensures result == 0;\n",
@@ -52,7 +52,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
         "boundary machine CHANGED() -> u64 ensures result == 2;\nboundary machine ADDED() -> u64 ensures result == 1;\n",
         " builder.depend_as(\"dependency\", Source::Path { location: \"../new\" });\n",
     );
-    package(&tree.path("sources/new"), "same-name", "");
+    package(&tree.path("sources/new"), "same_name", "");
     let (closure, reviews) = candidate(&tree, "candidate");
     let changes = compare_package_policy_changes(
         Some(accepted),

@@ -79,8 +79,17 @@ fn unlocked_inspection_checks_the_graph_without_creating_acceptance() {
     let report = text(&output);
     assert!(report.contains("fresh-analysis complete"), "{report}");
     assert!(report.contains("accepted-policy none"), "{report}");
-    assert!(report.contains("arithmetic-kernels"), "{report}");
-    assert!(report.contains("arithmetic_kernels"), "{report}");
+    // The declared name and the default alias it gives the edge are one spelling.
+    assert!(
+        report.contains("package \"arithmetic_kernels\" "),
+        "{report}"
+    );
+    assert!(
+        report.contains(
+            "-- \"arithmetic_kernels\" [product dependency 0] --> \"arithmetic_kernels\""
+        ),
+        "{report}"
+    );
     assert!(report.contains("value"), "{report}");
     assert!(!report.lines().any(|line| line.starts_with("decision ")));
     assert_eq!(fixture.accepted_files(), before);
@@ -114,8 +123,8 @@ fn inspection_exposes_filesystem_api_reach_and_its_transitive_package_path() {
     assert_status(&output, 3);
     let report = text(&output);
     for expected in [
-        "file-journal",
-        "host-services",
+        "file_journal",
+        "host_services",
         "FilesystemHost",
         "append",
         "dependency-path",
@@ -237,7 +246,7 @@ fn changed_or_missing_dependency_keeps_consent_without_historical_api_findings()
         let report = text(&output);
         assert!(report.contains("fresh-analysis unavailable"), "{report}");
         assert!(!report.contains("fresh-analysis complete"), "{report}");
-        assert!(report.contains("arithmetic-kernels"), "{report}");
+        assert!(report.contains("arithmetic_kernels"), "{report}");
         assert!(report.contains("no historical API snapshot"), "{report}");
         assert!(!report.contains("fresh-policy"), "{report}");
         assert_eq!(fixture.accepted_files(), before);

@@ -22,7 +22,7 @@ mod local {
     #[test]
     fn local_update_writes_a_source_diff_for_changed_sources() {
         let fixture = Fixture::new("source-diff-local-update");
-        fixture.package("local", "local-library", "");
+        fixture.package("local", "local_library", "");
         let installed = fixture
             .execute(PackageCommand::Install {
                 source: "../local".into(),
@@ -71,7 +71,7 @@ mod local {
     #[test]
     fn local_update_to_a_revision_rejects_non_git_edges() {
         let fixture = Fixture::new("source-diff-local-to");
-        fixture.package("local", "local-library", "");
+        fixture.package("local", "local_library", "");
         fixture
             .execute(PackageCommand::Install {
                 source: "../local".into(),

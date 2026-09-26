@@ -143,7 +143,7 @@ fn root_rename_and_source_replacement_have_distinct_source_findings() {
 fn revisions_reordering_alias_changes_and_unrelated_same_name_edges_are_not_replacements() {
     let tree = Tree::new();
     for directory in ["old", "other", "new"] {
-        empty_package(&tree, directory, "same-name", &[]);
+        empty_package(&tree, directory, "same_name", &[]);
     }
     empty_package(
         &tree,
@@ -198,8 +198,8 @@ fn transitive_replacement_belongs_to_its_exact_requester_and_alias() {
         ],
     );
     empty_package(&tree, "bridge", "bridge", &[("service", "old")]);
-    empty_package(&tree, "old", "old-service", &[]);
-    empty_package(&tree, "new", "new-service", &[]);
+    empty_package(&tree, "old", "old_service", &[]);
+    empty_package(&tree, "new", "new_service", &[]);
     let lock = baseline(&tree);
     let requester = accepted_source(&lock)
         .dependency_requests()
@@ -210,7 +210,7 @@ fn transitive_replacement_belongs_to_its_exact_requester_and_alias() {
         .key()
         .clone();
     empty_package(&tree, "bridge", "bridge", &[("service", "new")]);
-    empty_package(&tree, "new", "new-service", &[]);
+    empty_package(&tree, "new", "new_service", &[]);
     let changes = compare(&tree, "transitive", Some(&lock));
     assert_eq!(changes.source_replacements().len(), 1);
     assert!(
@@ -231,9 +231,9 @@ fn transitive_replacement_belongs_to_its_exact_requester_and_alias() {
 fn reordered_alias_replacements_require_exact_complete_decisions_and_reject_stale_choices() {
     let tree = Tree::new();
     for (directory, name) in [
-        ("old", "same-name"),
-        ("new", "same-name"),
-        ("other", "different-name"),
+        ("old", "same_name"),
+        ("new", "same_name"),
+        ("other", "different_name"),
     ] {
         empty_package(&tree, directory, name, &[]);
     }
@@ -271,7 +271,7 @@ fn reordered_alias_replacements_require_exact_complete_decisions_and_reject_stal
     );
     assert!(changes.requires_decision());
     let requester = accepted_source(&lock).root().selected().key();
-    for (alias, name) in [("left", "same-name"), ("right", "different-name")] {
+    for (alias, name) in [("left", "same_name"), ("right", "different_name")] {
         assert_binding(&tree, &changes, &lock, requester, alias);
         let replacement = changes.source_replacements().iter().find(|replacement| {
             matches!(replacement.site(), Site::Dependency { alias: found, .. } if found.as_str() == alias)

@@ -172,9 +172,9 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     for entry in question.entries() {
         assert_eq!(entry.obligations().package(), entry.package().identity());
         let expected_transitive_packages = match entry.package().name().as_str() {
-            "graph-workbench" => 4,
-            "file-journal" => 2,
-            "arithmetic-kernels" | "host-services" => 1,
+            "graph_workbench" => 4,
+            "file_journal" => 2,
+            "arithmetic_kernels" | "host_services" => 1,
             package => panic!("unexpected graph-workbench package `{package}`"),
         };
         assert_eq!(
