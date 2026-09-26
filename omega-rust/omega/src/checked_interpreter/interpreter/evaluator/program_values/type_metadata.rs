@@ -1,7 +1,8 @@
 use crate::checked_interpreter::interpreter::evaluator::{
-    ArithmeticDomain, DataMember, EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle,
-    ExpressionNode, FixedArrayLength, Frame, PrimitiveType, SymbolHandle, TypeReferenceHandle,
-    TypeReferenceNode, Value, integer_primitive_byte_width, primitive_is_unsigned64, trap,
+    ArithmeticDomain, BinaryOperator, DataMember, EvalResult, EvaluatedArgument, Evaluator,
+    ExpressionHandle, ExpressionNode, FixedArrayLength, Frame, PrimitiveType, SymbolHandle,
+    TypeReferenceHandle, TypeReferenceNode, Value, integer_primitive_byte_width,
+    primitive_is_unsigned64, trap,
 };
 impl<'program> Evaluator<'program> {
     /// Evaluate an argument entering an Omega state parameter while preserving
@@ -323,7 +324,17 @@ impl<'program> Evaluator<'program> {
                     ArithmeticDomain::Exact,
                 )
             }),
-            // A binary node computes in the PROMOTED type: mixed widths
+            // Counts neither promote the shifted value's carrier nor retag
+            // its arithmetic policy; only the left operand owns that type.
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                ) =>
+            {
+                self.expression_scalar_type(binary.left, frame)
+            }
+            // Other binary nodes compute in the PROMOTED type: mixed widths
             // auto-promote to the wider operand (u8 + i32 runs at i32 --
             // wrapping 200+100 at the node must yield 300, not the u8 44), so
             // the WIDER witness types the node. Equal widths keep the left

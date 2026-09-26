@@ -194,17 +194,22 @@ impl<'program> Evaluator<'program> {
                 } else {
                     left
                 };
-                let unsigned_operands = matches!(
-                    binary.operator,
-                    BinaryOperator::Less
-                        | BinaryOperator::LessOrEqual
-                        | BinaryOperator::Greater
-                        | BinaryOperator::GreaterOrEqual
-                        | BinaryOperator::Divide
-                        | BinaryOperator::Modulo
-                        | BinaryOperator::ShiftRight
-                ) && (self.expression_is_unsigned64(binary.left, frame)
-                    || self.expression_is_unsigned64(binary.right, frame));
+                // A shift count has its own carrier. Its signedness cannot
+                // choose logical versus arithmetic shifting of the value.
+                let unsigned_operands = if binary.operator == BinaryOperator::ShiftRight {
+                    self.expression_is_unsigned64(binary.left, frame)
+                } else {
+                    matches!(
+                        binary.operator,
+                        BinaryOperator::Less
+                            | BinaryOperator::LessOrEqual
+                            | BinaryOperator::Greater
+                            | BinaryOperator::GreaterOrEqual
+                            | BinaryOperator::Divide
+                            | BinaryOperator::Modulo
+                    ) && (self.expression_is_unsigned64(binary.left, frame)
+                        || self.expression_is_unsigned64(binary.right, frame))
+                };
                 // Non-Exact ADD/SUB/MUL apply their domain at the OPERATION
                 // node (native emits the clamping/trapping/wrapping-width
                 // sequence itself), signed DIV/MOD resolve the MIN/-1

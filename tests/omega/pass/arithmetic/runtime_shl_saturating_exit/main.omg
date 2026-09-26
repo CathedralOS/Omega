@@ -31,7 +31,11 @@ machine Main::main(&mut self) reaches Console {
         self.signed_value = 1;
         self.signed_count = 7;
         self.signed_result = self.signed_value << self.signed_count;
-        transition self.signed_result == 127 { true -> negative() _ -> bad() }
+        transition self.signed_result == 127 { true -> positive_expression() _ -> bad() }
+    }
+    state positive_expression(&mut self) {
+        // Clamp at the operation, without a destination's landing policy.
+        transition (self.signed_value << self.signed_count) == 127 { true -> negative() _ -> bad() }
     }
     state negative(&mut self) {
         self.signed_value = -1;
