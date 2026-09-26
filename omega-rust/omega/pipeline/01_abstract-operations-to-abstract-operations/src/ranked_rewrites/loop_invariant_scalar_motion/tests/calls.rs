@@ -57,7 +57,7 @@ const CARRIED_ARGUMENT_CALL_SOURCE: &str = r#"
     {
         transition { _ -> step(scale, remaining) }
         state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
-            let bumped: u32 in Wrapping = Root::bump(pending);
+            let bumped: u32 in Wrapping = Root::bump(pending as u32 in Wrapping);
             let doubled: u32 in Wrapping = bumped + s;
             transition pending > 0 {
                 true -> scan(s, pending - 1)
@@ -4176,7 +4176,7 @@ const CARRIED_CRASH_CALL_SOURCE: &str = r#"
     {
         transition { _ -> step(scale, remaining) }
         state step(s: u64 in Wrapping, pending: u64 [0..=5]) {
-            let bumped: u64 in Wrapping = Root::bump(pending);
+            let bumped: u64 in Wrapping = Root::bump(pending as u64 in Wrapping);
             let doubled: u64 in Wrapping = bumped + s;
             transition pending > 0 {
                 true -> scan(s, pending - 1)
