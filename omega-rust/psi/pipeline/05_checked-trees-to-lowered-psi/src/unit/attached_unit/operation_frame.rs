@@ -794,9 +794,9 @@ impl OperationFrame<'_, '_> {
     /// trivially on the following edge.
     fn structural_case_field_store(
         &mut self,
-        store: &checked_trees::CheckedStructuralCaseFieldStorePlan,
+        store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralCaseFieldStorePlan,
     ) -> Result<(), LoweringError> {
-        let checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } =
+        let typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } =
             store.destination
         else {
             return unsupported("structural case field store destination is not a parameter");
@@ -818,7 +818,7 @@ impl OperationFrame<'_, '_> {
         let terminal_psi::StructuralFieldType::Structural(hole_type) = field.field_type else {
             return unsupported("structural case field store names a non-structural field");
         };
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+        let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
             parameter_index: value_position,
         } = store.value.source
         else {
@@ -827,7 +827,7 @@ impl OperationFrame<'_, '_> {
         if !store.value.path.iter().all(|segment| {
             matches!(
                 segment,
-                checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(_)
             )
         }) {
             return unsupported("structural case field store value path leaves record fields");
@@ -872,21 +872,23 @@ impl OperationFrame<'_, '_> {
                 },
             });
         let mut field_path = store.carrier_path.clone();
-        field_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            store.field_identity.clone(),
-        ));
+        field_path.push(
+            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
+                store.field_identity.clone(),
+            ),
+        );
         let window_place = CheckedUnitStructuralArgumentPlan {
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            source: typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: position,
             },
             path: field_path,
             type_identity: store.value.type_identity.clone(),
-            access: checked_trees::CheckedStructuralAccess::Owned,
+            access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
         };
         require_parameter_window_root(self.parameters, &window_place, self.evaluation)?;
         let moved = self.windows.emit_move(
             &window_place,
-            &checked_trees::CheckedUnitStructuralResultBindingPlan {
+            &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan {
                 statement_index: store.statement_index,
                 binding_ordinal: 0,
                 type_identity: store.value.type_identity.clone(),

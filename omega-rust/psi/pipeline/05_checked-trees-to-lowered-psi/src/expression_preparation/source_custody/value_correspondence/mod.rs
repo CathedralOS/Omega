@@ -524,7 +524,7 @@ impl Context<'_> {
                             self.checked,
                             self.state,
                         )
-                    && validation::expression_result_type_reference(
+                    && typed_trees_to_checked_trees::validation::expression_result_type_reference(
                         &self.checked.typed,
                         machine,
                         state,
