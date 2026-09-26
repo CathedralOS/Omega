@@ -10,7 +10,7 @@ use abstract_operations::AbstractOperationPlan;
 use effects::{SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt};
 
 use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
-use crate::native::native_realization::providers::AdmittedTerminalMechanism;
+use crate::provider_admission::AdmittedTerminalMechanism;
 use context::ReviewContext;
 use reviewer::Reviewer;
 
@@ -19,7 +19,7 @@ use reviewer::Reviewer;
 /// exact supplied row and binds that policy identity into the receipt; `None`
 /// records physical classification and exercised authority only and produces a
 /// receipt that carries no receiver-admission claim.
-pub(crate) fn review_terminal_authority_closure(
+pub fn review_terminal_authority_closure(
     terminal_artifact_identity: [u8; 32],
     target_profile: target::TargetProfile,
     plan: &AbstractOperationPlan,

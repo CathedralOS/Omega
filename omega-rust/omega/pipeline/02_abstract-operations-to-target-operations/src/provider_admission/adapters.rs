@@ -6,7 +6,7 @@ use terminal_psi_to_abstract_operations::SelectedProviderAdapter;
 /// Project only checked, in-artifact provider adapters from the selected
 /// provider closure. External bindings continue through provider-execution
 /// settlements; they must never be reinterpreted as checked Omega machines.
-pub(crate) fn project_selected_provider_adapters(
+pub fn project_selected_provider_adapters(
     selected: &effects::SelectedProviderPlanFacts,
     terminal: &abstract_operations::AbstractOperationPlan,
 ) -> Result<Vec<SelectedProviderAdapter>, String> {
@@ -18,7 +18,7 @@ pub(crate) fn project_selected_provider_adapters(
     project_selected_provider_adapters_for_requirements(selected, &relevant_requirements)
 }
 
-pub(crate) fn project_selected_provider_adapters_for_requirements(
+pub fn project_selected_provider_adapters_for_requirements(
     selected: &effects::SelectedProviderPlanFacts,
     relevant_requirements: &BTreeSet<&str>,
 ) -> Result<Vec<SelectedProviderAdapter>, String> {

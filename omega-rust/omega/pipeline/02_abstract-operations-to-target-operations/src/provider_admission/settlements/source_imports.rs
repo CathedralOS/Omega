@@ -2,16 +2,16 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::native::native_realization::providers::AdmittedTerminalMechanism;
-use crate::native::native_realization::realization_request::{
+use crate::provider_admission::AdmittedTerminalMechanism;
+use crate::provider_admission::{
     NativeBoundaryRealization, NativeProviderSettlement,
 };
-use abstract_operations_to_target_operations::AdmittedNativeCallbackArgument;
+use crate::AdmittedNativeCallbackArgument;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
 
-use crate::native::native_realization::terminal_authority_policy::TerminalAuthorityPolicyRow;
+use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
 
 struct ImportCoverageRows<'input> {
     boundary: BoundaryMachineId,
@@ -27,11 +27,11 @@ struct ImportCoverageRows<'input> {
 pub(super) fn validate_source_evaluated_import_coverage(
     plan: &abstract_operations::AbstractOperationPlan,
     selected_plans: &effects::SelectedProviderPlanFacts,
-    policy: &crate::native::native_realization::TerminalAuthorityPolicy,
+    policy: &crate::provider_admission::TerminalAuthorityPolicy,
     target: target::NativeTarget,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     settlements: &[NativeProviderSettlement<'_>],
-    native_callbacks: &[abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
+    native_callbacks: &[crate::AdmittedNativeCallbackArgument],
 ) -> Result<
     (
         Vec<AdmittedTerminalMechanism>,
@@ -106,7 +106,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         rows.boundary_count,
                     ))]);
                 }
-                let mechanism = crate::native::native_realization::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+                let mechanism = crate::provider_admission::terminal_authority_policy::conservative_syscall_terminal_mechanism(
                     target_profile,
                     number,
                     plan,
@@ -171,14 +171,14 @@ pub(super) fn validate_source_evaluated_import_coverage(
                     ))]);
                 }
                 let mechanism = match (rows.callback_count, rows.callback) {
-                    (0, _) => crate::native::native_realization::normalized_foreign_terminal_mechanism(
+                    (0, _) => crate::provider_admission::normalized_foreign_terminal_mechanism(
                         evaluated.locator(),
                         boundary_entry_plan,
                     ),
                     (1, Some(callback))
                         if callback.registrar_boundary_entry_plan == *boundary_entry_plan =>
                     {
-                        crate::native::native_realization::normalized_foreign_terminal_mechanism_with_callback_materializations(
+                        crate::provider_admission::normalized_foreign_terminal_mechanism_with_callback_materializations(
                             evaluated.locator(),
                             boundary_entry_plan,
                             &callback.registrar_context,
@@ -279,18 +279,18 @@ fn settled_host_cohort_row(
         .methods
         .iter()
         .find(|method| method.name == row.method)?;
-    crate::native::native_realization::terminal_authority_policy::filesystem_mechanism_row(
+    crate::provider_admission::terminal_authority_policy::filesystem_mechanism_row(
         mechanism, method,
     )
     .ok()
     .or_else(|| {
-        crate::native::native_realization::terminal_authority_policy::time_host_mechanism_row(
+        crate::provider_admission::terminal_authority_policy::time_host_mechanism_row(
             mechanism, method,
         )
         .ok()
     })
     .or_else(|| {
-        crate::native::native_realization::terminal_authority_policy::console_mechanism_row(
+        crate::provider_admission::terminal_authority_policy::console_mechanism_row(
             mechanism, method,
         )
         .ok()
@@ -303,11 +303,11 @@ fn settled_host_cohort_row(
 /// the program's own checked-flow derivation, rejoined per call site; until it
 /// exists the conservative key classifies or the demand fails closed.
 fn classify_terminal_mechanism(
-    policy: &crate::native::native_realization::TerminalAuthorityPolicy,
+    policy: &crate::provider_admission::TerminalAuthorityPolicy,
     mechanism: effects::TerminalMechanismIdentity,
 ) -> Result<
     effects::TerminalMechanismIdentity,
-    crate::native::native_realization::terminal_authority_policy::UnclassifiedTerminalMechanism,
+    crate::provider_admission::terminal_authority_policy::UnclassifiedTerminalMechanism,
 > {
     policy.classify(mechanism).map(|_| mechanism)
 }

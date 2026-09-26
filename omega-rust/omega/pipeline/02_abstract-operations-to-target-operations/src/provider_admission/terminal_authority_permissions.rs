@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 /// rule must be retained, with each divergence named on its own row.
 pub fn validate_retained_package_terminal_authority_permissions(
     retained: &[ServiceTerminalAuthorityPermission],
-    accepted: &crate::native::TerminalAuthorityPermissionPolicy,
+    accepted: &crate::provider_admission::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();
@@ -77,14 +77,14 @@ pub fn validate_package_terminal_authority_permission_custody<'a>(
 /// artifacts, but it may neither omit nor alter an approved row.
 pub fn validate_package_terminal_authority_permissions<'a>(
     permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
-    policy: &crate::native::TerminalAuthorityPermissionPolicy,
+    policy: &crate::provider_admission::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     validate_permission_custody(permissions, Some(policy))
 }
 
 fn validate_permission_custody<'a>(
     permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
-    policy: Option<&crate::native::TerminalAuthorityPermissionPolicy>,
+    policy: Option<&crate::provider_admission::TerminalAuthorityPermissionPolicy>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();

@@ -1,17 +1,17 @@
-use crate::native::native_realization::realization_diagnostics::realization_error;
-use crate::native::native_realization::realization_request::{
-    NativeRealizationInput, NativeRealizationRequest,
+use crate::provider_admission::diagnostics::realization_error;
+use crate::provider_admission::{
+    NativeRealizationInput, ProviderAdmissionRequest,
 };
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
 use super::adapters::project_selected_provider_adapters;
 
-pub(crate) fn admit_checked_provider_installation(
+pub fn admit_checked_provider_installation(
     input: &NativeRealizationInput,
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
-    request: &NativeRealizationRequest<'_>,
+    request: &ProviderAdmissionRequest<'_>,
 ) -> Result<Option<AdmittedProviderInstallation>, Vec<Diagnostic>> {
     let plan = input.plan();
     if plan.provider_candidates.is_empty() {

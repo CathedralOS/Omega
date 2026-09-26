@@ -15,9 +15,9 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{ClosedConformanceApplication, ClosedConformanceApplicationCommitment};
 
 use super::operations::{AuthorityEdge, authority_edge};
-use crate::native::native_realization::{
+use crate::provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
-    providers::AdmittedTerminalMechanism,
+    AdmittedTerminalMechanism,
 };
 
 type DynamicBindings = BTreeMap<u32, ClosedConformanceApplication>;

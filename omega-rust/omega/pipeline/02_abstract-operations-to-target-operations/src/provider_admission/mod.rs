@@ -3,41 +3,71 @@
 
 mod adapters;
 mod compiler_builtins;
+mod diagnostics;
 mod installation;
+mod request;
 mod settlements;
+mod terminal_authority_permission_policy;
+pub mod terminal_authority_permissions;
+mod terminal_authority_policy;
+mod terminal_authority_review;
 
-use crate::native::native_realization::realization_request::{
-    NativeRealizationInput, NativeRealizationRequest,
+pub use terminal_authority_permission_policy::{
+    MissingTerminalAuthorityPermission, TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
+    TerminalAuthorityPermissionPolicyRow, current_terminal_authority_permission_policy,
+    terminal_authority_permission_policy_with_rows,
 };
-use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
-use diagnostics::Diagnostic;
-use native_artifact::NativeProviderExecution;
-use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
+pub use terminal_authority_policy::{
+    COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CompilerIntrinsicTerminalAuthorityPolicy,
+    FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract,
+    TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
+    TerminalAuthorityPolicyRow, UnclassifiedCompilerIntrinsicTerminalMechanism,
+    UnclassifiedTerminalMechanism, UnsettledFilesystemRequirement, UnsettledTimeHostRequirement,
+    conservative_syscall_terminal_mechanism, current_compiler_intrinsic_terminal_authority_policy,
+    current_terminal_authority_policy, filesystem_host_permission_row,
+    filesystem_host_permission_rows, filesystem_mechanism_row,
+    filesystem_ordinary_release_contract, filesystem_release_bound_mechanism,
+    filesystem_release_mechanism_row, normalized_foreign_terminal_mechanism,
+    normalized_foreign_terminal_mechanism_with_callback_materializations,
+    settled_filesystem_cohort, settled_time_host_cohort, terminal_authority_policy_with_rows,
+    time_host_mechanism_row, time_host_permission_row, time_host_permission_rows,
+};
+pub use request::{
+    NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
+    ProviderAdmissionRequest,
+};
 
-pub(crate) struct AdmittedNativeProviders<'execution> {
-    pub(crate) settlements: Vec<AdmittedBoundarySettlement<'execution>>,
-    pub(crate) executions: Vec<NativeProviderExecution>,
-    pub(crate) terminal_authority_policy_identity: effects::TerminalAuthorityPolicyIdentity,
+use crate::AdmittedBoundarySettlement;
+use ::diagnostics::Diagnostic;
+use installation_evidence::ProviderExecutionEvidence;
+use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
+use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
+
+pub struct AdmittedNativeProviders<'execution> {
+    pub settlements: Vec<AdmittedBoundarySettlement<'execution>>,
+    pub executions: Vec<&'execution dyn ProviderExecutionEvidence>,
+    pub terminal_authority_policy_identity: effects::TerminalAuthorityPolicyIdentity,
     /// `Some` only when a receiving permission policy was explicitly supplied;
     /// `None` means the artifact makes no receiver-admission claim.
-    pub(crate) terminal_authority_permission_policy_identity:
+    pub terminal_authority_permission_policy_identity:
         Option<effects::TerminalAuthorityPermissionPolicyIdentity>,
-    pub(crate) terminal_authority_closure_review: effects::TerminalAuthorityClosureReviewReceipt,
-    pub(crate) installation: Option<AdmittedProviderInstallation>,
+    pub terminal_authority_closure_review: effects::TerminalAuthorityClosureReviewReceipt,
+    pub installation: Option<AdmittedProviderInstallation>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AdmittedTerminalMechanism {
-    pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
-    pub(crate) mechanism: effects::TerminalMechanismIdentity,
+pub struct AdmittedTerminalMechanism {
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub mechanism: effects::TerminalMechanismIdentity,
 }
 
-pub(crate) fn admit_native_providers<'request>(
+pub fn admit_native_providers<'request>(
     input: &NativeRealizationInput,
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     terminal_artifact_identity: [u8; 32],
-    request: &NativeRealizationRequest<'request>,
+    request: &ProviderAdmissionRequest<'request>,
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
     let (settlements, executions, mut mechanisms, cohort_rows) =
         settlements::settle_provider_executions(input, request)?;
@@ -67,7 +97,7 @@ pub(crate) fn admit_native_providers<'request>(
             }
         }
         Some(
-            crate::native::native_realization::terminal_authority_policy::terminal_authority_policy_with_rows(
+            terminal_authority_policy::terminal_authority_policy_with_rows(
                 rows,
             )
             .map_err(|error| {
@@ -79,9 +109,9 @@ pub(crate) fn admit_native_providers<'request>(
     };
     let effective_policy = effective_policy
         .as_ref()
-        .unwrap_or(&request.terminal_authority_policy);
+        .unwrap_or(request.terminal_authority_policy);
     let terminal_authority_closure_review =
-        crate::native::native_realization::terminal_authority_review::review_terminal_authority_closure(
+        terminal_authority_review::review_terminal_authority_closure(
             terminal_artifact_identity,
             request.program_entry.source().target_slot().owner,
             input.plan(),
@@ -95,7 +125,7 @@ pub(crate) fn admit_native_providers<'request>(
                 .unwrap_or_default(),
         )
         .map_err(|error| {
-            crate::native::native_realization::realization_diagnostics::realization_error(
+            diagnostics::realization_error(
                 "terminal-authority closure review",
                 error,
             )

@@ -3,15 +3,14 @@
 
 use std::collections::BTreeSet;
 
-use crate::native::native_realization::providers::AdmittedTerminalMechanism;
-use crate::native::native_realization::realization_request::{
-    NativeRealizationInput, NativeRealizationRequest,
+use crate::provider_admission::AdmittedTerminalMechanism;
+use crate::provider_admission::{
+    NativeRealizationInput, ProviderAdmissionRequest,
 };
-use crate::native::native_realization::terminal_authority_policy::TerminalAuthorityPolicyRow;
-use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
+use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
+use crate::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
-use native_artifact::NativeProviderExecution;
 
 mod boundary;
 mod exact_plan;
@@ -21,13 +20,13 @@ mod source_imports;
 use boundary::settle_boundary;
 use source_imports::validate_source_evaluated_import_coverage;
 
-pub(crate) fn settle_provider_executions<'request>(
+pub fn settle_provider_executions<'request>(
     input: &NativeRealizationInput,
-    request: &NativeRealizationRequest<'request>,
+    request: &ProviderAdmissionRequest<'request>,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,
-        Vec<NativeProviderExecution>,
+        Vec<&'request dyn ProviderExecutionEvidence>,
         Vec<AdmittedTerminalMechanism>,
         Vec<TerminalAuthorityPolicyRow>,
     ),
@@ -36,7 +35,7 @@ pub(crate) fn settle_provider_executions<'request>(
     let (mechanisms, cohort_rows) = validate_source_evaluated_import_coverage(
         input.plan(),
         request.selected_provider_plans,
-        &request.terminal_authority_policy,
+        request.terminal_authority_policy,
         request.target,
         request.external_binding_rows,
         request.settlements,
