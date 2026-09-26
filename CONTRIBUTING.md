@@ -76,8 +76,18 @@ build, test, maintenance, and landing workflows must have a documented usable
 entrypoint on both. Do not assume PowerShell, Windows paths, drive letters, or
 Windows-only executables are available on another developer's machine.
 
-- Put shared behavior in one portable implementation. Prefer an existing Rust
-  subcommand or a Python standard-library script when it fits the task. Thin
+Omega is the intended implementation language for repository tooling and test
+orchestration. Existing Python, shell, and PowerShell implementations are
+temporary support while the Omega compiler and required libraries become usable.
+Keep their maintenance bounded; prefer deleting redundant scripts and reusing
+existing operations over expanding a host-language framework. Migrate a workflow
+when Omega can run it with the same observations and failure handling, and remove
+the replaced implementation. The eventual host-specific surface is a few
+optional compiler kickstart scripts and tests of actual platform behavior.
+This direction does not require an unavailable Omega tool to bootstrap itself.
+
+- Until that migration is practical, put shared behavior in one portable
+  implementation using an existing Rust subcommand or Python entrypoint. Thin
   `.ps1` and `.sh` launchers may call it; do not maintain independent copies of
   the protocol or business logic in each shell.
 - A `.ps1` file is not sufficient evidence of macOS support. PowerShell 7 can be
@@ -438,4 +448,3 @@ readers can tell. That is why mannered prose irritates: it makes the reader
 work harder so the writer can perform. It is also imprecise. Metaphors drag in
 connotations the writer did not choose and cannot control. The fix is to say
 what you mean. When a literal phrase is available, use it.
-
