@@ -748,7 +748,7 @@ fn collect_owned_type_reference_positions(
     }
     let concrete_expressions = concrete_machine_expression_handles(syntax);
     for (handle, expression) in syntax.expressions.iter_expressions() {
-        if concrete_expressions.contains(&handle.arena_index())
+        if concrete_expressions.contains(handle)
             && let ExpressionNode::Cast(cast) = expression
         {
             collect_type_positions(syntax, cast.target_type, &mut positions, false);
@@ -800,7 +800,7 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
     }
     let concrete_expressions = concrete_machine_expression_handles(syntax);
     for (handle, expression) in syntax.expressions.iter_expressions() {
-        if concrete_expressions.contains(&handle.arena_index())
+        if concrete_expressions.contains(handle)
             && let ExpressionNode::Cast(cast) = expression
         {
             collect_type_positions(syntax, cast.target_type, &mut positions, true);

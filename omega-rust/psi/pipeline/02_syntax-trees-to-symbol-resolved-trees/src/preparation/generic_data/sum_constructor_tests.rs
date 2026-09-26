@@ -80,7 +80,7 @@ fn imported_unnamespaced_sums_close_each_constructor_from_its_destination() {
     let mut constructors = 0;
     let concrete = concrete_machine_expression_handles(&syntax);
     for (handle, expression) in syntax.expressions.iter_expressions() {
-        if !concrete.contains(&handle.arena_index()) {
+        if !concrete.contains(handle) {
             continue;
         }
         let ExpressionNode::StructLiteral(literal) = expression else {
