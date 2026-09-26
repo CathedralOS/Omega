@@ -29,7 +29,6 @@
 ///     }
 /// }
 /// ```
-
 #[cfg(any(test, feature = "test-support"))]
 #[macro_export]
 macro_rules! custody_field_inventory {

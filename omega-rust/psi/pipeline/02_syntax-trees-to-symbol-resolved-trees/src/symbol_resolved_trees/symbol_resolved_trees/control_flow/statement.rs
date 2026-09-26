@@ -579,20 +579,16 @@ impl StatementTable {
                     source_constraints,
                     source_expression_table,
                 );
-                let initial_value = local_data
-                    .initial_value
-                    .is_valid()
-                    .then(|| {
-                        expression_handle_from_tree(
-                            source_expressions,
-                            expressions,
-                            local_data.initial_value,
-                            copy_expression_handles,
-                        )
-                    })
-                    .unwrap_or_else(
-                        crate::symbol_resolved_trees::expression::ExpressionHandle::invalid,
-                    );
+                let initial_value = if local_data.initial_value.is_valid() {
+                    expression_handle_from_tree(
+                        source_expressions,
+                        expressions,
+                        local_data.initial_value,
+                        copy_expression_handles,
+                    )
+                } else {
+                    crate::symbol_resolved_trees::expression::ExpressionHandle::invalid()
+                };
                 self.insert(StatementNode::LocalData(TableLocalData {
                     symbol: local_data.symbol,
                     name: local_data.name.clone(),
