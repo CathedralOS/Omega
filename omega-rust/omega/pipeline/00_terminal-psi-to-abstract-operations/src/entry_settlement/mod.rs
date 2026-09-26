@@ -166,4 +166,4 @@ pub fn validate_native_program_entry_settlement(
     })
 }
 
-pub(crate) use service_establishment::validate_for_artifact_and_selected_plans as validate_fused_program_entry_establishments;
+pub use service_establishment::validate_for_artifact_and_selected_plans as validate_fused_program_entry_establishments;

@@ -14,7 +14,6 @@
 //! staged route, `stage_optimized_verified_physical_pipeline_with_provider_executions`
 //! (`native_pipeline`).
 
-mod entry_settlement;
 mod native_pipeline;
 mod native_product;
 mod native_realization;
@@ -22,7 +21,7 @@ mod optimized_semantic_wrapper_object;
 mod retained_native_product;
 
 pub use abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
-pub use entry_settlement::{
+pub use terminal_psi_to_abstract_operations::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };

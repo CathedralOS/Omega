@@ -14,7 +14,7 @@ use provider_planning::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryValueClass, MaterializedBoundarySignature,
 };
 
-pub(crate) fn validate_paired_calling_plans(
+pub fn validate_paired_calling_plans(
     source: &SelectedProgramEntrySourceSignature,
     semantic: &BoundaryCallingPlanRealization,
     physical: &BoundaryCallingPlanRealization,
