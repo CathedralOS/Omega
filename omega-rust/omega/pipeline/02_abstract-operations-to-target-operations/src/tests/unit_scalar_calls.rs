@@ -6,6 +6,67 @@ use super::{
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeId,
     TargetUnitOperation, TargetUnitScalarArgumentSource, ValueId, ValueLocation, identity,
 };
+
+#[test]
+fn boolean_call_result_field_store_keeps_its_dominating_home() {
+    let source = super::structural_borrows::source_plan(
+        r#"
+        data Helper { seen: i32; }
+        machine Helper::check(&mut self, value: i32) -> bool {
+            self.seen = value;
+            transition self.seen == 1 { true -> yes() _ -> no() }
+            state yes(&mut self) -> bool { true }
+            state no(&mut self) -> bool { false }
+        }
+        data Main { helper: Helper; flag: bool; before: i32; after: i32; }
+        machine Main::run(&mut self) {
+            self.before = 1;
+            self.flag = self.helper.check(1);
+            self.after = 3;
+        }
+        "#,
+    );
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target = lower_to_target_operations(&source, TargetLoweringRequest::new(native))
+            .expect("a Boolean call result remains available to its field store");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let mut checked_stores = 0;
+        for function in &target.functions {
+            for block in &function.graph.blocks {
+                for (position, operation) in block.operations.iter().enumerate() {
+                    let TargetUnitOperation::StructuralScalarFieldStore {
+                        source: TargetUnitScalarArgumentSource::Home(home),
+                        ..
+                    } = operation
+                    else {
+                        continue;
+                    };
+                    if home.scalar_type != ScalarType::Boolean {
+                        continue;
+                    }
+                    assert!(
+                        block.operations[..position].iter().any(|producer| matches!(
+                            producer,
+                            TargetUnitOperation::Call {
+                                result: target_operations::TargetCallResult::Scalar(result),
+                                ..
+                            } if result == home
+                        )),
+                        "the store must consume the preceding call's exact result home"
+                    );
+                    checked_stores += 1;
+                }
+            }
+        }
+        assert_eq!(checked_stores, 1);
+    }
+}
+
 fn fixed_integer(bits: u16) -> IntegerType {
     IntegerType::new(IntegerSign::Signed, bits).expect("fixed integer")
 }
