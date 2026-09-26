@@ -1,7 +1,7 @@
+use super::super::state_write_walk::{StateWriteQuery, walk_state_write_prefix};
 use super::{
-    AssignmentWriteTarget, CallerWriteSite, FrameInference, Machine, StateWriteQuery,
-    StatementNode, TopLevelSymbols, TypedTrees, caller_aliases_at_site, close_caller_aliases,
-    walk_state_write_prefix,
+    AssignmentWriteTarget, CallerWriteSite, FrameInference, Machine, StatementNode,
+    TopLevelSymbols, TypedTrees, caller_aliases_at_site, close_caller_aliases,
 };
 use crate::CallFrameResolver;
 use symbols::SymbolKeyMap as HashMap;

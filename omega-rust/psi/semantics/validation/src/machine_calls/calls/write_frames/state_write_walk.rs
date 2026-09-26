@@ -136,19 +136,62 @@ pub(crate) fn summarize_complete_state_written_paths(
 
 pub(crate) struct StateWritePrefix {
     written: Vec<String>,
+    pub(crate) stored: Vec<StoredLocalOrigins>,
+    /// The single-statement `Assignment` query's target. Production reads
+    /// every assignment from `walk_state_assignments`; the query remains as
+    /// the tests' independent route to compare it against.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) assignment: Option<AssignmentWriteTarget>,
+}
+
+/// What an `Assignment` query returns for one statement: the direct target
+/// and the prefix origins it closes over.
+#[derive(Clone)]
+pub(crate) struct AssignmentPrefix {
+    pub(crate) target: AssignmentWriteTarget,
     pub(crate) aliases: Vec<(String, FramePlaceOrigin)>,
-    /// Exclusive-reference locals whose proven referents form a divergent
-    /// candidate set rather than one origin. Call substitution consumes the
-    /// complete set; no raw local name may replace it at a write boundary.
     pub(crate) divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
     pub(crate) stored: Vec<StoredLocalOrigins>,
-    pub(crate) assignment: Option<AssignmentWriteTarget>,
+}
+
+/// Every assignment statement's `Assignment` query result, by statement index,
+/// from one walk of the state. An `Assignment` query stops at its statement,
+/// so the walk up to that point is the plain walk; this walk records the
+/// result where that query would return and carries on as the plain walk. A
+/// statement without an entry has no target, exactly as its query returns
+/// `None`, including every statement after a point where the walk fails.
+pub(crate) fn walk_state_assignments(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+) -> Vec<(usize, AssignmentPrefix)> {
+    let mut assignments = Vec::new();
+    let mut inference = FrameInference::default();
+    let mut complete_state_summaries = HashMap::default();
+    let _ = inference.with_local_scope(|inference| {
+        walk_state_write_prefix_inner(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            &mut complete_state_summaries,
+            None,
+            None,
+            Some(&mut assignments),
+        )
+    });
+    assignments
 }
 
 pub(crate) enum StateWriteQuery<'statement> {
     /// A reusable whole-state frame, never an ancestor-truncated prefix.
     Complete,
     ReferenceResult,
+    /// Stop at one assignment and return its target; see
+    /// `StateWritePrefix::assignment`.
+    #[cfg_attr(not(test), allow(dead_code))]
     Assignment(&'statement StatementNode),
 }
 
@@ -194,6 +237,7 @@ pub(crate) fn walk_state_write_prefix_collected(
                 None
             },
             Some(&mut prefixes),
+            None,
         )?;
         Some((prefix, prefixes))
     })
@@ -235,6 +279,7 @@ pub(crate) fn collect_state_write_prefixes(
                 None
             },
             Some(&mut prefixes),
+            None,
         )
     });
     while prefixes.len() < statement_count {
@@ -301,6 +346,7 @@ pub(crate) fn walk_state_write_prefix(
             complete_state_summaries,
             query,
             None,
+            None,
         )
     })
 }
@@ -314,6 +360,7 @@ fn walk_state_write_prefix_inner(
     complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     query: Option<StateWriteQuery<'_>>,
     mut collect: Option<&mut Vec<Option<CollectedStatementPrefix>>>,
+    mut assignments: Option<&mut Vec<(usize, AssignmentPrefix)>>,
 ) -> Option<StateWritePrefix> {
     if crate::declarations::standard_declarations::is_core_vector_surface_state(
         program, machine, state,
@@ -371,8 +418,9 @@ fn walk_state_write_prefix_inner(
                 stored: stored.clone(),
             }));
         }
-        let queried_assignment = matches!(query,
-            Some(StateWriteQuery::Assignment(candidate)) if std::ptr::eq(candidate, statement));
+        let mut queried_assignment = matches!(query,
+            Some(StateWriteQuery::Assignment(candidate)) if std::ptr::eq(candidate, statement))
+            || (assignments.is_some() && matches!(statement, StatementNode::Assignment(_)));
         if queried_assignment
             && local_alias_origins.is_empty()
             && stored.is_empty()
@@ -383,23 +431,37 @@ fn walk_state_write_prefix_inner(
             // The direct-store query has always admitted an untracked coarse
             // target without evaluating operand effects. Keep that boundary
             // when locating the target and its origins in one prefix walk.
-            if stored_origins::statement_exposes_frozen_binding(
+            let exposes_frozen_binding = stored_origins::statement_exposes_frozen_binding(
                 program,
                 machine,
                 state,
                 statement,
                 &stored,
                 &local_alias_origins,
-            ) {
-                return None;
+            );
+            let Some(record) = assignments.as_deref_mut() else {
+                if exposes_frozen_binding {
+                    return None;
+                }
+                return Some(StateWritePrefix {
+                    written,
+                    stored,
+                    assignment: Some(AssignmentWriteTarget::Storage { paths: vec![path] }),
+                });
+            };
+            if !exposes_frozen_binding {
+                // The accumulators are empty on this route.
+                record.push((
+                    statement_index,
+                    AssignmentPrefix {
+                        target: AssignmentWriteTarget::Storage { paths: vec![path] },
+                        aliases: Vec::new(),
+                        divergent: Vec::new(),
+                        stored: Vec::new(),
+                    },
+                ));
             }
-            return Some(StateWritePrefix {
-                written,
-                aliases: local_alias_origins,
-                divergent: divergent_alias_origins,
-                stored,
-                assignment: Some(AssignmentWriteTarget::Storage { paths: vec![path] }),
-            });
+            queried_assignment = false;
         }
         let declared_local_alias_origin = match statement {
             StatementNode::LocalData(local)
@@ -549,15 +611,24 @@ fn walk_state_write_prefix_inner(
                             &stored,
                         )?;
                         if queried_assignment {
-                            return Some(StateWritePrefix {
-                                written,
-                                aliases: local_alias_origins,
-                                divergent: divergent_alias_origins,
-                                stored,
-                                assignment: Some(AssignmentWriteTarget::LocalBindingReplacement {
-                                    path: relative,
-                                }),
-                            });
+                            let target =
+                                AssignmentWriteTarget::LocalBindingReplacement { path: relative };
+                            let Some(record) = assignments.as_deref_mut() else {
+                                return Some(StateWritePrefix {
+                                    written,
+                                    stored,
+                                    assignment: Some(target),
+                                });
+                            };
+                            record.push((
+                                statement_index,
+                                AssignmentPrefix {
+                                    target,
+                                    aliases: local_alias_origins.clone(),
+                                    divergent: divergent_alias_origins.clone(),
+                                    stored: stored.clone(),
+                                },
+                            ));
                         }
                         divergent_alias_origins[position].1 = origins;
                     } else {
@@ -604,13 +675,24 @@ fn walk_state_write_prefix_inner(
                             }
                         }
                         if queried_assignment {
-                            return Some(StateWritePrefix {
-                                written,
-                                aliases: local_alias_origins,
-                                divergent: divergent_alias_origins,
-                                stored,
-                                assignment: Some(AssignmentWriteTarget::Storage { paths }),
-                            });
+                            let Some(record) = assignments.as_deref_mut() else {
+                                return Some(StateWritePrefix {
+                                    written,
+                                    stored,
+                                    assignment: Some(AssignmentWriteTarget::Storage { paths }),
+                                });
+                            };
+                            record.push((
+                                statement_index,
+                                AssignmentPrefix {
+                                    target: AssignmentWriteTarget::Storage {
+                                        paths: paths.clone(),
+                                    },
+                                    aliases: local_alias_origins.clone(),
+                                    divergent: divergent_alias_origins.clone(),
+                                    stored: stored.clone(),
+                                },
+                            ));
                         }
                         for path in paths {
                             push_visible_frame_path(&mut written, path, parameters, &locals)?;
@@ -793,15 +875,25 @@ fn walk_state_write_prefix_inner(
                     )?
                 {
                     if queried_assignment {
-                        return Some(StateWritePrefix {
-                            written,
-                            aliases: local_alias_origins,
-                            divergent: divergent_alias_origins,
-                            stored,
-                            assignment: Some(AssignmentWriteTarget::LocalBindingReplacement {
-                                path: relative.to_owned(),
-                            }),
-                        });
+                        let target = AssignmentWriteTarget::LocalBindingReplacement {
+                            path: relative.to_owned(),
+                        };
+                        let Some(record) = assignments.as_deref_mut() else {
+                            return Some(StateWritePrefix {
+                                written,
+                                stored,
+                                assignment: Some(target),
+                            });
+                        };
+                        record.push((
+                            statement_index,
+                            AssignmentPrefix {
+                                target,
+                                aliases: local_alias_origins.clone(),
+                                divergent: divergent_alias_origins.clone(),
+                                stored: stored.clone(),
+                            },
+                        ));
                     }
                     continue;
                 }
@@ -818,13 +910,24 @@ fn walk_state_write_prefix_inner(
                 )?;
                 let paths = expand_write_path(&relative, &local_alias_origins, &stored);
                 if queried_assignment {
-                    return Some(StateWritePrefix {
-                        written,
-                        aliases: local_alias_origins,
-                        divergent: divergent_alias_origins,
-                        stored,
-                        assignment: Some(AssignmentWriteTarget::Storage { paths }),
-                    });
+                    let Some(record) = assignments.as_deref_mut() else {
+                        return Some(StateWritePrefix {
+                            written,
+                            stored,
+                            assignment: Some(AssignmentWriteTarget::Storage { paths }),
+                        });
+                    };
+                    record.push((
+                        statement_index,
+                        AssignmentPrefix {
+                            target: AssignmentWriteTarget::Storage {
+                                paths: paths.clone(),
+                            },
+                            aliases: local_alias_origins.clone(),
+                            divergent: divergent_alias_origins.clone(),
+                            stored: stored.clone(),
+                        },
+                    ));
                 }
                 for path in paths {
                     push_visible_frame_path(&mut written, path, parameters, &locals)?;
@@ -1135,8 +1238,6 @@ fn walk_state_write_prefix_inner(
         ))
     .then_some(StateWritePrefix {
         written,
-        aliases: local_alias_origins,
-        divergent: divergent_alias_origins,
         stored,
         assignment: None,
     })

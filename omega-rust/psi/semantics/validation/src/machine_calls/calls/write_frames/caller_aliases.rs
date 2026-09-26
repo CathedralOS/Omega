@@ -13,7 +13,7 @@ use super::{
 };
 use crate::declarations::symbols::PrefixSiteEntry;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
-    CollectedStatementPrefix, StateWriteQuery, collected_prefix_at, walk_state_write_prefix,
+    CollectedStatementPrefix, collected_prefix_at,
 };
 use std::sync::Mutex;
 use symbols::SymbolKeyMap as HashMap;
@@ -137,13 +137,22 @@ struct AssignmentEvidence {
     stored: Vec<StoredLocalOrigins>,
 }
 
+/// A state's recorded assignment results, as `walk_state_assignments`
+/// returns them; the resolver walks each state once.
+pub(super) type StateAssignments<'lookup> = dyn Fn(
+        &typed_trees::state::State,
+    ) -> std::sync::Arc<Vec<(usize, super::state_write_walk::AssignmentPrefix)>>
+    + 'lookup;
+
 pub(super) fn assignment_write_target(
     program: &TypedTrees,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
+    state_assignments: &StateAssignments<'_>,
 ) -> Option<AssignmentWriteTarget> {
-    assignment_evidence(program, machine, symbols, statement).map(|evidence| evidence.target)
+    assignment_evidence(program, machine, symbols, statement, state_assignments)
+        .map(|evidence| evidence.target)
 }
 
 pub(super) fn assignment_write_paths(
@@ -151,8 +160,9 @@ pub(super) fn assignment_write_paths(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
+    state_assignments: &StateAssignments<'_>,
 ) -> Option<Vec<String>> {
-    let evidence = assignment_evidence(program, machine, symbols, statement)?;
+    let evidence = assignment_evidence(program, machine, symbols, statement, state_assignments)?;
     match evidence.target {
         AssignmentWriteTarget::LocalBindingReplacement { path } => Some(vec![path]),
         AssignmentWriteTarget::Storage { paths } => Some(close_over_origins(
@@ -169,6 +179,7 @@ fn assignment_evidence(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
+    state_assignments: &StateAssignments<'_>,
 ) -> Option<AssignmentEvidence> {
     let StatementNode::Assignment(assignment) = statement else {
         return None;
@@ -201,21 +212,22 @@ fn assignment_evidence(
     };
     // One exact prefix supplies both the target and alias closure. Storage
     // writes leave the prefix origins intact; binding replacements return only
-    // their slot and must not be closed over the slot's former referent.
-    let prefix = walk_state_write_prefix(
-        program,
-        machine,
-        state,
-        symbols,
-        &mut FrameInference::default(),
-        &mut HashMap::default(),
-        Some(StateWriteQuery::Assignment(statement)),
-    )?;
+    // their slot and must not be closed over the slot's former referent. The
+    // state's single recorded walk holds that prefix for every assignment.
+    let index = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .position(|candidate| std::ptr::eq(candidate, statement))?;
+    let assignments = state_assignments(state);
+    let (_, prefix) = assignments
+        .iter()
+        .find(|(recorded, _)| *recorded == index)?;
     Some(AssignmentEvidence {
-        target: prefix.assignment?,
-        aliases: prefix.aliases,
-        divergent: prefix.divergent,
-        stored: prefix.stored,
+        target: prefix.target.clone(),
+        aliases: prefix.aliases.clone(),
+        divergent: prefix.divergent.clone(),
+        stored: prefix.stored.clone(),
     })
 }
 
