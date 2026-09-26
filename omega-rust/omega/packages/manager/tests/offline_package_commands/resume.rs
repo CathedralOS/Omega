@@ -1,6 +1,7 @@
 #[test]
 fn offline_install_resume_publishes_the_reviewed_named_pin_after_head_moves() {
     run(
+        module_path!(),
         "offline_install_resume_publishes_the_reviewed_named_pin_after_head_moves",
         |fixture| {
             fixture.write(
@@ -47,6 +48,7 @@ fn offline_install_resume_publishes_the_reviewed_named_pin_after_head_moves() {
 #[test]
 fn offline_resume_with_missing_proposed_cache_cannot_publish_install_or_update() {
     run(
+        module_path!(),
         "offline_resume_with_missing_proposed_cache_cannot_publish_install_or_update",
         |fixture| {
             fixture.package("repository", "git-library", "");
@@ -110,6 +112,7 @@ fn offline_resume_with_missing_proposed_cache_cannot_publish_install_or_update()
 #[test]
 fn offline_update_resume_uses_candidate_pin_after_head_moves_again() {
     run(
+        module_path!(),
         "offline_update_resume_uses_candidate_pin_after_head_moves_again",
         |fixture| {
             fixture.package("repository", "git-library", "");

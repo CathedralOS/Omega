@@ -8,6 +8,7 @@ include!("offline.rs");
 #[test]
 fn update_renders_exact_old_git_root_after_selector_moves() {
     run(
+        module_path!(),
         "update_renders_exact_old_git_root_after_selector_moves",
         |fixture| {
             fixture.package("repository", "git-library", "");
@@ -53,6 +54,7 @@ fn update_renders_exact_old_git_root_after_selector_moves() {
 #[test]
 fn named_and_relative_members_use_the_accepted_repository_pin_with_cold_storage() {
     run(
+        module_path!(),
         "named_and_relative_members_use_the_accepted_repository_pin_with_cold_storage",
         |fixture| {
             fixture.package(
@@ -124,6 +126,7 @@ fn named_and_relative_members_use_the_accepted_repository_pin_with_cold_storage(
 #[test]
 fn unavailable_old_git_source_preserves_policy_comparison_without_selector_fallback() {
     run(
+        module_path!(),
         "unavailable_old_git_source_preserves_policy_comparison_without_selector_fallback",
         |fixture| {
             fixture.package("repository", "git-library", "");
@@ -212,6 +215,7 @@ fn git_source(member: &str, revision: &str) -> String {
 #[test]
 fn update_selects_a_build_scope_alias_and_retargets_its_git_row() {
     run(
+        module_path!(),
         "update_selects_a_build_scope_alias_and_retargets_its_git_row",
         |fixture| {
             let original = fixture.commit();
@@ -308,6 +312,7 @@ fn update_selects_a_build_scope_alias_and_retargets_its_git_row() {
 #[test]
 fn update_to_retargets_both_scope_rows_of_a_dual_purpose_package() {
     run(
+        module_path!(),
         "update_to_retargets_both_scope_rows_of_a_dual_purpose_package",
         |fixture| {
             let original = fixture.commit();
@@ -373,6 +378,7 @@ fn update_to_retargets_both_scope_rows_of_a_dual_purpose_package() {
 #[test]
 fn update_shared_cross_scope_alias_refreshes_both_selections() {
     run(
+        module_path!(),
         "update_shared_cross_scope_alias_refreshes_both_selections",
         |fixture| {
             fixture.commit();

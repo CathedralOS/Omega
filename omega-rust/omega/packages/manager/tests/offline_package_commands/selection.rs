@@ -1,6 +1,7 @@
 #[test]
 fn offline_new_git_install_fails_without_changing_project_files() {
     run(
+        module_path!(),
         "offline_new_git_install_fails_without_changing_project_files",
         |fixture| {
             fixture.package("repository", "git-library", "");
@@ -29,6 +30,7 @@ fn offline_new_git_install_fails_without_changing_project_files() {
 #[test]
 fn offline_update_cannot_refresh_selected_or_unpinned_warm_git_sources() {
     run(
+        module_path!(),
         "offline_update_cannot_refresh_selected_or_unpinned_warm_git_sources",
         |fixture| {
             fixture.package("repository", "git-library", "");
@@ -87,6 +89,7 @@ fn offline_update_cannot_refresh_selected_or_unpinned_warm_git_sources() {
 #[test]
 fn offline_local_install_and_update_publish_current_source() {
     run(
+        module_path!(),
         "offline_local_install_and_update_publish_current_source",
         |fixture| {
             fixture.package("local", "local-library", "");

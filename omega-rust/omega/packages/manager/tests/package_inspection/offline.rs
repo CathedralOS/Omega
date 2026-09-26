@@ -1,6 +1,7 @@
 #[test]
 fn offline_locked_inspection_checks_edited_root_without_refreshing_git() {
     run(
+        module_path!(),
         "offline_locked_inspection_checks_edited_root_without_refreshing_git",
         |fixture| {
             fixture.package(
@@ -43,6 +44,7 @@ fn offline_locked_inspection_checks_edited_root_without_refreshing_git() {
 #[test]
 fn offline_cold_inspection_retains_accepted_policy_and_project_files() {
     run(
+        module_path!(),
         "offline_cold_inspection_retains_accepted_policy_and_project_files",
         |fixture| {
             fixture.package("repository", "git-library", "");
@@ -87,6 +89,7 @@ fn offline_cold_inspection_retains_accepted_policy_and_project_files() {
 #[test]
 fn offline_unlocked_inspection_cannot_use_a_warm_selector_as_a_pin() {
     run(
+        module_path!(),
         "offline_unlocked_inspection_cannot_use_a_warm_selector_as_a_pin",
         |fixture| {
             fixture.package("repository", "git-library", "");

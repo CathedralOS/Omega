@@ -26,7 +26,8 @@ pub(super) struct Fixture {
 // Child-only transport settings avoid mutating the test runner's environment
 // or the invoking user's Git/SSH configuration. Git object acquisition,
 // workspace projection and compiler checks are the production operations.
-pub(super) fn run(test: &str, operation: impl FnOnce(&Fixture)) {
+// `module` is the calling test's `module_path!()`; see `child_filter`.
+pub(super) fn run(module: &str, test: &str, operation: impl FnOnce(&Fixture)) {
     if let Some(directory) = std::env::var_os(CHILD) {
         operation(&Fixture {
             directory: directory.into(),
@@ -70,7 +71,7 @@ pub(super) fn run(test: &str, operation: impl FnOnce(&Fixture)) {
     fixture.write("transport-calls", "");
     fixture.write("ssh-transport.sh", &script);
     let output = Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", &child_filter(test), "--nocapture"])
+        .args(["--exact", &child_filter(module, test), "--nocapture"])
         .env(CHILD, &fixture.directory)
         .env(
             "GIT_SSH_COMMAND",
@@ -91,21 +92,21 @@ pub(super) fn run(test: &str, operation: impl FnOnce(&Fixture)) {
     assert!(
         String::from_utf8_lossy(&output.stdout).contains("1 passed; 0 failed"),
         "child must execute exactly {}: {}",
-        child_filter(test),
+        child_filter(module, test),
         String::from_utf8_lossy(&output.stdout)
     );
 }
 
-// Every topic file includes this fixture under its own `fixture` module, so
-// the child's test name is `<topic>::cases::<test>` -- not `cases::<test>`.
-// Deriving the topic from `module_path!()` keeps the filter correct for each
-// including topic instead of hard-coding one binary layout.
-fn child_filter(test: &str) -> String {
-    let topic = module_path!()
-        .strip_suffix("::fixture")
-        .and_then(|module| module.rsplit("::").next())
-        .expect("fixture module path ends in ::fixture");
-    format!("{topic}::cases::{test}")
+// The suite mounts this fixture once, at its root, so the fixture's own
+// `module_path!()` names no topic. The calling test's module does: each topic
+// mounts its cases as `<topic>::cases`, and the child must run exactly the
+// calling test, `<topic>::cases::<test>`. Dropping the crate segment from the
+// caller's `module_path!()` gives that path without hard-coding a topic.
+fn child_filter(module: &str, test: &str) -> String {
+    let (_, path) = module
+        .split_once("::")
+        .expect("the calling module path names a module below the test crate");
+    format!("{path}::{test}")
 }
 
 fn quote(text: &str) -> String {
