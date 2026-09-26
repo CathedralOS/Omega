@@ -83,11 +83,11 @@ fn direct_computed_byte_stores_use_selected_arithmetic() {
         ("output[position] = 1 / 2 * 130;", true),
         ("let byte: u8 = 60; output[position] = byte + 5;", true),
         ("output[position] = 60 + 5;", true),
-        ("output[position] = (250 as u8 in Wrapping) + 71;", true),
+        ("output[position] = ((250 as u8 in Wrapping) + 71) as u8;", true),
         ("output[position] = (250 as u8 in Saturating) + 71;", false),
         ("let byte: u8 = 120; output[position] = byte + 8;", false),
         (
-            "let mut byte: u8 = 60; byte = unknown; output[position] = (byte as u8 in Wrapping) + 5;",
+            "let mut byte: u8 = 60; byte = unknown; output[position] = ((byte as u8 in Wrapping) + 5) as u8;",
             false,
         ),
     ] {
@@ -357,37 +357,37 @@ fn declared_ranges_bound_frozen_storage_reads() {
         (
             "data Input { value: u64 [0..=9]; }",
             "u64",
-            "output[position] = (input.value as u8 in Wrapping) + 48;",
+            "output[position] = ((input.value as u8 in Wrapping) + 48) as u8;",
             true,
         ),
         (
             "data Input { value: u64 [0..=9]; }",
             "u64 [0..=9]",
-            "output[position] = (unknown as u8 in Wrapping) + 48;",
+            "output[position] = ((unknown as u8 in Wrapping) + 48) as u8;",
             true,
         ),
         (
             "data Input { value: u64 [0..=9]; }",
             "u64",
-            "let byte: u64 [0..=9] = input.value; output[position] = (byte as u8 in Wrapping) + 48;",
+            "let byte: u64 [0..=9] = input.value; output[position] = ((byte as u8 in Wrapping) + 48) as u8;",
             true,
         ),
         (
             "data Input { value: u64 [0..=90]; }",
             "u64",
-            "output[position] = (input.value as u8 in Wrapping) + 48;",
+            "output[position] = ((input.value as u8 in Wrapping) + 48) as u8;",
             false,
         ),
         (
             "data Input { value: u64; }",
             "u64",
-            "output[position] = (input.value as u8 in Wrapping) + 48;",
+            "output[position] = ((input.value as u8 in Wrapping) + 48) as u8;",
             false,
         ),
         (
             "data Input { value: u64 [0..=9]; }",
             "u64 [0..=200]",
-            "output[position] = (unknown as u8 in Wrapping) + 48;",
+            "output[position] = ((unknown as u8 in Wrapping) + 48) as u8;",
             false,
         ),
     ] {
@@ -412,11 +412,11 @@ fn declared_ranges_do_not_bound_mutably_borrowed_storage() {
     for (input_decl, body) in [
         (
             "input: Input",
-            "let mut local: u64 [0..=9] = 5; corrupt(&mut local); output[position] = (local as u8 in Wrapping) + 48;",
+            "let mut local: u64 [0..=9] = 5; corrupt(&mut local); output[position] = ((local as u8 in Wrapping) + 48) as u8;",
         ),
         (
             "input: &mut Input",
-            "corrupt(&mut input.value); output[position] = (input.value as u8 in Wrapping) + 48;",
+            "corrupt(&mut input.value); output[position] = ((input.value as u8 in Wrapping) + 48) as u8;",
         ),
     ] {
         let source = format!(
