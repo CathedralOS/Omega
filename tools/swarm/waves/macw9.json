@@ -1,0 +1,99 @@
+{
+  "wave": "macw9",
+  "max_acu_limit": 1,
+  "bypass_approval": false,
+  "resumable": true,
+  "tags": [],
+  "owner_label_prefix": "Devin / macw9",
+  "exclusions": [],
+  "sessions": [
+    {
+      "name": "rep-specialization",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "REPRESENTATION-SPECIALIZATION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/field_value_specialization",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/state_specialization",
+        "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates"
+      ],
+      "suggested_first_slice": "continue past the macw8b lands (nested structural-child descent 92856482da, block-parameter forwarding ca85e84578): extend specialization to array-element descent or the next unsupported structural shape per the item frontier. GENERAL-LICM holds ranked_rewrites/loop_invariant_scalar_motion and validation/invariant_* — stay inside the claimed dirs and report blocked if a slice needs them.",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "terminal-authority",
+      "board": "TASKS.md",
+      "item": "TWO-AXIS-TERMINAL-AUTHORITY-REVIEW",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/build/build-evaluation/src/provider_settlement",
+        "omega-rust/omega/packages/review/evidence/src/capture/providers",
+        "omega-rust/omega/packages/review/evidence/tests",
+        "omega-rust/omega/packages/manager/src/review",
+        "omega-rust/omega/compiler/native-realization/src/native_realization/providers",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation",
+        "omega-rust/omega/representations/machine-code",
+        "omega-rust/omega/representations/target-operations",
+        "omega-rust/omega/compiler/compiler/tests/terminal_authority"
+      ],
+      "suggested_first_slice": "RESUME preserved WIP: run `git merge swarm/macw8b-terminal-authority` (commit 7f856f6d43) into your worktree first — it carries an unvalidated direct-syscall implementation slice (provider settlements + boundary lowering, 20 files). Validate it compiles (mbx check on affected crates), fix fallout, then continue the blueprint: connect Linux filesystem plans to native settlement transport; preserve settled target/schema/row identity through package review.",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "arithmetic-policy",
+      "board": "TASKS.md",
+      "item": "ARITHMETIC-POLICY-REALIZATION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/expression_preparation"
+      ],
+      "suggested_first_slice": "continue past the macw8b land (signed/mixed-sign wrapping conversions from masked halves, 9085ca9132): signed and mixed-sign SATURATING conversions are the named next frontier. Trapping operations remain owner-blocked (crash-site vocabulary unsettled) — do not take them. Other agents hold sibling dirs of this crate (scalar_graph, emission/case_payload_dispatch.rs, composed_control/state_graph, selected_operator.rs): stay inside expression_preparation.",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "psiir-fuel",
+      "board": "TASKS.md",
+      "item": "PSIIR",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/semantics/terminal-fixed-fuel"
+      ],
+      "suggested_first_slice": "continue past the macw8b lands (unbounded-rank cause identity 310b1ca4ba, relational requires-chain ceilings 3f797950ea): next named frontiers are disjunctive/implied ceilings, IntegerMath* clauses, guard/path-fact bounds, or wait/foreign-edge cause vocabulary. Pick the tightest single slice; keep per-cause diagnostics readable.",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "range-annotations",
+      "board": "TASKS.md",
+      "item": "REMOVE-BRACKETED-RANGE-ANNOTATIONS",
+      "host": "local",
+      "owning_paths": [
+        "tests/omega/pass/termination",
+        "tests/omega/pass/slices",
+        "tests/omega/pass/collections",
+        "tests/omega/pass/arithmetic",
+        "tests/omega/pass/calls"
+      ],
+      "suggested_first_slice": "next corpus leg after macw8b's range/ranges/borrow/borrows migration (b9b68383c9): migrate bracketed range annotations in these five pass groups (~260 sites) to the landed replacement form. Another agent holds pass/{structs,expressions,host} — do not touch those dirs; source/library is coordinator-owned this wave. Validate with filtered corpus runs (tools/corpus_gate.py or OMEGA_PASS_CANARY_FILTER).",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "exact-machine",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "EXACT-MACHINE-SIMPLIFICATIONS",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions"
+      ],
+      "suggested_first_slice": "complete address, compare/test, or scheduling rewrite families through the public catalog executor (copy/redundant-extension removal already use it); preserve the existing PreAllocationPolicy and independently reconstructed legality. DECLARATIVE-PEEPHOLES' literal_fold subdir lives in this crate — you may touch it only for what your families need.",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    }
+  ]
+}
