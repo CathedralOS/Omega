@@ -1312,6 +1312,7 @@ pass/inline_asm/asm_port_out_final_validation checked 57ms
 pass/inline_asm/asm_runtime_port_msr_final_validation checked 62ms
 pass/inline_asm/asm_where_exact_clobbers_compile checked 66ms
 pass/layouts/access_plan_inaccessible_seed checked 120ms
+pass/layouts/placed_view_source_access_compile checked 495ms
 pass/layouts/private_callback_slot_demand_compile rejected 10ms
 	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
 pass/layouts/private_callback_slot_untaken_compile checked 139ms

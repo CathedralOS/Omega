@@ -1,0 +1,105 @@
+// COMPILE CANARY. `Placed<Policy, Schema>` in a parameter position derives a
+// compiler-owned view record whose fields are generated `PlacedField<P,S,f>`
+// accessor carriers. Each field's admitted access clones exact
+// `PlacedField::{read,take,write}` boundary targets onto that carrier, and a
+// source `view.field.op()` call must resolve through the published boundary
+// roster -- the generated accessor machines are real checked boundary
+// declarations, not silently dropped opaque attachments.
+use omega::language::core::layout;
+
+pub data Registers {
+    status: u32;
+    transmit: u8;
+}
+
+pub data RegPlacement {
+    services: [u64; 32];
+}
+
+machine RegPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    let access: AccessPlan = AccessPlan::inaccessible(&schema);
+    transition { _ -> place_status(schema, access, entries) }
+
+    state place_status(
+        &mut self,
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> place_transmit(
+            schema,
+            access.with(
+                schema.fields[0].key,
+                FieldAccess::External {
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state place_transmit(
+        &mut self,
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> finish(
+            access.with(
+                schema.fields[1].key,
+                FieldAccess::External {
+                    read: ExternalRead::None,
+                    write: true,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state finish(
+        &mut self,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        self.services[0] = 7;
+        PlacementPlan {
+            layout: Plan {
+                entries: entries,
+                entry_count: 2,
+                size_fixed: 8,
+                size_is_dynamic: false,
+                align: 4,
+            },
+            access: access,
+            reach: BoundaryReach {
+                services: self.services,
+                service_count: 0,
+            },
+        }
+    }
+}
+
+machine inspect(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    view.transmit.write(9);
+    view.status.read()
+}
+
+machine inspect_bound(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    let status: u32 = view.status.read();
+    status
+}
+
+data Main {}
+machine Main::main(&mut self) {}

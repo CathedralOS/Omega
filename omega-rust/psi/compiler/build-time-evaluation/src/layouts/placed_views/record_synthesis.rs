@@ -11,6 +11,24 @@ use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Application, PendingRewrite, SchemaRecord};
 
+/// A synthesized declaration's symbol provenance: the authored `Placed<P, T>`
+/// use-site that derived it. Compiler-owned shells are source-free text, but
+/// package review and Terminal retention resolve a managed owner through the
+/// name's retained span — borrowing the invocation occurrence pins the shell
+/// to the package that spelled the application instead of leaving a
+/// provenance-free orphan no review can own.
+fn generated_identifier(name: impl Into<String>, provenance: source::SourceSpan) -> Identifier {
+    Identifier::new(name.into(), provenance)
+}
+
+fn application_provenance(application: &Application) -> source::SourceSpan {
+    application
+        .invocation_sources
+        .first()
+        .copied()
+        .unwrap_or_default()
+}
+
 pub(super) fn synthesize_probe_records(
     syntax: &mut SyntaxTrees,
     applications: &[Application],
@@ -43,6 +61,7 @@ pub(super) fn synthesize_probe_records(
             &application.synthetic_name,
             members,
             application.generated_is_public,
+            application_provenance(application),
         );
     }
     rewrite_applications(syntax, rewrites);
@@ -99,10 +118,11 @@ pub(super) fn synthesize_exact_records(
                 continue;
             }
 
+            let provenance = application_provenance(application);
             let accessor_name = accessor_name(syntax, application, field, entry.access())?;
             let is_exported = access_is_exported(entry.access());
             syntax.push_root_item(Item::Data(DataDefinition {
-                name: Identifier::generated(accessor_name.clone()),
+                name: generated_identifier(accessor_name.clone(), provenance),
                 // A published shell must be well-formed even when one field's
                 // operations are binding-private. The opaque carrier itself
                 // grants no operation; cloned machine visibility and the
@@ -137,6 +157,7 @@ pub(super) fn synthesize_exact_records(
                     &accessor_name,
                     field.type_reference,
                     is_exported && application.generated_is_public,
+                    provenance,
                 );
             }
             let field_type = syntax
@@ -155,6 +176,7 @@ pub(super) fn synthesize_exact_records(
             &application.synthetic_name,
             members,
             application.generated_is_public,
+            application_provenance(application),
         );
     }
     rewrite_applications(syntax, rewrites);
@@ -264,6 +286,7 @@ fn clone_accessor_machine(
     accessor_name: &str,
     field_type: TypeReferenceHandle,
     is_public: bool,
+    provenance: source::SourceSpan,
 ) {
     let watermark = syntax.tables.type_references.node_count();
     let Item::Machine(mut clone) = syntax.copy_item_from(template, &Item::Machine(machine.clone()))
@@ -276,8 +299,8 @@ fn clone_accessor_machine(
         .rsplit("::")
         .next()
         .expect("accessor template operation");
-    clone.name = Identifier::generated(format!("{accessor_name}::{operation}"));
-    clone.attached_data = Some(Identifier::generated(accessor_name));
+    clone.name = generated_identifier(format!("{accessor_name}::{operation}"), provenance);
+    clone.attached_data = Some(generated_identifier(accessor_name, provenance));
     clone.is_public = is_public;
     clone.type_parameters = HandleSpan::empty();
     let replacement = syntax
@@ -312,7 +335,13 @@ fn access_is_exported(access: &FieldAccess) -> bool {
     )
 }
 
-fn push_record(syntax: &mut SyntaxTrees, name: &str, members: Vec<DataMember>, is_public: bool) {
+fn push_record(
+    syntax: &mut SyntaxTrees,
+    name: &str,
+    members: Vec<DataMember>,
+    is_public: bool,
+    provenance: source::SourceSpan,
+) {
     let mut first = Handle::invalid();
     let mut count = 0u32;
     for member in members {
@@ -327,7 +356,9 @@ fn push_record(syntax: &mut SyntaxTrees, name: &str, members: Vec<DataMember>, i
         // either input package. Discovery has already retained the exact
         // policy/schema identities and enforced their visibility; field
         // operation visibility is governed separately by AccessExposure.
-        name: Identifier::generated(name),
+        // Its name still borrows the authored use-site span so package review
+        // and hermetic retention can resolve the consuming package as owner.
+        name: generated_identifier(name, provenance),
         is_public,
         supply_mode: DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),

@@ -944,6 +944,18 @@ impl Builder<'_, '_> {
                         self.program,
                         call.target_symbol,
                     )?;
+                // A bodyless boundary declaration has no checked body for this
+                // graph to embed: the statement's boundary call operation owns
+                // the invocation and binds its scalar result directly. Keeping
+                // a call computation here would demand an executable callee
+                // the candidate closure can never construct. A `boundary
+                // machine` with an authored body stays an ordinary callee —
+                // the same predicate the call operation applies.
+                if target_machine.supply_mode.is_boundary_declaration()
+                    && !target_machine.body_is_present
+                {
+                    return None;
+                }
                 let has_runtime_receiver =
                     !self
                         .program
