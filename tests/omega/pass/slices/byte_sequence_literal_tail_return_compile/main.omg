@@ -1,0 +1,15 @@
+// A `("bytes")` tail completing a borrowed `&[u8]` return: the spelled literal
+// establishes its own immutable storage and the result forwards it whole, so a
+// no-parameter getter needs no carrier, call, or transition to produce a view.
+data Main {
+    out: u64;
+}
+
+machine Main::label() -> &[u8] {
+    ("is_frozen")
+}
+
+machine Main::main(&mut self) {
+    let name: &[u8] = Main::label();
+    self.out = name.len;
+}

@@ -14,8 +14,9 @@ use super::{
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, LocalConstructionTrace, Multiplicity,
     ScalarCalleePlans, ShapeCollector, StatementNode, StatementSequence, SymbolHandle, TypedTrees,
     append_reference_releases, base_type_identity, consume_results, consume_value_places,
-    parameter_qualifications, retain_selected_sources, returned_named_view, returned_parameter,
-    returned_reference_leaf, returned_subslice, structural_operands,
+    parameter_qualifications, retain_selected_sources, returned_byte_sequence_literal,
+    returned_named_view, returned_parameter, returned_reference_leaf, returned_subslice,
+    structural_operands,
 };
 use crate::checked_trees::CheckedUnitStructuralReturnPlan;
 
@@ -203,6 +204,9 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         &mut structural_count,
     ) {
         operations.push(operation);
+        Some(result)
+    } else if let Some(result) = returned_byte_sequence_literal(program, state) {
+        trace.phase("statement sequence: structural result: byte sequence literal");
         Some(result)
     } else if let Some(root) = returned_value {
         trace.phase("statement sequence: structural result: returned value");
