@@ -114,7 +114,7 @@ const LOOP_TO_EXPRESSION_LEAF: &str = r#"
             true -> count(n - 1, acc + 1)
             false -> leaf(acc)
         }
-        state leaf(&mut self, acc: i32 in Wrapping) -> i32 { acc + 100 }
+        state leaf(&mut self, acc: i32 in Wrapping) -> i32 { (acc + 100) as i32 }
     }
     machine Main::main(&mut self) -> i32 {
         let n: i32 = self.count(5, 0);

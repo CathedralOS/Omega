@@ -1482,9 +1482,7 @@ pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 167ms
 pass/slices/runtime_join_meet_bound_exit checked 179ms
 pass/slices/runtime_mutable_slice_element_write_exit checked 169ms
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 185ms
-pass/slices/runtime_saturating_array_element_guard_exit rejected 23ms
-	mixed arithmetic domains in machine `Main::main` state `go` local `__hoist_1`: one operand is `Saturating` and the other is `Exact`. Decision 17 forbids implicit domain mixing -- cross domains with an explicit `as` cast, or declare both operands in the same domain.
-	mixed arithmetic domains in machine `Main::main` state `ordered` local `__hoist_3`: one operand is `Saturating` and the other is `Exact`. Decision 17 forbids implicit domain mixing -- cross domains with an explicit `as` cast, or declare both operands in the same domain.
+pass/slices/runtime_saturating_array_element_guard_exit checked 2820ms
 pass/slices/runtime_slice_element_runtime_index_read_exit checked 171ms
 pass/slices/runtime_slice_fixed_index_guard_exit checked 183ms
 pass/slices/runtime_slice_index_copy_dispatch_exit checked 168ms

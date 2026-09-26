@@ -36,6 +36,6 @@ machine Main::main(&mut self) reaches Console {
         self.console.exit_process(70);
     }
     state bad(&mut self) {
-        self.console.exit_process(self.a[0]); // surface the aliased source value on regression
+        self.console.exit_process(self.a[0] as i32); // surface the aliased source value on regression
     }
 }
