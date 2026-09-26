@@ -4058,6 +4058,30 @@ syntax and other terminal services are not prerequisites.
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
 
+  A traced omission to start from. `samples/cli/collections/matrix_multiply`
+  stops at `structural field store: scalar field type` (state 0, statement 0),
+  which is `self.a = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]` into a
+  `[[i32 in Wrapping; 3]; 3]` field. The whole-array route exists --
+  `structural_scalar_store/primitive.rs::array_literal_stores`, reached before
+  `plan_assignment` -- and every gate in it passes for this store except the
+  last: `closed_array_store_type` and `closed_array_extents` resolve, the
+  destination is a field segment with builtin coordinates and no shadowing
+  local, `borrowed_parameter_destination` resolves (it excludes `is_self` only
+  for a `whole` store, and this route asks for `whole = false`),
+  `TargetSelectors::resolve` and `checked_unit_path` both succeed, and
+  `control::scalar_arrays::elements` returns `None`. That last call delegates
+  to `validation::scalar_array_elements`, which is where the nested literal is
+  refused.
+
+  One prerequisite is not on `main`.
+  `validation::is_closed_primitive_array_type` walks `FixedArray` to its
+  element but has no `Constrained` arm, so an `i32 in Wrapping` element stopped
+  the walk one level down even though `closed_array_store_type` strips exactly
+  that wrapper at the top and admits `ArithmeticDomain` constraints there.
+  Adding the arm moves this store from failing the first gate to failing only
+  `scalar_array_elements`, and it was measured to move no corpus fixture on its
+  own, so it is unlanded and belongs with the element repair.
+
   `terminal-vocabulary-for-unit-bodies` is delegated implementation work:
   extend or add operations for non-vacated structural replacement, typed recast
   views, and fresh linear-record custody. This item owns integration with
