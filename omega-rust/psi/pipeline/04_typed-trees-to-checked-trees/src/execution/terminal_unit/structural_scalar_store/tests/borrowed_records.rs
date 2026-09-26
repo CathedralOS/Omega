@@ -221,6 +221,74 @@ fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics:
 }
 
 #[test]
+fn borrowed_record_store_preserves_parameter_positions_with_an_ambient_receiver() {
+    let checked = checked(
+        r#"
+        data Counter { value: i32; }
+        data Main { marker: i32; }
+        machine Main::write(&mut self, destination: &mut Counter, value: i32) -> bool {
+            destination.value = value;
+            transition { _ -> true }
+        }
+    "#,
+    )
+    .unwrap();
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::write")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    let mut shapes = ShapeCollector::new(program);
+    let (_, structural, scalar) = super::super::super::calls::structural_scalar_signature(
+        program,
+        &mut shapes,
+        machine,
+        state,
+        &[],
+        false,
+    )
+    .unwrap();
+    assert_eq!(structural.len(), 1);
+    assert_eq!(structural[0].position, 1);
+    assert_eq!(scalar[0].source_position, 2);
+    let plan = |structural: &[_], scalar: &[_]| {
+        build_structural_scalar_field_store_sequence(
+            program,
+            &checked.facts,
+            machine,
+            state,
+            structural,
+            scalar,
+            0,
+            None,
+        )
+    };
+    let stores = plan(&structural, &scalar).expect(
+        "an ambient receiver has no ABI row but the destination retains its authored position",
+    );
+    let [CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)] = stores.as_slice()
+    else {
+        panic!("one field store");
+    };
+    assert_eq!(
+        store.destination,
+        checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position: 1 }
+    );
+    assert!(
+        plan(&structural, &[]).is_none(),
+        "ordinary value parameters cannot disappear"
+    );
+    let mut missing_value = scalar.clone();
+    missing_value[0].source_position = 0;
+    assert!(
+        plan(&structural, &missing_value).is_none(),
+        "a receiver row cannot replace the scalar argument"
+    );
+}
+
+#[test]
 fn borrowed_record_store_selects_the_exact_destination_among_other_inputs() {
     for (parameters, destination_position) in [
         ("destination: &mut Counter, source: &Counter", 0),
