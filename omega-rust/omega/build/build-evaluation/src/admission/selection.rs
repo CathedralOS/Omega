@@ -14,12 +14,13 @@ pub struct SelectedProgramEntry<'config> {
     pub slot: target::ProgramEntrySlotDeclaration,
 }
 
-/// The product target of one admitted Build activation. Query compatibility is
-/// supplied to Psi through its role-specific interface: target slot catalogs
-/// and source admission stay here, beside final ProgramEntry settlement.
-pub(crate) struct ProductEntryQueryCompatibility {
-    pub selected_profile: Option<target::TargetProfile>,
-}
+/// Product-entry query compatibility for one admitted Build activation. Query
+/// compatibility is supplied to Psi through its role-specific interface:
+/// target slot catalogs and source admission stay here, beside final
+/// ProgramEntry settlement. The Build does not observe a realized target, so
+/// a query may name any recognized target's slot; each is a row keyed by
+/// that target.
+pub(crate) struct ProductEntryQueryCompatibility;
 
 impl checked_interpreter::ProductEntryCompatibility for ProductEntryQueryCompatibility {
     fn validate_entry(
@@ -40,14 +41,6 @@ impl checked_interpreter::ProductEntryCompatibility for ProductEntryQueryCompati
                 profile.target_name()
             )
         })?;
-        // Inactive static matrix bindings are handled separately below. An
-        // executed query, including one whose result is dropped, describes
-        // this activation's product and cannot issue another target's entry.
-        if self.selected_profile != Some(profile) {
-            return Err(format!(
-                "product entry slot `{slot}` does not match the selected product target"
-            ));
-        }
         let slot = required.program_entry().ok_or_else(|| {
             format!("root slot `{slot}` does not have a supported ProgramEntry signature")
         })?;

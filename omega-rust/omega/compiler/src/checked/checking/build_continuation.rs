@@ -102,7 +102,6 @@ pub(crate) fn evaluate_build_and_continue(
         frontend.build_source_id,
         &build_machine_filesystem_scope,
         evaluation_sponsor.as_ref(),
-        selected_target_profile,
         application
             .as_ref()
             .is_some_and(|application| application.artifact_only),

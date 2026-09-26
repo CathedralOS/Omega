@@ -40,7 +40,6 @@ fn execute_admitted_build_occurrence(
         service_reach_plan: _,
         filesystem_scope,
         evaluation_sponsor,
-        selected_target_profile,
         artifact_only,
     } = admitted;
     let AdmittedBuildMachine::Selected(selected) = machine else {
@@ -87,7 +86,6 @@ fn execute_admitted_build_occurrence(
         execution_mode,
         evaluation_sponsor,
         &machine_name,
-        selected_target_profile,
     )?;
     let usage = measured.usage();
 
@@ -129,7 +127,6 @@ fn execute_admitted_build_occurrence(
     let (mut config, optimization_report) = extract_build_config(
         &augmented,
         optimization_admission,
-        selected_target_profile,
         activation_vocabulary.is_some(),
     )
     .map_err(|reason| {
@@ -197,7 +194,7 @@ fn execute_admitted_build_occurrence(
             filesystem_operation_attempts,
             canonical_source_metadata_identity: filesystem_scope
                 .canonical_source_metadata_identity(),
-            activation: filesystem_scope.activation(selected_target_profile),
+            activation: filesystem_scope.activation(),
             captured_source_inventory: filesystem_scope.captured_source_inventory(),
             named_input_inventories: filesystem_scope.named_input_inventories(),
             included_source_handoffs,

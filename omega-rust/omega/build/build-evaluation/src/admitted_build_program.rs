@@ -395,10 +395,18 @@ impl RestrictedBuildRequest {
         self.build_execution_profile
     }
 
-    /// The product target the requesting compilation selected for this
-    /// activation.
+    /// The product target the requesting compilation realizes with this
+    /// request. The Build evaluates once for every target; each realized
+    /// target's compilation records its own copy (`for_target`).
     pub const fn selected_target_profile(&self) -> Option<target::TargetProfile> {
         self.selected_target_profile
+    }
+
+    /// This request as recorded by one realized target's compilation.
+    #[must_use]
+    pub const fn for_target(mut self, profile: Option<target::TargetProfile>) -> Self {
+        self.selected_target_profile = profile;
+        self
     }
 }
 
@@ -447,7 +455,6 @@ pub struct AdmittedBuildProgram {
     pub(crate) service_reach_plan: flow_effects::ServiceReachInferencePlan,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
     pub(crate) evaluation_sponsor: Option<BuildEvaluationSponsor>,
-    pub(crate) selected_target_profile: Option<target::TargetProfile>,
     /// The validated `builder.artifact_only()` application modifier. An
     /// artifact-only activation publishes retained outputs only: it may not
     /// bind executable roots or select boundary providers, and it must
@@ -491,10 +498,6 @@ impl AdmittedBuildProgram {
         }
     }
 
-    pub const fn selected_target_profile(&self) -> Option<target::TargetProfile> {
-        self.selected_target_profile
-    }
-
     pub const fn initial_build_snapshot(&self) -> Option<&BuildTimeValue> {
         match &self.machine {
             AdmittedBuildMachine::None => None,
@@ -522,7 +525,6 @@ impl AdmittedBuildProgram {
         restricted_build_requests(
             &self.filesystem_scope,
             self.evaluation_sponsor.as_ref(),
-            self.selected_target_profile,
             self.artifact_only,
             &selected.execution_mode,
         )
@@ -544,7 +546,6 @@ pub fn admit_build_program(
     build_source_id: Option<source::SourceId>,
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
-    selected_target_profile: Option<target::TargetProfile>,
     artifact_only: bool,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
     let prepared = PreparedBuildMachineProgram::prepare(typed)?;
@@ -564,7 +565,6 @@ pub fn admit_build_program(
             service_reach_plan,
             filesystem_scope: filesystem_scope.clone(),
             evaluation_sponsor: evaluation_sponsor.cloned(),
-            selected_target_profile,
             artifact_only,
         });
     };
@@ -777,7 +777,6 @@ pub fn admit_build_program(
         service_reach_plan,
         filesystem_scope: filesystem_scope.clone(),
         evaluation_sponsor: evaluation_sponsor.cloned(),
-        selected_target_profile,
         artifact_only,
     })
 }
@@ -794,7 +793,6 @@ pub fn admit_build_program(
 fn restricted_build_requests(
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
-    selected_target_profile: Option<target::TargetProfile>,
     artifact_only: bool,
     execution_mode: &BuildMachineExecutionMode,
 ) -> Vec<RestrictedBuildRequest> {
@@ -858,9 +856,7 @@ fn restricted_build_requests(
                 .collect(),
             artifact_only,
         },
-        build_execution_profile: filesystem_scope
-            .activation(selected_target_profile)
-            .build_execution_profile(),
-        selected_target_profile,
+        build_execution_profile: filesystem_scope.activation().build_execution_profile(),
+        selected_target_profile: None,
     }]
 }

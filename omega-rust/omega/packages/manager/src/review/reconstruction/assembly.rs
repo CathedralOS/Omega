@@ -130,20 +130,13 @@ impl CanonicalPackageReconstructionQuestion {
                     ));
                 }
                 // Where the review carried a build observation, its activation must
-                // name this exact package occurrence and its checked target, not
-                // another package's build or a different target's admission.
+                // name this exact package occurrence, not another package's build.
+                // The Build observes no realized target.
                 if let Some(summary) = review.build_observation_summary() {
                     let activation = summary.activation();
                     if activation.root_package_identity() != Some(review.key().identity()) {
                         return Err(CanonicalPackageReconstructionQuestionError::new(
                             "package review build activation names a different package occurrence",
-                        ));
-                    }
-                    if activation.selected_target_profile()
-                        != Some(review.checked_context().target())
-                    {
-                        return Err(CanonicalPackageReconstructionQuestionError::new(
-                            "package review build activation names a different target",
                         ));
                     }
                 }
