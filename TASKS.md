@@ -27,10 +27,12 @@ item's acceptance names one of those tests, the acceptance is the named
 fixture's corpus-gate outcome, plus its `--native` outcome where the item needs
 a native build or run. Rewrite such an item's acceptance when you next touch it.
 
-Items here cite `.rs` paths that no longer resolve -- 33 on this board and
-one on the optimizer board when last measured, mostly from that deletion and
-from the selected-operator plan removal. Do not maintain that count by hand;
-the checker below derives it. Re-measure one of these before planning against it; a gone
+Items here cite `.rs` paths that no longer resolve -- 68 on this board and
+five on the optimizer board when last measured, after `912b490c8f1` merged
+the stage crates into the binary and moved their files wholesale. Do not
+maintain that count by hand; the checker below derives it, and `--hints`
+names the one file a dead citation most likely became when a unique tail
+matches, which covers about half of them. Re-measure one of these before planning against it; a gone
 anchor file usually means the claim around it needs restating, not a path
 substitution. `python3 tools/board_paths.py` re-derives the list rather than
 trusting this paragraph, understands the directory-relative and
