@@ -796,16 +796,19 @@ fn reject_inert_sibling_callers(
         .collect::<Vec<_>>()
         .join(" or ");
     let mut diagnostics = Vec::new();
+    let mut called = Vec::new();
+    let mut visited = Vec::new();
     for machine in typed.machines() {
         let caller_target = machine.target.as_ref().map(|target| target.as_str());
         for state in typed.machine_states(machine) {
+            called.clear();
+            visited.clear();
             for statement in typed.statement_table.statements(state.statement_nodes) {
-                let typed_trees::statement::StatementNode::Call(call) = statement else {
-                    continue;
-                };
-                let Some((_, callee, callee_target)) = inert
-                    .iter()
-                    .find(|(symbol, _, _)| *symbol == call.target_symbol)
+                collect_statement_callees(typed, statement, &mut visited, &mut called);
+            }
+            for called_symbol in &called {
+                let Some((_, callee, callee_target)) =
+                    inert.iter().find(|(symbol, _, _)| symbol == called_symbol)
                 else {
                     continue;
                 };
@@ -828,6 +831,166 @@ fn reject_inert_sibling_callers(
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+/// Record one callee once. A state that names the same inert sibling twice
+/// has one defect, and the diagnostic carries no span to tell the two sites
+/// apart, so a second copy would be unreadable noise.
+fn note_callee(called: &mut Vec<symbols::SymbolHandle>, symbol: symbols::SymbolHandle) {
+    if symbol.is_valid() && !called.contains(&symbol) {
+        called.push(symbol);
+    }
+}
+
+/// Every callee one statement can name. The statement-position call is only
+/// one spelling: a value call in an initializer, an argument, a guard, or a
+/// transition argument reaches the same callee, and a walk that matched only
+/// `StatementNode::Call` left those call sites to vanish with their filtered
+/// callee and bind the ZII zero.
+fn collect_statement_callees(
+    typed: &TypedTrees,
+    statement: &typed_trees::statement::StatementNode,
+    visited: &mut Vec<typed_trees::expression::ExpressionHandle>,
+    called: &mut Vec<symbols::SymbolHandle>,
+) {
+    use typed_trees::statement::StatementNode;
+    match statement {
+        StatementNode::Call(call) => {
+            note_callee(called, call.target_symbol);
+            for argument in typed.expression_table.expression_handles(call.arguments) {
+                collect_expression_callees(typed, *argument, visited, called);
+            }
+        }
+        StatementNode::Assignment(assignment) => {
+            collect_expression_callees(typed, assignment.target, visited, called);
+            collect_expression_callees(typed, assignment.value, visited, called);
+        }
+        StatementNode::Expression(expression) => {
+            collect_expression_callees(typed, *expression, visited, called);
+        }
+        StatementNode::LocalData(local) => {
+            collect_expression_callees(typed, local.initial_value, visited, called);
+        }
+        StatementNode::AssemblyFact(fact) => {
+            collect_expression_callees(typed, fact.expression, visited, called);
+        }
+        StatementNode::Transition(transition) => {
+            if let typed_trees::statement::TransitionGuardNode::When(guard) = &transition.guard {
+                collect_expression_callees(typed, *guard, visited, called);
+            }
+            for target in [transition.target, transition.continuation] {
+                collect_transition_target_callees(typed, target, visited, called);
+            }
+        }
+        StatementNode::RootBinding(_) => {}
+    }
+}
+
+/// A named transition target is itself a call to a state, so its own symbol
+/// is a callee. Its argument span is walked for the same reason the other
+/// spans are, though typed trees present it empty for the tail-call
+/// spelling, so no fixture here exercises that arm.
+fn collect_transition_target_callees(
+    typed: &TypedTrees,
+    target: typed_trees::statement::TransitionTargetHandle,
+    visited: &mut Vec<typed_trees::expression::ExpressionHandle>,
+    called: &mut Vec<symbols::SymbolHandle>,
+) {
+    use typed_trees::statement::TransitionTargetNode;
+    if !typed.statement_table.transition_target_is_valid(target) {
+        return;
+    }
+    match typed.statement_table.transition_target(target) {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
+            note_callee(called, path.symbol);
+            for argument in typed.expression_table.expression_handles(*arguments) {
+                collect_expression_callees(typed, *argument, visited, called);
+            }
+        }
+        TransitionTargetNode::Value(expression) => {
+            collect_expression_callees(typed, *expression, visited, called);
+        }
+        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+    }
+}
+
+/// Every callee inside one expression graph. `visited` is the graph's own
+/// shared-subexpression guard: the table is a DAG, not a tree.
+fn collect_expression_callees(
+    typed: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    visited: &mut Vec<typed_trees::expression::ExpressionHandle>,
+    called: &mut Vec<symbols::SymbolHandle>,
+) {
+    use typed_trees::expression::{ExpressionNode, MatchPattern};
+    if !expression.is_valid() || visited.contains(&expression) {
+        return;
+    }
+    visited.push(expression);
+    match typed.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            note_callee(called, call.target_symbol);
+            collect_expression_callees(typed, call.receiver, visited, called);
+            for argument in typed.expression_table.expression_handles(call.arguments) {
+                collect_expression_callees(typed, *argument, visited, called);
+            }
+        }
+        ExpressionNode::Match(dispatch) => {
+            collect_expression_callees(typed, dispatch.subject, visited, called);
+            for arm in typed.expression_table.match_arms(dispatch.arms) {
+                if let MatchPattern::Value(value) = arm.pattern {
+                    collect_expression_callees(typed, value, visited, called);
+                }
+                collect_expression_callees(typed, arm.value, visited, called);
+            }
+        }
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in typed.expression_table.expression_handles(*values) {
+                collect_expression_callees(typed, *value, visited, called);
+            }
+        }
+        ExpressionNode::Atomic(atomic) => {
+            collect_expression_callees(typed, atomic.value, visited, called);
+            collect_expression_callees(typed, atomic.result, visited, called);
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_expression_callees(typed, binary.left, visited, called);
+            collect_expression_callees(typed, binary.right, visited, called);
+        }
+        ExpressionNode::Cast(cast) => {
+            collect_expression_callees(typed, cast.value, visited, called);
+        }
+        ExpressionNode::Indexed(indexed) => {
+            collect_expression_callees(typed, indexed.collection, visited, called);
+            collect_expression_callees(typed, indexed.index, visited, called);
+        }
+        ExpressionNode::Member(member) => {
+            collect_expression_callees(typed, member.receiver, visited, called);
+        }
+        ExpressionNode::Borrow(borrow) => {
+            collect_expression_callees(typed, borrow.target, visited, called);
+        }
+        ExpressionNode::Range(range) => {
+            collect_expression_callees(typed, range.start, visited, called);
+            collect_expression_callees(typed, range.end, visited, called);
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in typed.expression_table.struct_fields(literal.fields) {
+                collect_expression_callees(typed, field.value, visited, called);
+            }
+        }
+        ExpressionNode::Unary(unary) => {
+            collect_expression_callees(typed, unary.operand, visited, called);
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
 }
 
@@ -952,6 +1115,32 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
         for expected in ["Legs::bump", "linux_x86_64", "macos_arm64", "Rack::run"] {
+            assert!(
+                rendered.contains(expected),
+                "refusal should name {expected}: {rendered}"
+            );
+        }
+    }
+
+    /// The value-call spelling reaches the same unrealized body as a
+    /// statement-position call. A walk keyed on `StatementNode::Call` alone
+    /// saw nothing here, so the call site vanished with its filtered callee
+    /// and the initializer silently kept the ZII zero.
+    #[test]
+    fn a_value_call_into_a_foreign_only_machine_rejects() {
+        let diagnostics = inert_sibling_selection(
+            "data Legs { count: i32; }\n\
+             linux_x86_64 machine Legs::measure(&self) -> i32 { transition { _ -> 1 } }\n\
+             data Rack { legs: Legs; total: i32; }\n\
+             machine Rack::run(&mut self) { let n: i32 = self.legs.measure(); self.total = n; }",
+        )
+        .expect_err("a value call into an unrealized body must reject");
+        let rendered = diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+        for expected in ["Legs::measure", "linux_x86_64", "macos_arm64", "Rack::run"] {
             assert!(
                 rendered.contains(expected),
                 "refusal should name {expected}: {rendered}"
