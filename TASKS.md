@@ -1437,9 +1437,19 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   invocation cannot pass merely because its provider is silent.
   Exercise conditional/helper selections and independent replay, rejecting
   changed entries/providers/targets/scopes/policies and omitted coverage.
-  Preserve `tests/omega/packages/behavior-exclusions/` and compiler tests
-  `behavior_exclusions.rs` / `build_behavior_exclusions.rs`. Distinguish
-  prohibited behavior from insufficient evidence without weakening contracts.
+  Distinguish prohibited behavior from insufficient evidence without
+  weakening contracts.
+
+  The acceptance has no harness left. Both named compiler tests went with the
+  deleted `compiler --test` targets: no `build_behavior_exclusions` exists
+  anywhere, and the only surviving `behavior_exclusions.rs` files are the two
+  source owners above. `tests/omega/packages/behavior-exclusions/` is intact
+  and orphaned -- its six projects are referenced by nothing in the
+  repository except this line, and the corpus gate walks only
+  `tests/omega/{pass,fail,run}`. They are still a usable starting point:
+  `checking-app`, `sink-app`, `no-op-app` and `quiet-logger-app` each check
+  clean for the target their own `build.omg` binds. What no longer exists is
+  anything that compares their exclusion verdicts, which is the subject.
 
 - **BUILD-EXCLUSION-REALIZATION.** Finish physical exclusions through native
   custody, installation, and replacement. Executed Build selections, canonical
@@ -1451,9 +1461,12 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   Carry exclusion envelopes through ordinary custody in
   `03_target-operations-to-selected-instructions/src/legalization`, image emission,
   COMPONENT-SUBSTRATE replacement, and WIRE-RUNTIME-AND-INSTALLATION.
-  Preserve `compiler --test build_behavior_exclusions -E 'test(sink_composition)'`:
-  it covers retained native artifacts, host execution, source-free replay, and
-  loud-sink rejection. Those controls do not close installation/replacement.
+  `compiler --test build_behavior_exclusions -E 'test(sink_composition)'` is
+  named here as covering retained native artifacts, host execution,
+  source-free replay and loud-sink rejection, but that target no longer
+  exists; see BUILD-SEMANTIC-EXCLUSIONS for what survives. Those controls have
+  to be rebuilt before they can be preserved, and they would not close
+  installation/replacement even then.
 
   Acceptance: silent and output-producing providers receive distinct physical
   verdicts, with/without receiving permission policy and optional optimization.
