@@ -148,6 +148,56 @@ separate pointer/length arguments, a particular descriptor record, or a
 terminated string. A checked adapter exposes the safe Omega view while the
 native leaf declares the actual [foreign shape](../spec/build/boundary_shapes.md#foreign-declarations).
 
+## Exposing Addresses
+
+Use `as addr` to observe an executable machine's entry or borrowed storage:
+
+```omega
+machine identity<T>(value: T) -> T {
+    value
+}
+
+machine addresses() {
+    let value: u32 = 7;
+    let code_address = identity<u32> as addr;
+    let storage_address = (&value) as addr;
+}
+```
+
+The machine needs no `&`: its selected declaration already names the entry.
+`<u32>` chooses a concrete application, not the ordinary `value` argument.
+Nothing is invoked, and an attached machine's address captures no receiver.
+The storage conversion observes `value`'s location, not a temporary borrow
+descriptor. This is a compiler-supported conversion, not an equal-size recast.
+
+A retained address request is enough to keep an executable entry even if
+nothing calls that machine. Native realization supplies its entry address;
+interpretation supplies a stable entry ID. Interpreted storage IDs occupy a
+different namespace, so a function and a local cannot collide merely because
+both happen to be number 42. Compatible views of the same storage keep the same
+identity; recursive calls and separately loaded programs cannot accidentally
+reuse an identity for distinct live locations. Tag bits are one implementation,
+not an authored representation to decode.
+
+Proof-only entities with no executable realization reject in either mode.
+An ordinary executable machine used in a proof is not thereby proof-only.
+Interpreted execution does not return zero or build a native trampoline merely
+because its body is Psi. The accepted behavior is specified in
+[address exposure](../spec/language/counts_and_addresses.md#address-exposure);
+**ADDRESS-EXPOSURE** in [the task board](../../TASKS.md) tracks implementation.
+
+Address observation is not address authority. The result does not by itself
+authorize calling, dereferencing, or patching code. Inlining other calls remains legal;
+an exposed entry is not a promise that every invocation passes through it.
+Native code sharing can give different machines the same entry address, so
+address equality is not declaration equality. Interpreted IDs support comparison,
+not native byte offsets or instruction patching.
+
+Nor is this necessarily compile-time arithmetic: local addresses depend on the
+running invocation, and final native entry bits may be fixed only at loading.
+A relocation is not an evaluated integer, and evaluator IDs cannot be baked into
+ordinary constants. This feature does not settle interpreted inline assembly.
+
 ## Calling Conventions
 
 Omega's internal calling convention is compiler-owned. A boundary pins an

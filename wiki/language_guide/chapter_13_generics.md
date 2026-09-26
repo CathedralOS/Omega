@@ -345,9 +345,11 @@ be inferred when the selected signature and value arguments determine an exact
 application; that is not inference of conformance evidence or callable contracts.
 
 Stateful callbacks use ordinary instance fields and receiver access; dynamically
-selected interfaces use `dyn` traits. A static machine symbol cannot be stored,
-converted to an address, or returned as a runtime callback value. Registered
-foreign callbacks use a separate contextual realization gate with an exact
+selected interfaces use `dyn` traits. A static machine symbol is not a stored or
+returned runtime callback value. `Selected<u32> as addr` may expose the address
+of a fully selected executable application, but the resulting number is not
+call authority; see [address exposure](chapter_20_memory_layout_abi.md#exposing-addresses).
+Registered foreign callbacks still use contextual realization with an exact
 requirement and private destination; see
 [Chapter 19](chapter_19_capabilities_effects_boundaries.md#foreign-callbacks-through-platform-adapters).
 

@@ -59,8 +59,8 @@ The library supplies typed import/export adapters and descriptions, rather than
 requiring each embedder to implement a dispatch system. Generation derives from
 checked interfaces and may be untrusted: admission rejoins exact declarations,
 applications, contracts, representations, and selected adapters. Display-name
-lookup resolves to that exact entry; a string, ordinal, or address alone supplies
-neither identity nor call authority.
+lookup resolves to that exact entry; a string, ordinal, or address alone
+establishes neither interface compatibility nor call authority.
 
 A guest boundary call dispatches through the installed adapter and its host
 context. A compiled adapter can make an ordinary native host call; the interpreter
@@ -72,6 +72,24 @@ Static proofs, admitted evidence, or checked entry operations establish those
 obligations; arbitrary mathematical contracts are not automatically executable
 validators. Native provider behavior remains an explicit trusted premise unless
 independently checked.
+
+## Address observations
+
+The ordinary [address conversions](../language/counts_and_addresses.md#address-exposure)
+also apply to interpreted components. A selected executable machine yields a
+stable entry identity; a borrowed storage location yields its runtime location
+identity. Code and storage have disjoint encodings, including across instances
+whose address values can meet. Existing interpreter identities may supply these
+values; a second address registry is not a language requirement. Proof-only
+entities with no executable realization reject instead of receiving fake entries
+or zero. Address demand retains an otherwise uncalled executable body.
+
+These numbers are neither host pointers nor native trampolines. The cast creates
+no host ABI adapter, indirect-call permission, byte-addressed memory model, or
+reflective edit operation. Native interoperation still uses the selected
+import/export adapters. The identities do not make native address arithmetic or
+checked assembly execute under interpretation; `interpreted-inline-assembly`
+remains a separate owner decision.
 
 ## Ownership and lifetime
 

@@ -80,6 +80,12 @@ when their invocation satisfies the complete contract. The separate augmenting
 build API deliberately returns mutated argument snapshots; that does not widen
 the hermetic bridge.
 
+[Address exposure](counts_and_addresses.md#address-exposure) cannot smuggle an
+interpreter identity or host pointer through that value snapshot. Runtime
+address observations are not canonical target-semantic observations. Recording
+an executable entry relocation for later realization is distinct from evaluating
+its eventual numeric address as a constant, type argument, or proof input.
+
 Fixed arrays and recursively owned records may cross as values. A byte literal
 in an exact fixed-array result copies its bytes into the array; a width mismatch
 rejects rather than returning a slice into evaluator storage. Temporary slices

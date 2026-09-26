@@ -20,9 +20,12 @@ language behavior, not the current compiler's supported expression shapes.
 | Transition dispatch | Subject once before dispatch; only the selected arm runs. |
 | Value-position `match` | Subject once; first matching arm only. |
 
-Every evaluated child runs exactly once. Unary operations, borrows, casts,
-membership tests, and member access have one immediate runtime child. The
-short-circuit and dispatch rows are the closed selective set for these forms;
+Every evaluated child runs exactly once. Unary operations, borrows, value casts,
+membership tests, and member access have one immediate runtime child. A
+[machine-to-address conversion](counts_and_addresses.md#address-exposure)
+instead selects a static declaration application; it has no runtime operand to
+evaluate and does not invoke the machine. The short-circuit and dispatch rows
+are the closed selective set for these forms;
 a new selective form needs an explicit schedule, not an implicit lazy exception.
 
 The right operand of `&&` may use the left operand's true-path facts; `||` may
@@ -53,6 +56,11 @@ instead consumes a prefix of its nested dependent-function parameters; the
 result may be another function term. This grants no implicit machine-to-function
 conversion, runtime closure, pending execution or obligation to finish applying
 the term. Expected-type and executable-demand checks still apply.
+
+`Selected<Arguments> as addr` is the explicit executable-entry exposure form;
+`reference as addr` exposes the referenced storage location. These follow
+[address exposure](counts_and_addresses.md#address-exposure), not equal-size
+bit reinterpretation. An attached machine name does not capture a receiver.
 
 Assignment requires writable storage, compatible value type, and the applicable
 [invariant-window obligations](dependent_values.md#invariant-windows). It

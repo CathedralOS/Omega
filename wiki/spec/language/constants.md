@@ -18,6 +18,8 @@ types recursively permit copying and have no cleanup obligation, shared
 ownership, or interior mutability. Fixed arrays, records, and copy-eligible sums
 are eligible; selecting an unrestricted active case does not make a structurally
 linear sum eligible. A constant has no stable address and grants no authority.
+Borrowing a materialized copy follows ordinary temporary/storage rules; its
+address is not the identity of the `const` declaration.
 
 ## Evaluation
 
@@ -26,6 +28,11 @@ ordinary machine only when that concrete invocation is admitted for evaluation;
 there is no separate `const machine` species. The evaluator's admission contract
 is described in [semantic evaluation](evaluation.md#invocation-admission).
 Effectful [build execution](../build/execution.md) is a separate operation.
+
+[Address exposure](counts_and_addresses.md#address-exposure) does not make a
+runtime storage address, load-resolved entry address, or interpreter identity
+a canonical constant input. An executable entry relocation is a realization
+dependency, not a license to bake evaluator addresses into `const` values.
 
 Evaluation does not make an already-typed value anonymous. Anonymous numeric
 initializers retain exact arithmetic, including rational division, until their

@@ -89,6 +89,12 @@ has not been ratified.
 state, or the correspondence evidence needed for port I/O, idle, and external
 entry. Only the assembly-dependent part of **INTERPRETED-CATHEDRAL** is blocked.
 
+[Address exposure](wiki/spec/language/counts_and_addresses.md#address-exposure)
+is settled separately: machine/reference casts to `addr`, executable-entry
+demand, and noncolliding interpreted code/storage identities. Those IDs do not
+establish native byte geometry or execute instructions. This does not select an
+answer to the assembly/environment question.
+
 **Proposed solution:** Admit a bounded set of instruction contracts against an
 explicit target-state/environment model. Preserve authority, memory, registers,
 flags, ordering, control, and faults; reject unsupported instructions explicitly.
