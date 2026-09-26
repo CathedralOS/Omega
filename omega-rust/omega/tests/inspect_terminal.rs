@@ -213,6 +213,7 @@ fn wider_ranked_countdown_inspects_without_fabricating_an_overflowed_ceiling() {
     );
 
     let output = inspect("Root::countdown", &source);
+    let lowered = lower_source("Root::countdown", &source);
     remove_fixture(source);
 
     assert!(
@@ -226,8 +227,24 @@ fn wider_ranked_countdown_inspects_without_fabricating_an_overflowed_ceiling() {
         "{stdout}"
     );
     assert!(stdout.contains("verified=true"), "{stdout}");
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("selected machine");
+    let Some(terminal_psi::TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
+        panic!("the u64 countdown must retain Natural ranking");
+    };
+    assert_eq!(components.len(), 1);
+    // The u64 rank's visit bound does not fit the scalar ceiling, so the
+    // report names the ranked component and the unbounded-rank cause.
     assert_eq!(
         unknown_fuel_reason(&stdout),
-        terminal_fixed_fuel::FixedFuelError::BoundOverflow.to_string()
+        terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+            component: terminal_verifier::control_cycle_identity(machine, &components[0]),
+            cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
+        }
+        .to_string()
     );
 }

@@ -23,7 +23,7 @@ terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor 
 "#;
 
 #[test]
-fn natural_owned_scalar_cycle_reports_verified_ranking_without_a_fixed_ceiling() {
+fn natural_owned_scalar_cycle_reports_verified_ranking_and_its_requires_capped_ceiling() {
     let source = temporary_source("natural-owned-scalar", CUSTOMER);
     let output = inspect("walk", &source);
     let lowered = lower_source("walk", &source);
@@ -65,12 +65,19 @@ fn natural_owned_scalar_cycle_reports_verified_ranking_without_a_fixed_ceiling()
             component.get()
         )]
     );
+    // The `remaining: u64 [0..=5]` requires row caps the rank with a literal,
+    // so the u64 carrier still yields a replayed fixed ceiling.
     let fuel = evidence::inspect(module, &lowered.proof_bundle)
-        .expect("Natural proof verification succeeds without a quantitative bound");
-    let evidence::FixedFuel::Unavailable(reason) = fuel else {
-        panic!("a u64-rank bound cannot fit a u64 ceiling and must stay unknown: {fuel:?}");
+        .expect("Natural proof verification succeeds");
+    let evidence::FixedFuel::Available(certificate) = fuel else {
+        panic!("the literal requires ceiling must bound the u64 rank: {fuel:?}");
     };
-    assert_eq!(unknown_fuel_reason(&stdout), reason.to_string());
+    assert!(
+        stdout.lines().any(|line| line.starts_with("fixed_fuel ")
+            && line.contains(&format!("ceiling_units={}", certificate.ceiling_units()))),
+        "inspection must print the replayed ceiling: {stdout}"
+    );
+    assert!(!stdout.contains("status=unknown"), "{stdout}");
 }
 
 #[test]
@@ -158,7 +165,7 @@ fn missing_or_forged_natural_proof_is_fatal_before_optional_fuel_analysis() {
     assert_eq!(lowered.proof_bundle.control_cycles.len(), 1);
     let valid = evidence::inspect(&lowered.semantic_module, &lowered.proof_bundle);
     assert!(
-        matches!(valid, Ok(evidence::FixedFuel::Unavailable(_))),
+        matches!(valid, Ok(evidence::FixedFuel::Available(_))),
         "{valid:?}"
     );
 
