@@ -4466,6 +4466,32 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
 
+  A second traced omission with its route mapped. `samples/cli/systems/
+  vending_machine` omits at `state graph: terminator: conditional successors:
+  parameter transfer` because `handoff` passes a structural call inline as a
+  successor argument, `report(self.make_change(100, 55), 17)`. A minimal pair
+  isolates it: hoisting the call into `let bound: Change = ...` and passing
+  `bound` **compiles**, so the consumer side is already proven end to end and
+  only the inline arrangement is missing -- the compositional-lowering case,
+  not a new producer family.
+
+  Four gates stand between, and the first two were demonstrated movable
+  before being reverted. `CheckedStructuralControlTransferSourcePlan::
+  StructuralResult` already exists for "an earlier state-local call result",
+  so the transfer route can name a planned call instead of requiring a
+  forwarded parameter. `operation_end` in `state_graph/mod.rs` deliberately
+  cuts calls at the terminator index, so the sequence's `calls` slice is
+  empty for such a state and nothing can plan the call; bumping it past a
+  transition that performs one restores the occurrence. The third gate is the
+  real one: `call_occurrences.rs` then refuses at `outer calls: unconsumed
+  nested call in a transition`, and its own comment says that is "the shape
+  the composed route still lacks" -- a call consumed by a successor argument
+  must be accounted as consumed before it may be planned. The fourth is
+  `composed_control`'s body count, which must accept an operation whose
+  statement index is the terminator's. Do the consumption accounting first;
+  admitting the call without it defeats the guard that exists to catch
+  exactly an unconsumed nested call.
+
   A traced omission that is general and cheap to reproduce. `local_data.rs`
   routes every structural local through `statement sequence: local data:
   structural call binding` and returns `None` unless the initializer is a
