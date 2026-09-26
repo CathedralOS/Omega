@@ -665,7 +665,7 @@ pub(super) struct EntryRankBound {
 /// is the argument at the target's rank-parameter position. An arrival
 /// reduces to a boundable value only when it is a machine parameter the
 /// contract caps — directly by a literal clause, through a relational
-/// chain the clauses themselves state, through an `IntegerMath*` affine
+/// chain the clauses themselves state, through an `IntegerMath*` linear
 /// bound solved over unbounded integers, or through a conditional row
 /// whose arms all bound it or whose premise the ambient rows discharge, as
 /// `contract_scope` derives; an argument threaded through another block's
@@ -808,7 +808,7 @@ fn rank_literal(term: &ScalarTerm, rank_type: IntegerType) -> Option<u128> {
 }
 
 /// One mathematical integer literal as `i128`. A magnitude beyond the
-/// signed range cannot participate in the affine solving below and leaves
+/// signed range cannot participate in the linear solving below and leaves
 /// the clause unhandled rather than misread.
 fn math_literal(literal: &IntegerMathLiteral) -> Option<i128> {
     if literal.negative() {
@@ -822,85 +822,183 @@ fn math_literal(literal: &IntegerMathLiteral) -> Option<i128> {
     }
 }
 
-/// One clause-side affine form: `(coefficient, variable, offset)` reading
-/// the term as `coefficient * variable + offset` over unbounded integers.
-/// Only the single-variable fragment solves — a product of two variables,
-/// two distinct variables in one side, or a subtraction or negative
-/// scaling that flips the coefficient into a lower-bound shape all return
-/// `None` and leave the clause contributing nothing.
-fn math_affine(term: &IntegerMathTerm) -> Option<(u128, Option<(IntegerType, ValueId)>, i128)> {
+/// One clause-side linear form `Σ coefficients·value + offset` over
+/// unbounded integers, each coefficient keyed by the carrier type and
+/// value it scales. `Add` and `Subtract` merge coefficient maps
+/// pointwise — the same value named at two widths stays two distinct
+/// unknowns, which keeps every solved bound conservative rather than
+/// mismerged — `Multiply` scales by a closed literal factor, and
+/// `ShiftLeft` scales by a literal count's power of two. A product of two
+/// nonconstant sides, a nonconstant shift count, an address-carrier
+/// value, a literal the signed accumulator cannot hold, or a coefficient
+/// merge that overflows it all return `None` and leave the clause
+/// contributing nothing rather than misreading the row.
+type LinearForm = (BTreeMap<(IntegerType, ValueId), i128>, i128);
+
+fn math_linear(term: &IntegerMathTerm) -> Option<LinearForm> {
     match term {
-        IntegerMathTerm::IntegerLiteral(literal) => Some((0, None, math_literal(literal)?)),
+        IntegerMathTerm::IntegerLiteral(literal) => Some((BTreeMap::new(), math_literal(literal)?)),
         IntegerMathTerm::MathValue { source_type, value } if !source_type.is_address() => {
-            Some((1, Some((*source_type, *value)), 0))
+            Some((BTreeMap::from([((*source_type, *value), 1)]), 0))
         }
         IntegerMathTerm::Add(left, right) => {
-            let (lc, lv, lo) = math_affine(left)?;
-            let (rc, rv, ro) = math_affine(right)?;
-            let offset = lo.checked_add(ro)?;
-            match (lv, rv) {
-                (Some(v), None) | (None, Some(v)) => Some((lc.checked_add(rc)?, Some(v), offset)),
-                (None, None) => Some((0, None, offset)),
-                (Some(v), Some(w)) if v == w => Some((lc.checked_add(rc)?, Some(v), offset)),
-                _ => None,
-            }
+            let (mut coefficients, offset) = math_linear(left)?;
+            let (added, addend) = math_linear(right)?;
+            merge_coefficients(&mut coefficients, &added, false)?;
+            Some((coefficients, offset.checked_add(addend)?))
         }
         IntegerMathTerm::Subtract(left, right) => {
-            let (lc, lv, lo) = math_affine(left)?;
-            let (rc, rv, ro) = math_affine(right)?;
-            let offset = lo.checked_sub(ro)?;
-            match (lv, rv) {
-                (Some(v), None) => Some((lc, Some(v), offset)),
-                (None, None) => Some((0, None, offset)),
-                (Some(v), Some(w)) if v == w => Some((lc.checked_sub(rc)?, Some(v), offset)),
-                _ => None,
-            }
+            let (mut coefficients, offset) = math_linear(left)?;
+            let (subtracted, subtrahend) = math_linear(right)?;
+            merge_coefficients(&mut coefficients, &subtracted, true)?;
+            Some((coefficients, offset.checked_sub(subtrahend)?))
         }
         IntegerMathTerm::Multiply(left, right) => {
-            let (lc, lv, lo) = math_affine(left)?;
-            let (rc, rv, ro) = math_affine(right)?;
-            // A nonnegative literal factor scales the other side; a
-            // negative scale flips the coefficient into a lower-bound
-            // form, and a product of two variable terms is nonlinear.
-            match (lv, rv) {
-                (Some(_), Some(_)) => None,
-                (Some(v), None) => {
-                    let scale = u128::try_from(ro).ok()?;
-                    Some((lc.checked_mul(scale)?, Some(v), lo.checked_mul(ro)?))
-                }
-                (None, Some(v)) => {
-                    let scale = u128::try_from(lo).ok()?;
-                    Some((rc.checked_mul(scale)?, Some(v), ro.checked_mul(lo)?))
-                }
-                (None, None) => Some((0, None, lo.checked_mul(ro)?)),
+            let (left_coefficients, left_offset) = math_linear(left)?;
+            let (right_coefficients, right_offset) = math_linear(right)?;
+            // Linear only while one side is closed; the closed side's
+            // constant scales the other. A negative factor legitimately
+            // flips coefficients — the bound extraction below reads each
+            // sign through the variable's own carrier extreme.
+            match (left_coefficients.is_empty(), right_coefficients.is_empty()) {
+                (false, false) => None,
+                (true, _) => scale_linear(right_coefficients, right_offset, left_offset),
+                (false, true) => scale_linear(left_coefficients, left_offset, right_offset),
             }
         }
         IntegerMathTerm::ShiftLeft { value, count } => {
-            let (vc, vv, vo) = math_affine(value)?;
-            let (0, None, shift) = math_affine(count)? else {
+            let (coefficients, offset) = math_linear(value)?;
+            let (count_coefficients, count_offset) = math_linear(count)?;
+            if !count_coefficients.is_empty() {
                 return None;
-            };
-            let shift = u32::try_from(shift).ok()?;
-            let factor = 2u128.checked_pow(shift)?;
-            Some((
-                vc.checked_mul(factor)?,
-                vv,
-                vo.checked_mul(i128::try_from(factor).ok()?)?,
-            ))
+            }
+            let shift = u32::try_from(count_offset).ok()?;
+            let factor = i128::try_from(2u128.checked_pow(shift)?).ok()?;
+            scale_linear(coefficients, offset, factor)
         }
         _ => None,
     }
 }
 
-/// The terminal or transfer edge `left OP right` contributes over
+/// Merge `added`'s coefficients pointwise into `coefficients` — negated
+/// for a subtraction — dropping entries that cancel to zero so the form
+/// keeps only live variables.
+fn merge_coefficients(
+    coefficients: &mut BTreeMap<(IntegerType, ValueId), i128>,
+    added: &BTreeMap<(IntegerType, ValueId), i128>,
+    negate: bool,
+) -> Option<()> {
+    for (&key, &coefficient) in added {
+        let coefficient = if negate {
+            coefficient.checked_neg()?
+        } else {
+            coefficient
+        };
+        let merged = coefficients
+            .get(&key)
+            .copied()
+            .unwrap_or(0)
+            .checked_add(coefficient)?;
+        if merged == 0 {
+            coefficients.remove(&key);
+        } else {
+            coefficients.insert(key, merged);
+        }
+    }
+    Some(())
+}
+
+/// Scale a linear form by a closed factor: coefficients and offset all
+/// multiply, and a zero factor collapses the form to a constant.
+fn scale_linear(
+    coefficients: BTreeMap<(IntegerType, ValueId), i128>,
+    offset: i128,
+    factor: i128,
+) -> Option<LinearForm> {
+    if factor == 0 {
+        return Some((BTreeMap::new(), 0));
+    }
+    let mut scaled = BTreeMap::new();
+    for (key, coefficient) in coefficients {
+        scaled.insert(key, coefficient.checked_mul(factor)?);
+    }
+    Some((scaled, offset.checked_mul(factor)?))
+}
+
+/// The `left - right` difference form `Σ coefficient·value + k` combining
+/// both sides' linear forms; `strict` rewrites `<` as `<= -1` by adding
+/// to `k`, so an ordering always reads `Σ coefficient·value + k <= 0` and
+/// an equality `Σ coefficient·value + k = 0`.
+fn math_difference(
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+    strict: i128,
+) -> Option<LinearForm> {
+    let (mut coefficients, left_offset) = math_linear(left)?;
+    let (right_coefficients, right_offset) = math_linear(right)?;
+    merge_coefficients(&mut coefficients, &right_coefficients, true)?;
+    Some((
+        coefficients,
+        left_offset.checked_sub(right_offset)?.checked_add(strict)?,
+    ))
+}
+
+/// A carrier's inclusive `[minimum, maximum]` inside the signed
+/// accumulator, or `None` when the range does not fit — a variable whose
+/// extreme cannot be represented keeps the bound that needed it
+/// uncomputed rather than approximated.
+fn integer_range(source_type: IntegerType) -> Option<(i128, i128)> {
+    let minimum = match source_type.minimum_value() {
+        IntegerValue::Signed(value) => value,
+        IntegerValue::Unsigned(value) => i128::try_from(value).ok()?,
+    };
+    let maximum = match source_type.maximum_value() {
+        IntegerValue::Signed(value) => value,
+        IntegerValue::Unsigned(value) => i128::try_from(value).ok()?,
+    };
+    Some((minimum, maximum))
+}
+
+/// The extreme `Σ coefficient·value` reaches when every non-`excluded`
+/// variable sits at the carrier-range end that minimizes (`high` false)
+/// or maximizes (`high` true) the sum: a positive coefficient minimizes
+/// at its carrier minimum and maximizes at its maximum, and a negative
+/// coefficient's signs flip those ends. `None` when a needed range or a
+/// running product cannot be represented — the bound that needed it goes
+/// unwritten rather than guessed.
+fn collapsed_extreme(
+    coefficients: &BTreeMap<(IntegerType, ValueId), i128>,
+    excluded: &[(IntegerType, ValueId)],
+    high: bool,
+) -> Option<i128> {
+    let mut total = 0_i128;
+    for (&key, &coefficient) in coefficients {
+        if excluded.contains(&key) {
+            continue;
+        }
+        let (minimum, maximum) = integer_range(key.0)?;
+        let extreme = if (coefficient > 0) != high {
+            minimum
+        } else {
+            maximum
+        };
+        total = total.checked_add(coefficient.checked_mul(extreme)?)?;
+    }
+    Some(total)
+}
+
+/// The terminals and transfer edges `left OP right` contributes over
 /// unbounded integer math, where `strict` 0 reads `<=` and 1 reads `<`.
-/// `s*x + o (+ strict) <= k` caps `x` at `(k - o - strict) / s` floored —
-/// with `s > 0` and a nonnegative numerator, else the row bounds `x` from
-/// below or not at all and contributes nothing. `x + o (+ strict) <= y +
-/// r` transfers `y`'s ceiling when `o - r + strict` is nonnegative —
-/// `x + c <= y` — while a negative constant is a slack relation `x <= y +
-/// d` the edge model cannot express, so the clause adds nothing. Floors,
-/// multi-variable rows, and closed comparisons contribute nothing here.
+/// On the difference `Σ coefficient·value + k <= 0` each
+/// positive-coefficient variable caps at `(-k - low(rest)) / coefficient`
+/// floored — the remaining terms sit at the carrier extreme that leaves
+/// the most room, so `x + w <= k` still bounds `x` once `w`'s minimum is
+/// priced in and `2*x <= y` caps `x` at half of `y`'s carrier maximum.
+/// Each `+1`/`-1` coefficient pair is the transfer edge
+/// `x + (k + low(rest)) <= y` while that cost stays nonnegative —
+/// `x <= y + 2` is slack the edge model cannot express and drops, and a
+/// bound whose collapse cannot be computed stays unwritten rather than
+/// guessed. Nonlinear rows contribute nothing.
 fn math_order_fragments(
     left: &IntegerMathTerm,
     right: &IntegerMathTerm,
@@ -908,94 +1006,105 @@ fn math_order_fragments(
     support: ClauseSupport,
     scope: &mut ClauseScope,
 ) {
-    let Some((lc, lv, lo)) = math_affine(left) else {
-        return;
-    };
-    let Some((rc, rv, ro)) = math_affine(right) else {
-        return;
-    };
     let Ok(strict) = i128::try_from(strict) else {
         return;
     };
-    match (lv, rv) {
-        (Some((_, x)), None) if lc > 0 && rc == 0 => {
-            let Some(numerator) = ro.checked_sub(lo).and_then(|n| n.checked_sub(strict)) else {
-                return;
-            };
-            if numerator < 0 {
-                return;
-            }
-            let Ok(divisor) = i128::try_from(lc) else {
-                return;
-            };
-            let Ok(bound) = u128::try_from(numerator / divisor) else {
-                return;
-            };
-            scope.terminals.push((x, bound, support));
+    let Some((coefficients, k)) = math_difference(left, right, strict) else {
+        return;
+    };
+    for (&key, &coefficient) in &coefficients {
+        if coefficient <= 0 {
+            continue;
         }
-        (Some((_, x)), Some((_, y))) if lc == 1 && rc == 1 => {
-            let Some(cost) = lo.checked_sub(ro).and_then(|cost| cost.checked_add(strict)) else {
-                return;
+        let Some(numerator) = collapsed_extreme(&coefficients, &[key], false)
+            .and_then(|rest| k.checked_neg().and_then(|n| n.checked_sub(rest)))
+        else {
+            continue;
+        };
+        if numerator < 0 {
+            continue;
+        }
+        let Ok(bound) = u128::try_from(numerator / coefficient) else {
+            continue;
+        };
+        scope.terminals.push((key.1, bound, support.clone()));
+    }
+    for (&x_key, &x_coefficient) in &coefficients {
+        if x_coefficient != 1 {
+            continue;
+        }
+        for (&y_key, &y_coefficient) in &coefficients {
+            if y_coefficient != -1 {
+                continue;
+            }
+            let Some(cost) = collapsed_extreme(&coefficients, &[x_key, y_key], false)
+                .and_then(|rest| k.checked_add(rest))
+            else {
+                continue;
             };
             let Ok(cost) = u128::try_from(cost) else {
-                return;
+                continue;
             };
-            scope.edges.push((x, y, cost, support));
+            scope.edges.push((x_key.1, y_key.1, cost, support.clone()));
         }
-        _ => {}
     }
 }
 
-/// `left = right` over unbounded integer math. An affine-literal equality
-/// `s*x + o = k` fixes `x` at `(k - o) / s` when the division is exact — a
-/// terminal ceiling; an inexact or negative quotient caps nothing here
-/// (the contradiction check decides whether the row can hold at all). `x +
-/// o = y + r` states both `x + (o - r) = y` and `y + (r - o) = x`: each
-/// direction yields a transfer edge only while its constant is
-/// nonnegative — equal offsets keep the bidirectional zero-cost pair of
-/// the scalar equality clause, otherwise the slack direction is dropped
-/// rather than approximated.
+/// `left = right` over unbounded integer math. On the difference
+/// `Σ coefficient·value + k = 0` each variable solves
+/// `coefficient·x = -k - Σrest`, so a positive coefficient caps `x` at
+/// `(-k - low(rest)) / coefficient` floored and a negative one at
+/// `(k + high(rest)) / -coefficient` floored — a bound rather than an
+/// exact quotient, because the remaining variables absorb the residue.
+/// Each `+1`/`-1` pair contributes the direction its remaining terms
+/// admit: `x = t - k - Σrest` yields `x + (k + low(rest)) <= t`, and the
+/// bound variable solved off the right side — `-x + t = -k - Σrest` —
+/// yields `x - (k + high(rest)) <= t`, each only while its cost stays
+/// nonnegative. `x + w = y` therefore keeps the `x <= y` direction and
+/// drops `y <= x`, since `w` can grow `y` past `x`.
 fn math_equal_fragments(
     left: &IntegerMathTerm,
     right: &IntegerMathTerm,
     support: ClauseSupport,
     scope: &mut ClauseScope,
 ) {
-    let Some((lc, lv, lo)) = math_affine(left) else {
+    let Some((coefficients, k)) = math_difference(left, right, 0) else {
         return;
     };
-    let Some((rc, rv, ro)) = math_affine(right) else {
-        return;
-    };
-    let exact = |coefficient: u128, offset: i128, literal: i128| -> Option<u128> {
-        let Ok(divisor) = i128::try_from(coefficient) else {
-            return None;
+    for (&key, &coefficient) in &coefficients {
+        let Some(numerator) = (if coefficient > 0 {
+            collapsed_extreme(&coefficients, &[key], false)
+                .and_then(|rest| k.checked_neg().and_then(|n| n.checked_sub(rest)))
+        } else {
+            collapsed_extreme(&coefficients, &[key], true).and_then(|rest| k.checked_add(rest))
+        }) else {
+            continue;
         };
-        let difference = literal.checked_sub(offset)?;
-        if difference < 0 || difference % divisor != 0 {
-            return None;
+        if numerator < 0 {
+            continue;
         }
-        u128::try_from(difference / divisor).ok()
-    };
-    match (lv, rv) {
-        (Some((_, x)), None) if lc > 0 && rc == 0 => {
-            if let Some(bound) = exact(lc, lo, ro) {
-                scope.terminals.push((x, bound, support));
-            }
+        let Ok(divisor) = i128::try_from(coefficient.unsigned_abs()) else {
+            continue;
+        };
+        let Ok(bound) = u128::try_from(numerator / divisor) else {
+            continue;
+        };
+        scope.terminals.push((key.1, bound, support.clone()));
+    }
+    for (&x_key, &x_coefficient) in &coefficients {
+        for (&y_key, &y_coefficient) in &coefficients {
+            let cost = match (x_coefficient, y_coefficient) {
+                (1, -1) => collapsed_extreme(&coefficients, &[x_key, y_key], false)
+                    .and_then(|rest| k.checked_add(rest)),
+                (-1, 1) => collapsed_extreme(&coefficients, &[x_key, y_key], true)
+                    .and_then(|rest| k.checked_neg().and_then(|n| n.checked_sub(rest))),
+                _ => None,
+            };
+            let Some(cost) = cost.and_then(|cost| u128::try_from(cost).ok()) else {
+                continue;
+            };
+            scope.edges.push((x_key.1, y_key.1, cost, support.clone()));
         }
-        (None, Some((_, y))) if rc > 0 && lc == 0 => {
-            if let Some(bound) = exact(rc, ro, lo) {
-                scope.terminals.push((y, bound, support));
-            }
-        }
-        (Some((_, x)), Some((_, y))) if lc == 1 && rc == 1 => {
-            for (from, to, difference) in [(x, y, lo.checked_sub(ro)), (y, x, ro.checked_sub(lo))] {
-                if let Some(cost) = difference.and_then(|d| u128::try_from(d).ok()) {
-                    scope.edges.push((from, to, cost, support.clone()));
-                }
-            }
-        }
-        _ => {}
     }
 }
 
@@ -1076,8 +1185,8 @@ fn resolve_scope<'a>(
 /// Flatten the content `proposition` contributes when it holds under
 /// `support`. A `Conjunction` dissolves into its children; each leaf seeds
 /// a ceiling terminal or a relational edge — the scalar comparisons
-/// directly, the `IntegerMath*` orderings through `math_affine`'s
-/// single-variable affine fragment — and joins `leaves` for verbatim
+/// directly, the `IntegerMath*` orderings through `math_linear`'s
+/// signed-coefficient linear forms — and joins `leaves` for verbatim
 /// premise discharge; a `Disjunction` or `Implication` is a conditional
 /// form and defers until this level's conjunctive ceilings settle. A
 /// literal on the left of `<=` bounds its parameter from below, a
@@ -1323,7 +1432,7 @@ fn resolve_disjunction<'a>(
 /// when the context proves it. An assumed verbatim leaf carries its own
 /// rows, `Truth` needs none, a conjunction needs every child discharged, a
 /// disjunction needs one achieving child, and a nested implication is
-/// shown by its conclusion alone. A relational leaf — scalar or the affine
+/// shown by its conclusion alone. A relational leaf — scalar or the linear
 /// `IntegerMath*` fragment — is proved either by the settled ceilings —
 /// `v <= k` holds when `v`'s derived ceiling fits — or by a chain of
 /// transfer edges reaching the other side with summed strictness covering
@@ -1387,12 +1496,15 @@ fn premise_support(
 
 /// Discharge an `IntegerMath*` ordering premise `left <= right`
 /// (`strict` false) or `left < right` (`strict` true) under the settled
-/// scope. `s*x + o (+ strict) <= k` holds when `x`'s derived ceiling
-/// already fits — the bound's achieving rows discharge it. `x + o
-/// (+ strict) <= y + r` holds when a transfer chain reaches `y` with
-/// summed strictness at least `o - r + strict`. Any other shape — a
-/// literal on the left needing a floor, a multi-variable or nonlinear
-/// side — stays undischarged rather than guessed.
+/// scope. On the difference `Σ coefficient·value + k <= 0` the row holds
+/// when the worst valuation the context still admits already fits: every
+/// positive term at its derived ceiling — or at its carrier maximum when
+/// no clause bounded it — every negative term at its carrier minimum,
+/// summing `Σ_{d>0} d·ceiling + Σ_{d<0} d·minimum + k <= 0` and binding
+/// the achieving rows of each consulted ceiling. A lone `x - y` pair
+/// alternatively discharges through a transfer chain reaching `y` with
+/// summed cost at least `k`. Anything unsolved stays undischarged rather
+/// than guessed.
 fn math_premise_support(
     left: &IntegerMathTerm,
     right: &IntegerMathTerm,
@@ -1400,63 +1512,85 @@ fn math_premise_support(
     scope: &ClauseScope,
     ceilings: &BTreeMap<ValueId, u128>,
 ) -> Option<ClauseSupport> {
-    let (lc, lv, lo) = math_affine(left)?;
-    let (rc, rv, ro) = math_affine(right)?;
-    match (lv, rv) {
-        (Some((_, x)), None) if lc > 0 && rc == 0 => {
-            let bound = i128::try_from(*ceilings.get(&x)?).ok()?;
-            let reached = i128::try_from(lc)
-                .ok()?
-                .checked_mul(bound)?
-                .checked_add(lo)?;
-            let fits = if strict { reached < ro } else { reached <= ro };
-            if !fits {
-                return None;
+    let (coefficients, k) = math_difference(left, right, i128::from(strict))?;
+    if coefficients.len() == 2 {
+        let positive = coefficients
+            .iter()
+            .find(|(_, coefficient)| **coefficient == 1)
+            .map(|(key, _)| key);
+        let negative = coefficients
+            .iter()
+            .find(|(_, coefficient)| **coefficient == -1)
+            .map(|(key, _)| key);
+        if let (Some(&(_, from)), Some(&(_, to))) = (positive, negative) {
+            let needed = u128::try_from(k).unwrap_or(0);
+            if let Some(support) = relation_path_support(from, to, needed, scope) {
+                return Some(support);
             }
-            let mut visited = BTreeSet::from([x]);
-            justify_requires_ceiling(x, *ceilings.get(&x)?, ceilings, scope, &mut visited)
         }
-        (Some((_, x)), Some((_, y))) if lc == 1 && rc == 1 => {
-            let needed = lo.checked_sub(ro)?.checked_add(i128::from(strict))?.max(0);
-            relation_path_support(x, y, u128::try_from(needed).ok()?, scope)
-        }
-        (None, None) => {
-            let holds = if strict { lo < ro } else { lo <= ro };
-            holds.then(ClauseSupport::new)
-        }
-        _ => None,
     }
+    let mut worst = k;
+    let mut support = ClauseSupport::new();
+    for (&(source_type, value), &coefficient) in &coefficients {
+        let term = if coefficient > 0 {
+            match ceilings.get(&value) {
+                Some(&bound) => {
+                    let mut visited = BTreeSet::from([value]);
+                    support.extend(justify_requires_ceiling(
+                        value,
+                        bound,
+                        ceilings,
+                        scope,
+                        &mut visited,
+                    )?);
+                    coefficient.checked_mul(i128::try_from(bound).ok()?)?
+                }
+                None => coefficient.checked_mul(integer_range(source_type)?.1)?,
+            }
+        } else {
+            coefficient.checked_mul(integer_range(source_type)?.0)?
+        };
+        worst = worst.checked_add(term)?;
+    }
+    (worst <= 0).then_some(support)
 }
 
-/// Discharge an `IntegerMathEqual` premise: `x + o = y + r` needs a
-/// transfer chain each way — `x + (o - r) <= y` and `y + (r - o) <= x`.
-/// An equality on a literal needs an exact value the ceiling derivation
-/// never proves from above, so only the verbatim-leaf route discharges
-/// it.
+/// Discharge an `IntegerMathEqual` premise. A lone `x - y` pair needs a
+/// transfer chain each way — `x + k <= y` and `y - k <= x` — and a
+/// constant-only row decides outright. An equality on a literal needs an
+/// exact value the ceiling derivation never proves from above, so wider
+/// rows stay undischarged (a verbatim restatement already matched in
+/// `premise_support`).
 fn math_equal_premise_support(
     left: &IntegerMathTerm,
     right: &IntegerMathTerm,
     scope: &ClauseScope,
 ) -> Option<ClauseSupport> {
-    let (lc, lv, lo) = math_affine(left)?;
-    let (rc, rv, ro) = math_affine(right)?;
-    let (Some((_, x)), Some((_, y))) = (lv, rv) else {
-        return None;
-    };
-    if lc != 1 || rc != 1 {
-        return None;
+    let (coefficients, k) = math_difference(left, right, 0)?;
+    if coefficients.is_empty() {
+        return (k == 0).then_some(ClauseSupport::new());
     }
-    let mut support = ClauseSupport::new();
-    for (from, to, difference) in [(x, y, lo.checked_sub(ro)), (y, x, ro.checked_sub(lo))] {
-        let needed = difference?.max(0);
-        support.extend(relation_path_support(
-            from,
-            to,
-            u128::try_from(needed).ok()?,
-            scope,
-        )?);
+    if coefficients.len() == 2 {
+        let positive = coefficients
+            .iter()
+            .find(|(_, coefficient)| **coefficient == 1)
+            .map(|(key, _)| key);
+        let negative = coefficients
+            .iter()
+            .find(|(_, coefficient)| **coefficient == -1)
+            .map(|(key, _)| key);
+        if let (Some(&(_, x)), Some(&(_, y))) = (positive, negative) {
+            let mut support = ClauseSupport::new();
+            for (from, to, needed) in [
+                (x, y, u128::try_from(k).unwrap_or(0)),
+                (y, x, u128::try_from(k.checked_neg()?).unwrap_or(0)),
+            ] {
+                support.extend(relation_path_support(from, to, needed, scope)?);
+            }
+            return Some(support);
+        }
     }
-    Some(support)
+    None
 }
 
 /// Discharge one relational leaf `left <= right` (`cost` 0) or `left <
@@ -1675,108 +1809,61 @@ enum MathRelation {
 
 /// Whether `left OP right` over unbounded integer math admits no
 /// valuation — the contradiction must be visible without assuming any
-/// ambient fact. A false closed comparison is vacuous outright. A
-/// variable side over an unsigned carrier bottoms out at its offset:
-/// `s*x + o <= k` needs `o <= k`, `s*x + o < k` needs `o < k`, and
-/// `s*x + o = k` needs `(k - o)` nonnegative, divisible by `s`, and
-/// inside the carrier's range; a variable on the right instead top-outs
-/// at `s*max + o`, which `k` must not exceed (`<=`) or reach (`<`), and
-/// equality solves the same quotient. Anything else — a term that does
-/// not solve to the affine fragment, a two-variable row, a coefficient
-/// the arithmetic cannot lift — stays live rather than guessed.
+/// ambient fact. On the difference `Σ coefficient·value + k` an ordering
+/// is impossible once the smallest value its variable side can take
+/// already fails the row — `low + k > 0` for `<=`, `low + k + 1 > 0` for
+/// `<` — and an equality is impossible when zero falls outside the form's
+/// `[low + k, high + k]` reach or when `-k` misses the coefficients'
+/// common divisor. A form that does not solve linearly, or a carrier
+/// range the accumulator cannot hold, stays live rather than guessed.
 fn math_unsatisfiable(left: &IntegerMathTerm, right: &IntegerMathTerm, kind: MathRelation) -> bool {
-    let Some((lc, lv, lo)) = math_affine(left) else {
+    let Some((coefficients, k)) = math_difference(left, right, 0) else {
         return false;
     };
-    let Some((rc, rv, ro)) = math_affine(right) else {
+    let Some(low) = collapsed_extreme(&coefficients, &[], false) else {
         return false;
     };
-    let range = |source_type: IntegerType| -> Option<(i128, i128)> {
-        let minimum = match source_type.minimum_value() {
-            IntegerValue::Signed(v) => v,
-            IntegerValue::Unsigned(v) => i128::try_from(v).ok()?,
-        };
-        let maximum = match source_type.maximum_value() {
-            IntegerValue::Signed(v) => v,
-            IntegerValue::Unsigned(v) => i128::try_from(v).ok()?,
-        };
-        Some((minimum, maximum))
+    let Some(high) = collapsed_extreme(&coefficients, &[], true) else {
+        return false;
     };
-    // Whether `value` can solve `s*value + o = k` inside `source_type`.
-    let equality_unsatisfiable =
-        |coefficient: u128, offset: i128, literal: i128, source_type: IntegerType| -> bool {
-            let Some(difference) = literal.checked_sub(offset) else {
+    match kind {
+        MathRelation::LessOrEqual => low.checked_add(k).is_some_and(|worst| worst > 0),
+        MathRelation::LessThan => low
+            .checked_add(k)
+            .and_then(|worst| worst.checked_add(1))
+            .is_some_and(|worst| worst > 0),
+        MathRelation::Equal => {
+            if low.checked_add(k).is_some_and(|worst| worst > 0)
+                || high.checked_add(k).is_some_and(|worst| worst < 0)
+            {
                 return true;
-            };
-            let Ok(divisor) = i128::try_from(coefficient) else {
+            }
+            if coefficients.is_empty() {
+                return k != 0;
+            }
+            let Some(divisor) = coefficients
+                .values()
+                .map(|coefficient| coefficient.unsigned_abs())
+                .reduce(greatest_common_divisor)
+                .and_then(|divisor| i128::try_from(divisor).ok())
+            else {
                 return false;
             };
-            if divisor <= 0 || difference % divisor != 0 {
-                return true;
-            }
-            let quotient = difference / divisor;
-            let Some((minimum, maximum)) = range(source_type) else {
-                return false;
-            };
-            quotient < minimum || quotient > maximum
-        };
-    match (lv, rv) {
-        (None, None) => match kind {
-            MathRelation::LessOrEqual => lo > ro,
-            MathRelation::LessThan => lo >= ro,
-            MathRelation::Equal => lo != ro,
-        },
-        (Some((source_type, _)), None) if lc > 0 && rc == 0 => match kind {
-            // `x >= min` bottoms the side out at `s*min + o`; an unsigned
-            // carrier's minimum is zero.
-            MathRelation::LessOrEqual => {
-                let Some((minimum, _)) = range(source_type) else {
-                    return false;
-                };
-                i128::try_from(lc)
-                    .ok()
-                    .and_then(|s| s.checked_mul(minimum))
-                    .and_then(|m| m.checked_add(lo))
-                    .is_some_and(|minimum_side| ro < minimum_side)
-            }
-            MathRelation::LessThan => {
-                let Some((minimum, _)) = range(source_type) else {
-                    return false;
-                };
-                i128::try_from(lc)
-                    .ok()
-                    .and_then(|s| s.checked_mul(minimum))
-                    .and_then(|m| m.checked_add(lo))
-                    .is_some_and(|minimum_side| ro <= minimum_side)
-            }
-            MathRelation::Equal => equality_unsatisfiable(lc, lo, ro, source_type),
-        },
-        (None, Some((source_type, _))) if rc > 0 && lc == 0 => match kind {
-            // `s*y + o` tops out at `s*max + o`.
-            MathRelation::LessOrEqual => {
-                let Some((_, maximum)) = range(source_type) else {
-                    return false;
-                };
-                i128::try_from(rc)
-                    .ok()
-                    .and_then(|s| s.checked_mul(maximum))
-                    .and_then(|m| m.checked_add(ro))
-                    .is_some_and(|maximum_side| lo > maximum_side)
-            }
-            MathRelation::LessThan => {
-                let Some((_, maximum)) = range(source_type) else {
-                    return false;
-                };
-                i128::try_from(rc)
-                    .ok()
-                    .and_then(|s| s.checked_mul(maximum))
-                    .and_then(|m| m.checked_add(ro))
-                    .is_some_and(|maximum_side| lo >= maximum_side)
-            }
-            MathRelation::Equal => equality_unsatisfiable(rc, ro, lo, source_type),
-        },
-        _ => false,
+            k % divisor != 0
+        }
     }
+}
+
+/// Euclid's algorithm over magnitudes; `-k` must divide it for
+/// `Σ coefficient·value + k = 0` to admit any valuation at all.
+fn greatest_common_divisor(left: u128, right: u128) -> u128 {
+    let (mut a, mut b) = (left, right);
+    while b != 0 {
+        let remainder = a % b;
+        a = b;
+        b = remainder;
+    }
+    a
 }
 
 /// The scope's ceiling on `parameter` and the contract rows achieving it.
