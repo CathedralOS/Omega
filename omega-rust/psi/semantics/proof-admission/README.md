@@ -9,6 +9,12 @@ normalization, and producer-visible witness checks. [proof.rs](src/proof.rs)
 owns certificate admission; its traversal uses explicit pending work rather than
 the host call stack at accepted proof depths.
 
+[admission/denotation.rs](src/admission/denotation.rs) owns supplied denotation
+certificate checking: select the recorded predicate conversion, then replay the
+certificate against the receiver's goal and premises.
+[certificate_search.rs](src/certificate_search.rs) separately owns bounded
+producer search and candidate construction.
+
 [closed_integer.rs](src/integer_rules/closed_integer.rs) owns exact signed mathematical integer
 denotation shared by primitive judgments and execution-time closed guard checks.
 It does not truncate to a runtime carrier or admit a new proof rule. Open values

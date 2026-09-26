@@ -90,6 +90,8 @@ const PROOF_ADMISSION_CLOSED_INTEGER_SOURCE: &[u8] =
 const PROOF_ADMISSION_PROOF_SOURCE: &[u8] = include_bytes!("../../../proof-admission/src/proof.rs");
 const PROOF_ADMISSION_CERTIFICATE_SEARCH_SOURCE: &[u8] =
     include_bytes!("../../../proof-admission/src/certificate_search.rs");
+const PROOF_ADMISSION_DENOTATION_CHECKER_SOURCE: &[u8] =
+    include_bytes!("../../../proof-admission/src/admission/denotation.rs");
 const PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE: &[u8] =
     include_bytes!("../../../proof-admission/src/proof/order_discreteness.rs");
 const PROOF_ADMISSION_STRICT_ORDER_SOURCE: &[u8] =

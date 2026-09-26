@@ -505,7 +505,7 @@ rows! {
         "a machine's declared entry requirements over typed invocation formals, including integer-order and order-chain requirements and complements of supported scalar crash predicates",
         "entry requirements independently prove published coverage or disprove every uncovered invocation alternative without rewriting retained routes; exact forwarding and opposite-predicate formation remain trusted Rust decisions, while producer stages emit certificate supplies for verifier-reconstructed goals and consumers only re-decide supplied nodes through the certificate checker, whose covered decisions the mathematical-core kernel re-decides",
         &["formation:crash-validation", "formation:mathematical-core"],
-        &[pa!( "certificate_search.rs"), pa!( "certificate_search/integer_order.rs"), pa!( "certificate_search/order_chain.rs"), tv!( "verification/reconstruction/crash_obligations.rs"), tv!( "verification.rs")]
+        &[pa!( "admission/denotation.rs"), pa!( "certificate_search.rs"), pa!( "certificate_search/integer_order.rs"), pa!( "certificate_search/order_chain.rs"), tv!( "verification/reconstruction/crash_obligations.rs"), tv!( "verification.rs")]
     );
     FORM_BLOCK_INVARIANTS => (
         "formation:scalar-block-invariants",
