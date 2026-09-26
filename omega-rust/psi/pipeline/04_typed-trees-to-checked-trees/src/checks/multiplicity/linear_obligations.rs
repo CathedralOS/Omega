@@ -4,7 +4,7 @@
 
 use super::borrowed_windows;
 use crate::checks::multiplicity::linear_validation::{
-    event_statement_index, validate_linear_permission_events,
+    event_statement_index, validate_linear_permission_events_with_incoming_guards,
 };
 use crate::checks::multiplicity::permission_events::record_permission_events_with_incoming_guards;
 use crate::checks::multiplicity::projected_affine;
@@ -119,7 +119,7 @@ pub(crate) fn check_linear_obligations(
 ) -> Result<(), Vec<Diagnostic>> {
     validate_partial_moves(program, facts)?;
     record_permission_events_with_incoming_guards(program, facts, incoming_guards)?;
-    validate_linear_permission_events(program, facts)
+    validate_linear_permission_events_with_incoming_guards(program, facts, incoming_guards)
 }
 
 /// A nominal cleanup machine is entitled to one whole valid value. Reject a

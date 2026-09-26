@@ -3,6 +3,8 @@
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+
+use crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceNode};
@@ -33,6 +35,20 @@ pub fn slice_tail_strictly_decreases(
     argument: ExpressionHandle,
     parameter: &StateParameter,
 ) -> bool {
+    slice_tail_strictly_decreases_with_bound_lookup(program, guard, argument, parameter, &mut None)
+}
+
+/// `slice_tail_strictly_decreases` with the bound index supplied by the
+/// caller: the lookup scans the whole program once, and a termination pass
+/// probes this predicate per guarded self-call, so each pass fills the cell
+/// at most once instead of once per call site.
+pub fn slice_tail_strictly_decreases_with_bound_lookup<'p>(
+    program: &'p TypedTrees,
+    guard: ExpressionHandle,
+    argument: ExpressionHandle,
+    parameter: &StateParameter,
+    bound_lookup: &mut Option<ImmutableBoundLookup<'p>>,
+) -> bool {
     if !parameter.symbol.is_valid() || !parameter_is_slice(program, parameter) {
         return false;
     }
@@ -50,12 +66,9 @@ pub fn slice_tail_strictly_decreases(
     }
     // The bound index scans the whole program once; the cheap shape gates
     // above reject most selectors before it is needed.
-    let mut bound_lookup = None;
     let Some(start) = tail_bound(
         program,
-        bound_lookup.get_or_insert_with(|| {
-            crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program)
-        }),
+        bound_lookup.get_or_insert_with(|| ImmutableBoundLookup::new(program)),
         range.start,
     ) else {
         return false;
@@ -93,9 +106,7 @@ pub fn slice_tail_strictly_decreases(
         && names_parameter(program, length.receiver, parameter)
         && tail_bound(
             program,
-            bound_lookup.get_or_insert_with(|| {
-                crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program)
-            }),
+            bound_lookup.get_or_insert_with(|| ImmutableBoundLookup::new(program)),
             binary.right,
         )
         .is_some_and(|bound| bound_ordering_at_least(program, bound, start, bonus))
