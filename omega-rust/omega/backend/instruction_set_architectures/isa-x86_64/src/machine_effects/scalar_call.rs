@@ -20,7 +20,7 @@ pub(super) fn declaration(
         .iter()
         .find(|row| row.key == constraint)
         .expect("canonical x86-64 catalog contains its scalar-call constraint");
-    let physical = crate::x86_64_physical_register_model();
+    let physical = crate::x86_64_physical_register_model_ref();
     let stack_pointer = physical
         .view_named("rsp")
         .expect("canonical x86-64 model declares rsp")

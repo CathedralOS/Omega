@@ -141,7 +141,22 @@ impl ModelBuilder {
     }
 }
 
+/// The x86-64 physical register model, built once per process. The model is
+/// a fixed table; building it formats every register name and fills its name
+/// maps, and effect declarations and encoders asked for it per instruction
+/// form.
+pub fn x86_64_physical_register_model_ref() -> &'static PhysicalRegisterModel {
+    static MODEL: std::sync::OnceLock<PhysicalRegisterModel> = std::sync::OnceLock::new();
+    MODEL.get_or_init(build_x86_64_physical_register_model)
+}
+
+/// An owned copy of [`x86_64_physical_register_model_ref`] for callers that
+/// consume or edit the model.
 pub fn x86_64_physical_register_model() -> PhysicalRegisterModel {
+    x86_64_physical_register_model_ref().clone()
+}
+
+fn build_x86_64_physical_register_model() -> PhysicalRegisterModel {
     let mut builder = ModelBuilder::new();
     let registers = [
         ("rax", "eax", "ax", "al", Some("ah")),

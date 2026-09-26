@@ -526,7 +526,7 @@ fn alternative(
 }
 
 fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncodedEffects {
-    let physical = crate::x86_64_physical_register_model();
+    let physical = crate::x86_64_physical_register_model_ref();
     let units = |name: &str| {
         physical
             .view_named(name)
