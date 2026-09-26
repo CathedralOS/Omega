@@ -805,6 +805,20 @@ pub(crate) fn refine_published_crash_routes(
         exact_integer_casts,
     );
     let mut surviving = Vec::new();
+    // Ordinary argument lists omit self. Keep formal positions aligned without
+    // inventing receiver-entry custody; a guard that reads self must still use
+    // the existing receiver-aware evidence paths.
+    let mut ordinary_arguments = arguments.iter().copied();
+    let operands = target_parameters
+        .iter()
+        .map(|parameter| {
+            if parameter.is_self {
+                ExpressionHandle::invalid()
+            } else {
+                ordinary_arguments.next().unwrap_or_default()
+            }
+        })
+        .collect::<Vec<_>>();
     for bucket in buckets {
         let mut guards = Vec::new();
         for guard in bucket.alternative_guards() {
@@ -836,6 +850,21 @@ pub(crate) fn refine_published_crash_routes(
                                 })
                         })
                         .unwrap_or(false);
+                    if builtin_meaning
+                        && crate::facts::operator_crashes::statement_entry_route_is_false(
+                            program,
+                            flow,
+                            semantic,
+                            state_flow.machine_symbol,
+                            state_flow.state_symbol,
+                            call_flow.statement_index,
+                            target_parameters,
+                            &operands,
+                            expression,
+                        )
+                    {
+                        continue;
+                    }
                     let predicate = crash_predicate_from_expression(
                         program,
                         expression,

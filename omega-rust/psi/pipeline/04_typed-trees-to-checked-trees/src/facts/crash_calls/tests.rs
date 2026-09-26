@@ -30,6 +30,75 @@ fn integer_comparison(
 }
 
 #[test]
+fn boundary_token_calls_discharge_only_preserved_entry_premises() {
+    for body in ["1 == value", "Comparison::equal(1, value)"] {
+        let source = format!(
+            "data Comparison {{}}
+             boundary machine == Comparison::equal(left: i32, right: i32) -> bool
+             crashes Trap !(right >= 0);
+             pub machine safe(mut value: i32) -> bool
+             requires value >= 0 {{ {body} }}"
+        );
+        let checked = checked_program_result(&source)
+            .expect("the ordinary call retains the caller's entry premise");
+        let caller = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "safe")
+            .unwrap();
+        let plan = checked
+            .facts
+            .contract_plans
+            .for_machine(caller.symbol)
+            .unwrap();
+        assert_eq!(plan.crash.checked_calls().len(), 1);
+        assert!(plan.crash.checked_calls()[0].surviving_buckets().is_empty());
+        for invalid in [
+            source.replace("requires value >= 0", ""),
+            source.replace(body, &format!("value = -1; {body}")),
+        ] {
+            let errors = checked_program_result(&invalid)
+                .expect_err("an absent or invalidated premise cannot erase a crash route");
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("uncovered Trap crash route")),
+                "{errors:#?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn source_crash_routes_fixture_checks() {
+    checked_program_result(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/omega/pass/operators/crash_routes/main.omg"
+    )))
+    .expect("the existing crash-route source fixture checks without dropping its contracts");
+}
+
+#[test]
+fn ordinary_crash_premise_does_not_survive_an_argument_write() {
+    let source = "data Comparison {}
+        boundary machine == Comparison::equal(left: i32, right: i32) -> bool
+        crashes Trap !(right >= 0);
+        machine overwrite(value: &mut i32) -> i32 { value = -1; 0 }
+        pub machine safe(mut value: i32) -> bool
+        requires value >= 0 {
+            Comparison::equal(overwrite(&mut value), value)
+        }";
+    let errors = checked_program_result(source)
+        .expect_err("a sibling argument invalidates the entry premise before the guarded read");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("uncovered Trap crash route")),
+        "{errors:#?}"
+    );
+}
+
+#[test]
 fn widened_integer_guards_preserve_identity_and_fold_only_closed_literals() {
     use checked_trees::CrashPredicateIdentity;
     use numerics::arithmetic::ArithmeticDomain;

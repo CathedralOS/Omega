@@ -68,13 +68,13 @@ pub(super) fn named_route_is_false(
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
-    let operand_labels = super::named_call_operand_labels(program, parameters, operands);
     if flow
         .control
         .operator_invocations
         .iter()
         .any(|(_, invocation)| invocation.named_use == named_use)
     {
+        let operand_labels = super::named_call_operand_labels(program, parameters, operands);
         return crate::checks::named_operator_route_is_false(
             program,
             flow,
@@ -86,6 +86,37 @@ pub(super) fn named_route_is_false(
             expression,
         );
     }
+    statement_entry_route_is_false(
+        program,
+        flow,
+        semantic,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        parameters,
+        operands,
+        expression,
+    )
+}
+
+/// Shared entry-fact discharge for calls without operator operand captures.
+/// Ordinary machine calls use this same pristine-storage check after their
+/// selected contract's builtin meaning has been established. The containing
+/// statement remains inside the provenance window: sibling argument effects
+/// cannot make an old entry premise describe a new value.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn statement_entry_route_is_false(
+    program: &TypedTrees,
+    flow: &FlowFacts,
+    semantic: &FactPlan,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    parameters: &[StateParameter],
+    operands: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> bool {
+    let operand_labels = super::named_call_operand_labels(program, parameters, operands);
     let context_rows =
         statement_entry_context_rows(flow, machine_symbol, state_symbol, statement_index);
     if context_rows.is_empty() {
