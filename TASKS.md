@@ -4457,8 +4457,18 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   compiles on that path today. A loan local is in neither `parameters` nor
   the scalar `locals` list, so it has no operand form at all and
   `transition r == 0` omits at `state graph: terminator: conditional
-  successors: guard expression`. Give the loan local the same read of its
-  loaned place rather than inventing an operand kind. Separately, passing
+  successors: guard expression`. Establish the loan local rather than
+  rewriting its reads: rejoining at the producer was tried and does not
+  compose. Rewriting the observation's subject in
+  `values/scalar/computations/structural_fields.rs` to the loaned root, with
+  the loan's segments in front of the field path, moves `let r: &Inner =
+  &self.inner; r.v` past "computed shared argument lost its established
+  local" and into "record read carrier field is absent":
+  `scalar_graph/scalar_computations/fields.rs` reconstructs the source
+  independently with `validation::local_scalar_record_field` and walks from
+  the local's own declared type, so the checked contract there is a local
+  plus a path relative to it. The loan has to become an established local in
+  `structural_locals`, not a rewritten subject. Separately, passing
   `&mut self.raw` as a transition successor argument omits earlier still, at
   `state graph: terminator: jump successor: parameter transfer`, so a
   reference cannot yet be handed to a successor state either.
