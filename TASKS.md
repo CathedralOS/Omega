@@ -3044,8 +3044,27 @@ syntax and other terminal services are not prerequisites.
     passes `&mut self` beside a view of its own field).
     A distance bounded by a slice length (`terminates by (i, path.len)`: the
     pass canary `calls/runtime_value_call_statement_recursive_walk_exit`, std
-    `Filesystem::mkall_walk`) still gets no shared rank: `nat::state_rank`
-    wants a plain upper parameter, though `MAX - lower` never reads the bound.
+    `Filesystem::mkall_walk`) still gets no shared rank: `nat::state_rank`'s
+    `DecreaseMeasure::Distance` arm runs both endpoints through `plain`, which
+    demands an `ExpressionNode::Name` resolving to a non-self state parameter,
+    and `path.len` is a member access.
+
+    Admitting it is not a local widening, because the upper survives into the
+    checked measure. `CheckedNaturalRankMeasure::UnsignedDistance` carries
+    `upper` and `upper_position`; stage 05's `ranking.rs` re-proves the plan
+    against the graph through `upper_parameter.symbol == upper` and
+    `upper_parameter.name == bound.name`, and its emission comments that "the
+    bound stays a checked scalar lane though the ceiling distance does not read
+    it". So the rank arithmetic genuinely ignores the bound while three
+    consumers still require it to be a scalar parameter. Closing this wants a
+    measure that names the sequence rather than a scalar upper -- beside the
+    existing `ByteSequenceLength`, which a separate machine-level route already
+    produces -- carried through stage 04, stage 05 and the verifier.
+
+    The canary is not a check-level failure: it records `checked` in the corpus
+    today. The missing rank shows only in native execution, which the pass tier
+    does not reach, so a corpus run cannot witness this repair and the run-tier
+    or a native build has to.
   - `state graph: prefix initializers: short-circuit boolean` (2,
     `Store::check`), `guarded jump successors: receiver transfer` (1,
     `runtime_tuple_transition_exit`), and `conditional successors` (2).
