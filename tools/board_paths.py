@@ -161,6 +161,25 @@ def resolves_ignoring_stage_numbers(candidate, files):
     return None
 
 
+# Test targets the compiler crate used to carry. TASKS.md's preamble records
+# that they were deleted and that "Where an item's acceptance names one of
+# those tests, the acceptance is the named fixture's corpus-gate outcome,
+# plus its `--native` outcome where the item needs a native build or run."
+DELETED_TEST_TARGET_ROOTS = ("compiler/tests/",)
+
+
+def names_a_deleted_test_target(candidate):
+    """Whether a dead citation names one of the deleted `compiler --test`
+    targets rather than a file that moved or a claim that rotted.
+
+    It is worth separating because the repair is already decided: rewrite the
+    item's acceptance to the fixture's corpus-gate outcome. Lumping these in
+    with anchors whose claim a reader must reconstruct hides thirteen entries
+    that need no such judgement.
+    """
+    return candidate.lstrip("./").startswith(DELETED_TEST_TARGET_ROOTS)
+
+
 def probable_successor(candidate, files):
     """The one file a dead citation most likely became, or `None`.
 
@@ -313,6 +332,13 @@ def main():
             print(f"  {citation}")
             for actual in renamed.values():
                 print(f"      stale prefix, now: {actual}")
+        retired = [c for c, _ in dead if names_a_deleted_test_target(c)]
+        if retired:
+            print(
+                f"  ({len(retired)} of these name deleted `compiler --test` "
+                "targets; the preamble's rule is to rewrite the item's "
+                "acceptance to the fixture's corpus-gate outcome)"
+            )
         for citation, missing in dead:
             print(f"  {citation}")
             if missing != [citation]:
