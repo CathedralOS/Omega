@@ -653,3 +653,25 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   subject/target pairing must not erase the still-unmeasured host leg or
   disguise an unrelated compile/review failure. Keep records descriptive of
   the measurement; no per-cell task proliferation or session history.
+
+- **CHECK-HOT-PATH-INDEXES.** (new-scope) A std-importing
+  `omega --check` regression measured over 900 s on the Windows host (prior
+  ~100 s), profiled to three linear-scan hot spots: `psi/foundation/symbols`
+  module/intern resolution (`the_modules`/`intern_index` linear string scans),
+  `psi/semantics/validation` `value_custody/expression_types/walk.rs`
+  re-visiting already-walked expressions (quadratic on deep chains), and
+  `04_typed-trees-to-checked-trees` `flow/place/resolution.rs` parent-edge
+  lookup. Replace each with identity/dense-index resolution or a dedupe set,
+  preserving every check's proof obligation — no blanket dedup that weakens
+  validation. The three named slices have landed on main
+  (`62670ff02`, `b650cf2c75`, `e58c67f3d9`) but the heavy program is still
+  red: `samples/cli/algorithms/insertion_sort` `--check --timings` measures
+  ~887 s on `9ec12341`, and the dominant cost is no longer a check-stage
+  scan — `package omega_language_std` is compiled once per review pass
+  (~429 s under discovery + ~366 s under bound ≈ 795 s of the 887 s), while
+  the whole Stage 05 check is 36 s. The frontier is the review pipeline's
+  repeated std-package compilation (cache or unify it), plus whatever makes
+  one std package compile cost ~400 s. Acceptance: the same program's
+  `--check` wall time returns toward the prior ~100 s, each named hotspot
+  drops out of the profile, and affected crate tests plus the checking
+  surface stay green.
