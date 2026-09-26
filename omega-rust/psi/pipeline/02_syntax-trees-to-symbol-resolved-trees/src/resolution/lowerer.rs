@@ -79,7 +79,7 @@ pub(crate) struct Lowerer {
     /// their canonical range inputs. Only the complete route clears this.
     pub(crate) structural_type_equations_pending: bool,
     pub(crate) constant_selection:
-        Option<crate::preparation::generic_data::constant_selection::ConstantSelection<'static>>,
+        Option<crate::preparation::declaration_selection::ConstantSelection<'static>>,
     pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
     pub(crate) pending_static_module_calls: Vec<(
         symbol_resolved_trees::expression::ExpressionHandle,
@@ -405,7 +405,7 @@ impl Lowerer {
     pub(crate) fn take_constant_selection(
         &mut self,
     ) -> Result<
-        crate::preparation::generic_data::constant_selection::ConstantSelection<'static>,
+        crate::preparation::declaration_selection::ConstantSelection<'static>,
         Vec<Diagnostic>,
     > {
         self.constant_selection.take().ok_or_else(|| {

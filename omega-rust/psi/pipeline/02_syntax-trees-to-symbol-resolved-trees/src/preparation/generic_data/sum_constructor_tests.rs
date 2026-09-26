@@ -1,4 +1,4 @@
-use super::constant_selection;
+use crate::preparation::declaration_selection;
 use crate::pre_resolution::GenericDataRequest;
 use crate::pre_resolution::normalize_generic_data;
 use crate::preparation::generic_data::ClosedArgumentIdentity;
@@ -76,7 +76,7 @@ fn imported_unnamespaced_sums_close_each_constructor_from_its_destination() {
     })
     .unwrap();
     let selection =
-        constant_selection::ConstantSelection::new(&syntax, Some(sources), bindings).unwrap();
+        declaration_selection::ConstantSelection::new(&syntax, Some(sources), bindings).unwrap();
     let mut constructors = 0;
     let concrete = concrete_machine_expression_handles(&syntax);
     for (handle, expression) in syntax.expressions.iter_expressions() {

@@ -1,4 +1,11 @@
-//! Exact constant and nominal-carrier selection before closed argument names are erased.
+//! Shared declaration selection before complete symbol assignment.
+//!
+//! `ConstantSelection::new` collects declaration headers, builds a partial
+//! namespace with imports and builtin names, and exposes exact lookup for
+//! constants, nominal carriers, domains and traits. `with_retained_base` extends
+//! the same namespace for generated source. Preparation, initializer handling
+//! and resolution share this owner; generic-data synthesis is one consumer.
+//! Transient symbols remain private and do not escape into normalized syntax.
 
 use std::sync::Arc;
 
@@ -967,7 +974,7 @@ pub(crate) fn has_deferred_const_argument(
 #[cfg(test)]
 mod tests {
     use super::{Identifier, SourceScopedTopLevelBinding, SyntaxTrees};
-    use crate::preparation::generic_data::constant_selection::ConstantSelection;
+    use crate::preparation::declaration_selection::ConstantSelection;
     use source::SourceId;
     use source_files_to_tokens::Lexer;
     use syntax_trees::types::TypeReferenceNode;

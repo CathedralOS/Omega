@@ -262,7 +262,7 @@ pub(crate) fn evaluate_const_membership_fact(
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
     parameter_type_names: &HashMap<String, String>,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<bool>, String> {
     // An indexed application names one instance of a family; the family's
@@ -376,7 +376,7 @@ fn evaluate_named_const_domain(
     const_values: &HashMap<String, i128>,
     visiting: &mut Vec<(source::SourceSpan, String)>,
     reference: source::SourceSpan,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<DomainFactProof>, String> {
     let domain = match selection {
@@ -530,7 +530,7 @@ fn evaluate_selected_domain_facts(
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, ConstScalarValue>,
     visiting: &mut Vec<(source::SourceSpan, String)>,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<DomainFactProof>, String> {
     if visiting
@@ -783,7 +783,7 @@ fn evaluate_indexed_const_domain(
     argument_parameters: &[syntax_trees::item::TypeParameter],
     visiting: &mut Vec<(source::SourceSpan, String)>,
     reference: source::SourceSpan,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<DomainFactProof>, String> {
     let domain = match selection {
@@ -933,7 +933,7 @@ fn evaluate_domain_index_argument(
     const_values: &HashMap<String, i128>,
     argument_values: &HashMap<String, ConstScalarValue>,
     argument_parameters: &[syntax_trees::item::TypeParameter],
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstScalarValue>, String> {
     let integer_type = crate::preparation::generic_data::const_integer_type(syntax, parameter_type);
@@ -1131,7 +1131,7 @@ pub(crate) fn prove_declared_const_domain_constraints(
     definition: &ConstDefinition,
     constraints: &[TypeConstraintNode],
     value: &CanonicalConstValue,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), String> {
     let record_fields: Vec<(String, ConstScalarValue)>;
     let array_elements: Vec<Option<ConstScalarValue>>;
@@ -1291,7 +1291,7 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
     syntax: &SyntaxTrees,
     constraints: &[TypeConstraintNode],
     value: &super::values::CanonicalConstNode,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), String> {
     use super::values::CanonicalConstNode;
     if !constraints
@@ -1505,7 +1505,7 @@ fn const_type_mentions_domain_leaf(
 pub(crate) fn prove_const_literal_leaf_domain_constraints(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), String> {
     if crate::constant::requires_const_initializer_evaluation(syntax, definition) {
         return Ok(());
@@ -1518,7 +1518,7 @@ pub(crate) fn prove_const_literal_leaf_domain_constraints(
         definition.type_reference,
         definition.value,
         selection,
-        &crate::preparation::generic_data::constant_selection::GenericApplicationSubstitution::new(
+        &crate::preparation::declaration_selection::GenericApplicationSubstitution::new(
         ),
     )
     .map(|_| ())
@@ -1542,7 +1542,7 @@ pub(crate) fn evaluate_const_domain_expression(
     self_elements: Option<&[Option<ConstScalarValue>]>,
     carrier: &str,
     visiting: &mut Vec<(source::SourceSpan, String)>,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
     if let Some(value) = evaluate_anonymous_numeric_expression(syntax, expression)? {

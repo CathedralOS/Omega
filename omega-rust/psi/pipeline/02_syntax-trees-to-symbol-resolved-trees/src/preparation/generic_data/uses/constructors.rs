@@ -9,7 +9,7 @@ use crate::preparation::generic_data::uses::{ConstructorFrontier, closed_sum_pat
 use crate::preparation::generic_data::Instantiation;
 use crate::preparation::generic_data::closed_argument_identity;
 
-use crate::preparation::generic_data::constant_selection;
+use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::selected_data_item;
 
 /// Copied type references retain their original application. Reuse that exact
@@ -17,7 +17,7 @@ use crate::preparation::generic_data::selected_data_item;
 pub(in crate::preparation::generic_data) fn expected_instance<'a>(
     syntax: &SyntaxTrees,
     instances: &'a [Instantiation],
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     expected: TypeReferenceHandle,
 ) -> Option<&'a Instantiation> {
     let expected = match syntax.type_references.type_reference(expected) {
@@ -38,7 +38,7 @@ pub(in crate::preparation::generic_data) fn expected_instance<'a>(
 
 pub(in crate::preparation::generic_data) fn selected_constructor(
     syntax: &SyntaxTrees,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     name: &Identifier,
 ) -> Option<(syntax_trees::item::ItemHandle, Option<Identifier>)> {
     if let Some(selection) = selection {
@@ -70,7 +70,7 @@ pub(in crate::preparation::generic_data) fn selected_constructor(
 
 pub(in crate::preparation::generic_data) fn selected_case_value(
     syntax: &SyntaxTrees,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     name: &Identifier,
 ) -> Option<(syntax_trees::item::ItemHandle, Option<Identifier>)> {
     if let Some(selection) = selection {
@@ -124,7 +124,7 @@ pub(in crate::preparation::generic_data) fn constructor_carrier_span(
 /// authored template has been selected. The roster remains the identity owner.
 pub(in crate::preparation::generic_data) fn closed_constructor_carrier(
     syntax: &SyntaxTrees,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     instance: &Instantiation,
     constructor: &Identifier,
     has_case: bool,
@@ -152,7 +152,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
     expression: ExpressionHandle,
     expected_type: TypeReferenceHandle,
     instances: &[Instantiation],
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     frontier: &ConstructorFrontier<'_>,
 ) {
     // The destination constrains each result arm, not the dispatch subject or

@@ -2,7 +2,7 @@
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ClosedConstraintIdentity;
 use crate::preparation::generic_data::GenericData;
-use crate::preparation::generic_data::constant_selection;
+use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::selected_data_item;
 use crate::preparation::type_equations::{EquationTemplate, complete_equation_arguments};
 use arena::HandleSpan;
@@ -31,7 +31,7 @@ pub(super) fn complete_argument_tuple(
     base_name: &Identifier,
     supplied: &[TypeReferenceHandle],
     const_values: &HashMap<String, i128>,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
     let syntax_trees::item::Item::Data(definition) = syntax.root_item(base_info.declaration) else {
@@ -334,7 +334,7 @@ pub(crate) fn constraint_slug(
 /// binders remain on the ordinary generic path; no unresolved name is an atom.
 pub(crate) fn closed_argument_identity(
     syntax: &SyntaxTrees,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     handle: TypeReferenceHandle,
     is_constant: bool,
 ) -> Option<ClosedArgumentIdentity> {
@@ -647,7 +647,7 @@ pub(crate) fn domain_index_telescope(
 /// identity either.
 fn indexed_domain_identity(
     syntax: &SyntaxTrees,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     authored: &str,
     carrier: &ClosedArgumentIdentity,
     arguments: HandleSpan<TypeReferenceHandle>,
@@ -779,7 +779,7 @@ pub(crate) fn domain_application_head(
 /// from a concrete owner or an open template member.
 pub(crate) fn normalize_domain_head_positions(
     syntax: &mut SyntaxTrees,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     positions: &[TypeReferenceHandle],
 ) {
     for &position in positions {
@@ -789,7 +789,7 @@ pub(crate) fn normalize_domain_head_positions(
 
 fn normalize_domain_head_node(
     syntax: &mut SyntaxTrees,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     handle: TypeReferenceHandle,
 ) {
     match syntax.type_references.type_reference(handle).clone() {

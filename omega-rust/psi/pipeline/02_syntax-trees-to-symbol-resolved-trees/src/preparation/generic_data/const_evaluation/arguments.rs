@@ -35,7 +35,7 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     type_reference: TypeReferenceHandle,
     rewrites: &mut Vec<PendingRewrite>,
     instantiations: &mut Vec<Instantiation>,

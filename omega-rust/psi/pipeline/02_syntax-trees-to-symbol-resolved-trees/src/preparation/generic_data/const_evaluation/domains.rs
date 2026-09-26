@@ -92,7 +92,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
     syntax: &mut SyntaxTrees,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
     let mut families = Vec::<ClosedDomainFamily>::new();
@@ -311,7 +311,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
     arguments: Vec<TypeReferenceHandle>,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     concrete_data_positions: &[TypeReferenceHandle],
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {

@@ -18,7 +18,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{DataMember, Item, TypeParameterKind};
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
-use super::constant_selection::ConstantSelection;
+use crate::preparation::declaration_selection::ConstantSelection;
 
 pub(in crate::preparation) fn normalize(
     syntax: &mut SyntaxTrees,

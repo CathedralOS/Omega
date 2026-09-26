@@ -16,7 +16,7 @@
 mod continuations;
 pub(crate) mod lowerer;
 
-use crate::preparation::generic_data::constant_selection::ConstantSelection;
+use crate::preparation::declaration_selection::ConstantSelection;
 use crate::{constant, lowering, preparation, selection};
 pub use continuations::{
     ConstInitializerSelection, RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,

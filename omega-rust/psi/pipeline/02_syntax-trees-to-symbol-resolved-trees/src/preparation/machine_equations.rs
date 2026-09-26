@@ -8,7 +8,8 @@
 //! obligations and reject rather than entering later inference unchecked.
 
 use super::{
-    generic_data::{constant_selection::ConstantSelection, module_constants},
+    declaration_selection::ConstantSelection,
+    generic_data::module_constants,
     type_equations::{self, EquationTemplate},
 };
 use arena::Handle;

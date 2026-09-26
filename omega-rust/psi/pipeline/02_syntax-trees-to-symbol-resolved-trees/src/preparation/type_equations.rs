@@ -44,7 +44,7 @@
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::closed_name_identity;
-use crate::preparation::generic_data::constant_selection;
+use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
@@ -130,7 +130,7 @@ pub(crate) fn template_type_equation_offsets(
 pub(crate) fn validate_materialized_type_equations(
     syntax: &SyntaxTrees,
     reference: TypeReferenceHandle,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Result<(), Diagnostic> {
     let TypeReferenceNode::Generic { base_name, .. } =
         syntax.type_references.type_reference(reference)
@@ -592,7 +592,7 @@ pub(crate) fn complete_equation_arguments(
     base_name: &Identifier,
     supplied: &[TypeReferenceHandle],
     const_values: &HashMap<String, i128>,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
     let bindings = {
@@ -666,7 +666,7 @@ struct Solver<'a, 's> {
     base_info: EquationTemplate<'a>,
     base_name: &'a Identifier,
     const_values: &'a HashMap<String, i128>,
-    selection: Option<&'a constant_selection::ConstantSelection<'s>>,
+    selection: Option<&'a declaration_selection::ConstantSelection<'s>>,
     supplied_count: usize,
     bindings: Vec<Option<Binding>>,
     settled: Vec<bool>,
@@ -679,7 +679,7 @@ impl<'a, 's> Solver<'a, 's> {
         base_name: &'a Identifier,
         supplied: &[TypeReferenceHandle],
         const_values: &'a HashMap<String, i128>,
-        selection: Option<&'a constant_selection::ConstantSelection<'s>>,
+        selection: Option<&'a declaration_selection::ConstantSelection<'s>>,
     ) -> Self {
         let mut bindings = vec![None; base_info.parameter_names.len()];
         for (index, argument) in supplied.iter().enumerate() {

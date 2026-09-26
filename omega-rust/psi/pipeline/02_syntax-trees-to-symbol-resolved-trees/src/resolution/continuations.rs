@@ -20,7 +20,7 @@ use syntax_trees::SyntaxTrees;
 pub struct ConstInitializerSelection {
     pub(crate) trees: SymbolResolvedTrees,
     pub(crate) selection:
-        crate::preparation::generic_data::constant_selection::ConstantSelection<'static>,
+        crate::preparation::declaration_selection::ConstantSelection<'static>,
 }
 
 impl ConstInitializerSelection {

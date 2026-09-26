@@ -107,7 +107,7 @@ pub(super) fn validate_nominal_destinations(
 pub(crate) fn public_declaration_value_encoding(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<String, String> {
     crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
         syntax, definition, selection,
@@ -189,7 +189,7 @@ pub(crate) fn validate_scalar_initializer(
 pub(crate) fn validate_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), Diagnostic> {
     // An unused private declaration never acquires a use-site proof obligation.
     // Its constrained destination is still mandatory; failure to encode a

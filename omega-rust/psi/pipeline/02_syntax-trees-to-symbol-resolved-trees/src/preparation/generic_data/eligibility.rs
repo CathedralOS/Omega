@@ -1,7 +1,7 @@
 //! Eligible data shapes, recursion and substitutable types.
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::GenericDataShape;
-use crate::preparation::generic_data::constant_selection;
+use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::selected_generic_data;
 use crate::preparation::generic_data::type_reference_mentions_parameter;
 use std::collections::HashMap;
@@ -20,7 +20,7 @@ use syntax_trees::types::TypeReferenceNode;
 pub(in crate::preparation::generic_data) fn base_is_fully_monomorphizable(
     syntax: &SyntaxTrees,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     base_info: &GenericData,
 ) -> bool {
     // Recursive inline data is proof-only. Keep its generic identity intact so
@@ -86,13 +86,13 @@ pub(in crate::preparation::generic_data) fn base_is_fully_monomorphizable(
 pub(in crate::preparation::generic_data) fn generic_data_is_recursive(
     syntax: &SyntaxTrees,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     base: &GenericData,
 ) -> bool {
     fn reaches(
         syntax: &SyntaxTrees,
         templates: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
-        selection: Option<&constant_selection::ConstantSelection>,
+        selection: Option<&declaration_selection::ConstantSelection>,
         current: &GenericData,
         goal: syntax_trees::item::ItemHandle,
         visited: &mut HashSet<syntax_trees::item::ItemHandle>,
@@ -208,7 +208,7 @@ pub(in crate::preparation::generic_data) fn generic_data_shape(
 pub(in crate::preparation::generic_data) fn type_reference_is_substitutable(
     syntax: &SyntaxTrees,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     base_info: &GenericData,
     field: &syntax_trees::item::DataField,
     parameters: &HashMap<String, TypeReferenceHandle>,
@@ -226,7 +226,7 @@ pub(in crate::preparation::generic_data) fn type_reference_is_substitutable(
 pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutable(
     syntax: &SyntaxTrees,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
-    selection: Option<&constant_selection::ConstantSelection>,
+    selection: Option<&declaration_selection::ConstantSelection>,
     base_info: &GenericData,
     type_reference: TypeReferenceHandle,
     parameters: &HashMap<String, TypeReferenceHandle>,
