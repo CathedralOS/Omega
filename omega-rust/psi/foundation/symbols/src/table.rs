@@ -33,6 +33,11 @@ pub struct SymbolTable {
     /// because three lookup paths scanned the whole binding list per query.
     /// Cleared wherever bindings are appended after `finish`.
     binding_source_index: BindingSourceIndexCache,
+    /// `display_path("::")` snapshot for the top-level and module roster,
+    /// because module-qualified lookups walked every candidate's parent
+    /// chain -- allocating a `String` per candidate per reference. Cleared
+    /// alongside the other roster indexes.
+    module_path_index: ModulePathIndexCache,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -153,6 +158,38 @@ impl BindingSourceIndexCache {
     }
 }
 
+#[derive(Clone, Default)]
+struct ModulePathIndex {
+    paths: std::collections::HashMap<SymbolHandle, Arc<str>>,
+}
+
+/// `display_path("::")` per root child and module symbol, snapshotted on the
+/// first module-qualified or imported-path lookup. Handles minted after the
+/// snapshot miss the map and fall back to a walk. Every roster mutation
+/// clears it alongside `root_names`; equality ignores it.
+#[derive(Clone, Default)]
+struct ModulePathIndexCache(std::sync::OnceLock<ModulePathIndex>);
+
+impl ModulePathIndexCache {
+    fn clear(&mut self) {
+        self.0.take();
+    }
+}
+
+impl PartialEq for ModulePathIndexCache {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for ModulePathIndexCache {}
+
+impl std::fmt::Debug for ModulePathIndexCache {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ModulePathIndexCache")
+    }
+}
+
 impl PartialEq for BindingSourceIndexCache {
     fn eq(&self, _: &Self) -> bool {
         true
@@ -264,6 +301,7 @@ impl SymbolTableBuilder {
             source_module_index: Vec::new(),
             root_names: RootNameIndexCache::default(),
             binding_source_index: BindingSourceIndexCache::default(),
+            module_path_index: ModulePathIndexCache::default(),
         }
     }
 
@@ -327,6 +365,7 @@ impl SymbolTable {
         self.source_scoped_top_level_bindings
             .extend(additional_source_scoped_top_level_bindings);
         self.binding_source_index.clear();
+        self.module_path_index.clear();
         SymbolTableExtension { table: self }
     }
 
@@ -346,6 +385,7 @@ impl SymbolTable {
             "compiler-generated symbols require one existing derivation origin"
         );
         self.root_names.clear();
+        self.module_path_index.clear();
         let name = self
             .names
             .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
@@ -367,6 +407,7 @@ impl SymbolTable {
         children: impl IntoIterator<Item = (SymbolKind, &'name str)>,
     ) -> HandleSpan<Symbol> {
         self.root_names.clear();
+        self.module_path_index.clear();
         let names = &mut self.names;
         self.symbols.insert_generated_children(
             parent,
@@ -1140,6 +1181,29 @@ impl SymbolTable {
             .and_then(BuiltinTypeAtom::from_ordinal)
     }
 
+    /// `display_path` for a roster member through the per-table snapshot:
+    /// zero allocation on a hit, and handles minted after the snapshot
+    /// (generated roots, late module registrations, extension children)
+    /// miss the map and fall back to the parent walk.
+    pub(super) fn indexed_display_path(&self, symbol: SymbolHandle) -> std::borrow::Cow<'_, str> {
+        let index = self.module_path_index.0.get_or_init(|| {
+            let mut paths = std::collections::HashMap::new();
+            for candidate in self
+                .child_handles(self.root)
+                .into_iter()
+                .flatten()
+                .chain(self.module_symbols.iter().map(|(_, handle)| *handle))
+            {
+                paths.insert(candidate, Arc::from(self.display_path(candidate, "::")));
+            }
+            ModulePathIndex { paths }
+        });
+        match index.paths.get(&symbol) {
+            Some(path) => std::borrow::Cow::Borrowed(path.as_ref()),
+            None => std::borrow::Cow::Owned(self.display_path(symbol, "::")),
+        }
+    }
+
     pub fn display_path(&self, symbol: SymbolHandle, separator: &str) -> String {
         if !symbol.is_valid() {
             return String::new();
@@ -1331,6 +1395,7 @@ impl SymbolTableExtension {
 
     pub fn finish(mut self) -> SymbolTable {
         self.table.root_names.clear();
+        self.table.module_path_index.clear();
         self.table
     }
 }
