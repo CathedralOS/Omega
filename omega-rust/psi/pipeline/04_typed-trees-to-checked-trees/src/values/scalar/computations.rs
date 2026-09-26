@@ -219,6 +219,41 @@ pub(crate) fn build_checked_value_computation_plans(
                             root,
                         });
                 }
+                // An uninitialized `let mut` local of a zero-constructible
+                // type mints its establishment here: the whole declared
+                // shape begins zero and later element or field stores write
+                // it. The root keys on the invalid initializer handle, which
+                // the local plan arm matches by equality.
+                if let StatementNode::LocalData(local) = statement
+                    && local.is_mutable
+                    && !program
+                        .expression_table
+                        .expression_is_valid(local.initial_value)
+                    && matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(local.type_reference),
+                        typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                    )
+                    && validation::zeroed_structural_parts(program, local.type_reference)
+                {
+                    let root = structural_values.nodes.append(
+                        checked_trees::CheckedStructuralValue {
+                            expression: local.initial_value,
+                            kind: checked_trees::CheckedStructuralValueKind::ZeroedStructural {},
+                        },
+                    );
+                    structural_values
+                        .roots
+                        .append(checked_trees::CheckedStructuralValueRoot {
+                            machine: machine.symbol,
+                            state: state.symbol,
+                            statement_ordinal,
+                            expression: local.initial_value,
+                            type_reference: local.type_reference,
+                            root,
+                        });
+                }
                 if let Some((expression, expected)) = construction_destination
                     && let Some(elements) = validation::scalar_array_elements(
                         program,

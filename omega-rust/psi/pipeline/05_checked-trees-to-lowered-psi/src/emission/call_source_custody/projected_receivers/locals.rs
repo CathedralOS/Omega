@@ -65,8 +65,29 @@ pub(super) fn declaration<'a>(
             _ => None,
         });
     let (ordinal, local) = declarations.next()?;
+    // An uninitialized `let mut` whose statement carries a checked
+    // `ZeroedStructural` establishment is the same owned home an
+    // initialized local is: its storage exists and begins zero.
+    let zeroed_establishment = !local.initial_value.is_valid()
+        && checked
+            .facts
+            .values
+            .structural_values
+            .root_at(state.symbol, ordinal as u32)
+            .is_some_and(|root| {
+                matches!(
+                    checked
+                        .facts
+                        .values
+                        .structural_values
+                        .nodes
+                        .get(root.root)
+                        .kind,
+                    checked_trees::CheckedStructuralValueKind::ZeroedStructural {}
+                )
+            });
     (declarations.next().is_none()
-        && local.initial_value.is_valid()
+        && (local.initial_value.is_valid() || zeroed_establishment)
         && validation::has_plain_owned_contents_with_numeric_constraints(
             &checked.typed,
             local.type_reference,

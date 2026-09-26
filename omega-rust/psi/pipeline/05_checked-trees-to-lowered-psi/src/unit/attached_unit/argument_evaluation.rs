@@ -255,9 +255,10 @@ impl Evaluation {
                 None => super::parameters::structural_carrier_type(checked, local.type_reference)?,
             };
             if !local.symbol.is_valid()
-                || !checked
+                || !(checked
                     .expression_table
                     .expression_is_valid(local.initial_value)
+                    || local.is_mutable)
                 || checked.normalized_type_identity(carrier).as_str() != result.type_identity
                 || checked.type_multiplicity(local.type_reference) != result.multiplicity
                 || self

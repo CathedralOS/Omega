@@ -68,10 +68,10 @@ use crate::unit::{
     BoundaryMachineId, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
     ClaimId, LoweringError, Operation, OperationKind, OperationResult, PermissionClaimIdentity,
     PlaceId, ScalarType, SemanticDomainId, ServiceId, ServiceReachId, ServiceReachSummary,
-    StructuralDomainId, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration,
-    allocate_dense, claim_id, lookup_service_id, lookup_type_id, place_id, terminal_scalar_type,
-    unsupported,
+    StructuralAccess, StructuralDomainId, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
+    ValueDeclaration, allocate_dense, claim_id, lookup_service_id, lookup_type_id, place_id,
+    terminal_scalar_type, unsupported,
 };
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
 use std::borrow::Cow;
@@ -566,14 +566,60 @@ impl OperationFrame<'_, '_> {
                 )?
             }
             checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } => {
-                if !path.is_empty() {
-                    return unsupported("primitive local store has a projected destination");
-                }
-                let local = primitive_locals::find(self.primitive_locals, *symbol)?;
-                crate::emission::primitive_store::Destination {
-                    place: local.declaration.id,
-                    path: Vec::new(),
-                    scalar_type: local.scalar_type,
+                if path.is_empty() {
+                    let local = primitive_locals::find(self.primitive_locals, *symbol)?;
+                    crate::emission::primitive_store::Destination {
+                        place: local.declaration.id,
+                        path: Vec::new(),
+                        scalar_type: local.scalar_type,
+                    }
+                } else {
+                    // A projected store writes through an established
+                    // structural local's owned place: the declared carrier
+                    // supplies the walk, the binding table supplies storage.
+                    let source = self
+                        .evaluation
+                        .structural_locals
+                        .iter()
+                        .find(|(local_symbol, _)| local_symbol == symbol)
+                        .map(|(_, source)| source.clone())
+                        .ok_or(LoweringError::Unsupported(
+                            "primitive store lost its structural local destination",
+                        ))?;
+                    if source.access != StructuralAccess::Owned || !source.path.is_empty() {
+                        return unsupported("primitive store local is not an owned whole place");
+                    }
+                    let (_, authored) =
+                        crate::expression_preparation::source_custody::authored_state(
+                            self.checked,
+                            self.state,
+                        )?;
+                    let local = crate::emission::structural_scalar_store_source::local_destination(
+                        self.checked,
+                        authored,
+                        statement_index,
+                        *symbol,
+                    )?;
+                    let identity = self.checked.normalized_type_identity(local.type_reference);
+                    let declaration = self
+                        .structural_types
+                        .declarations()
+                        .iter()
+                        .find(|declaration| declaration.identity == identity.as_str())
+                        .ok_or(LoweringError::Unsupported(
+                            "primitive store local lost its declared carrier",
+                        ))?;
+                    let (steps, scalar_type) =
+                        crate::emission::primitive_store::lower_destination_path(
+                            declaration.id,
+                            path,
+                            self.structural_types.declarations(),
+                        )?;
+                    crate::emission::primitive_store::Destination {
+                        place: source.place,
+                        path: steps,
+                        scalar_type,
+                    }
                 }
             }
         };
