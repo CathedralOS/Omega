@@ -1891,4 +1891,3 @@ fn consuming_receiver_write_only_subloan_needs_a_write_only_parameter() {
         "an owned place must not widen `&write` onto a readable parameter: {rendered}"
     );
 }
-

@@ -61,4 +61,3 @@ fn an_additional_same_pair_call_cannot_hide_behind_a_strict_tail_call() {
     );
     check(&source, false);
 }
-

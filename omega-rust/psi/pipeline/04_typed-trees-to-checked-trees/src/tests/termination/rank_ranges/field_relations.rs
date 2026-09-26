@@ -317,4 +317,3 @@ fn field_relation_rejects_alias_and_operand_writes_to_every_proof_input() {
         reject_range(&format!("{helper} {field_operand}"));
     }
 }
-

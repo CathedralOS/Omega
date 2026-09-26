@@ -51,4 +51,3 @@ fn comparison_polarity_and_strictness_do_not_invent_a_nonzero_operand() {
         );
     }
 }
-

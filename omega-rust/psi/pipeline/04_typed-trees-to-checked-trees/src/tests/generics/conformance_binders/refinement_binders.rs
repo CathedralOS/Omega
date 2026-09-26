@@ -367,4 +367,3 @@ fn a_targeted_clause_naming_overloads_is_ambiguous() {
         "{diagnostics:#?}"
     );
 }
-

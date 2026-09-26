@@ -706,4 +706,3 @@ fn generic_member_borrows_use_the_receivers_exact_type_arguments() {
         assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
     }
 }
-

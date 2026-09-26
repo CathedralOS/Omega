@@ -36,4 +36,3 @@ fn unchanged_aggregate_local_still_supplies_its_field() {
     )
     .unwrap_or_else(|diagnostics| panic!("unchanged aggregate field: {diagnostics:#?}"));
 }
-

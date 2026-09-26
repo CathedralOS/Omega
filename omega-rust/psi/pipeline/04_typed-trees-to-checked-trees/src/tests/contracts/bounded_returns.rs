@@ -264,4 +264,3 @@ fn unresolved_no_argument_call_preserves_an_unpassed_parameter() {
     proof::checker::check_proof_plan(&plan)
         .expect("the conservative receiver frame cannot modify the unpassed parameter");
 }
-

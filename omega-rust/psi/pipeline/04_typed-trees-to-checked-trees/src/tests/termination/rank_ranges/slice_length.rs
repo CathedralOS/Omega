@@ -152,4 +152,3 @@ fn mutable_slice_parameter_proves_only_while_the_prefix_preserves_its_path() {
         ));
     }
 }
-

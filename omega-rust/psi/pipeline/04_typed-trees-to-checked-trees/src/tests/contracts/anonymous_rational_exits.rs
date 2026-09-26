@@ -330,4 +330,3 @@ fn explicitly_typed_float_operands_cannot_implicitly_land_as_integers() {
         }
     }
 }
-
